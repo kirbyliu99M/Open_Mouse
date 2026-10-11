@@ -122,21 +122,23 @@ test.describe("/learn information page", () => {
       "Flare",
     ]);
     // The marks are real text, in the page for a screen reader too.
-    for (const mark of [
-      "Centered peak",
-      "Rear peak",
-      "Schematic: exaggerated flare",
-    ]) {
+    for (const mark of ["Centered peak", "Rear peak"]) {
       await expect(
         page.locator(".learn-shape-mark", { hasText: mark }),
       ).toHaveCount(1);
     }
+    // The flare's sentence sits under the drawing, in the tile's flow.
+    await expect(
+      page.locator(".learn-shape-note", {
+        hasText: "Schematic: exaggerated flare",
+      }),
+    ).toBeVisible();
     const sizes = await page
       .locator(".learn-shape-mark")
       .evaluateAll((marks) =>
         marks.map((m) => parseFloat(getComputedStyle(m).fontSize)),
       );
-    expect(sizes).toHaveLength(7);
+    expect(sizes).toHaveLength(6);
     for (const size of sizes) expect(size).toBeGreaterThanOrEqual(12);
   });
 
@@ -265,6 +267,50 @@ test.describe("/learn information page", () => {
     expect(side!.x).toBeGreaterThan(wide!.x + wide!.width - 1);
   });
 
+  test("the grip sentences show under each name at every width, and are read once", async ({
+    page,
+  }) => {
+    for (const width of [1440, 390, 320]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("/learn");
+      const texts = page.locator(".learn-grips .learn-grip-text");
+      await expect(texts).toHaveCount(3);
+      for (const t of await texts.all()) await expect(t).toBeVisible();
+      await expect(texts.nth(2)).toHaveText(
+        "Only your fingertips control the mouse.",
+      );
+      // The sr-only list is never shown.
+      const box = await page.locator(".learn-grips-text").boundingBox();
+      expect(box === null || (box.width <= 1 && box.height <= 1)).toBe(true);
+    }
+  });
+
+  test("with the text enlarged to 200 %: the flare note never meets its name, no page scrolls sideways", async ({
+    page,
+  }) => {
+    for (const width of [1440, 390, 320]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("/learn");
+      await page.addStyleTag({ content: "html{font-size:200% !important}" });
+      const tile = await page.locator(".learn-shape-tile").nth(3).boundingBox();
+      const note = await page.locator(".learn-shape-note").boundingBox();
+      const name = await page
+        .locator(".learn-shape figcaption")
+        .nth(3)
+        .boundingBox();
+      expect(note!.y + note!.height, `${width} px`).toBeLessThanOrEqual(
+        tile!.y + tile!.height + 0.5,
+      );
+      expect(tile!.y + tile!.height, `${width} px`).toBeLessThanOrEqual(
+        name!.y + 0.5,
+      );
+      const over = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+      expect(over, `${width} px`).toBeLessThanOrEqual(0);
+    }
+  });
+
   test("the grip names are read once: the visible captions are hidden from a screen reader", async ({
     page,
   }) => {
@@ -306,9 +352,9 @@ test.describe("/learn information page", () => {
     const page = await context.newPage();
     await page.goto("/learn");
     await expect(
-      page.getByRole("heading", { level: 1, name: "怎麼挑一支合手的滑鼠" }),
+      page.getByRole("heading", { level: 1, name: "如何挑選最合手的滑鼠？" }),
     ).toBeVisible();
-    await expect(page.getByText("條越長影響越大")).toBeVisible();
+    await expect(page.getByText("越長影響越大")).toBeVisible();
     await context.close();
   });
 });

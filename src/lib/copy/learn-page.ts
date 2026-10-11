@@ -103,8 +103,8 @@ export interface LearnPageCopy {
 }
 
 export const zhTW: LearnPageCopy = {
-  title: "怎麼挑一支合手的滑鼠",
-  lead: "挑滑鼠時最重要的幾件事，照我們比對的順序說明。",
+  title: "如何挑選最合手的滑鼠？",
+  lead: "挑滑鼠時最重要的事，依序說明",
   hand: {
     title: "認識你的手",
     body: "手長與掌寬決定哪些尺寸用起來自然。用一張空白 A4 掃描你的手，就能取得兩個數值。",
@@ -119,7 +119,7 @@ export const zhTW: LearnPageCopy = {
     },
     fingertip: {
       name: resultsZh.handGrip.fingertip,
-      text: "只有指尖碰到滑鼠。",
+      text: "僅運用指尖操控滑鼠",
     },
   },
   thickness: {
@@ -139,7 +139,7 @@ export const zhTW: LearnPageCopy = {
     title: "看形狀",
     symmetrical: resultsZh.filter.shape.symmetrical,
     ergonomic: resultsZh.filter.shape.ergonomic,
-    hump: "拱背",
+    hump: "駝峰",
     flare: "前端外張",
     marks: {
       thumbRest: "拇指托\n外凸",
@@ -150,20 +150,20 @@ export const zhTW: LearnPageCopy = {
       narrowerWaist: "腰部\n較窄",
       schematic: "示意圖：外張經誇大",
     },
-    body: "有些外殼左右對稱，有些為單手造型。拱背位置、前端寬度與側邊弧度會改變滑鼠的貼合方式。",
+    body: "有些外殼左右對稱，有些為單手造型。駝峰位置、前端寬度與側邊弧度會改變滑鼠的貼合方式。",
   },
   score: {
-    title: "我們怎麼評分",
+    title: "評分方式",
     body: "Palmate 把每支滑鼠與你的手比對評分，並說明原因。",
     bars: {
       length: resultsZh.subscoreShort.length,
       gripWidth: resultsZh.subscoreShort.gripWidth,
-      heightHump: "高度與拱背",
+      heightHump: "高度與駝峰",
       frontFlare: "前端寬度",
       thumb: "拇指托",
       weight: resultsZh.subscoreShort.weight,
     },
-    barsNote: "條越長影響越大",
+    barsNote: "越長影響越大",
   },
   scanLink: "掃描我的手",
   howItWorksLink: "運作方式",
@@ -187,7 +187,7 @@ export const en: LearnPageCopy = {
     },
     fingertip: {
       name: "Fingertip",
-      text: "Only your fingertips touch the mouse.",
+      text: "Only your fingertips control the mouse.",
     },
   },
   thickness: {

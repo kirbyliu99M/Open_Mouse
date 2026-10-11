@@ -37,6 +37,12 @@ export interface ShapeMark {
    * positive = down). Measured in a real browser at 320 px (LEARN-5).
    */
   narrow?: { dx?: number; dy?: number };
+  /**
+   * A full sentence that is not placed on the drawing: the page puts it under
+   * the drawing in the tile, in the normal flow (so it wraps and grows the
+   * tile at a large text size). Its x, y stay as the design's anchor.
+   */
+  flow?: boolean;
 }
 
 export interface ShapeSketch {
@@ -124,7 +130,14 @@ export const SHAPE_SKETCHES: readonly ShapeSketch[] = [
         tone: "secondary",
         narrow: { dy: -16 },
       },
-      { key: "schematic", x: 256, y: 490, anchor: "m", tone: "secondary" },
+      {
+        key: "schematic",
+        x: 256,
+        y: 490,
+        anchor: "m",
+        tone: "secondary",
+        flow: true,
+      },
     ],
   },
 ];

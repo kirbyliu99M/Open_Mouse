@@ -283,9 +283,11 @@ describe("the rendered /learn body", () => {
     "%s: puts every sketch mark in the page as plain text with its line breaks, none hidden from a screen reader",
     (_l, copy) => {
       const html = render(copy);
+      // The marks on the drawings, and the note that sits under the flare
+      // (in the tile's flow): all plain text.
       const marks = [
         ...html.matchAll(
-          /<span class="learn-shape-mark"([^>]*)>([^<]*)<\/span>/g,
+          /<span class="learn-shape-(?:mark|note)"([^>]*)>([^<]*)<\/span>/g,
         ),
       ];
       const expected = SHAPE_SKETCHES.flatMap((s) =>
@@ -296,10 +298,112 @@ describe("the rendered /learn body", () => {
       // The line breaks are kept in the text (the page shows them with
       // white-space: pre), not turned into tags or spaces.
       expect(marks).toHaveLength(7);
+      // The schematic note is the one in the flow, not placed on the drawing.
+      expect(html).toContain(
+        `<span class="learn-shape-note" data-mark="schematic" data-tone="secondary">${copy.shape.marks.schematic}</span>`,
+      );
+      expect(html.match(/class="learn-shape-note"/g)).toHaveLength(1);
       expect(html).toContain(copy.shape.marks.thumbRest);
       expect(copy.shape.marks.thumbRest).toContain("\n");
     },
   );
+});
+
+describe("zh-TW wording Kirby chose (candidate)", () => {
+  it("has the page title, lead, score title and chart note as chosen", () => {
+    expect(zhTW.title).toBe("如何挑選最合手的滑鼠？");
+    expect(zhTW.lead).toBe("挑滑鼠時最重要的事，依序說明");
+    expect(zhTW.score.title).toBe("評分方式");
+    expect(zhTW.score.barsNote).toBe("越長影響越大");
+  });
+
+  it("calls the hump 駝峰 everywhere and never 拱背", () => {
+    expect(zhTW.shape.hump).toBe("駝峰");
+    expect(zhTW.shape.body).toContain("駝峰位置、前端寬度與側邊弧度");
+    expect(zhTW.score.bars.heightHump).toBe("高度與駝峰");
+    for (const text of strings(zhTW)) expect(text).not.toContain("拱背");
+    for (const file of [
+      "src/lib/copy/learn-page.ts",
+      "src/app/learn/learn-info.css",
+      "src/components/learn/LearnInfo.tsx",
+      "src/lib/learn/shape-sketches.ts",
+      "tests/e2e/learn-page.spec.ts",
+    ]) {
+      expect(readFileSync(file, "utf8"), file).not.toContain("拱背");
+    }
+    // The English name is unchanged.
+    expect(en.shape.hump).toBe("Hump");
+  });
+
+  it("says the fingertip grip as chosen (zh) and with the matching meaning (en)", () => {
+    expect(zhTW.grip.fingertip.text).toBe("僅運用指尖操控滑鼠");
+    expect(en.grip.fingertip.text).toBe(
+      "Only your fingertips control the mouse.",
+    );
+    // The palm and claw sentences are unchanged.
+    expect(zhTW.grip.palm.text).toBe("整個手掌貼在滑鼠上。");
+    expect(zhTW.grip.claw.text).toBe("手掌碰到滑鼠後方，手指拱起。");
+  });
+});
+
+describe("the grip sentences are shown at every width", () => {
+  it.each(LOCALES)(
+    "%s: each drawing has its name and sentence visible (aria-hidden, the list names it once)",
+    (_l, copy) => {
+      const html = render(copy);
+      const figures = [
+        ...html.matchAll(
+          /<figcaption aria-hidden="true"><span class="learn-grip-name">([^<]*)<\/span><span class="learn-grip-text">([^<]*)<\/span><\/figcaption>/g,
+        ),
+      ];
+      expect(figures.map((m) => [m[1], m[2]])).toEqual(
+        (["palm", "claw", "fingertip"] as const).map((g) => [
+          copy.grip[g].name,
+          copy.grip[g].text,
+        ]),
+      );
+      // The screen reader still gets the names once, from the list.
+      expect(html.match(/<dl class="learn-grips-text">/g)).toHaveLength(1);
+    },
+  );
+
+  it("the list is hidden from sight at every width (no media query turns it on) and the sentence is shown under the name", () => {
+    const css = readFileSync("src/app/learn/learn-info.css", "utf8");
+    const rule = css.match(/\.learn-grips-text \{[^}]*\}/)?.[0] ?? "";
+    expect(rule).toContain("position: absolute");
+    expect(rule).toContain("clip-path: inset(50%)");
+    expect(css).not.toMatch(/@media[^{]*\{\s*\.learn-grips-text/);
+    const text = css.match(/\.learn-grip-text \{[^}]*\}/)?.[0] ?? "";
+    expect(text).toContain("display: block");
+    expect(text).not.toContain("display: none");
+  });
+});
+
+describe("large text and high contrast (CSS the unit test can see)", () => {
+  const css = readFileSync("src/app/learn/learn-info.css", "utf8");
+
+  it("the chart's label column can shrink, so a large text size does not widen the page", () => {
+    expect(css).toMatch(/minmax\(min\(6\.5rem, 45%\), 38%\)/);
+    expect(css).toMatch(/grid-template-columns: min\(26\.25rem, 45%\)/);
+  });
+
+  it("forced colours keep the bars (a system colour), the dark panel behind the hand and grip drawings, and the shape tile", () => {
+    const block =
+      css.match(/@media \(forced-colors: active\) \{[\s\S]*?\n\}/)?.[0] ?? "";
+    expect(block).toMatch(
+      /\.learn-shape-tile \{[^}]*forced-color-adjust: none/,
+    );
+    expect(block).toMatch(/\.learn-bar \{[^}]*background: CanvasText/);
+    expect(block).toMatch(
+      /\.learn-grips img \{[^}]*forced-color-adjust: none[^}]*#060709/,
+    );
+  });
+
+  it("the schematic note is in the flow, and the narrow rules follow the tile's width, not the screen's", () => {
+    expect(css).toMatch(/\.learn-shape-note \{[^}]*text-align: center/);
+    expect(css).toContain("container-type: inline-size");
+    expect(css).toMatch(/@container \(max-width: 15rem\)/);
+  });
 });
 
 describe("the four shape sketches", () => {

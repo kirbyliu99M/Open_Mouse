@@ -291,39 +291,19 @@
   }
 }
 
-/* Grip: the three sentences, then Kirby's three drawings side by side (also
-   on a phone, about 104 px each). On a wide screen the sentences are for a
-   screen reader only (the design shows the drawings and their names). */
+/* Grip: Kirby's three drawings side by side at every width (about 80 px each
+   on a 320 px phone), the name and its one sentence under each. The list of
+   the three sentences is for a screen reader only, at every width: the visible
+   name and sentence are aria-hidden, so each is read once. */
 .learn-grips-text {
-  margin: 0 0 1rem;
-  display: grid;
-  gap: 0.375rem;
-  color: var(--text-secondary);
-}
-.learn-grips-text div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 0.5rem;
-}
-.learn-grips-text dt {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-.learn-grips-text dd {
-  margin: 0;
-}
-
-@media (min-width: 56rem) {
-  .learn-grips-text {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .learn-grips {
@@ -345,11 +325,23 @@
   margin: 0 auto;
 }
 .learn-grips figcaption {
+  margin-top: 0.25rem;
+  overflow-wrap: anywhere;
+}
+.learn-grip-name {
+  display: block;
   color: var(--text-primary);
   font-size: 0.875rem;
   font-weight: 600;
-  margin-top: 0.25rem;
-  overflow-wrap: anywhere;
+}
+/* The sentence under the name (Pencil v5, card 2): 12 px, secondary, a few
+   lines in a narrow column. */
+.learn-grip-text {
+  display: block;
+  margin-top: 0.125rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.35;
 }
 
 /* Card 5, "Look at the shape" (LEARN-5, candidate): four line drawings, each
@@ -392,6 +384,10 @@
 }
 
 .learn-shape {
+  /* A column, so that when one tile grows (a note that wraps at a large text
+     size) the tiles of the row grow with it and the names stay level. */
+  display: flex;
+  flex-direction: column;
   width: 100%;
   max-width: 21.375rem; /* 342 px */
   min-width: 0;
@@ -404,8 +400,14 @@
   }
 }
 .learn-shape-tile {
+  flex: 1 1 auto;
   display: grid;
+  /* The drawing in the first row, a note under it (if the sketch has one) in
+     the second; a tile grows past its 272 : 262 shape if the note needs it. */
+  grid-template-rows: minmax(0, 1fr) auto;
   place-items: center;
+  /* Marks are sized against the tile's width (the narrow rules below). */
+  container-type: inline-size;
   box-sizing: border-box;
   width: 100%;
   aspect-ratio: 272 / 262;
@@ -437,8 +439,8 @@
   pointer-events: none;
 }
 /* The marks are real text at 12 px, never smaller. They hold their line
-   breaks (a line feed in the copy), never wrap on their own, and are clipped by the
-   tile rather than the page. */
+   breaks (a line feed in the copy) and do not wrap on their own (the two peak
+   marks may, in a narrow tile: below). */
 .learn-shape-mark {
   position: absolute;
   top: var(--learn-mark-top);
@@ -454,16 +456,28 @@
 .learn-shape-mark[data-tone="primary"] {
   color: var(--learn-tile-text);
 }
-/* A 320 px phone: less padding in the tile (6 px) and the marks that would sit
-   on an arrow or the outline are nudged (the offsets are in shape-sketches.ts). */
+/* A 320 px phone: less padding in the tile (6 px). */
 @media (max-width: 23.99rem) {
   .learn-shape-tile {
     padding: 0.375rem;
   }
+}
+/* A narrow tile for its text: the drawing is about 230 px wide (15rem is the
+   drawing's width at 100 % text, so this also holds when only the text is
+   enlarged, where rem grows and the tile does not). The marks that would sit
+   on an arrow or the outline are nudged (the offsets are in
+   shape-sketches.ts), and the two peak marks may wrap within their half of the
+   drawing, so that neither runs out of the tile at a large text size. */
+@container (max-width: 15rem) {
   .learn-shape-mark {
     top: var(--learn-mark-top-narrow);
     left: var(--learn-mark-left-narrow, auto);
     right: var(--learn-mark-right-narrow, auto);
+  }
+  .learn-shape-mark[data-mark="centredPeak"],
+  .learn-shape-mark[data-mark="rearPeak"] {
+    white-space: normal;
+    max-width: 46%;
   }
 }
 .learn-shape-mark[data-anchor="r"] {
@@ -474,17 +488,21 @@
   transform: translateX(-50%);
 }
 /* The schematic note is a full sentence, about 340 px at 12 px, wider than the
-   drawing (about 232 px): it wraps inside the drawing's width, centred. The
-   other marks stay on their prepared lines. */
-.learn-shape-mark[data-mark="schematic"] {
-  white-space: normal;
-  width: max-content;
+   drawing (about 232 px). It is in the tile's flow under the drawing, centred,
+   and wraps; the tile grows with it, so it never meets the name below. */
+.learn-shape-note {
   max-width: 100%;
+  margin-top: 0.125rem;
+  color: var(--learn-tile-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  text-align: center;
 }
 /* Marks that grow past a tile (large text) must not widen the page: the card
-   clips sideways only. */
+   clips sideways only, 1rem beyond its edge (the page's own side gutter). */
 .learn-card--shape {
   overflow-x: clip;
+  overflow-clip-margin: 1rem;
 }
 /* Windows high contrast: the tile keeps its dark fill and the light drawing
    (the marks inherit the fixed light colours), with a border in the system
@@ -494,6 +512,21 @@
   .learn-shape-tile {
     forced-color-adjust: none;
     border-color: CanvasText;
+  }
+  /* The chart's bars: their fill would be forced to the page colour and vanish.
+     A system colour is kept. */
+  .learn-bar {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+  /* The hand and the three grip drawings are light lines made for a dark
+     panel: they keep the dark panel (as in print) instead of the forced page
+     colour. */
+  .learn-figure-hand img,
+  .learn-grips img {
+    forced-color-adjust: none;
+    background: #060709;
+    border-radius: 0.5rem;
   }
 }
 .learn-shape figcaption {
@@ -522,7 +555,9 @@
 }
 .learn-bars li {
   display: grid;
-  grid-template-columns: minmax(6.5rem, 38%) minmax(0, 1fr);
+  /* The label column is at least 6.5rem, but never more than 45 % of the chart:
+     at a large text size 6.5rem would push the bar out of the page. */
+  grid-template-columns: minmax(min(6.5rem, 45%), 38%) minmax(0, 1fr);
   align-items: center;
   gap: 0.75rem;
 }
@@ -552,7 +587,7 @@
 @media (min-width: 56rem) {
   .learn-card--score .learn-card-body {
     display: grid;
-    grid-template-columns: 26.25rem minmax(0, 1fr);
+    grid-template-columns: min(26.25rem, 45%) minmax(0, 1fr);
     grid-template-rows: auto auto 1fr;
     column-gap: 2.5rem;
     align-content: center;

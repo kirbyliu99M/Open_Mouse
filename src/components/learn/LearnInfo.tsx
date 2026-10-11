@@ -101,9 +101,10 @@ function cards(copy: LearnPageCopy): Card[] {
             ))}
           </dl>
           {/* Kirby's three grip drawings, resized only (public/images/learn/).
-              Decorative: the list above names and describes each one for a
-              screen reader, so the visible captions are hidden from it (the
-              names would be read twice). */}
+              Decorative: the list above (read by a screen reader at every
+              width, never shown) names and describes each one, so the visible
+              name and sentence under each drawing are hidden from it (they
+              would be read twice). */}
           <div className="learn-grips">
             {(["palm", "claw", "fingertip"] as const).map((grip) => (
               <figure key={grip}>
@@ -117,7 +118,12 @@ function cards(copy: LearnPageCopy): Card[] {
                   decoding="async"
                 />
                 <figcaption aria-hidden="true">
-                  {copy.grip[grip].name}
+                  <span className="learn-grip-name">
+                    {copy.grip[grip].name}
+                  </span>
+                  <span className="learn-grip-text">
+                    {copy.grip[grip].text}
+                  </span>
                 </figcaption>
               </figure>
             ))}
@@ -187,34 +193,53 @@ function cards(copy: LearnPageCopy): Card[] {
                         decoding="async"
                       />
                     ) : null}
-                    {sketch.marks.map((mark) => {
-                      // Placed by CSS variables, not inline, so the stylesheet
-                      // can swap in the narrow set on a 320 px phone.
-                      const wide = markPlacement(sketch, mark);
-                      const narrow = markPlacementNarrow(sketch, mark);
-                      return (
-                        <span
-                          key={mark.key}
-                          className="learn-shape-mark"
-                          data-mark={mark.key}
-                          data-anchor={mark.anchor}
-                          data-tone={mark.tone}
-                          style={
-                            {
-                              "--learn-mark-top": wide.top,
-                              "--learn-mark-left": wide.left,
-                              "--learn-mark-right": wide.right,
-                              "--learn-mark-top-narrow": narrow.top,
-                              "--learn-mark-left-narrow": narrow.left,
-                              "--learn-mark-right-narrow": narrow.right,
-                            } as CSSProperties
-                          }
-                        >
-                          {copy.shape.marks[mark.key]}
-                        </span>
-                      );
-                    })}
+                    {sketch.marks
+                      .filter((mark) => !mark.flow)
+                      .map((mark) => {
+                        // Placed by CSS variables, not inline, so the stylesheet
+                        // can swap in the narrow set on a 320 px phone.
+                        const wide = markPlacement(sketch, mark);
+                        const narrow = markPlacementNarrow(sketch, mark);
+                        return (
+                          <span
+                            key={mark.key}
+                            className="learn-shape-mark"
+                            data-mark={mark.key}
+                            data-anchor={mark.anchor}
+                            data-tone={mark.tone}
+                            style={
+                              {
+                                "--learn-mark-top": wide.top,
+                                "--learn-mark-left": wide.left,
+                                "--learn-mark-right": wide.right,
+                                "--learn-mark-top-narrow": narrow.top,
+                                "--learn-mark-left-narrow": narrow.left,
+                                "--learn-mark-right-narrow": narrow.right,
+                              } as CSSProperties
+                            }
+                          >
+                            {copy.shape.marks[mark.key]}
+                          </span>
+                        );
+                      })}
                   </div>
+                  {/* A note that is a full sentence (the flare is exaggerated)
+                      is not placed on the drawing: it sits under it in the
+                      tile, in the normal flow, so it can wrap and the tile
+                      grows at a large text size instead of the note running
+                      into the name below. */}
+                  {sketch.marks
+                    .filter((mark) => mark.flow)
+                    .map((mark) => (
+                      <span
+                        key={mark.key}
+                        className="learn-shape-note"
+                        data-mark={mark.key}
+                        data-tone={mark.tone}
+                      >
+                        {copy.shape.marks[mark.key]}
+                      </span>
+                    ))}
                 </div>
                 <figcaption>{copy.shape[sketch.id]}</figcaption>
               </figure>
