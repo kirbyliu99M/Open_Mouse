@@ -60,12 +60,16 @@ tokens.
 
 ### Sheet (`/sheet`)
 
+The printed-sheet flow (`/sheet`, `/scan`) is hidden in production since 2026-10-11 (candidate) and kept for the learning kit, demos and tests.
+
 - **Simplicity:** one job — print correctly. The single most prominent line is
   _Print at 100% / Actual size_. Everything else is secondary.
 - The on-screen preview is exact-size and never rescaled. (It is tested: 1 page,
   210 mm.)
 
 ### Scan (`/scan`) — three photo slots
+
+The printed-sheet flow (`/sheet`, `/scan`) is hidden in production since 2026-10-11 (candidate) and kept for the learning kit, demos and tests.
 
 - **Wayfinding:** always show _step n of 3_, what the step is for, and how to
   leave. Never trap the user.
