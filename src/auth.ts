@@ -5,9 +5,10 @@ import Google from "next-auth/providers/google";
 import { cookies } from "next/headers";
 import { getDb } from "./db/client";
 import { accounts, authSessions, users, verificationTokens } from "./db/schema";
-import { claimOnSignIn } from "./server/auth/claim";
+import { recordSessionActivity } from "./server/account/activity";
 import { isAuthConfigured, resolveAuthSecret } from "./server/auth/config";
 import { toPublicSession } from "./server/auth/session";
+import { handleSignInEvent } from "./server/auth/sign-in";
 import { createDrizzleScanRepo } from "./server/scans/drizzle-repo";
 
 /**
@@ -43,6 +44,35 @@ function buildAdapter() {
 
 const configured = isAuthConfigured();
 const adapter = buildAdapter();
+
+/**
+ * The Auth.js events, exported so a test can call them without an OAuth round
+ * trip (tests/unit/auth-last-active.test.ts): that is what pins the wiring of
+ * the `last_active_at` stamp.
+ */
+export const authEvents = {
+  /**
+   * Claiming (issue #17): when an anonymous user signs in, attach their
+   * current `scan_sessions` row to the new account and clear its expiry —
+   * only for the session named by *their own* httpOnly cookie. `cookies()`
+   * here reads the same request that just completed the OAuth callback,
+   * so this can never be pointed at a session the caller doesn't hold.
+   * The raw cookie value goes straight to `claimAnonymousSession` (via
+   * `claimOnSignIn`), which applies the same UUID check as
+   * `readSessionCookie`: a malformed value never reaches the database
+   * (there it would be one query that can only fail, plus an EventError in
+   * the log, with the claim skipped).
+   *
+   * It also stamps `users.last_active_at` first (`handleSignInEvent`); neither
+   * `cookies()` nor the repo is touched until after the stamp.
+   */
+  async signIn({ user }: { user: { id?: string | null } }) {
+    await handleSignInEvent(user, cookies, {
+      db: getDb,
+      makeRepo: () => createDrizzleScanRepo(),
+    });
+  },
+};
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter,
@@ -80,27 +110,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // body of `GET /api/auth/session`, readable by any script on the page, so
     // it is an allow-list (`toPublicSession`), never the object Auth.js
     // passed in: that one carries the raw `sessionToken` and `userId`.
-    session({ session, user }) {
+    // Async since the inactive-retention work: when the user row says the last
+    // write was more than 24 hours ago, it also stamps `users.last_active_at`
+    // (see `recordSessionActivity`, which never throws, so a failed write
+    // cannot break a session read). Auth.js awaits this callback.
+    async session({ session, user }) {
+      await recordSessionActivity(getDb, user);
       return toPublicSession(session, user);
     },
   },
-  events: {
-    /**
-     * Claiming (issue #17): when an anonymous user signs in, attach their
-     * current `scan_sessions` row to the new account and clear its expiry —
-     * only for the session named by *their own* httpOnly cookie. `cookies()`
-     * here reads the same request that just completed the OAuth callback,
-     * so this can never be pointed at a session the caller doesn't hold.
-     * The raw cookie value goes straight to `claimAnonymousSession` (via
-     * `claimOnSignIn`), which applies the same UUID check as
-     * `readSessionCookie`: a malformed value never reaches the database
-     * (there it would be one query that can only fail, plus an EventError in
-     * the log, with the claim skipped).
-     */
-    async signIn({ user }) {
-      await claimOnSignIn(user, await cookies(), {
-        repo: createDrizzleScanRepo(),
-      });
-    },
-  },
+  events: authEvents,
 });
