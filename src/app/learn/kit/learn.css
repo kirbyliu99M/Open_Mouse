@@ -1,5 +1,5 @@
 /*
- * Learning kit pages (/learn, /learn/print, /learn/slates, /learn/check,
+ * Learning kit pages (/learn/kit, /learn/kit/print, /learn/kit/slates, /learn/kit/check,
  * /l/v1/[token]). Same dark tokens as the product (tokens.css): ink,
  * graphite, drafting blue, measured green. Class selectors on the page
  * wrapper override globals.css's unscoped `main` rule, as sheet.css does.
