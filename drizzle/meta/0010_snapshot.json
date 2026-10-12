@@ -1,5 +1,5 @@
 {
-  "id": "a3e2786a-c228-4650-a29a-7576aa58a394",
+  "id": "4f11c8ea-07f5-4bb5-b5d8-9015f41a674c",
   "prevId": "33b15662-7003-482e-9e59-18842328f715",
   "version": "7",
   "dialect": "postgresql",
@@ -87,24 +87,24 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "accounts_user_id_users_id_fk": {
           "name": "accounts_user_id_users_id_fk",
           "tableFrom": "accounts",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -163,15 +163,15 @@
         "analysis_cache_scan_id_scans_id_fk": {
           "name": "analysis_cache_scan_id_scans_id_fk",
           "tableFrom": "analysis_cache",
-          "tableTo": "scans",
           "columnsFrom": [
             "scan_id"
           ],
+          "tableTo": "scans",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -221,15 +221,15 @@
         "auth_sessions_user_id_users_id_fk": {
           "name": "auth_sessions_user_id_users_id_fk",
           "tableFrom": "auth_sessions",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -334,40 +334,40 @@
         "fit_results_scan_id_scans_id_fk": {
           "name": "fit_results_scan_id_scans_id_fk",
           "tableFrom": "fit_results",
-          "tableTo": "scans",
           "columnsFrom": [
             "scan_id"
           ],
+          "tableTo": "scans",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "fit_results_mouse_id_mice_id_fk": {
           "name": "fit_results_mouse_id_mice_id_fk",
           "tableFrom": "fit_results",
-          "tableTo": "mice",
           "columnsFrom": [
             "mouse_id"
           ],
+          "tableTo": "mice",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "fit_results_scan_mouse_version": {
           "name": "fit_results_scan_mouse_version",
-          "nullsNotDistinct": false,
           "columns": [
             "scan_id",
             "mouse_id",
             "engine_version"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -581,18 +581,18 @@
       "uniqueConstraints": {
         "mice_slug_unique": {
           "name": "mice_slug_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "slug"
-          ]
+          ],
+          "nullsNotDistinct": false
         },
         "mice_brand_model_unique": {
           "name": "mice_brand_model_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "brand",
             "model"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -665,15 +665,15 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "type": "always",
             "name": "scaffold_checks_id_seq",
-            "schema": "public",
             "increment": "1",
-            "startWith": "1",
             "minValue": "1",
             "maxValue": "2147483647",
+            "startWith": "1",
             "cache": "1",
-            "cycle": false
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
           }
         },
         "created_at": {
@@ -805,15 +805,15 @@
         "scan_measurements_scan_id_scans_id_fk": {
           "name": "scan_measurements_scan_id_scans_id_fk",
           "tableFrom": "scan_measurements",
-          "tableTo": "scans",
           "columnsFrom": [
             "scan_id"
           ],
+          "tableTo": "scans",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -870,24 +870,24 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "scan_sessions_user_id_users_id_fk": {
           "name": "scan_sessions_user_id_users_id_fk",
           "tableFrom": "scan_sessions",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -964,15 +964,15 @@
         "scans_session_id_scan_sessions_id_fk": {
           "name": "scans_session_id_scan_sessions_id_fk",
           "tableFrom": "scans",
-          "tableTo": "scan_sessions",
           "columnsFrom": [
             "session_id"
           ],
+          "tableTo": "scan_sessions",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1054,24 +1054,24 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "survey_contributions_user_id_users_id_fk": {
           "name": "survey_contributions_user_id_users_id_fk",
           "tableFrom": "survey_contributions",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1156,9 +1156,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "survey_other_mice_user_brand_unique": {
           "name": "survey_other_mice_user_brand_unique",
@@ -1177,38 +1177,38 @@
             }
           ],
           "isUnique": true,
-          "where": "\"survey_other_mice\".\"user_id\" IS NOT NULL",
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "where": "\"survey_other_mice\".\"user_id\" IS NOT NULL",
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "survey_other_mice_contribution_id_survey_contributions_id_fk": {
           "name": "survey_other_mice_contribution_id_survey_contributions_id_fk",
           "tableFrom": "survey_other_mice",
-          "tableTo": "survey_contributions",
           "columnsFrom": [
             "contribution_id"
           ],
+          "tableTo": "survey_contributions",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "survey_other_mice_user_id_users_id_fk": {
           "name": "survey_other_mice_user_id_users_id_fk",
           "tableFrom": "survey_other_mice",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1293,10 +1293,10 @@
             }
           ],
           "isUnique": true,
-          "where": "\"survey_ratings\".\"user_id\" IS NOT NULL",
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "where": "\"survey_ratings\".\"user_id\" IS NOT NULL",
+          "concurrently": false
         },
         "survey_ratings_mouse_id_idx": {
           "name": "survey_ratings_mouse_id_idx",
@@ -1309,50 +1309,50 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "survey_ratings_contribution_id_survey_contributions_id_fk": {
           "name": "survey_ratings_contribution_id_survey_contributions_id_fk",
           "tableFrom": "survey_ratings",
-          "tableTo": "survey_contributions",
           "columnsFrom": [
             "contribution_id"
           ],
+          "tableTo": "survey_contributions",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "survey_ratings_mouse_id_mice_id_fk": {
           "name": "survey_ratings_mouse_id_mice_id_fk",
           "tableFrom": "survey_ratings",
-          "tableTo": "mice",
           "columnsFrom": [
             "mouse_id"
           ],
+          "tableTo": "mice",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "survey_ratings_user_id_users_id_fk": {
           "name": "survey_ratings_user_id_users_id_fk",
           "tableFrom": "survey_ratings",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -1419,10 +1419,10 @@
       "uniqueConstraints": {
         "users_email_unique": {
           "name": "users_email_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "email"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -1484,8 +1484,7 @@
       "values": [
         "printed-sheet",
         "paper-edge",
-        "user-length",
-        "manual-entry"
+        "user-length"
       ]
     },
     "public.catalogue_category": {
@@ -1509,7 +1508,7 @@
       "schema": "public",
       "values": [
         "first_party",
-        "eloshapes"
+        "public_compilation"
       ]
     },
     "public.descriptor_method": {
@@ -1610,10 +1609,10 @@
     }
   },
   "schemas": {},
+  "views": {},
   "sequences": {},
   "roles": {},
   "policies": {},
-  "views": {},
   "_meta": {
     "columns": {},
     "schemas": {},

@@ -1,1 +1,0 @@
-ALTER TYPE "public"."calibration_method" ADD VALUE 'manual-entry';

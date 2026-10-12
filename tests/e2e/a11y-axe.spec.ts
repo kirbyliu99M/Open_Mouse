@@ -494,6 +494,38 @@ const MOBILE_STATES: readonly (readonly [
     },
   ],
   [
+    "grip page (1 of 2)",
+    async (page) => {
+      await page.goto("/scan/easy/measured-demo");
+      await page
+        .getByRole("dialog", { name: "Hand measured" })
+        .getByRole("button", { name: "Continue" })
+        .click();
+      await expect(
+        page.getByRole("dialog", { name: "How you hold a mouse" }),
+      ).toBeVisible();
+      await page.getByRole("radio", { name: /^Claw/ }).check();
+    },
+  ],
+  [
+    "palm thickness page (2 of 2)",
+    async (page) => {
+      await page.goto("/scan/easy/measured-demo");
+      await page
+        .getByRole("dialog", { name: "Hand measured" })
+        .getByRole("button", { name: "Continue" })
+        .click();
+      await page
+        .getByRole("dialog", { name: "How you hold a mouse" })
+        .getByRole("button", { name: "Skip" })
+        .click();
+      await expect(
+        page.getByRole("dialog", { name: "Palm thickness" }),
+      ).toBeVisible();
+      await page.getByRole("radio", { name: /^Medium/ }).check();
+    },
+  ],
+  [
     "measured sheet, typed hand length",
     async (page) => {
       await page.goto("/scan/easy/measured-length-demo");

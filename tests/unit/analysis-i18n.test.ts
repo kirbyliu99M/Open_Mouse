@@ -97,6 +97,11 @@ describe("the zh-TW prompt", () => {
     expect(prompt).toContain("滑鼠手");
     expect(prompt).not.toContain("適配");
   });
+  it("names the hump 「駝峰」 and keeps the old wordings out", () => {
+    expect(prompt).toContain("一律稱為「駝峰」");
+    expect(prompt).not.toContain("背弧");
+    expect(prompt).not.toContain("拱背");
+  });
 });
 
 describe("the zh-TW fallback", () => {
