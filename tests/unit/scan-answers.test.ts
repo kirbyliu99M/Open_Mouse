@@ -403,6 +403,29 @@ describe("the pages as rendered", () => {
       expect(banner(kind), kind).not.toContain("thickness-retake");
   });
 
+  it("for a typed hand size the banner button says Change the numbers and the sentences stop speaking of a photo", () => {
+    const html = render(
+      createElement(ThicknessPage, {
+        value: "thin",
+        onChange: noop,
+        onSubmit: noop,
+        onSkip: noop,
+        onBack: noop,
+        busy: false,
+        errorKind: "invalid",
+        onRetake: noop,
+        retakeLabel: "Change the numbers",
+        errorText: { invalid: "These numbers could not be saved." },
+      }),
+      "en",
+    );
+    expect(html).toContain("These numbers could not be saved.");
+    expect(html).not.toContain("photo");
+    expect(html).toMatch(
+      /data-testid="thickness-retake"[^>]*>Change the numbers<\/button>/,
+    );
+  });
+
   it("after a successful send the button says the results are opening", () => {
     const html = render(
       createElement(ThicknessPage, {

@@ -73,6 +73,20 @@ export interface ManualEntryCopy {
   };
   /** The results-page line, under the hero. */
   resultsNotice: (lengthCm: string, widthCm: string) => string;
+  /** The desktop scan page's heading over the QR card and the form (Pencil `B8sJF`). */
+  desktopHeading: string;
+  /**
+   * After a typed pair failed to send, in the error banner where a scanned
+   * scan offers "Retake photo": there is no photo, so the button goes back to
+   * the form with what was typed.
+   */
+  editNumbers: string;
+  /**
+   * The two failures whose scan sentence says "retake a photo" (scan-common
+   * `submitErrors.invalid` / `.tooLarge`), reworded for a typed pair.
+   */
+  sendInvalid: string;
+  sendTooLarge: string;
 }
 
 export const zhTW: ManualEntryCopy = {
@@ -112,6 +126,10 @@ export const zhTW: ManualEntryCopy = {
   },
   resultsNotice: (length, width) =>
     `依你輸入的手長 ${length}${NBSP}公分、手寬 ${width}${NBSP}公分估算；掌長為估計值。`,
+  desktopHeading: "掃描你的手，或直接輸入尺寸",
+  editNumbers: "修改數字",
+  sendInvalid: "這組數字無法儲存，請修改數字後再試。",
+  sendTooLarge: "這組數字沒有正確送出，請重新載入頁面後再試。",
 };
 
 export const en: ManualEntryCopy = {
@@ -153,6 +171,11 @@ export const en: ManualEntryCopy = {
   },
   resultsNotice: (length, width) =>
     `Estimated from the hand length of ${length}${NBSP}cm and hand width of ${width}${NBSP}cm you entered; palm length is an estimate.`,
+  desktopHeading: "Scan your hand, or enter your size",
+  editNumbers: "Change the numbers",
+  sendInvalid: "These numbers could not be saved. Change them and try again.",
+  sendTooLarge:
+    "These numbers did not send correctly. Reload the page and try again.",
 };
 
 export function manualEntryCopy(locale: Locale): ManualEntryCopy {

@@ -403,6 +403,13 @@ export interface ThicknessPageProps {
   readonly errorKind: SubmitScanErrorKind | null;
   /** The banner's 重拍 (shown only for a failure whose fix is a new photo). */
   readonly onRetake: () => void;
+  /**
+   * For a typed hand size, where there is no photo: the banner's button says
+   * this instead of 重拍 and `onRetake` goes back to the form; `errorText`
+   * rewords the sentences that speak of a photo.
+   */
+  readonly retakeLabel?: string;
+  readonly errorText?: Partial<Record<SubmitScanErrorKind, string>>;
 }
 
 /** Failures whose own sentence asks for a new photo (scan-common.ts submitErrors). */
@@ -422,6 +429,8 @@ export function ThicknessPage({
   opening = false,
   errorKind,
   onRetake,
+  retakeLabel,
+  errorText,
 }: ThicknessPageProps) {
   const locale = useLocale();
   const words = scanAnswersCopy(locale);
@@ -460,7 +469,9 @@ export function ThicknessPage({
         <div className="answerActions">
           {errorKind && (
             <div className="answerError">
-              <p role="alert">{common.submitErrors[errorKind]}</p>
+              <p role="alert">
+                {errorText?.[errorKind] ?? common.submitErrors[errorKind]}
+              </p>
               {RETAKE_ERROR_KINDS.includes(errorKind) && (
                 <button
                   type="button"
@@ -468,7 +479,7 @@ export function ThicknessPage({
                   onClick={onRetake}
                   data-testid="thickness-retake"
                 >
-                  {words.retake}
+                  {retakeLabel ?? words.retake}
                 </button>
               )}
             </div>

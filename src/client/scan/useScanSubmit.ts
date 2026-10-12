@@ -22,7 +22,11 @@ import { resultsPagePath } from "@/lib/contracts/routes";
 import type { ScanFlow } from "@/lib/contracts/analytics";
 import { track } from "@/client/analytics/track";
 import { submitScan, type SubmitScanErrorKind } from "@/client/scan/submitScan";
-import { resultLengthKey } from "@/components/results/userLengthDisclosure";
+import {
+  resultLengthKey,
+  resultManualEntryKey,
+  serializeManualEntry,
+} from "@/components/results/userLengthDisclosure";
 
 export type SubmitState =
   | { kind: "idle" }
@@ -56,6 +60,20 @@ export function useScanSubmit(flow?: ScanFlow) {
               localStorage.setItem(
                 resultLengthKey(outcome.scanId),
                 String(submission.calibration.referenceMm),
+              );
+            }
+            // A typed hand length and width (manual entry): the results page
+            // says so from this, and only after the scan was stored.
+            if (
+              "method" in submission.calibration &&
+              submission.calibration.method === "manual-entry"
+            ) {
+              localStorage.setItem(
+                resultManualEntryKey(outcome.scanId),
+                serializeManualEntry({
+                  handLengthMm: submission.calibration.handLengthMm,
+                  handWidthMm: submission.calibration.handWidthMm,
+                }),
               );
             }
           } catch {

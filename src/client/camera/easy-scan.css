@@ -892,6 +892,14 @@ main.easyScanShell {
   align-self: stretch;
   padding-bottom: calc(1.75rem + env(safe-area-inset-bottom));
 }
+/* The manual-entry strip is the bottom edge of the screen (it carries the
+   safe-area inset itself), so the shutter row sits just above it. */
+.easyBottomDock-withHandle .manualEntry-handle {
+  align-self: stretch;
+}
+.easyBottomDock-withHandle .easyBottomRow {
+  padding-bottom: 0.75rem;
+}
 .easyHint {
   margin: 0;
   max-width: calc(100% - 2rem);
@@ -1530,4 +1538,52 @@ main.easyScanShell {
    More specific than the rise above and its reduced-motion fade. */
 .easySheet.easyResultSheet[data-resumed="true"] {
   animation: none;
+}
+
+/* The desktop scan page with the typed-size form next to the QR card (Pencil
+   B8sJF, candidate): two columns when wide, stacked below about 960 px. */
+.easyDeviceEntry-manual {
+  justify-content: flex-start;
+  padding-block: clamp(2rem, 8vh, 5rem);
+}
+.easyDeviceEntry-manual h1 {
+  max-width: none;
+  font-size: clamp(1.5rem, 2.6vw, 2.25rem);
+  text-wrap: balance;
+}
+.easyDeviceColumns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  align-items: start;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 28rem;
+}
+@media (min-width: 960px) {
+  .easyDeviceColumns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 60rem;
+    gap: 2rem;
+  }
+}
+.easyDeviceScanCard {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 28rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  border: 1px solid var(--hairline);
+  border-radius: 1.25rem;
+  background: color-mix(in srgb, var(--text-primary) 4%, var(--bg));
+}
+.easyDeviceScanCard h2 {
+  margin: 0;
+  font-size: 1.125rem;
+}
+.easyDeviceColumns .manualEntry-panel {
+  text-align: start;
 }
