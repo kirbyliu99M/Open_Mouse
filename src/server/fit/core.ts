@@ -1,7 +1,10 @@
 import { z } from "zod";
 import type { FitPreferences, FitResponse } from "../../lib/contracts/fit";
 import { fitResponseSchema } from "../../lib/contracts/fit";
-import type { HandMeasurements } from "../../lib/contracts/measurement";
+import type {
+  CalibrationMethod,
+  HandMeasurements,
+} from "../../lib/contracts/measurement";
 import type { ScanRepo } from "../scans/repo";
 import type { FitRepo } from "./repo";
 import { buildFitResultRows } from "./rows";
@@ -34,7 +37,13 @@ export interface FitCoreDeps {
 }
 
 export type LoadOwnedFitResult =
-  | { status: "ok"; fit: FitResponse; measurements: HandMeasurements }
+  | {
+      status: "ok";
+      fit: FitResponse;
+      measurements: HandMeasurements;
+      /** How the numbers came about; null for a row written before the column. */
+      calibrationMethod: CalibrationMethod | null;
+    }
   | { status: "not_found" };
 
 /**
@@ -132,5 +141,6 @@ export async function loadOwnedFit(
     status: "ok",
     fit: validated.data,
     measurements: owned.measurements,
+    calibrationMethod: owned.calibrationMethod ?? null,
   };
 }

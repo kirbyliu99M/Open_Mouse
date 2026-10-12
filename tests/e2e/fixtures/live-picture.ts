@@ -93,6 +93,18 @@ export async function measureOverPicture(
         color: string,
         extraAlpha = 1,
       ): [number, number, number, number] => {
+        // A `color-mix()` computes to `color(srgb r g b / a)`, channels 0 to 1.
+        const srgb = color.match(/^color\(srgb (.+)\)$/)?.[1];
+        if (srgb) {
+          const channels = srgb.split(/[\s/]+/).filter(Boolean);
+          return [
+            parseFloat(channels[0]) * 255,
+            parseFloat(channels[1]) * 255,
+            parseFloat(channels[2]) * 255,
+            (channels[3] === undefined ? 1 : parseFloat(channels[3])) *
+              extraAlpha,
+          ];
+        }
         const inside = color.match(/^rgba?\((.+)\)$/)?.[1];
         if (!inside)
           throw new Error(`a colour this test cannot read: ${color}`);

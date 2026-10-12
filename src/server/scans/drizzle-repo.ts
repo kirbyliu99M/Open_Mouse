@@ -204,6 +204,7 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
           hand: scans.hand,
           gripStyleStated: scans.gripStyleStated,
           palmThicknessStated: scans.palmThicknessStated,
+          calibrationMethod: scanMeasurements.calibrationMethod,
           handLengthMm: scanMeasurements.handLengthMm,
           palmLengthMm: scanMeasurements.palmLengthMm,
           palmWidthMm: scanMeasurements.palmWidthMm,
@@ -230,6 +231,7 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
         hand: row.hand,
         gripStyleStated: row.gripStyleStated,
         palmThicknessStated: row.palmThicknessStated,
+        calibrationMethod: row.calibrationMethod,
         measurements: {
           handLengthMm: row.handLengthMm,
           palmLengthMm: row.palmLengthMm,

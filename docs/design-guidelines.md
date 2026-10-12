@@ -41,6 +41,16 @@ filled radio with a check, as in the approved frames; it is not the white
 toggle above, because the row is a list choice and not a chip. A skip sends no
 field, and nothing ever sends a default. The scan is sent from the last page.
 
+**Typed hand size (manual entry)** (Kirby, 2026-10-12, candidate): the phone's
+camera screen has a strip at its very bottom, 「改用輸入數字」, that opens a
+pull-up sheet (hand, length and width in cm, 確認); on a desktop the same form is
+the right column next to the QR card (two columns from 960 px, stacked below).
+After 確認 the same grip page follows with its 跳過 hidden (the grip is
+mandatory for a typed pair), then the optional thickness page; 返回 from the
+grip page goes back to the form with what was typed. The camera waits while
+the form or the pages are open. A failed send of a typed pair offers 「修改數字」
+in the error banner, where a scan offers 「重拍」.
+
 **Secondary button:** a plain text link in `--accent-text`, with no fill, no
 border and no underline (like "Print it" and the "‹ Sheet" back link), at least
 44 px tall, with the same focus ring. Its border stays transparent, so

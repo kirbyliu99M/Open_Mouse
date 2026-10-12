@@ -90,6 +90,7 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
       language={scan.language}
       scanId={scanId}
       enteredLengthMm={scan.enteredLength}
+      enteredManual={scan.enteredManual}
       showViewer={RESULTS_VIEWER_ENABLED}
       analysisState={scan.analysisState}
       onRetryAnalysis={scan.retryAnalysis}

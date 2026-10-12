@@ -2,16 +2,36 @@ import QRCode from "qrcode";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useLocale } from "@/client/i18n/LocaleProvider";
 import { easyScanCopy } from "../../lib/copy/easy-scan";
+import { manualEntryCopy } from "../../lib/copy/manualEntry";
 import { scanCommonCopy } from "../../lib/copy/scan-common";
+import type { ManualEntryDraft } from "../../lib/scan/manualEntry";
+import {
+  ManualEntrySheet,
+  type ManualEntryValues,
+} from "../../components/scan/ManualEntrySheet";
+
+/**
+ * The desktop's way to type the hand length and width instead of scanning
+ * (candidate, 2026-10-12): the form is shown next to the QR card, with no
+ * pull-up. The parent keeps the draft and takes the typed pair.
+ */
+export interface DeviceEntryManual {
+  readonly draft: ManualEntryDraft;
+  readonly onDraftChange: (draft: ManualEntryDraft) => void;
+  readonly onUse: (values: ManualEntryValues) => void;
+}
 
 export function DeviceEntry({
   kind,
   url,
   onFilePicked,
+  manual,
 }: {
   kind: "desktop" | "in-app";
   url: string;
   onFilePicked: (event: ChangeEvent<HTMLInputElement>) => void;
+  /** Only the desktop screen takes it. */
+  manual?: DeviceEntryManual;
 }) {
   const locale = useLocale();
   const words = easyScanCopy(locale).device;
@@ -53,10 +73,11 @@ export function DeviceEntry({
       active = false;
     };
   }, [kind, url]);
-  return (
-    <main className="easyDeviceEntry">
-      <h1>{kind === "desktop" ? words.desktopTitle : words.inAppTitle}</h1>
-      {kind !== "desktop" && <p>{words.inAppBody}</p>}
+  const showManual = kind === "desktop" && manual !== undefined;
+  // Everything about scanning with the phone, as one block: the whole screen
+  // when there is no form, the left card when there is.
+  const scanBlock = (
+    <>
       {kind === "desktop" && (
         <>
           <p>{words.desktopBody}</p>
@@ -130,6 +151,32 @@ export function DeviceEntry({
         aria-hidden="true"
         onChange={onFilePicked}
       />
+    </>
+  );
+  if (showManual) {
+    return (
+      <main className="easyDeviceEntry easyDeviceEntry-manual">
+        <h1>{manualEntryCopy(locale).desktopHeading}</h1>
+        <div className="easyDeviceColumns">
+          <section className="easyDeviceScanCard">
+            <h2>{words.desktopTitle}</h2>
+            {scanBlock}
+          </section>
+          <ManualEntrySheet
+            presentation="panel"
+            initialDraft={manual.draft}
+            onDraftChange={manual.onDraftChange}
+            onUse={manual.onUse}
+          />
+        </div>
+      </main>
+    );
+  }
+  return (
+    <main className="easyDeviceEntry">
+      <h1>{kind === "desktop" ? words.desktopTitle : words.inAppTitle}</h1>
+      {kind !== "desktop" && <p>{words.inAppBody}</p>}
+      {scanBlock}
     </main>
   );
 }

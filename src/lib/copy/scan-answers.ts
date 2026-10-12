@@ -38,6 +38,13 @@ export interface ScanAnswersCopy {
   /** The grip page. */
   gripTitle: string;
   gripSubtitle: string;
+  /**
+   * The grip page's subtitle when the grip is mandatory (a typed hand size):
+   * says why. Candidate; Kirby has not approved it.
+   */
+  gripSubtitleRequired: string;
+  /** On the required grip page, after 確認 was pressed with nothing chosen. */
+  gripRequiredHint: string;
   gripGroupLabel: string;
   gripConfirm: string;
   grip: { palm: ChoiceCopy; claw: ChoiceCopy; fingertip: ChoiceCopy };
@@ -65,6 +72,8 @@ export const zhTW: ScanAnswersCopy = {
   stepThicknessLabel: "第 2 步，共 2 步",
   gripTitle: "握滑鼠的方式",
   gripSubtitle: "點選最像你平常的握法。",
+  gripSubtitleRequired: "沒有照片可判讀，需要你選一個。",
+  gripRequiredHint: "請先選一個握法，才能繼續。",
   gripGroupLabel: "握法",
   gripConfirm: "確認",
   grip: {
@@ -96,6 +105,8 @@ export const en: ScanAnswersCopy = {
   stepThicknessLabel: "Step 2 of 2",
   gripTitle: "How you hold a mouse",
   gripSubtitle: "Tap the one closest to your usual grip.",
+  gripSubtitleRequired: "Without a photo we can't tell, so please choose one.",
+  gripRequiredHint: "Choose a grip to continue.",
   gripGroupLabel: "Grip style",
   gripConfirm: "Confirm",
   grip: {

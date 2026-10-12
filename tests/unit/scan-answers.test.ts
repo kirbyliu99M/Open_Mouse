@@ -290,9 +290,37 @@ describe("the pages as rendered", () => {
     );
     expect(html).not.toContain('data-testid="grip-skip"');
     expect(html).not.toContain(zhTW.skip);
+    // Soft-disabled: focusable and pressable, says it is not available and
+    // points at the line that says why (never a silent `disabled`).
     expect(html).toMatch(
+      /<button[^>]*aria-disabled="true"[^>]*data-testid="grip-confirm"/,
+    );
+    expect(html).not.toMatch(
+      /<button[^>]*\sdisabled=""[^>]*data-testid="grip-confirm"/,
+    );
+    const hintId =
+      /aria-describedby="([^"]+)"[^>]*data-testid="grip-confirm"/.exec(
+        html,
+      )?.[1];
+    expect(hintId).toBeTruthy();
+    expect(html).toContain(`id="${hintId}"`);
+    // The subtitle says why the grip is needed; the normal page's does not.
+    expect(html).toContain(zhTW.gripSubtitleRequired);
+    expect(html).not.toContain(zhTW.gripSubtitle);
+    // The normal flow keeps its plain disabled button and subtitle.
+    const normal = render(
+      createElement(GripPage, {
+        value: null,
+        onChange: noop,
+        onConfirm: noop,
+        onSkip: noop,
+        onBack: noop,
+      }),
+    );
+    expect(normal).toMatch(
       /<button[^>]*disabled=""[^>]*data-testid="grip-confirm"/,
     );
+    expect(normal).toContain(zhTW.gripSubtitle);
   });
 
   it("a chosen grip enables 確認 and makes its line art the active layer", () => {
@@ -401,6 +429,29 @@ describe("the pages as rendered", () => {
     }
     for (const kind of ["rateLimited", "network", "server"] as const)
       expect(banner(kind), kind).not.toContain("thickness-retake");
+  });
+
+  it("for a typed hand size the banner button says Change the numbers and the sentences stop speaking of a photo", () => {
+    const html = render(
+      createElement(ThicknessPage, {
+        value: "thin",
+        onChange: noop,
+        onSubmit: noop,
+        onSkip: noop,
+        onBack: noop,
+        busy: false,
+        errorKind: "invalid",
+        onRetake: noop,
+        retakeLabel: "Change the numbers",
+        errorText: { invalid: "These numbers could not be saved." },
+      }),
+      "en",
+    );
+    expect(html).toContain("These numbers could not be saved.");
+    expect(html).not.toContain("photo");
+    expect(html).toMatch(
+      /data-testid="thickness-retake"[^>]*>Change the numbers<\/button>/,
+    );
   });
 
   it("after a successful send the button says the results are opening", () => {

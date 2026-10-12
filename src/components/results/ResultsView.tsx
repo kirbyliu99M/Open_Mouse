@@ -1,5 +1,7 @@
 import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
+import { manualEntryCopy } from "@/lib/copy/manualEntry";
+import { formatCentimetres } from "@/lib/scan/manualEntry";
 import { en as enBands, zhTW as zhBands } from "@/lib/copy/fit-bands";
 import { bandOf } from "@/lib/fit/bands";
 import {
@@ -33,6 +35,7 @@ import { useMouseLinks } from "./useMouseLinks";
 import { WhyList } from "./WhyList";
 import "./results.css";
 import { POOR_FIT_THRESHOLD } from "./fitNotice";
+import type { StoredManualEntry } from "./userLengthDisclosure";
 
 const BAND_COPY = { "zh-TW": zhBands, en: enBands } as const;
 
@@ -66,6 +69,7 @@ export function ResultsView({
   analysisState = { status: "idle" },
   onRetryAnalysis,
   enteredLengthMm = null,
+  enteredManual = null,
   showViewer = false,
   scanId,
   onSelectRank,
@@ -85,6 +89,13 @@ export function ResultsView({
   onRetryAnalysis?: () => void;
   /** The hand length the user typed in, when the scan used no paper. */
   enteredLengthMm?: number | null;
+  /**
+   * The hand length and width the user typed instead of scanning (manual
+   * entry, candidate). Only a manual-entry scan has them; with a typed
+   * length-as-scale note (above) the page shows that note alone, so the two
+   * never stack.
+   */
+  enteredManual?: StoredManualEntry | null;
   /** Mount the 3D size illustration (real scans only). */
   showViewer?: boolean;
   /** A real scan: the other picks link to its routes. Absent in the demo. */
@@ -249,6 +260,14 @@ export function ResultsView({
               {enteredLengthMm !== null && (
                 <p className="results-handNotice">
                   {copy.enteredLengthNotice(enteredLengthMm)}
+                </p>
+              )}
+              {enteredManual !== null && enteredLengthMm === null && (
+                <p className="results-handNotice">
+                  {manualEntryCopy(language).resultsNotice(
+                    formatCentimetres(enteredManual.handLengthMm),
+                    formatCentimetres(enteredManual.handWidthMm),
+                  )}
                 </p>
               )}
               {/* The hand comes from the fit response (#62), not from browser

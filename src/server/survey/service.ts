@@ -184,6 +184,21 @@ export async function handleSurveySubmission(
     });
     if (!scan) return json(404, { error: "Scan not found." });
 
+    // A contribution carries the scan's hand profile into the similar-hand
+    // pool. A typed hand size stays out of it (Kirby, 2026-10-12, candidate:
+    // its width is a skin width, the pool's a joint-centre width, and the gap
+    // is not measured), and a contribution has no field to mark it, so it is
+    // refused here, before anything is stored. 409, as "this scan cannot
+    // contribute" (routes.ts lists 409 for a repeat only; the contract's text
+    // is Claude's to extend).
+    if (scan.calibrationMethod === "manual-entry") {
+      log.info("survey.refused_manual_entry", { route: SURVEY_LOG_ROUTE });
+      return json(409, {
+        error:
+          "This scan's numbers were typed in, so it cannot join the hand pool.",
+      });
+    }
+
     const mouseIdBySlug = await deps.surveyRepo.findMouseIdsBySlug(
       body.ratings.map((rating) => rating.slug),
     );

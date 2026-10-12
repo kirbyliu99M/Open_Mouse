@@ -85,11 +85,12 @@ describe("calibrationMethodOf", () => {
     expect(calibrationMethodOf(userLength)).toBe("user-length");
   });
 
-  it("lists exactly the three methods", () => {
+  it("lists exactly the four methods", () => {
     expect(CALIBRATION_METHODS).toEqual([
       "printed-sheet",
       "paper-edge",
       "user-length",
+      "manual-entry",
     ]);
   });
 });

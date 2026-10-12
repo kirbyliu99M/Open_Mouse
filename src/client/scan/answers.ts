@@ -13,12 +13,26 @@
  *
  * `src/lib/contracts/` already has `gripStyleStated` and `palmThicknessStated`;
  * this file only fills them.
+ *
+ * The same pages follow a typed hand length and width (manual entry); there the
+ * grip is mandatory (`buildManualAnswersSubmission`) and "back" from the grip
+ * page returns to the entry form instead of the measured sheet.
  */
 import {
   scanSubmissionSchema,
   type PalmThicknessLevel,
   type ScanSubmission,
 } from "../../lib/contracts/measurement";
+import {
+  buildManualEntrySubmission,
+  type ManualEntryInput,
+} from "../../lib/scan/manualEntry";
+
+/** The typed pair a manual entry hands over: the hand and two whole millimetres. */
+export type ManualEntryValues = Pick<
+  ManualEntryInput,
+  "hand" | "handLengthMm" | "handWidthMm"
+>;
 
 export type GripStyle = NonNullable<ScanSubmission["gripStyleStated"]>;
 
@@ -134,4 +148,35 @@ export function buildSubmission(
       ? { palmThicknessStated: answers.thickness }
       : {}),
   });
+}
+
+/**
+ * The submission for a typed hand length and width (manual entry, candidate,
+ * 2026-10-12): the typed pair, the grip (MANDATORY here: a typed pair has no
+ * photo to read a grip from, and the palm ratio of an estimated palm tells
+ * nothing) and, when answered, the palm thickness. A skipped thickness leaves
+ * no key, like everywhere else. No scan-only field is ever carried over: the
+ * measurements are only length, estimated palm length and width.
+ *
+ * Throws when the grip is missing or the pair breaks the contract (the grip
+ * page's `required` mode makes the first impossible from the screen).
+ */
+export function buildManualAnswersSubmission(
+  values: ManualEntryValues,
+  answers: Pick<AnswersState, "grip" | "thickness">,
+): ScanSubmission {
+  if (answers.grip === null)
+    throw new Error("A typed hand size needs the grip: it cannot be skipped.");
+  const base = buildManualEntrySubmission({
+    hand: values.hand,
+    handLengthMm: values.handLengthMm,
+    handWidthMm: values.handWidthMm,
+    grip: answers.grip,
+  });
+  return answers.thickness === null
+    ? base
+    : scanSubmissionSchema.parse({
+        ...base,
+        palmThicknessStated: answers.thickness,
+      });
 }

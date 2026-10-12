@@ -252,6 +252,60 @@ export const userLengthEvidenceSchema = z.strictObject({
 });
 
 /**
+ * Typed numbers, no photo (Kirby, 2026-10-11; ratio and layout OK 2026-10-12,
+ * candidate until M2 data exists): the user types hand length and hand width
+ * in centimetres (stored as millimetres) and the typed pair replaces a scan.
+ * Palm length is not typed, it is ESTIMATED as `MANUAL_ENTRY.palmLengthRatio`
+ * times the hand length, so `palmLengthEstimated` is always true and the
+ * ratio used is stored with the scan; a later, measured ratio can then be
+ * applied to old rows. Because the estimate is the same fraction for every
+ * hand, the fit engine's palm-over-hand grip prediction carries no information
+ * here: a manual-entry submission MUST state a grip (`gripStyleStated`, see
+ * `scanSubmissionSchema`). No photo, so no scale reference and no parallax;
+ * M2 accuracy statistics must exclude this method.
+ *
+ * Known scale mismatch (candidate, 2026-10-12, number unverified): a scan's
+ * palmWidthMm is a joint-centre distance (landmarks 5 to 17), which the notes
+ * above put 10-20 mm under a skin-to-skin width, and a ruler hand length runs
+ * 7-11 mm longer than the landmark distance. The typed values are skin
+ * measurements stored as typed, with no correction (Kirby: not corrected for
+ * now), so a manual-entry hand scores on a slightly wider and longer scale than
+ * a scanned one, and typed scans stay out of the similar-hand pool. A versioned
+ * typed-to-landmark mapping fitted on paired ruler and scan data (M2) is the
+ * way to align them; until then the results page discloses the estimate.
+ */
+export const manualEntryEvidenceSchema = z.strictObject({
+  method: z.literal("manual-entry"),
+  /** The typed hand length, mm. Must equal `measurements.handLengthMm`. */
+  handLengthMm: z.number().finite().min(135).max(265),
+  /** The typed hand width, mm. Must equal `measurements.palmWidthMm`. */
+  handWidthMm: z.number().finite().min(50).max(150),
+  palmLengthEstimated: z.literal(true),
+  /** The palm-length / hand-length ratio the estimate used. */
+  palmLengthRatio: z.number().finite().min(0.4).max(0.7),
+  parallaxCorrected: z.literal(false),
+});
+
+/**
+ * Constants of the typed-number path. All candidates (not M2-calibrated):
+ * the length range is the same 135-265 mm the typed-length scan accepts, and
+ * the width band 0.38-0.56 of the hand length is the plausibility band the
+ * scan gates use, read here as skin-to-skin width.
+ */
+export const MANUAL_ENTRY = {
+  handLengthRangeMm: { min: 135, max: 265 },
+  handWidthRangeMm: { min: 50, max: 150 },
+  widthOverLengthBand: { min: 0.38, max: 0.56 },
+  /** Midpoint of the claw-grip band of fit v1 (0.54-0.58). Placeholder. */
+  palmLengthRatio: 0.56,
+} as const;
+
+/** Estimated palm length for a typed hand length, to 0.1 mm. */
+export function estimatePalmLengthMm(handLengthMm: number): number {
+  return Math.round(handLengthMm * MANUAL_ENTRY.palmLengthRatio * 10) / 10;
+}
+
+/**
  * Any calibration method. The printed sheet keeps its original shape (no
  * `method` field) so clients built before plain paper still parse.
  */
@@ -259,17 +313,19 @@ export const calibrationEvidenceSchema = z.union([
   printedSheetEvidenceSchema,
   paperEdgeEvidenceSchema,
   userLengthEvidenceSchema,
+  manualEntryEvidenceSchema,
 ]);
 
 /**
  * How a scan was calibrated. The printed sheet predates the `method` tag, so
- * its evidence carries none; the other two name themselves. Stored with the
+ * its evidence carries none; the others name themselves. Stored with the
  * scan (#63) so M2 validation and aggregate stats can tell the paths apart.
  */
 export const CALIBRATION_METHODS = [
   "printed-sheet",
   "paper-edge",
   "user-length",
+  "manual-entry",
 ] as const;
 export type CalibrationMethod = (typeof CALIBRATION_METHODS)[number];
 
@@ -326,6 +382,73 @@ export const scanSubmissionSchema = z
           "With a typed-in hand length, handLengthMm must be that length.",
       });
     }
+    if ("method" in s.calibration && s.calibration.method === "manual-entry") {
+      const c = s.calibration;
+      const m = s.measurements;
+      if (Math.abs(m.handLengthMm - c.handLengthMm) > 0.05) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["measurements", "handLengthMm"],
+          message: "With manual entry, handLengthMm must be the typed length.",
+        });
+      }
+      if (Math.abs(m.palmWidthMm - c.handWidthMm) > 0.05) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["measurements", "palmWidthMm"],
+          message: "With manual entry, palmWidthMm must be the typed width.",
+        });
+      }
+      if (Math.abs(m.palmLengthMm - c.handLengthMm * c.palmLengthRatio) > 0.1) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["measurements", "palmLengthMm"],
+          message:
+            "With manual entry, palmLengthMm must be handLengthMm times the stated palmLengthRatio.",
+        });
+      }
+      const widthOverLength = c.handWidthMm / c.handLengthMm;
+      if (
+        widthOverLength < MANUAL_ENTRY.widthOverLengthBand.min ||
+        widthOverLength > MANUAL_ENTRY.widthOverLengthBand.max
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["calibration", "handWidthMm"],
+          message:
+            "The typed hand width does not fit the typed hand length (width / length outside 0.38-0.56).",
+        });
+      }
+      // No photo, so the palm-over-hand ratio is the same for every hand: the
+      // engine cannot predict a grip from it and the user has to state one.
+      if (s.gripStyleStated === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["gripStyleStated"],
+          message: "Manual entry needs a stated grip style.",
+        });
+      }
+      // Optional scan-only fields would mix scan values into a typed record.
+      for (const key of [
+        "thumbLengthMm",
+        "indexLengthMm",
+        "middleLengthMm",
+        "ringLengthMm",
+        "pinkyLengthMm",
+        "palmThicknessMm",
+        "knuckleHeightMm",
+        "gripApertureMm",
+        "thumbAngleDeg",
+      ] as const) {
+        if (m[key] !== undefined) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["measurements", key],
+            message: `With manual entry, ${key} must be absent.`,
+          });
+        }
+      }
+    }
   });
 
 /**
@@ -347,4 +470,5 @@ export type CalibrationEvidence = z.infer<typeof calibrationEvidenceSchema>;
 export type PrintedSheetEvidence = z.infer<typeof printedSheetEvidenceSchema>;
 export type PaperEdgeEvidence = z.infer<typeof paperEdgeEvidenceSchema>;
 export type UserLengthEvidence = z.infer<typeof userLengthEvidenceSchema>;
+export type ManualEntryEvidence = z.infer<typeof manualEntryEvidenceSchema>;
 export type ScanSubmission = z.infer<typeof scanSubmissionSchema>;

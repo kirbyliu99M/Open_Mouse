@@ -117,7 +117,7 @@ export const resultsPagePath = (scanId: string): string =>
  * characters, an email address or a phone number, or a `scanId` that is not a
  * well-formed id: it is a field of the body, so it is 400 and never looks the
  * scan up) or unknown mouse slug;
- * 404 a well-formed id that names an unknown, foreign or expired scan; 409 this scan has already contributed
+ * 404 a well-formed id that names an unknown, foreign or expired scan; 409 this scan has already contributed, or its numbers were typed in (calibration method manual-entry, Kirby 2026-10-12: typed hand width is a skin width, scan width is a joint-centre width, so typed scans stay out of the similar-hand pool)
  * (one contribution per scan; nothing is stored or replaced); 413 body too
  * large; 429 rate limited per client IP (`errorResponseSchema`; nothing is
  * stored). A signed-in person's later submission replaces their earlier rating

@@ -115,6 +115,27 @@ describe("loadOwnedFit — ownership: 404-equivalent (not_found), never 403", ()
   });
 });
 
+describe("loadOwnedFit — how the numbers came about", () => {
+  it.each(["manual-entry", "paper-edge", null, undefined] as const)(
+    "hands calibrationMethod %s on to the analysis (null when the row has none)",
+    async (method) => {
+      const scanRepo = createFakeScanRepo(
+        vi.fn(async () => ({ ...sampleOwnedScan, calibrationMethod: method })),
+      );
+      const { repo: fitRepo } = createFakeFitRepo();
+      const result = await loadOwnedFit(
+        SCAN_ID,
+        { userId: "user-1", cookieSessionId: null },
+        NO_PREFS,
+        { scanRepo, fitRepo, now: NOW },
+      );
+      expect(result.status === "ok" && result.calibrationMethod).toBe(
+        method ?? null,
+      );
+    },
+  );
+});
+
 describe("loadOwnedFit — a successful fit", () => {
   it("returns a response that passes fitResponseSchema.parse", async () => {
     const scanRepo = createFakeScanRepo(vi.fn(async () => sampleOwnedScan));

@@ -8,7 +8,10 @@
  */
 import { isLowConfidence } from "../../components/results/format";
 import type { FitBand } from "../../lib/contracts/fit-bands";
-import type { HandMeasurements } from "../../lib/contracts/measurement";
+import type {
+  CalibrationMethod,
+  HandMeasurements,
+} from "../../lib/contracts/measurement";
 import { en, zhTW, type FitBandCopy } from "../../lib/copy/fit-bands";
 import type { Locale } from "../../lib/contracts/locale";
 import { bandOf } from "../../lib/fit/bands";
@@ -69,10 +72,15 @@ export interface AnalysisInput {
   estimateNote: string;
   gripStyle: FitResponse["gripStyle"];
   targets: FitResponse["targets"];
-  /** Only the hand numbers guaranteed present on every submission. */
+  /**
+   * Only the hand numbers guaranteed present on every submission. The palm
+   * length is left out for a typed hand size (manual-entry): it is an estimate
+   * (a fixed fraction of the typed length), not a measurement, and the model
+   * must not talk about it as one.
+   */
   hand: {
     handLengthMm: number;
-    palmLengthMm: number;
+    palmLengthMm?: number;
     palmWidthMm: number;
   };
   /**
@@ -174,6 +182,7 @@ export function buildAnalysisInput(
   fit: FitResponse,
   measurements: HandMeasurements,
   locale: Locale,
+  calibrationMethod?: CalibrationMethod | null,
 ): AnalysisInput {
   const bandCopy = copyFor(locale);
   return {
@@ -188,7 +197,9 @@ export function buildAnalysisInput(
     },
     hand: {
       handLengthMm: oneDecimal(measurements.handLengthMm),
-      palmLengthMm: oneDecimal(measurements.palmLengthMm),
+      ...(calibrationMethod === "manual-entry"
+        ? {}
+        : { palmLengthMm: oneDecimal(measurements.palmLengthMm) }),
       palmWidthMm: oneDecimal(measurements.palmWidthMm),
     },
     excluded: fit.excluded.map(({ slug, brand, model, reason }) => ({

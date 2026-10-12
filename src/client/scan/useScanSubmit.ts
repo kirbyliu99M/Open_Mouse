@@ -2,8 +2,9 @@
 
 /**
  * The state machine behind every "send this scan" button: POST a
- * `ScanSubmission` through `submitScan`, track the outcome, remember a typed
- * hand length for the results page, and open the results on success. Shared by
+ * `ScanSubmission` through `submitAndRemember` (which also keeps what the
+ * results page says about a typed hand size), track the outcome, and open the
+ * results on success. Shared by
  * `ScanSubmitPanel` (the printed-sheet flow and the demos) and the easy scan's
  * last question page, so the lock, the analytics and the error kinds live in
  * one place.
@@ -21,8 +22,17 @@ import type { ScanSubmission } from "@/lib/contracts/measurement";
 import { resultsPagePath } from "@/lib/contracts/routes";
 import type { ScanFlow } from "@/lib/contracts/analytics";
 import { track } from "@/client/analytics/track";
-import { submitScan, type SubmitScanErrorKind } from "@/client/scan/submitScan";
-import { resultLengthKey } from "@/components/results/userLengthDisclosure";
+import type { SubmitScanErrorKind } from "@/client/scan/submitScan";
+import { submitAndRemember } from "@/client/scan/submitAndRemember";
+
+/** `localStorage`, or null where reading the property itself throws (blocked storage). */
+function safeStorage(): Storage | null {
+  try {
+    return localStorage;
+  } catch {
+    return null;
+  }
+}
 
 export type SubmitState =
   | { kind: "idle" }
@@ -42,26 +52,13 @@ export function useScanSubmit(flow?: ScanFlow) {
       if (submittingRef.current) return;
       submittingRef.current = true;
       setState({ kind: "submitting" });
-      void submitScan(submission).then((outcome) => {
+      // The disclosure keys are written inside, and only after a 201.
+      void submitAndRemember(submission, safeStorage()).then((outcome) => {
         if (flow) {
           if (outcome.status === "success") track("scan_submitted", { flow });
           else track("scan_submit_failed", { flow, kind: outcome.kind });
         }
         if (outcome.status === "success") {
-          try {
-            if (
-              "method" in submission.calibration &&
-              submission.calibration.method === "user-length"
-            ) {
-              localStorage.setItem(
-                resultLengthKey(outcome.scanId),
-                String(submission.calibration.referenceMm),
-              );
-            }
-          } catch {
-            // Storage may be disabled; results remain available without the
-            // no-paper disclosure.
-          }
           setState({ kind: "success" });
           router.push(resultsPagePath(outcome.scanId));
           return;
