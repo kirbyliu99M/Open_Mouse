@@ -57,7 +57,8 @@ for (const selector of [".eyebrow", ".note"]) {
 }
 
 // The signed-in profile page (AccountView.tsx) cannot be reached either. Its
-// markup is put on a page that loads the same stylesheets, so the real cascade
+// markup is put on /account, the one page that loads account.css (the profile
+// classes live there, not in the shared stylesheets), so the real cascade
 // decides its print colours. Keep the classes in step with AccountView.
 const FAKE_ACCOUNT = `<section id="fake-account" class="profile">
   <div class="profile-person">
@@ -95,7 +96,7 @@ const FAKE_ACCOUNT = `<section id="fake-account" class="profile">
 test("a signed-in profile page's rows, buttons and error line print dark on white", async ({
   page,
 }) => {
-  await page.goto("/no-such-page-xyz");
+  await page.goto("/account");
   await page.evaluate((html) => {
     document.querySelector("main")!.insertAdjacentHTML("beforeend", html);
   }, FAKE_ACCOUNT);
@@ -108,7 +109,7 @@ test("a signed-in profile page's rows, buttons and error line print dark on whit
 test("a signed-in account's open 'Delete everything?' dialog is left off the printed page", async ({
   page,
 }) => {
-  await page.goto("/no-such-page-xyz");
+  await page.goto("/account");
   await page.evaluate((html) => {
     document.querySelector("main")!.insertAdjacentHTML(
       "beforeend",
