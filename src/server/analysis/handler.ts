@@ -8,7 +8,10 @@
 import type { AnalysisResponse } from "../../lib/contracts/analysis";
 import type { Locale } from "../../lib/contracts/locale";
 import type { FitResponse } from "../../lib/contracts/fit";
-import type { HandMeasurements } from "../../lib/contracts/measurement";
+import type {
+  CalibrationMethod,
+  HandMeasurements,
+} from "../../lib/contracts/measurement";
 import { analyse } from "./analyse";
 import type { AnalysisCache } from "./cache";
 import { computeCacheKey } from "./cache";
@@ -51,6 +54,8 @@ export interface AnalysisRequest {
   scanId: string;
   fit: FitResponse;
   measurements: HandMeasurements;
+  /** How the numbers came about; a typed hand size keeps its estimated palm length out of the prompt. */
+  calibrationMethod?: CalibrationMethod | null;
   /** Identity the rate limit is scoped to — e.g. scanId or caller IP. */
   rateLimitKey: string;
   /** The language the prose is written in. */
@@ -108,7 +113,12 @@ export async function handleAnalysisRequest(
   // actually call the model — never on a cache hit and never when no model
   // is configured. Both those paths return below, before either is read.
   const locale = request.locale;
-  const cacheKey = computeCacheKey(request.fit, request.measurements, locale);
+  const cacheKey = computeCacheKey(
+    request.fit,
+    request.measurements,
+    locale,
+    request.calibrationMethod,
+  );
   let cached: Awaited<ReturnType<typeof deps.cache.get>> = null;
   try {
     cached = await deps.cache.get(request.scanId, cacheKey);
@@ -122,7 +132,12 @@ export async function handleAnalysisRequest(
     };
   }
 
-  const input = buildAnalysisInput(request.fit, request.measurements, locale);
+  const input = buildAnalysisInput(
+    request.fit,
+    request.measurements,
+    locale,
+    request.calibrationMethod,
+  );
 
   if (deps.client === null) {
     const { output, source } = await analyse(input, deps.client);

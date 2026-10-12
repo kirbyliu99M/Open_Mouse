@@ -124,6 +124,7 @@ export async function computeAnalysisForScan(
       scanId,
       fit: fitResult.fit,
       measurements: fitResult.measurements,
+      calibrationMethod: fitResult.calibrationMethod,
       rateLimitKey,
       locale: localeFromRequestHeaders(request.headers),
     },

@@ -123,19 +123,109 @@ describe("scanSubmissionSchema: typed numbers without a photo (manual-entry)", (
     }
   });
 
-  it("rejects scan-only optional fields, so scan values never mix into a typed record", () => {
-    expect(
-      paths(
-        body({
-          measurements: {
-            handLengthMm: 185,
-            palmLengthMm: 103.6,
-            palmWidthMm: 82,
-            indexLengthMm: 70,
-          },
-        }),
-      ),
-    ).toContain("measurements.indexLengthMm");
+  // Every optional scan-only measurement, with a value that is fine on its own
+  // (so a rejection can only be the manual-entry rule).
+  const SCAN_ONLY = {
+    thumbLengthMm: 60,
+    indexLengthMm: 70,
+    middleLengthMm: 75,
+    ringLengthMm: 70,
+    pinkyLengthMm: 55,
+    palmThicknessMm: 30,
+    knuckleHeightMm: 40,
+    gripApertureMm: 100,
+    thumbAngleDeg: 45,
+  } as const;
+
+  it("lists all nine scan-only fields (the test would be vacuous otherwise)", () => {
+    expect(Object.keys(SCAN_ONLY)).toHaveLength(9);
+  });
+
+  it.each(Object.entries(SCAN_ONLY))(
+    "rejects the scan-only field %s, so scan values never mix into a typed record",
+    (key, value) => {
+      const measurements = {
+        handLengthMm: 185,
+        palmLengthMm: 103.6,
+        palmWidthMm: 82,
+        [key]: value,
+      };
+      // Fine for a photo scan (paper-edge)...
+      expect(
+        scanSubmissionSchema.safeParse(
+          body({
+            measurements,
+            calibration: {
+              method: "paper-edge",
+              paperSize: "a4",
+              edgeFitResidualMm: 0.6,
+              minSideCoverage: 0.92,
+              parallaxCorrected: true,
+            },
+          }),
+        ).success,
+      ).toBe(true);
+      // ...and for the typed record it is exactly this one field that is refused.
+      expect(paths(body({ measurements }))).toEqual([`measurements.${key}`]);
+    },
+  );
+
+  describe("the tolerances between the typed pair and the stored measurements", () => {
+    const withMeasurements = (over: Record<string, number>) =>
+      body({
+        measurements: {
+          handLengthMm: 185,
+          palmLengthMm: 103.6,
+          palmWidthMm: 82,
+          ...over,
+        },
+      });
+
+    it("palm length: within 0.1 mm of hand length x ratio passes, beyond it is refused", () => {
+      // 185 x 0.56 = 103.6.
+      for (const palmLengthMm of [103.51, 103.6, 103.69]) {
+        expect(
+          paths(withMeasurements({ palmLengthMm })),
+          String(palmLengthMm),
+        ).toEqual([]);
+      }
+      for (const palmLengthMm of [103.49, 103.71]) {
+        expect(
+          paths(withMeasurements({ palmLengthMm })),
+          String(palmLengthMm),
+        ).toEqual(["measurements.palmLengthMm"]);
+      }
+    });
+
+    it("hand length: within 0.05 mm of the typed length passes, beyond it is refused", () => {
+      for (const handLengthMm of [184.96, 185, 185.04]) {
+        expect(
+          paths(withMeasurements({ handLengthMm })),
+          String(handLengthMm),
+        ).toEqual([]);
+      }
+      for (const handLengthMm of [184.94, 185.06]) {
+        expect(
+          paths(withMeasurements({ handLengthMm })),
+          String(handLengthMm),
+        ).toEqual(["measurements.handLengthMm"]);
+      }
+    });
+
+    it("hand width: within 0.05 mm of the typed width passes, beyond it is refused", () => {
+      for (const palmWidthMm of [81.96, 82, 82.04]) {
+        expect(
+          paths(withMeasurements({ palmWidthMm })),
+          String(palmWidthMm),
+        ).toEqual([]);
+      }
+      for (const palmWidthMm of [81.94, 82.06]) {
+        expect(
+          paths(withMeasurements({ palmWidthMm })),
+          String(palmWidthMm),
+        ).toEqual(["measurements.palmWidthMm"]);
+      }
+    });
   });
 
   it("is strict: palmLengthEstimated must be true, parallax false, no extra fields", () => {

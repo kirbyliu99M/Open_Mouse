@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { computeCacheKey } from "../../src/server/analysis/cache";
 import { buildAnalysisInput } from "../../src/server/analysis/input";
 import { collectNumbers } from "../../src/server/analysis/numerals";
 import { makeFit, makeMeasurements } from "./analysis-fixtures";
@@ -26,6 +27,46 @@ describe("buildAnalysisInput", () => {
       palmWidthMm: 84.6,
     });
     expect(input.hand).not.toHaveProperty("thumbLengthMm");
+  });
+
+  it("leaves the palm length out for a typed hand size: it is an estimate, not a measurement", () => {
+    const input = buildAnalysisInput(
+      makeFit(),
+      makeMeasurements(),
+      "en",
+      "manual-entry",
+    );
+    expect(input.hand).toEqual({ handLengthMm: 180.4, palmWidthMm: 84.6 });
+    expect(input.hand).not.toHaveProperty("palmLengthMm");
+    // And the numeral guard cannot be asked about it either.
+    expect(collectNumbers(input)).not.toContain(105.2);
+  });
+
+  it.each([
+    "paper-edge",
+    "user-length",
+    "printed-sheet",
+    null,
+    undefined,
+  ] as const)("keeps the palm length for %s", (method) => {
+    const input = buildAnalysisInput(
+      makeFit(),
+      makeMeasurements(),
+      "en",
+      method,
+    );
+    expect(input.hand.palmLengthMm).toBe(105.2);
+  });
+
+  it("a typed hand size and a measured one do not share a cached answer", () => {
+    const fit = makeFit();
+    const measurements = makeMeasurements();
+    expect(computeCacheKey(fit, measurements, "en", "manual-entry")).not.toBe(
+      computeCacheKey(fit, measurements, "en", "paper-edge"),
+    );
+    expect(computeCacheKey(fit, measurements, "en", null)).toBe(
+      computeCacheKey(fit, measurements, "en"),
+    );
   });
 
   it("takes at most the top 3 results, in rank order, with sub-score reasons", () => {

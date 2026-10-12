@@ -91,7 +91,7 @@ const gripPage = (page: Page) =>
 const thicknessPage = (page: Page) =>
   page.getByRole("dialog", { name: "Palm thickness" });
 const handle = (page: Page) =>
-  page.getByRole("button", { name: /Enter your measurements/ });
+  page.getByRole("button", { name: /Enter your hand size/ });
 const panel = (page: Page) => page.getByTestId("manual-entry-panel");
 
 async function typePair(
@@ -321,7 +321,7 @@ test.describe("phone: the handle, the sheet, the grip and thickness pages", () =
     await expect.poll(() => bodies.length).toBe(1);
     const dialog = thicknessPage(page);
     await expect(dialog.getByRole("alert")).toContainText(
-      "These numbers could not be saved",
+      "These numbers weren't saved. Check them",
     );
     await expect(dialog.getByRole("alert")).not.toContainText("photo");
     await expect(
@@ -475,5 +475,238 @@ test.describe("desktop: the form next to the QR card", () => {
     await page.goto(`/results/${OTHER_SCAN_ID}`);
     await expect(page.locator("main")).toBeVisible();
     await expect(page.getByText(/you entered; palm length/)).toHaveCount(0);
+  });
+});
+
+test.describe("phone: where the camera cannot be used, typing the size is still there", () => {
+  test.beforeEach(async ({ page }, testInfo) => {
+    void page;
+    test.skip(
+      testInfo.project.name !== "chromium-camera-paper-edge",
+      "Needs the phone project.",
+    );
+  });
+
+  const SCENARIOS = [
+    [
+      "permission refused",
+      ".cameraErrorCard",
+      () =>
+        Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+          configurable: true,
+          value: () =>
+            Promise.reject(new DOMException("denied", "NotAllowedError")),
+        }),
+    ],
+    [
+      "no camera at all",
+      ".easyScanNoCamera",
+      () =>
+        Object.defineProperty(navigator, "mediaDevices", {
+          configurable: true,
+          value: undefined,
+        }),
+    ],
+  ] as const;
+
+  for (const [name, screen, script] of SCENARIOS) {
+    test(`${name}: the handle is on the screen, and the whole flow (sheet, required grip, thickness, POST) works`, async ({
+      page,
+    }) => {
+      const bodies = await captureScans(page);
+      await stubResults(page, SCAN_ID);
+      await page.addInitScript(script);
+      await page.goto("/scan/easy");
+      await page.getByRole("button", { name: "Got it" }).click();
+      await expect(page.locator(screen)).toBeVisible();
+      await expect(handle(page)).toBeVisible();
+      const h = (await handle(page).boundingBox())!;
+      expect(Math.round(h.y + h.height)).toBe(844);
+      expect(h.height).toBeGreaterThanOrEqual(44);
+      await handle(page).click();
+      await typePair(entrySheet(page), "Right hand", "18.5", "8.2");
+      await entrySheet(page).getByRole("button", { name: "Confirm" }).click();
+      await expect(
+        gripPage(page).getByRole("button", { name: "Skip" }),
+      ).toHaveCount(0);
+      await gripPage(page).getByRole("radio", { name: /^Claw/ }).check();
+      await gripPage(page).getByRole("button", { name: "Confirm" }).click();
+      await thicknessPage(page)
+        .getByRole("button", { name: "Skip and see results" })
+        .click();
+      await expect.poll(() => bodies.length).toBe(1);
+      expectManualShape(bodies[0], { grip: "claw" });
+    });
+  }
+
+  test("Cancel returns focus to the handle on the refused-permission screen too", async ({
+    page,
+  }) => {
+    await page.addInitScript(SCENARIOS[0][2]);
+    await page.goto("/scan/easy");
+    await page.getByRole("button", { name: "Got it" }).click();
+    await handle(page).click();
+    await entrySheet(page).getByRole("button", { name: "Cancel" }).click();
+    await expect(entrySheet(page)).toBeHidden();
+    await expect(handle(page)).toBeFocused();
+  });
+
+  test("on its side (844x390) the shutter and the handle are both on the screen and do not overlap", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.goto("/scan/easy");
+    await page.getByRole("button", { name: "Got it" }).click();
+    await expect(handle(page)).toBeVisible();
+    const h = (await handle(page).boundingBox())!;
+    const shutter = (await page
+      .getByRole("button", { name: "Take photo" })
+      .boundingBox())!;
+    await page.screenshot({
+      path: test.info().outputPath("landscape-844x390.png"),
+    });
+    for (const [what, b] of [
+      ["handle", h],
+      ["shutter", shutter],
+    ] as const) {
+      expect(b.x, `${what} left`).toBeGreaterThanOrEqual(0);
+      expect(b.y, `${what} top`).toBeGreaterThanOrEqual(0);
+      expect(b.x + b.width, `${what} right`).toBeLessThanOrEqual(844);
+      expect(b.y + b.height, `${what} bottom`).toBeLessThanOrEqual(390);
+    }
+    // One above the other, never across.
+    expect(shutter.y + shutter.height).toBeLessThanOrEqual(h.y);
+    // The strip is one compact line there (no bar, no padding).
+    expect(h.height).toBeLessThanOrEqual(56);
+  });
+});
+
+test.describe("desktop: the panel's colours, focus and the required grip page", () => {
+  test.beforeEach(async ({ page }, testInfo) => {
+    void page;
+    test.skip(testInfo.project.name !== "chromium", "Desktop project only.");
+  });
+
+  /** A computed colour as [r, g, b] (0-255): `rgb()`, or `color(srgb ...)` from a color-mix. */
+  const channels = (css: string): number[] => {
+    const nums = (css.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+    return css.startsWith("color(srgb") ? nums.map((n) => n * 255) : nums;
+  };
+  const luminance = ([r, g, b]: number[]) => {
+    const f = (v: number) => {
+      const c = v / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    };
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+  };
+  const ratio = (fg: string, bg: string) => {
+    const [a, b] = [luminance(channels(fg)), luminance(channels(bg))].sort(
+      (x, y) => y - x,
+    );
+    return (a + 0.05) / (b + 0.05);
+  };
+
+  test("an error line in the panel is red, not the page's muted grey, and reads at 4.5:1", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/scan/easy");
+    await panel(page).getByLabel("Hand length").fill("5");
+    await panel(page).getByLabel("Hand width").focus();
+    const error = panel(page).locator(".manualEntry-error").first();
+    await expect(error).toBeVisible();
+    const style = await error.evaluate((el) => {
+      const own = getComputedStyle(el);
+      const surface = getComputedStyle(
+        el.closest("[data-testid='manual-entry-panel']")!,
+      );
+      return { color: own.color, background: surface.backgroundColor };
+    });
+    // The frame's red (--me-error #ff9d90), not --scan-muted (#b5b5bd).
+    expect(style.color).toBe("rgb(255, 157, 144)");
+    expect(ratio(style.color, style.background)).toBeGreaterThanOrEqual(4.5);
+    // The scan card's lines keep the muted grey.
+    const muted = await page
+      .locator(".easyDeviceScanCard p")
+      .first()
+      .evaluate((el) => getComputedStyle(el).color);
+    expect(muted).toBe("rgb(181, 181, 189)");
+  });
+
+  test("the required grip page says why, and Confirm pressed with nothing chosen says what is missing", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/scan/easy");
+    await typePair(panel(page), "Right hand", "18.5", "8.2");
+    await panel(page).getByRole("button", { name: "Confirm" }).click();
+    const grip = gripPage(page);
+    await expect(
+      grip.getByText("Without a photo we can't tell, so please choose one."),
+    ).toBeVisible();
+    const confirm = grip.getByRole("button", { name: "Confirm" });
+    // Not a silent `disabled`: it says it is unavailable and where to read why.
+    await expect(confirm).toHaveAttribute("aria-disabled", "true");
+    await expect(confirm).not.toHaveAttribute("disabled", "");
+    await expect(confirm).toHaveAccessibleDescription(
+      "Choose a grip to continue.",
+    );
+    await confirm.click();
+    await expect(grip.getByRole("alert")).toHaveText(
+      "Choose a grip to continue.",
+    );
+    await expect(grip).toBeVisible();
+    await grip.getByRole("radio", { name: /^Palm/ }).check();
+    await expect(grip.getByRole("alert")).toHaveCount(0);
+    await expect(confirm).not.toHaveAttribute("aria-disabled", "true");
+    await confirm.click();
+    await expect(thicknessPage(page)).toBeVisible();
+  });
+
+  test("Back from the grip page puts focus on the panel's heading, not on the page", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/scan/easy");
+    await typePair(panel(page), "Left hand", "19.0", "8.5");
+    await panel(page).getByRole("button", { name: "Confirm" }).click();
+    await gripPage(page).getByRole("button", { name: "Back" }).click();
+    await expect(gripPage(page)).toBeHidden();
+    await expect(
+      panel(page).getByRole("heading", { name: "Enter your hand size" }),
+    ).toBeFocused();
+    // Escape on the grip page does the same.
+    await panel(page).getByRole("button", { name: "Confirm" }).click();
+    await expect(gripPage(page)).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(gripPage(page)).toBeHidden();
+    await expect(
+      panel(page).getByRole("heading", { name: "Enter your hand size" }),
+    ).toBeFocused();
+  });
+
+  test("Change the numbers (after a failed send) puts focus on the panel's heading", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await captureScans(page, () => ({ status: 400, body: { error: "no" } }));
+    await page.goto("/scan/easy");
+    await typePair(panel(page), "Right hand", "18.5", "8.2");
+    await panel(page).getByRole("button", { name: "Confirm" }).click();
+    await gripPage(page).getByRole("radio", { name: /^Claw/ }).check();
+    await gripPage(page).getByRole("button", { name: "Confirm" }).click();
+    await thicknessPage(page)
+      .getByRole("button", { name: "Skip and see results" })
+      .click();
+    const dialog = thicknessPage(page);
+    await expect(dialog.getByRole("alert")).toContainText(
+      "These numbers weren't saved",
+    );
+    await dialog.getByRole("button", { name: "Change the numbers" }).click();
+    await expect(thicknessPage(page)).toBeHidden();
+    await expect(
+      panel(page).getByRole("heading", { name: "Enter your hand size" }),
+    ).toBeFocused();
+    await expect(panel(page).getByLabel("Hand length")).toHaveValue("18.5");
   });
 });

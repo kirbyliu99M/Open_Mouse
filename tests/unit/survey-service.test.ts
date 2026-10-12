@@ -596,6 +596,60 @@ describe.each(worlds)("/api/survey on %s", (_name, make) => {
       expect(await world.contributions()).toEqual(before);
     });
 
+    // A typed hand size (manual-entry) is kept out of the similar-hand pool
+    // (Kirby, 2026-10-12, candidate): a contribution carries the scan's hand
+    // profile and has no field to mark it, so such a scan is refused before
+    // anything is stored. The scan's method is faked on the way out of the
+    // repo (the PGlite world's enum has no manual-entry until its migration).
+    const asMethod = (method: string | null): Partial<SurveyDeps> => ({
+      scanRepo: {
+        ...world.scanRepo,
+        findOwnedScan: async (scanId, ctx) => {
+          const found = await world.scanRepo.findOwnedScan(scanId, ctx);
+          return found
+            ? { ...found, calibrationMethod: method as never }
+            : found;
+        },
+      },
+    });
+
+    it("a scan whose numbers were typed in is refused, 409, and nothing is stored or marked", async () => {
+      const scan = await world.addScan();
+      const res = await post(validBody(scan, { feedback: COMMENT }), {
+        cookie: scan.cookieSessionId,
+        deps: asMethod("manual-entry"),
+      });
+      expect(res.status).toBe(409);
+      expectNoStore(res);
+      expect(errorResponseSchema.parse(await res.json()).error).toMatch(
+        /typed in/,
+      );
+      expect(await world.contributions()).toEqual([]);
+      expect(await world.scanMark(scan.scanId)).toBeNull();
+    });
+
+    it.each(["paper-edge", "user-length", "printed-sheet", null])(
+      "a scan calibrated by %s still contributes",
+      async (method) => {
+        const scan = await world.addScan();
+        const res = await post(validBody(scan), {
+          cookie: scan.cookieSessionId,
+          deps: asMethod(method),
+        });
+        expect(res.status).toBe(201);
+        expect(await world.contributions()).toHaveLength(1);
+      },
+    );
+
+    it("the refusal comes after the ownership check: a foreign typed scan is the same 404", async () => {
+      const scan = await world.addScan();
+      const res = await post(validBody(scan), {
+        cookie: null,
+        deps: asMethod("manual-entry"),
+      });
+      expect(res.status).toBe(404);
+    });
+
     it("comes after the mouse list: a contributed scan with an unknown slug is 400", async () => {
       const scan = await world.addScan();
       await post(validBody(scan), { cookie: scan.cookieSessionId });

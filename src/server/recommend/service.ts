@@ -123,6 +123,22 @@ export async function handleSimilar(
     });
     if (!scan) return json(404, { error: "Scan not found." });
 
+    // A typed hand size is not a reference for "similar hands": its width is a
+    // skin width and the pool's is a joint-centre width (Kirby, 2026-10-12,
+    // candidate). The answer is the one for "not enough data", with no
+    // neighbour search and no pool read.
+    if (scan.calibrationMethod === "manual-entry") {
+      const response = similarResponseSchema.parse({
+        available: false,
+        reason: "insufficient_data",
+      });
+      log.info("similar.answered", {
+        route: SIMILAR_LOG_ROUTE,
+        available: response.available,
+      });
+      return json(200, response);
+    }
+
     const shown = new Map<string, CatalogueMouse>();
     for (const mouse of listedOnly(await deps.fitRepo.loadCatalogue())) {
       if (mouse.id !== undefined && !fitExcludes(mouse, scan.hand)) {

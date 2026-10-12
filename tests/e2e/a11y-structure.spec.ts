@@ -45,15 +45,20 @@ test("the scan screen is a <main> with one heading before scripts run", async ({
   await context.close();
 });
 
-test("the desktop entry is a <main> with one heading", async ({
+test("the desktop entry is a <main> with one h1, over the QR card's and the form's own h2", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "chromium");
   await page.goto("/scan/easy");
   await expect(page.getByRole("main")).toHaveCount(1);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-    "Scan with your phone",
+    "Scan your hand, or enter your size",
   );
+  // The QR card and the typed-size form each name themselves with an h2.
+  await expect(page.getByRole("heading", { level: 2 })).toHaveText([
+    "Scan with your phone",
+    "Enter your hand size",
+  ]);
 });
 
 test("the camera screen is the <main>, with a visually hidden h1, and the hand-length step is an h2 under it", async ({

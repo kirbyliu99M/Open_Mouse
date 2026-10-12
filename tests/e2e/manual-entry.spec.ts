@@ -12,7 +12,7 @@ const URL = "/scan/manual-entry-demo";
 const panel = (page: Page) => page.getByTestId("manual-entry-panel");
 const sheet = (page: Page) => page.getByRole("dialog");
 const handle = (page: Page) =>
-  page.getByRole("button", { name: /Enter your measurements/ });
+  page.getByRole("button", { name: /Enter your hand size/ });
 const result = (page: Page) => page.getByTestId("demo-used");
 
 async function fill(scope: Locator, length: string, width: string) {

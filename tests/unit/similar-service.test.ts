@@ -529,6 +529,49 @@ describe("GET /api/scans/{scanId}/similar", () => {
     });
   });
 
+  describe("a typed hand size (manual-entry) is not a reference", () => {
+    // Kirby, 2026-10-12 (candidate): a typed width is a skin width and the
+    // pool's is a joint-centre width, so the typed scan neither joins the pool
+    // nor asks it anything.
+    it("answers `not enough data` for a manual-entry scan, whatever the pool holds, and never reads the pool", async () => {
+      pool = [...crowd(5, "a", 5)];
+      const scan = addScan({ scan: { calibrationMethod: "manual-entry" } });
+      const res = await getOwn(scan);
+      expectNoStore(res);
+      expect(await res.json()).toEqual({
+        available: false,
+        reason: "insufficient_data",
+      });
+      expect(loadContributions).not.toHaveBeenCalled();
+      expect(loadCatalogue).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["paper-edge"],
+      ["user-length"],
+      ["printed-sheet"],
+      [null],
+      [undefined],
+    ] as const)(
+      "a scan calibrated by %s still gets its neighbours",
+      async (method) => {
+        pool = [...crowd(5, "a", 5)];
+        const scan = addScan({
+          scan: method === undefined ? {} : { calibrationMethod: method },
+        });
+        const body = await answer(await getOwn(scan));
+        expect(body.available).toBe(true);
+        expect(loadContributions).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it("the ownership check still comes first: a foreign manual-entry scan is the same 404", async () => {
+      const scan = addScan({ scan: { calibrationMethod: "manual-entry" } });
+      const res = await get(scan.scanId, { cookie: null });
+      expect(res.status).toBe(404);
+    });
+  });
+
   describe("404", () => {
     const notFound = async (res: Response) => {
       expect(res.status).toBe(404);

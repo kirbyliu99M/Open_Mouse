@@ -24,6 +24,15 @@ export interface OwnedScan {
   /** null = the user skipped the question. Never defaulted to "medium". */
   palmThicknessStated: ScanSubmission["palmThicknessStated"] | null;
   measurements: HandMeasurements;
+  /**
+   * How the numbers came about (`scans.calibration_method`). Null or absent: a
+   * row written before the column existed. Only the hand-pool routes read it:
+   * a `manual-entry` scan (typed numbers, no photo) is kept out of the
+   * similar-hand pool and never used as its reference (Kirby, 2026-10-12,
+   * candidate: the typed width is a skin width, the scan's is a joint-centre
+   * width, and the gap is not measured yet).
+   */
+  calibrationMethod?: CalibrationMethod | null;
 }
 
 /**

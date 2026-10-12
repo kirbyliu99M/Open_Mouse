@@ -16,6 +16,7 @@ const dbRow = {
   hand: "left" as const,
   gripStyleStated: "palm" as const,
   palmThicknessStated: "thin" as const,
+  calibrationMethod: "manual-entry" as const,
   handLengthMm: 180,
   palmLengthMm: 100,
   palmWidthMm: 85,
@@ -59,6 +60,8 @@ describe("createDrizzleScanRepo().findOwnedScan", () => {
       hand: "left",
       gripStyleStated: "palm",
       palmThicknessStated: "thin",
+      // Read for the hand-pool routes (a typed hand size stays out of the pool).
+      calibrationMethod: "manual-entry",
       measurements: {
         handLengthMm: 180,
         palmLengthMm: 100,
