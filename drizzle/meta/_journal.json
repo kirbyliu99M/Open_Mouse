@@ -85,6 +85,13 @@
       "when": 1791746566628,
       "tag": "0011_sour_ben_parker",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791789099341,
+      "tag": "0012_wise_kate_bishop",
+      "breakpoints": true
     }
   ]
 }
