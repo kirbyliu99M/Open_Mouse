@@ -176,11 +176,17 @@ describe("resolvePurgeMode", () => {
     expect(resolvePurgeMode("off", q())).toBe("off");
   });
 
-  it("?dryRun=1 forces dry-run whatever the variable says", () => {
-    for (const value of [undefined, "off", "dry-run", "delete", "garbage"]) {
+  it("?dryRun=1 lowers delete to dry-run and leaves dry-run as it is", () => {
+    for (const value of ["dry-run", "delete"]) {
       expect(resolvePurgeMode(value, q("dryRun=1")), String(value)).toBe(
         "dry-run",
       );
+    }
+  });
+
+  it("?dryRun=1 never switches a deploy on: off, unset and unknown stay off", () => {
+    for (const value of [undefined, "", "off", "garbage", "DELETE"]) {
+      expect(resolvePurgeMode(value, q("dryRun=1")), String(value)).toBe("off");
     }
   });
 

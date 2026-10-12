@@ -11,8 +11,10 @@ import { INACTIVE_WINDOW_DAYS, type PurgeRepo } from "./purge";
  *  - no `CRON_SECRET` configured, or a wrong or missing bearer: 401, and the
  *    repo is never called;
  *  - a missing or unknown mode is `off`; `off` touches nothing;
- *  - `?dryRun=1` forces `dry-run` whatever the variable says; no query value
- *    can force `delete`;
+ *  - `?dryRun=1` only lowers `delete` to `dry-run`; on `off` (or an unset or
+ *    unknown variable) it changes nothing, so `off` never reads the database
+ *    (Kirby, 2026-10-12: refuse dryRun when off); no query value can force
+ *    `delete`;
  *  - per run at most `MAX_ACCOUNTS_PER_RUN` accounts, in chunks of
  *    `CHUNK_SIZE` per DELETE statement, and no new chunk starts after
  *    `TIME_BUDGET_MS`;
@@ -33,15 +35,16 @@ export type PurgeMode = "off" | "dry-run" | "delete";
 /**
  * The mode for one request. The environment value must be exactly `dry-run` or
  * `delete`; anything else (unset, empty, a typo, another case) is `off`, the
- * safe side. A `dryRun=1` query can only lower the mode to `dry-run`; no query
- * value ever produces `delete`.
+ * safe side. A `dryRun=1` query can only lower `delete` to `dry-run`: it never
+ * switches a deploy on (`off` stays `off`) and no query value ever produces
+ * `delete`.
  */
 export function resolvePurgeMode(
   envValue: string | undefined,
   query: URLSearchParams,
 ): PurgeMode {
-  if (query.get("dryRun") === "1") return "dry-run";
-  if (envValue === "delete") return "delete";
+  if (envValue === "delete")
+    return query.get("dryRun") === "1" ? "dry-run" : "delete";
   if (envValue === "dry-run") return "dry-run";
   return "off";
 }

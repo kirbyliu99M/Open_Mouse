@@ -148,12 +148,15 @@ describe("mode", () => {
     expect(remaining.size).toBe(2);
   });
 
-  it("?dryRun=1 also runs a dry-run when the variable is off (it only reads)", async () => {
-    const { repo } = fakeRepo(["a"]);
-    const res = await call("?dryRun=1", { repo, modeEnv: "off" });
-    expect(((await res.json()) as { mode: string }).mode).toBe("dry-run");
-    expect(repo.deleteUserAccounts).not.toHaveBeenCalled();
-  });
+  it.each(["off", undefined, "garbage"])(
+    "?dryRun=1 does not read the database when the variable is %s (off stays off)",
+    async (modeEnv) => {
+      const { repo } = fakeRepo(["a"]);
+      const res = await call("?dryRun=1", { repo, modeEnv });
+      expect(await res.json()).toEqual({ mode: "off" });
+      neverCalled(repo);
+    },
+  );
 });
 
 describe("dry-run", () => {

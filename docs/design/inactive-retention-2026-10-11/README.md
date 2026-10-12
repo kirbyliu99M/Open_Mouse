@@ -349,8 +349,10 @@ last_active_at LIMIT $limit` (the interval is built from `windowDays`, no
   than copying it. Unset `CRON_SECRET` is 401.
 - **Mode, by environment variable** `RETENTION_PURGE_MODE` = `off` | `dry-run` |
   `delete`, default `off` (a missing or unknown value is `off`). `off` returns 200
-  `{ mode: "off" }` and touches nothing. A `?dryRun=1` query forces `dry-run`
-  whatever the variable says. No query value can force `delete`.
+  `{ mode: "off" }` and touches nothing. A `?dryRun=1` query only lowers `delete`
+  to `dry-run`; on `off` it changes nothing (decided by Kirby 2026-10-12, "A": `off`
+  never reads the database, so to preview the counts the variable is set to
+  `dry-run`). No query value can force `delete`.
 - **Bounds (per run, not per day).** Candidate: at most 200 accounts per run, in
   chunks of 25 per `DELETE` statement, and stop starting new chunks after 20 s of
   wall time. The route sets `maxDuration` (the analysis route uses 30:
@@ -560,8 +562,8 @@ template of that name to follow; the closest are `survey-schema-db.test.ts` and
 As `tests/unit/scan-api.test.ts:454,466` does for `handleExpireSessions`: no
 header, wrong secret, wrong scheme, unset `CRON_SECRET` are all 401 and the repo
 is never called; correct secret is 200. Plus: mode `off` calls nothing; unknown
-mode is `off`; `?dryRun=1` with mode `delete` deletes nothing; no query can switch
-a deploy from `off` to `delete`.
+mode is `off`; `?dryRun=1` with mode `delete` deletes nothing; `?dryRun=1` with mode
+`off` calls nothing; no query can switch a deploy from `off` to `delete` or to `dry-run`.
 
 ### 5.4 Write path
 
