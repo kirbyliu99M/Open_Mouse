@@ -1,12 +1,12 @@
 "use client";
 
 import type { Locale } from "@/lib/contracts/locale";
-import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import {
   clearGroup,
   emptyFilters,
   suggestRelaxation,
+  type FilterSource,
   type Filters,
 } from "@/lib/results/filters";
 import { useFocusFilter } from "./FilterFocus";
@@ -24,7 +24,7 @@ export function FilterNoMatch({
   onChange,
   headingLevel,
 }: {
-  response: FitResponse;
+  response: FilterSource;
   filters: Filters;
   language: Locale;
   onChange: (next: Filters) => void;

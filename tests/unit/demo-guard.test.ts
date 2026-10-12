@@ -113,6 +113,7 @@ const PRODUCT_ROUTES = [
   "/how-it-works",
   // The public "How to choose a mouse that fits" page (the kit moved to /learn/kit).
   "/learn",
+  "/mice",
   "/results/[scanId]",
   "/results/[scanId]/m/[slug]",
   "/scan/easy",

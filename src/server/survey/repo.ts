@@ -69,6 +69,46 @@ export type RecordContributionResult =
   "stored" | "already_contributed" | "scan_gone";
 
 /**
+ * What `PUT /api/survey` writes: the caller's whole set of answers after the
+ * edit (`surveyEditSchema`), with every catalogue mouse already resolved to its
+ * `mice.id`. Built by `buildAnswersWrite` (./profile.ts). There is no scan, no
+ * consent and no hand profile in it: an edit never carries any.
+ */
+export interface AnswersWrite {
+  mainUse: MainUse | null;
+  /** The comment of the account's latest contribution; null clears it. */
+  feedback: string | null;
+  ratings: ContributionRating[];
+  otherMice: ContributionOtherMouse[];
+}
+
+/**
+ * - `stored`: the answers are replaced.
+ * - `no_contribution`: the account has no contribution (none ever, or it was
+ *   withdrawn between the request's checks and the write); nothing was changed.
+ */
+export type ReplaceAnswersResult = "stored" | "no_contribution";
+
+/**
+ * A signed-in person's own answers as the database holds them, for
+ * `GET /api/survey`. A rating carries the slug of its CURRENT `mice` row. The
+ * values are the database's text columns; the service's response schema is what
+ * decides whether each one is a value the contract knows.
+ */
+export interface StoredAnswers {
+  mainUse: string | null;
+  feedback: string | null;
+  ratings: {
+    slug: string;
+    satisfaction: number;
+    duration: string | null;
+    painPoints: PainPoint[];
+    isCurrent: boolean;
+  }[];
+  otherMice: { brand: string; sizeFeel: string; isCurrent: boolean }[];
+}
+
+/**
  * The DB seam for the survey routes. Route handlers wire `drizzle-repo.ts`'s
  * real implementation; unit tests inject an in-memory fake, and the same
  * behaviour matrix runs against the real repo on PGlite
@@ -113,4 +153,39 @@ export interface SurveyRepo {
    * nothing. The marks on their scans stay: they are not contributions.
    */
   withdrawContributions(userId: string): Promise<number>;
+
+  /**
+   * The caller's own answers, whole: every rating and other mouse of the
+   * account (the current marker included), the account's `mainUse` and the
+   * comment of its latest contribution. "Latest" is the contribution with the
+   * newest `consented_at` (a contribution keeps no instant finer than a day, so
+   * two of the same UTC day tie and the larger id wins: stable, not
+   * chronological). `mainUse` is the account's latest non-empty one (the repeat
+   * rules keep at most one). Nothing kept: empty lists and nulls.
+   */
+  readAnswers(userId: string): Promise<StoredAnswers>;
+
+  /**
+   * Replaces the signed-in `userId`'s answers with exactly `write`, ALL OR
+   * NOTHING, and never touches a hand profile, a grip, a consent record or a
+   * scan's mark:
+   *  - ratings and other mice the person had and `write` leaves out are
+   *    removed; those it names are set to what it says, the current marker
+   *    included (so "no current mouse" is possible);
+   *  - a rating or other mouse the person already had keeps the contribution
+   *    (and so the hand profile) it was given with; a new one is attached to
+   *    the latest contribution;
+   *  - `mainUse` is emptied on every contribution of the person, then set on
+   *    the latest one when `write` has one;
+   *  - the latest contribution's comment is set to `write.feedback` (null
+   *    clears it); the comments of earlier contributions are left as written.
+   * With no contribution it changes nothing and returns `no_contribution`.
+   * Two edits at once end as one of the two, never a mix: the write takes a
+   * row lock on the latest contribution first, like `recordContribution` does
+   * on the scan.
+   */
+  replaceAnswers(
+    userId: string,
+    write: AnswersWrite,
+  ): Promise<ReplaceAnswersResult>;
 }

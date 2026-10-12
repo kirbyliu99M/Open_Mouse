@@ -1508,7 +1508,7 @@
       "schema": "public",
       "values": [
         "first_party",
-        "eloshapes"
+        "public_compilation"
       ]
     },
     "public.descriptor_method": {

@@ -618,6 +618,54 @@ describe.each(worlds)("/api/survey on %s", (_name, make) => {
     });
   });
 
+  describe("the sentences of the shared body reader (POST and PUT use one)", () => {
+    it("pins the 400 for text that is not JSON, for an empty body and for a body that fails the schema, and the 413 for a body over the cap", async () => {
+      const scan = await world.addScan();
+      const cookie = { cookie: scan.cookieSessionId };
+      const notJson = await post("{nope", cookie);
+      expect(notJson.status).toBe(400);
+      expect(await notJson.json()).toEqual({
+        error: "Request body must be valid JSON.",
+      });
+
+      const empty = await post("", cookie);
+      expect(empty.status).toBe(400);
+      expect(await empty.json()).toMatchObject({
+        error: "Invalid survey submission.",
+        issues: expect.any(Array),
+      });
+
+      const noConsent = await post(
+        { ...validBody(scan), consent: undefined },
+        cookie,
+      );
+      expect(noConsent.status).toBe(400);
+      expect(await noConsent.json()).toEqual({
+        error: "Invalid survey submission.",
+        issues: [{ path: "consent", message: expect.any(String) }],
+      });
+
+      const tooBigHeader = await post(validBody(scan), {
+        ...cookie,
+        headers: { "content-length": String(MAX_SURVEY_BODY_BYTES + 1) },
+      });
+      expect(tooBigHeader.status).toBe(413);
+      expect(await tooBigHeader.json()).toEqual({
+        error: "Request body too large.",
+      });
+
+      const tooBigStream = await post(
+        validBody(scan, { feedback: "x".repeat(MAX_SURVEY_BODY_BYTES) }),
+        cookie,
+      );
+      expect(tooBigStream.status).toBe(413);
+      expect(await tooBigStream.json()).toEqual({
+        error: "Request body too large.",
+      });
+      expect(await world.contributions()).toEqual([]);
+    });
+  });
+
   describe("413", () => {
     it("refuses a body whose Content-Length is over the cap before reading it", async () => {
       const scan = await world.addScan();

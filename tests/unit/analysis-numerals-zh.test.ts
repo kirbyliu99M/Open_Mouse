@@ -757,8 +757,8 @@ describe("百分比 and position words are not quantities", () => {
 
   it.each([
     "前半段",
-    "後半部隆起",
-    "后半部隆起",
+    "後半部駝峰",
+    "后半部驼峰",
     "上半身",
     "下半部",
     "左半邊",
@@ -948,7 +948,7 @@ describe("前半 / 後半 / 上半 ... are positions only before a position noun
     "上半面",
     "下半區",
     "下半区",
-    "後半部隆起",
+    "後半部駝峰",
     "前半段的曲線比較平緩",
   ])("%s is a position", (text) => {
     expect(unknown(text, [1])).toBeNull();
