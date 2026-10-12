@@ -298,11 +298,12 @@
   font-weight: 700;
   cursor: pointer;
 }
-.answerPrimary:active:not(:disabled) {
+.answerPrimary:active:not(:disabled):not([aria-disabled="true"]) {
   background: var(--button-primary-pressed);
   transform: scale(0.98);
 }
-.answerPrimary:disabled {
+.answerPrimary:disabled,
+.answerPrimary[aria-disabled="true"] {
   opacity: var(--button-primary-disabled-opacity);
   cursor: not-allowed;
 }
@@ -375,7 +376,7 @@
   background: #ffffff14;
 }
 @media (prefers-reduced-motion: reduce) {
-  .answerPrimary:active:not(:disabled) {
+  .answerPrimary:active:not(:disabled):not([aria-disabled="true"]) {
     transform: none;
   }
 }

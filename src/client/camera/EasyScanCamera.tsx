@@ -361,6 +361,9 @@ type ResultState =
       imageHeight: number;
     };
 
+/** The screen with no photo and no result: the live camera (or the entry screen). */
+const NO_RESULT: ResultState = { kind: "none" };
+
 function quadBoundingBox(quad: Quad) {
   const xs = [
     quad.topLeft.x,
@@ -520,7 +523,12 @@ export default function EasyScanCamera({
   // accident, or 返回 from the grip page, finds what was typed. `manualValues`
   // is the confirmed pair while the grip and thickness pages are open over it
   // (it is null on the form itself and in every scan flow).
-  const [manualDraft, setManualDraft] = useState<ManualEntryDraft>(EMPTY_DRAFT);
+  // A ref, not state: the form tells it after every keystroke, and nothing
+  // here draws it (the sheet and the panel read it once, when they mount).
+  const manualDraftRef = useRef<ManualEntryDraft>(EMPTY_DRAFT);
+  const keepManualDraft = useCallback((draft: ManualEntryDraft) => {
+    manualDraftRef.current = draft;
+  }, []);
   const [manualValues, setManualValues] = useState<ManualEntryValues | null>(
     null,
   );
@@ -530,6 +538,11 @@ export default function EasyScanCamera({
   // The form or the question pages are over the camera: its loop (and the
   // auto-shutter) waits, so a photo is never taken behind them.
   const manualActive = manualSheetOpen || manualMode;
+  // Read by the capture and the pipeline, which outlive a render: once the
+  // form (or the pages after it) is open, no photo is taken and no late result
+  // is taken in.
+  const manualActiveRef = useRef(false);
+  manualActiveRef.current = manualActive;
   const [tipOpen, setTipOpen] = useState(Boolean(forceTipOpen));
   const [cue, setCue] = useState<Cue | null>(null);
   const [cornerStates, setCornerStates] = useState<CornerStates>(
@@ -1132,6 +1145,12 @@ export default function EasyScanCamera({
 
   const runPipeline = useCallback(
     async (file: File, previewUrl: string) => {
+      // The typed-size form (or its pages) is open: a photo that arrives now
+      // belongs to nothing on screen, and starting it would reset the answers.
+      if (manualActiveRef.current) {
+        URL.revokeObjectURL(previewUrl);
+        return;
+      }
       const runId = ++runIdRef.current;
       attemptCountRef.current += 1;
       // Read now: a typed length chosen while the photo is analysed must not change it.
@@ -1181,6 +1200,13 @@ export default function EasyScanCamera({
         });
         void logAttempt(info, { kind: "result", result: pipelineResult });
         if (runId !== runIdRef.current) return;
+        if (manualActiveRef.current) {
+          // The form opened while this was analysed: its result must not open
+          // a sheet over the form or touch the typed answers.
+          URL.revokeObjectURL(previewUrl);
+          setResult((prev) => (prev.kind === "processing" ? NO_RESULT : prev));
+          return;
+        }
         if (pipelineResult.status === "ok") {
           track("scan_measured", {
             flow: "easy",
@@ -1250,6 +1276,11 @@ export default function EasyScanCamera({
           message: error instanceof Error ? error.message : "",
         });
         if (runId !== runIdRef.current) return;
+        if (manualActiveRef.current) {
+          URL.revokeObjectURL(previewUrl);
+          setResult((prev) => (prev.kind === "processing" ? NO_RESULT : prev));
+          return;
+        }
         track("scan_rejected", {
           flow: "easy",
           attempt,
@@ -1282,7 +1313,7 @@ export default function EasyScanCamera({
   );
 
   const captureNow = useCallback(async () => {
-    if (capturingRef.current) return;
+    if (capturingRef.current || manualActiveRef.current) return;
     const source: AttemptCaptureSource = captureSource();
     const video = videoRef.current;
     // A frame needs a video that has a picture. If it has none yet (no video
@@ -1474,7 +1505,7 @@ export default function EasyScanCamera({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       e.target.value = "";
-      if (!file) return;
+      if (!file || manualActiveRef.current) return;
       stopStream();
       fileRef.current = file;
       const previewUrl = URL.createObjectURL(file);
@@ -1533,7 +1564,13 @@ export default function EasyScanCamera({
   const sendScan = useCallback(
     (final: Pick<typeof answers, "grip" | "thickness">) => {
       if (manualValues) {
-        if (final.grip === null) return;
+        // Cannot happen from the screen (the grip page is required and has no
+        // 跳過); if it ever did, the person is taken back to choose rather than
+        // left on a button that does nothing.
+        if (final.grip === null) {
+          dispatchAnswers({ type: "back" });
+          return;
+        }
         submitScanNow(buildManualAnswersSubmission(manualValues, final));
         return;
       }
@@ -1543,6 +1580,12 @@ export default function EasyScanCamera({
     [submitScanNow, manualValues],
   );
 
+  // The handle's press. Ignored while a photo is being taken or analysed, or
+  // a result is up: the camera screen it belongs to is already leaving.
+  const openManualSheet = useCallback(() => {
+    if (capturingRef.current || resultRef.current.kind !== "none") return;
+    setManualSheetOpen(true);
+  }, []);
   // The typed pair is confirmed: the grip page opens over the form. A new
   // pair replaces any earlier one; the answers already given stay.
   const confirmManualValues = useCallback((values: ManualEntryValues) => {
@@ -1570,6 +1613,20 @@ export default function EasyScanCamera({
     dispatchAnswers({ type: "back" });
     dispatchAnswers({ type: "back" });
   }, [clearSubmitError, deviceFit]);
+
+  // Back on the desktop's panel (返回 from the grip page, 修改數字): focus goes
+  // to the panel's heading, not to the page. (The phone's sheet focuses its own
+  // title when it opens.)
+  const wasManualRef = useRef(false);
+  useEffect(() => {
+    if (wasManualRef.current && !manualMode && deviceFit === "desktop")
+      document
+        .querySelector<HTMLElement>(
+          '[data-testid="manual-entry-panel"] [tabindex="-1"]',
+        )
+        ?.focus();
+    wasManualRef.current = manualMode;
+  }, [manualMode, deviceFit]);
 
   const toggleHand = useCallback(() => {
     if (!canToggleHandChip(resultRef.current.kind)) return;
@@ -2192,8 +2249,8 @@ export default function EasyScanCamera({
           manual={
             deviceFit === "desktop"
               ? {
-                  draft: manualDraft,
-                  onDraftChange: setManualDraft,
+                  draft: manualDraftRef.current,
+                  onDraftChange: keepManualDraft,
                   onUse: confirmManualValues,
                 }
               : undefined
@@ -2599,6 +2656,22 @@ export default function EasyScanCamera({
           </div>
         )}
 
+      {/* Where the camera cannot be used (permission refused, no camera, the
+          stream ended), typing the hand size is the way on, and these are the
+          people who need it most: the same strip as on the live camera, at
+          the same edge. */}
+      {!lengthStep &&
+        deviceFit === "phone" &&
+        !tipOpen &&
+        result.kind === "none" &&
+        (camState.kind === "streamEnded" ||
+          camState.kind === "cameraError" ||
+          camState.kind === "noCamera") && (
+          <div className="easyManualDock">
+            <ManualEntryHandle ref={manualHandleRef} onOpen={openManualSheet} />
+          </div>
+        )}
+
       {!lengthStep &&
         (camState.kind === "live" || camState.kind === "requesting") &&
         result.kind === "none" && (
@@ -2719,7 +2792,7 @@ export default function EasyScanCamera({
               {!tipOpen && (
                 <ManualEntryHandle
                   ref={manualHandleRef}
-                  onOpen={() => setManualSheetOpen(true)}
+                  onOpen={openManualSheet}
                 />
               )}
             </div>
@@ -2882,8 +2955,8 @@ export default function EasyScanCamera({
         <ManualEntrySheet
           presentation="sheet"
           returnFocusTo={manualHandleRef}
-          initialDraft={manualDraft}
-          onDraftChange={setManualDraft}
+          initialDraft={manualDraftRef.current}
+          onDraftChange={keepManualDraft}
           onCancel={() => setManualSheetOpen(false)}
           onUse={confirmManualValues}
         />

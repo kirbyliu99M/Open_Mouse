@@ -20,7 +20,14 @@
  * 返回 and 跳過 have a 44 px hit area, and the image swap is a fade under
  * `prefers-reduced-motion`.
  */
-import { useEffect, useRef, type ReactNode, type Ref } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+} from "react";
 import type { PalmThicknessLevel } from "../../lib/contracts/measurement";
 import { scanAnswersCopy, type ChoiceCopy } from "../../lib/copy/scan-answers";
 import { scanCommonCopy } from "../../lib/copy/scan-common";
@@ -267,19 +274,29 @@ function PrimaryButton({
   onClick,
   testId,
   buttonRef,
+  softDisabledBy,
 }: {
   readonly children: ReactNode;
   readonly disabled: boolean;
   readonly onClick: () => void;
   readonly testId: string;
   readonly buttonRef?: Ref<HTMLButtonElement>;
+  /**
+   * Instead of `disabled`: the button stays focusable and pressable, says it
+   * is not available (`aria-disabled`) and points at the line that says why
+   * (the id given). `onClick` still runs when it is pressed while `disabled`:
+   * the caller decides what that means (the grip page shows the hint).
+   */
+  readonly softDisabledBy?: string;
 }) {
   return (
     <button
       type="button"
       className="answerPrimary"
       ref={buttonRef}
-      disabled={disabled}
+      disabled={softDisabledBy ? undefined : disabled}
+      aria-disabled={softDisabledBy && disabled ? true : undefined}
+      aria-describedby={softDisabledBy && disabled ? softDisabledBy : undefined}
       onClick={onClick}
       data-testid={testId}
     >
@@ -311,6 +328,11 @@ export function GripPage({
 }: GripPageProps) {
   const words = scanAnswersCopy(useLocale());
   const controls = gripControls(value, required);
+  const hintId = useId();
+  // The required page's 確認 does not go silent: pressed with nothing chosen it
+  // says what is missing (the same pattern as the typed-size form's 確認).
+  const [attempted, setAttempted] = useState(false);
+  const showHint = required && attempted && value === null;
   const rows: readonly Row<GripStyle>[] = [
     { value: "palm", copy: words.grip.palm },
     { value: "claw", copy: words.grip.claw },
@@ -319,7 +341,7 @@ export function GripPage({
   return (
     <PageShell
       title={words.gripTitle}
-      subtitle={words.gripSubtitle}
+      subtitle={required ? words.gripSubtitleRequired : words.gripSubtitle}
       step={words.stepGrip}
       stepLabel={words.stepGripLabel}
       backLabel={words.back}
@@ -356,10 +378,23 @@ export function GripPage({
       }
       footer={
         <div className="answerActions">
+          {required && (
+            <p
+              id={hintId}
+              className={showHint ? "answerError" : "answerSr"}
+              role={showHint ? "alert" : undefined}
+            >
+              {words.gripRequiredHint}
+            </p>
+          )}
           <PrimaryButton
             disabled={!controls.confirmEnabled}
-            onClick={onConfirm}
+            onClick={() => {
+              if (controls.confirmEnabled) onConfirm();
+              else setAttempted(true);
+            }}
             testId="grip-confirm"
+            softDisabledBy={required ? hintId : undefined}
           >
             {words.gripConfirm}
           </PrimaryButton>

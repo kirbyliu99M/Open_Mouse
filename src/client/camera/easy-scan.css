@@ -605,7 +605,11 @@ main.easyScanShell {
   max-width: 14ch;
   margin: 0;
 }
-.easyDeviceEntry p {
+/* The scan card's lines and the old single-column screen's: not the typed-size
+   panel's, whose error and warning lines carry their own colours (a
+   .easyDeviceEntry p rule of this weight would repaint them grey). */
+.easyDeviceEntry > p,
+.easyDeviceScanCard p {
   color: var(--scan-muted, #b5b5bd);
   margin: 0;
 }
@@ -899,6 +903,34 @@ main.easyScanShell {
 }
 .easyBottomDock-withHandle .easyBottomRow {
   padding-bottom: 0.75rem;
+}
+/* The same strip on the screens where the camera cannot be used. */
+.easyManualDock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+}
+/* Short screens and phones on their side: a one-line strip, so the camera view
+   keeps its room (the handle's bar and padding go). */
+@media (max-height: 700px) {
+  .easyBottomDock-withHandle .manualEntry-handle,
+  .easyManualDock .manualEntry-handle {
+    gap: 0;
+    padding-top: 0.125rem;
+    padding-bottom: calc(0.125rem + env(safe-area-inset-bottom, 0px));
+  }
+  .easyBottomDock-withHandle .manualEntry-handleLabel,
+  .easyManualDock .manualEntry-handleLabel {
+    min-height: 2.75rem;
+  }
+}
+@media (orientation: landscape) and (max-height: 480px) {
+  .easyBottomDock-withHandle .manualEntry-handleBar,
+  .easyManualDock .manualEntry-handleBar {
+    display: none;
+  }
 }
 .easyHint {
   margin: 0;
