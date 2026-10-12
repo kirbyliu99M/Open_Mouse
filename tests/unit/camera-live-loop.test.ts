@@ -89,7 +89,7 @@ describe("EasyScanCamera's live loop uses them", () => {
 
   it("starts every (re)run from the fresh state", () => {
     const loopStart = source.indexOf(
-      'if (camState.kind !== "live" || tipOpen) return;',
+      'if (camState.kind !== "live" || tipOpen || manualActive) return;',
     );
     expect(loopStart).toBeGreaterThan(-1);
     const beforeTick = source.slice(

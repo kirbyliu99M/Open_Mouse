@@ -187,6 +187,7 @@ export function ManualEntryHandle({
           />
           <path
             d="M5 8.5h1M8 8.5h1M11 8.5h1M14 8.5h1M6.5 11.5h7"
+            fill="none"
             stroke="currentColor"
             strokeWidth="1.5"
             strokeLinecap="round"

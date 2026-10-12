@@ -2714,11 +2714,14 @@ export default function EasyScanCamera({
               )}
               {/* Typing the hand size instead (manual entry, candidate): a strip
                   at the very bottom of the camera screen. It is only here
-                  while the camera is, not over a finished measurement. */}
-              <ManualEntryHandle
-                ref={manualHandleRef}
-                onOpen={() => setManualSheetOpen(true)}
-              />
+                  while the camera is, not over a finished measurement, and
+                  not under the first-run tip (a modal over the same edge). */}
+              {!tipOpen && (
+                <ManualEntryHandle
+                  ref={manualHandleRef}
+                  onOpen={() => setManualSheetOpen(true)}
+                />
+              )}
             </div>
           </>
         )}

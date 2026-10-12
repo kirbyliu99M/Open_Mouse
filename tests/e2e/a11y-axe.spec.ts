@@ -232,6 +232,9 @@ const OVER_LIVE_PICTURE: readonly { selector: string; required?: true }[] = [
   { selector: ".easyUploadIconButton", required: true },
   { selector: ".easyNoPaperLink" },
   { selector: ".easyHint" },
+  // The typed-size strip at the screen's bottom edge: an opaque surface of its
+  // own (manual-entry.css), so the picture never shows through it.
+  { selector: ".manualEntry-handle", required: true },
   // The download progress pill (white on rgba(0,0,0,.6): 5.74:1 on a white
   // picture): axe names its line of text, and the pill itself carries the fill.
   { selector: ".easyDetectorProgress" },
