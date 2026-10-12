@@ -9,13 +9,8 @@
  * runs, one disabled action so a double tap can't submit twice, and
  * distinct, actionable copy per error kind).
  *
- * The double-submit guard is a `useRef`, not `state.kind`: two clicks
- * dispatched in the same task (a double tap, or Enter held/repeated) both
- * run their `onClick` handler before React commits the first `setState`,
- * so a closure reading `state.kind` sees "idle" for both and a second
- * `fetch` goes out. A ref is read and written synchronously, so the second
- * call sees the first call's write immediately — no render in between
- * required.
+ * The double-submit guard, the analytics and the error kinds live in
+ * `useScanSubmit`, which the easy scan's last question page shares.
  *
  * Kept as its own component (rather than inline in ScanClient.tsx) so it
  * can be exercised directly — with a fixed, schema-valid `ScanSubmission` —
@@ -25,22 +20,11 @@
  * the only way to reach "ok" deterministically in CI and exercise the real
  * submit fetch, its error handling, and the navigation it performs.
  */
-import { useCallback, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import type { ScanSubmission } from "@/lib/contracts/measurement";
-import { resultsPagePath } from "@/lib/contracts/routes";
-import { track } from "@/client/analytics/track";
 import { useLocale } from "@/client/i18n/LocaleProvider";
 import { scanCommonCopy } from "@/lib/copy/scan-common";
 import type { ScanFlow } from "@/lib/contracts/analytics";
-import { submitScan, type SubmitScanErrorKind } from "@/client/scan/submitScan";
-import { resultLengthKey } from "@/components/results/userLengthDisclosure";
-
-type SubmitState =
-  | { kind: "idle" }
-  | { kind: "submitting" }
-  | { kind: "success" }
-  | { kind: "error"; errorKind: SubmitScanErrorKind };
+import { useScanSubmit } from "@/client/scan/useScanSubmit";
 
 export interface ScanSubmitPanelProps {
   readonly submission: ScanSubmission;
@@ -52,49 +36,10 @@ export default function ScanSubmitPanel({
   submission,
   flow,
 }: ScanSubmitPanelProps) {
-  const [state, setState] = useState<SubmitState>({ kind: "idle" });
-  const router = useRouter();
+  const { state, submit, busy } = useScanSubmit(flow);
   const locale = useLocale();
   const words = scanCommonCopy(locale);
-  // Synchronous lock — see the file-level comment above for why `state.kind`
-  // alone can't guard against two clicks in the same task.
-  const submittingRef = useRef(false);
 
-  const onSubmit = useCallback(() => {
-    if (submittingRef.current) return;
-    submittingRef.current = true;
-    setState({ kind: "submitting" });
-    void submitScan(submission).then((outcome) => {
-      if (flow) {
-        if (outcome.status === "success") track("scan_submitted", { flow });
-        else track("scan_submit_failed", { flow, kind: outcome.kind });
-      }
-      if (outcome.status === "success") {
-        try {
-          if (
-            "method" in submission.calibration &&
-            submission.calibration.method === "user-length"
-          ) {
-            localStorage.setItem(
-              resultLengthKey(outcome.scanId),
-              String(submission.calibration.referenceMm),
-            );
-          }
-        } catch {
-          // Storage may be disabled; results remain available without the
-          // no-paper disclosure.
-        }
-        setState({ kind: "success" });
-        router.push(resultsPagePath(outcome.scanId));
-        return;
-      }
-      // Release the lock on failure so the user can retry.
-      submittingRef.current = false;
-      setState({ kind: "error", errorKind: outcome.kind });
-    });
-  }, [submission, router, flow]);
-
-  const busy = state.kind === "submitting" || state.kind === "success";
   const statusText =
     state.kind === "submitting"
       ? words.submitSending
@@ -107,7 +52,7 @@ export default function ScanSubmitPanel({
       <button
         type="button"
         className="primaryButton"
-        onClick={onSubmit}
+        onClick={() => submit(submission)}
         disabled={busy}
         data-testid="submit-scan-button"
       >
