@@ -9,9 +9,10 @@
  * mouse-shape labels are the results page's own words, imported from its table,
  * not new strings), and the chart note.
  * The palm thickness card (new, candidate): the zh option words and their
- * one-line descriptions come from Kirby's palm thickness page design v9 (they
- * already exist there); the zh title and body and all the English are
- * Claude's, the English a translation. Not decided (未拍板).
+ * one-line descriptions come from Kirby's palm thickness page design v9 and
+ * are the same words as the thickness page of the scan (scan-answers.ts, a
+ * unit test checks zh and en are identical there); the zh title and body and
+ * the English body are Claude's. Not decided (未拍板).
  * The card "Weight and connection" is gone (Kirby 2026-10-11: it contradicted
  * the weight bar in the chart), so the page has six cards (with the palm thickness card).
  *
@@ -196,15 +197,15 @@ export const en: LearnPageCopy = {
     options: {
       thick: {
         name: "Thick",
-        line: "Full palm, the base of the thumb clearly raised",
+        line: "A full palm; the base of the thumb clearly bulges",
       },
       medium: {
         name: "Medium",
-        line: "A natural curve in the palm, between the other two",
+        line: "A natural curve in the palm, between the two",
       },
       thin: {
         name: "Thin",
-        line: "A flatter palm, tendons on the back of the hand show more",
+        line: "A flatter palm; the tendons on the back of the hand show more",
       },
     },
   },

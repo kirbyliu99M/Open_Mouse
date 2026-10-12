@@ -5,6 +5,10 @@ import { describe, expect, it } from "vitest";
 import { LearnInfo } from "../../src/components/learn/LearnInfo";
 import { en, learnPageCopy, zhTW } from "../../src/lib/copy/learn-page";
 import {
+  en as answersEn,
+  zhTW as answersZh,
+} from "../../src/lib/copy/scan-answers";
+import {
   en as resultsEn,
   zhTW as resultsZh,
 } from "../../src/lib/copy/results-page";
@@ -344,6 +348,26 @@ describe("zh-TW wording Kirby chose (candidate)", () => {
     expect(zhTW.grip.palm.text).toBe("整個手掌貼在滑鼠上。");
     expect(zhTW.grip.claw.text).toBe("手掌碰到滑鼠後方，手指拱起。");
   });
+});
+
+describe("the palm thickness card uses the scan's thickness page words", () => {
+  it.each([
+    ["zh-TW", zhTW, answersZh],
+    ["en", en, answersEn],
+  ] as const)(
+    "%s: the three names and lines are the same as scan-answers.ts, word for word",
+    (_l, learn, answers) => {
+      for (const level of ["thick", "medium", "thin"] as const) {
+        expect(learn.thickness.options[level].name, level).toBe(
+          answers.thickness[level].name,
+        );
+        expect(learn.thickness.options[level].line, level).toBe(
+          answers.thickness[level].hint,
+        );
+      }
+      expect(learn.thickness.title).toBe(answers.thicknessTitle);
+    },
+  );
 });
 
 describe("the grip sentences are shown at every width", () => {
