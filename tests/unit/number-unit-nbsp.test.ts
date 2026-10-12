@@ -26,6 +26,7 @@ const scan = (hand: number, palmLength: number, palmWidth: number) =>
     hand: "right",
     gripStyleStated: null,
     palmThicknessStated: null,
+    calibrationMethod: "printed-sheet",
     measurements: {
       handLengthMm: hand,
       palmLengthMm: palmLength,

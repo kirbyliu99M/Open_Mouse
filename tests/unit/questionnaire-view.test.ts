@@ -692,6 +692,7 @@ describe("the profile page with the questionnaire wired", () => {
     hand: "right" as const,
     gripStyleStated: null,
     palmThicknessStated: null,
+    calibrationMethod: "printed-sheet" as const,
     measurements: {
       handLengthMm: 186,
       palmLengthMm: 100,

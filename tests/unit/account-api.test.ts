@@ -10,6 +10,7 @@ const sampleScan: AccountScan = {
   createdAt: "2026-09-22T00:00:00.000Z",
   hand: "left",
   gripStyleStated: "palm",
+  calibrationMethod: "printed-sheet",
   palmThicknessStated: "thick",
   measurements: {
     handLengthMm: 180,
@@ -64,6 +65,7 @@ describe("GET /api/account/scans — an anonymous user never sees /account data"
           hand: "left",
           gripStyleStated: "palm",
           palmThicknessStated: "thick",
+          calibrationMethod: "printed-sheet",
           measurements: expect.objectContaining({
             handLengthMm: 180,
             palmLengthMm: 100,
@@ -76,6 +78,7 @@ describe("GET /api/account/scans — an anonymous user never sees /account data"
     // values, and carries no server-internal fields (no sessionId, userId).
     expect(Object.keys(body.scans[0]).sort()).toEqual(
       [
+        "calibrationMethod",
         "createdAt",
         "gripStyleStated",
         "hand",

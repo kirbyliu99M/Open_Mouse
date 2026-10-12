@@ -85,6 +85,46 @@ export function parseStoredManualEntry(
     : null;
 }
 
+/**
+ * Puts back, in this browser, the "you typed this size" note of a scan that
+ * was made elsewhere (another device, or after the browser's data was cleared):
+ * the results page reads it from here, not from the server, so without it a
+ * scan whose size was typed would read as a measured one. Only a typed scan
+ * gets a key (`user-length`: the typed hand length; `manual-entry`: the typed
+ * pair, which the scan stores as its hand length and palm width). A key that is
+ * already there is left alone, and a scan with another method, or none, writes
+ * nothing. Returns the key written, or null.
+ */
+export function restoreTypedSizeNote(
+  storage: Pick<Storage, "getItem" | "setItem">,
+  scan: {
+    readonly scanId: string;
+    readonly calibrationMethod: string | null;
+    readonly measurements: {
+      readonly handLengthMm: number;
+      readonly palmWidthMm: number;
+    };
+  },
+): string | null {
+  let key: string;
+  let value: string;
+  if (scan.calibrationMethod === "user-length") {
+    key = resultLengthKey(scan.scanId);
+    value = String(scan.measurements.handLengthMm);
+  } else if (scan.calibrationMethod === "manual-entry") {
+    key = resultManualEntryKey(scan.scanId);
+    value = serializeManualEntry({
+      handLengthMm: scan.measurements.handLengthMm,
+      handWidthMm: scan.measurements.palmWidthMm,
+    });
+  } else {
+    return null;
+  }
+  if (storage.getItem(key) !== null) return null;
+  storage.setItem(key, value);
+  return key;
+}
+
 export function clearScanDisclosures(
   storage: Pick<Storage, "removeItem">,
   scanIds: readonly string[],

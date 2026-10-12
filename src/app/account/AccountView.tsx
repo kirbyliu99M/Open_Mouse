@@ -11,7 +11,7 @@ import {
 import Link from "next/link";
 import { useLocale } from "@/client/i18n/LocaleProvider";
 import { Avatar } from "@/components/nav/Avatar";
-import { SURVEY_PATH } from "@/lib/contracts/routes";
+import { SURVEY_PATH, resultsPagePath } from "@/lib/contracts/routes";
 import {
   MAX_ACCOUNT_MICE,
   surveyMineResponseSchema,
@@ -19,7 +19,10 @@ import {
 } from "@/lib/contracts/survey";
 import { accountCopy, type AccountCopy } from "@/lib/copy/account";
 import type { AccountScan } from "../../server/account/repo";
-import { clearScanDisclosures } from "../../components/results/userLengthDisclosure";
+import {
+  clearScanDisclosures,
+  restoreTypedSizeNote,
+} from "../../components/results/userLengthDisclosure";
 import { clearAttempts } from "../../client/camera/easyScanPreferences";
 import {
   AvatarSheet,
@@ -490,6 +493,17 @@ function HandSection({
   const [open, setOpen] = useState(false);
   const listId = useId();
 
+  // The results page reads its "you typed this size" note from this browser, so
+  // a typed scan made elsewhere needs the note put back before it is opened.
+  useEffect(() => {
+    if (latest === null) return;
+    try {
+      restoreTypedSizeNote(localStorage, latest);
+    } catch {
+      /* storage blocked: the results page then shows no typed-size note */
+    }
+  }, [latest]);
+
   if (latest === null) {
     return (
       <Section title={copy.handHeading}>
@@ -518,6 +532,14 @@ function HandSection({
           </div>
         ))}
       </dl>
+      <Link
+        className="profile-row profile-row-link"
+        href={resultsPagePath(latest.scanId)}
+        data-testid="profile-latest-results"
+      >
+        <span className="profile-row-label">{copy.latestResultsLink}</span>
+        <Chevron />
+      </Link>
       {earlier.length > 0 && (
         <>
           <button

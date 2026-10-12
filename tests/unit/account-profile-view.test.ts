@@ -32,6 +32,7 @@ const scan = (
   hand: "right",
   gripStyleStated: null,
   palmThicknessStated: null,
+  calibrationMethod: "printed-sheet",
   measurements: {
     handLengthMm: 186,
     palmLengthMm: 100,
@@ -164,6 +165,34 @@ describe("我的手", () => {
     // The latest scan is the one in the rows; the older one is behind the toggle.
     expect(html).toContain("18.6 cm");
     expect(html).not.toContain("17.0 cm");
+  });
+
+  it("links the latest scan to its results page, and only that scan", () => {
+    const html = render({
+      initialAnswers: EMPTY,
+      scans: [
+        scan(
+          "11111111-1111-4111-8111-111111111111",
+          "2026-09-01T02:00:00.000Z",
+        ),
+        scan(
+          "22222222-2222-4222-8222-222222222222",
+          "2026-10-12T02:00:00.000Z",
+        ),
+      ],
+    });
+    expect(html).toContain(
+      'href="/results/22222222-2222-4222-8222-222222222222"',
+    );
+    expect(html).toContain("查看這次的分析結果");
+    expect(html).not.toContain("/results/11111111-1111-4111-8111-111111111111");
+    expect(html.match(/data-testid="profile-latest-results"/g)).toHaveLength(1);
+  });
+
+  it("has no results link when there is no scan", () => {
+    const html = render({ scans: [], initialAnswers: EMPTY });
+    expect(html).not.toContain("/results/");
+    expect(html).not.toContain("查看這次的分析結果");
   });
 
   it("with no scan, says so and goes to the scan", () => {

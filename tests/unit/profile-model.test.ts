@@ -41,6 +41,7 @@ function scan(
     hand: "right",
     gripStyleStated: null,
     palmThicknessStated: null,
+    calibrationMethod: "printed-sheet",
     measurements: {
       handLengthMm: 186,
       palmLengthMm: 100,

@@ -1,3 +1,5 @@
+import type { CalibrationMethod } from "../../lib/contracts/measurement";
+
 export interface AccountScanMeasurements {
   handLengthMm: number;
   palmLengthMm: number;
@@ -21,6 +23,12 @@ export interface AccountScan {
   gripStyleStated: "palm" | "claw" | "fingertip" | null;
   /** The user's own rough answer; null = they skipped it (never "medium"). */
   palmThicknessStated: "thin" | "medium" | "thick" | null;
+  /**
+   * How the size was obtained (null for a row written before the column
+   * existed). The results page's "you typed this size" note is kept in the
+   * browser, so a scan typed in by hand needs it to be restored there.
+   */
+  calibrationMethod: CalibrationMethod | null;
   measurements: AccountScanMeasurements;
 }
 

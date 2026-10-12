@@ -64,6 +64,8 @@ export interface AccountCopy {
   thicknessRow: string;
   grip: { palm: string; claw: string; fingertip: string };
   thickness: { thin: string; medium: string; thick: string };
+  /** The link under the latest measurement: opens that scan's results page (candidate, 未拍板). */
+  latestResultsLink: string;
   earlierScans: (count: number) => string;
   earlierScansLabel: string;
   leftHand: string;
@@ -181,6 +183,7 @@ export const zhTW: AccountCopy = {
   thicknessRow: "掌厚",
   grip: { palm: "趴握", claw: "抓握", fingertip: "指握" },
   thickness: { thin: "薄", medium: "中", thick: "厚" },
+  latestResultsLink: "查看這次的分析結果",
   earlierScans: (n) => `較早的 ${n} 次量測`,
   earlierScansLabel: "較早的量測",
   leftHand: "左手",
@@ -288,6 +291,7 @@ export const en: AccountCopy = {
   thicknessRow: "Palm thickness",
   grip: { palm: "Palm", claw: "Claw", fingertip: "Fingertip" },
   thickness: { thin: "Thin", medium: "Medium", thick: "Thick" },
+  latestResultsLink: "See the results for this measurement",
   earlierScans: (n) =>
     n === 1 ? "1 earlier measurement" : `${n} earlier measurements`,
   earlierScansLabel: "Earlier measurements",

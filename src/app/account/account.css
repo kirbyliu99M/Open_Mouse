@@ -280,6 +280,13 @@
   font-size: 1rem;
   text-align: left;
 }
+.profile-row-link {
+  text-decoration: none;
+  color: var(--text-primary);
+}
+.profile-row-link:active {
+  opacity: 0.7;
+}
 .profile-row-button:active {
   background: transparent;
   transform: none;
