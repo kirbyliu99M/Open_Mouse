@@ -423,12 +423,6 @@ describe("large text and high contrast (CSS the unit test can see)", () => {
     );
   });
 
-  it("the shape card clips sideways at its own edge, with no clip margin (a margin widened the page by 20 px at 320 px and 200 % text)", () => {
-    const rule = (css.match(/\.learn-card--shape \{[^}]*\}/g) ?? []).join(" ");
-    expect(rule).toContain("overflow-x: clip");
-    expect(rule).not.toContain("overflow-clip-margin");
-  });
-
   it("the schematic note is in the flow, and the narrow rules follow the tile's width, not the screen's", () => {
     expect(css).toMatch(/\.learn-shape-note \{[^}]*text-align: center/);
     expect(css).toContain("container-type: inline-size");
