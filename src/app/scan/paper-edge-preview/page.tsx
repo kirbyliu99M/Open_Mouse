@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import ScanClient from "../ScanClient";
-import { guardDemoRouteFromProduction } from "../demo-guard";
+import { guardDevOnlyRoute } from "../demo-guard";
 import "../scan.css";
 
 export const metadata: Metadata = {
@@ -18,6 +18,6 @@ export const metadata: Metadata = {
  * copy, for the camera e2e/screenshot suite (tests/e2e/camera-*.spec.ts).
  */
 export default function ScanPaperEdgePreviewPage() {
-  guardDemoRouteFromProduction();
+  guardDevOnlyRoute();
   return <ScanClient calibrationMode="paper-edge" />;
 }

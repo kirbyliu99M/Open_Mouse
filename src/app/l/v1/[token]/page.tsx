@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TopBar } from "@/components/nav/TopBar";
-import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
+import { guardDevOnlyRoute } from "@/app/scan/demo-guard";
 import {
   GESTURES,
   buildSequence,
@@ -14,7 +14,7 @@ import {
 } from "@/lib/learning/kit";
 import { learnCopy } from "@/lib/copy/learn";
 import { getLocale } from "@/server/i18n/getLocale";
-import "../../../learn/learn.css";
+import "../../../learn/kit/learn.css";
 
 /**
  * Where a printed kit QR code lands. The URL is the QR content, so this page
@@ -39,7 +39,7 @@ export default async function KitCodePage({
 }: {
   params: Promise<{ token: string }>;
 }) {
-  guardDemoRouteFromProduction();
+  guardDevOnlyRoute();
   const copy = learnCopy(await getLocale());
   const { token } = await params;
   const code = parseKitToken(token, VERSION);
@@ -50,7 +50,7 @@ export default async function KitCodePage({
     return (
       <main className="learn">
         <TopBar
-          backHref="/learn"
+          backHref="/learn/kit"
           backLabel={copy.learningKit}
           stepLabel={copy.session}
         />
@@ -69,7 +69,10 @@ export default async function KitCodePage({
           >
             {copy.startWith(`${first.code}R`, copy.gestures[first.code].name)}
           </Link>
-          <Link className="learn-button-secondary" href="/learn/check?sheet=v1">
+          <Link
+            className="learn-button-secondary"
+            href="/learn/kit/check?sheet=v1"
+          >
             {copy.checkPhotos}
           </Link>
         </div>
@@ -89,7 +92,7 @@ export default async function KitCodePage({
   return (
     <main className="learn">
       <TopBar
-        backHref="/learn"
+        backHref="/learn/kit"
         backLabel={copy.learningKit}
         stepLabel={copy.poseOf(GESTURES.indexOf(gesture) + 1, GESTURES.length)}
       />
@@ -138,7 +141,7 @@ export default async function KitCodePage({
         ) : (
           <>
             <p>{copy.lastPose}</p>
-            <Link className="learn-button" href="/learn/check?sheet=v1">
+            <Link className="learn-button" href="/learn/kit/check?sheet=v1">
               {copy.checkPhotos}
             </Link>
           </>

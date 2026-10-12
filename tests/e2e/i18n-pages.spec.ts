@@ -72,8 +72,8 @@ const CASES: PageCase[] = [
     enTitle: howEn.title,
   },
   {
-    name: "learn",
-    path: "/learn",
+    name: "learn kit index",
+    path: "/learn/kit",
     zhHeading: learnZh.learningKit,
     enHeading: learnEn.learningKit,
     zhActions: [{ role: "link", name: learnZh.printSheetA }],
@@ -83,7 +83,7 @@ const CASES: PageCase[] = [
   },
   {
     name: "learn print (kit v1)",
-    path: "/learn/print?hands=right",
+    path: "/learn/kit/print?hands=right",
     zhHeading: learnZh.printTheKit,
     enHeading: learnEn.printTheKit,
     zhActions: [{ role: "button", name: learnZh.printPages(7) }],
@@ -93,7 +93,7 @@ const CASES: PageCase[] = [
   },
   {
     name: "learn print (sheet A)",
-    path: "/learn/print?sheet=A",
+    path: "/learn/kit/print?sheet=A",
     zhHeading: learnZh.printKitV2Sheet("A", false),
     enHeading: learnEn.printKitV2Sheet("A", false),
     zhActions: [{ role: "button", name: learnZh.print1Page }],
@@ -103,7 +103,7 @@ const CASES: PageCase[] = [
   },
   {
     name: "learn cards",
-    path: "/learn/slates?from=1",
+    path: "/learn/kit/slates?from=1",
     zhHeading: learnZh.participantCards,
     enHeading: learnEn.participantCards,
     zhActions: [{ role: "button", name: learnZh.printPages(1) }],
@@ -113,7 +113,7 @@ const CASES: PageCase[] = [
   },
   {
     name: "learn check",
-    path: "/learn/check",
+    path: "/learn/kit/check",
     zhHeading: learnZh.checkPhotos,
     enHeading: learnEn.checkPhotos,
     zhActions: [{ role: "button", name: learnZh.choosePhotos }],
@@ -277,10 +277,10 @@ function countPdfPageObjects(pdf: Buffer): number {
 test.describe("printing in zh-TW stays one page", () => {
   for (const [name, path] of [
     ["the calibration sheet", "/sheet"],
-    ["kit v2 sheet A", "/learn/print?sheet=A"],
+    ["kit v2 sheet A", "/learn/kit/print?sheet=A"],
     [
       "the participant cards (P901 to P912)",
-      "/learn/slates?kit=2&from=901&count=12",
+      "/learn/kit/slates?kit=2&from=901&count=12",
     ],
   ] as const) {
     test(`${name} (${path})`, async ({ page }, testInfo) => {

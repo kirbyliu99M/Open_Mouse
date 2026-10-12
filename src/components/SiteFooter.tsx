@@ -15,7 +15,12 @@ import "./site-footer.css";
  * footer would print on or after them) and the capture flow (a full-screen
  * camera). Matches the path and everything under it.
  */
-const NO_FOOTER_PREFIXES = ["/learn/print", "/learn/slates", "/sheet", "/scan"];
+const NO_FOOTER_PREFIXES = [
+  "/learn/kit/print",
+  "/learn/kit/slates",
+  "/sheet",
+  "/scan",
+];
 
 export function showsSiteFooter(pathname: string | null): boolean {
   if (pathname === null) return true;
