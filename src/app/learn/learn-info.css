@@ -499,10 +499,14 @@
   text-align: center;
 }
 /* Marks that grow past a tile (large text) must not widen the page: the card
-   clips sideways only, 1rem beyond its edge (the page's own side gutter). */
+   clips sideways, at its own edge. Known limit: at 320 px and 200 % text a
+   mark that runs past the card (Straight side, a peak mark) is cut at the
+   card's edge; that is accepted, a page that scrolls sideways is not. (An
+   `overflow-clip-margin` here, to show a little more, was dropped: at 320 px
+   with 200 % text the page measured 20 px wider than the screen, e2e
+   learn-page.spec.ts "with the text enlarged to 200 %".) */
 .learn-card--shape {
   overflow-x: clip;
-  overflow-clip-margin: 1rem;
 }
 /* Windows high contrast: the tile keeps its dark fill and the light drawing
    (the marks inherit the fixed light colours), with a border in the system
