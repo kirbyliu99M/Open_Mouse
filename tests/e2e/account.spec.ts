@@ -32,7 +32,7 @@ test("an anonymous visitor sees Sign-in unavailable, no server or browser errors
   const response = await gotoWarm(page, "/account");
   expect(response?.status()).toBe(200);
   await expect(
-    page.getByRole("heading", { level: 1, name: "Keep your scans" }),
+    page.getByRole("heading", { level: 1, name: "My profile" }),
   ).toBeVisible();
   await expect(
     page.getByText(/sign-in is unavailable right now/i),

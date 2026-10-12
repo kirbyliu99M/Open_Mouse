@@ -1,0 +1,582 @@
+/* The questionnaire, the mouse picker, the edit sheet and the removal
+   confirmation (Pencil frames QrV23, c9cki, TiEvE, CFbGl, LHhIs, gDxD7 of
+   design-exports/profile-page-2026-10-12; candidate, 2026-10-12). The sheet
+   frame classes (`.profile-sheet-*`) extend the nickname/avatar sheet of
+   account.css. */
+
+.profile-host:focus {
+  outline: none;
+}
+
+/* The sheet frame: a header that stays, a body that scrolls, a footer that is
+   pinned, with a fade above it that says there is more. */
+dialog.profile-sheet-pinned[open] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+dialog.profile-sheet-tall {
+  height: 90dvh;
+}
+dialog.profile-sheet-page {
+  inset: 0;
+  width: min(100%, 40rem);
+  height: 100dvh;
+  max-height: none;
+  margin: 0 auto;
+  border-radius: 0;
+  background: var(--bg);
+  padding-top: 1rem;
+  padding-bottom: max(2rem, env(safe-area-inset-bottom));
+}
+dialog.profile-sheet-page::backdrop {
+  background: var(--bg);
+}
+dialog.profile-sheet {
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+}
+.profile-sheet-head {
+  flex: 0 0 auto;
+}
+.profile-sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Room under the last control, so the fade and the button never cover it. */
+  padding: 0.25rem 0 2.5rem;
+}
+.profile-sheet-footer {
+  position: relative;
+  flex: 0 0 auto;
+  padding-top: 0.75rem;
+  background: #1c1c1e;
+}
+.profile-sheet-footer:empty {
+  display: none;
+}
+.profile-sheet-footer::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 2.25rem;
+  background: linear-gradient(to bottom, rgb(28 28 30 / 0%), #1c1c1e);
+  pointer-events: none;
+}
+.qn-sheet-note,
+.qn-subtitle {
+  margin: 0 0 1rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.qn-footer-line {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+}
+
+/* A question: a fieldset with a legend, a hint, and its controls. */
+.qn-q {
+  min-width: 0;
+  margin: 0 0 1.75rem;
+  padding: 0;
+  border: 0;
+}
+.qn-legend {
+  display: block;
+  padding: 0;
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.qn-hint {
+  margin: -0.25rem 0 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.qn-needed {
+  margin: 0.5rem 0 0;
+}
+
+/* Chips: a button with aria-pressed. Chosen is a heavier border, a lighter
+   fill and a bolder label, so colour is never the only cue. */
+.qn-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.qn-chips-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.qn-chip {
+  min-height: 2.75rem;
+  padding: 0 1.1rem;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  line-height: 1.2;
+}
+.qn-chips-3 .qn-chip {
+  min-height: 3rem;
+  padding: 0 0.5rem;
+  border-radius: 0.75rem;
+}
+.qn-chip-small {
+  flex: 0 0 auto;
+  padding: 0 1rem;
+  font-size: 0.875rem;
+}
+.qn-chip[aria-pressed="true"] {
+  border-color: var(--accent-text);
+  box-shadow: inset 0 0 0 1px var(--accent-text);
+  background: #272d44;
+  font-weight: 700;
+}
+
+/* 1 to 5: native radios under a styled box, so the arrow keys work. */
+.qn-scale {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.qn-scale-option {
+  position: relative;
+  display: block;
+}
+.qn-scale-option input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.qn-scale-option span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.25rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.75rem;
+  font-size: 1.125rem;
+  font-variant-numeric: tabular-nums;
+}
+.qn-scale-option input:checked + span {
+  border-color: var(--accent-text);
+  box-shadow: inset 0 0 0 1px var(--accent-text);
+  background: #272d44;
+  font-weight: 700;
+}
+.qn-scale-option input:focus-visible + span {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+.qn-scale-captions {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+/* The big select-like button of the first question, and the real inputs. */
+.qn-select-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 3.5rem;
+  padding: 0 1rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: left;
+}
+.qn-select-button svg {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+}
+.qn-placeholder {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+.qn-select select,
+.qn-input,
+.qn-comment textarea {
+  width: 100%;
+  border: 1px solid var(--control-border);
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+}
+.qn-select select,
+.qn-input {
+  min-height: 3.25rem;
+  padding: 0 1rem;
+}
+.qn-select select option {
+  background: #1c1c1e;
+  color: #f5f5f7;
+}
+.qn-comment {
+  position: relative;
+}
+.qn-comment textarea {
+  display: block;
+  min-height: 7.5rem;
+  padding: 0.75rem 1rem 1.75rem;
+  resize: vertical;
+}
+.qn-comment-count {
+  position: absolute;
+  right: 1rem;
+  bottom: 0.5rem;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+.qn-input::placeholder,
+.qn-comment textarea::placeholder,
+.qn-search input::placeholder {
+  color: var(--text-secondary);
+}
+
+/* Other mice already added in the form: a row to open and a button to remove. */
+.qn-extra {
+  display: flex;
+  align-items: center;
+}
+.qn-extra .profile-row {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.qn-extra-remove {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+/* The consent. */
+.qn-consent {
+  margin: 0 0 1.25rem;
+}
+.qn-consent-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  font-weight: 700;
+}
+.qn-consent-label input {
+  flex: 0 0 auto;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  accent-color: var(--accent-text);
+}
+.qn-consent-text {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.qn-consent-text p {
+  margin: 0 0 0.5rem;
+}
+.qn-failure {
+  margin: 0 0 1rem;
+}
+.qn-failure p {
+  margin: 0 0 0.25rem;
+}
+.qn-failure-action {
+  padding-left: 0;
+}
+.qn-done {
+  margin: 0 0 1.5rem;
+  color: var(--text-secondary);
+}
+
+/* The picker: search, brand chips, a list, and the 「其他」 row pinned below. */
+.qn-picker-tools {
+  margin-bottom: 0.25rem;
+}
+.qn-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 3.25rem;
+  padding: 0 1rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.75rem;
+  color: var(--text-secondary);
+}
+.qn-search:focus-within {
+  border-color: var(--accent-text);
+}
+.qn-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 2.75rem;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+}
+.profile-sheet .qn-search input:focus-visible {
+  outline: none;
+}
+.qn-brand-row {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.75rem -1.25rem 0;
+  padding: 0.25rem 1.25rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.qn-brand-row::-webkit-scrollbar {
+  display: none;
+}
+.qn-choice-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.qn-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 3.5rem;
+  padding: 0.5rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+}
+.qn-choice-text {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.qn-choice-brand {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+.qn-choice-model {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.qn-check {
+  flex: 0 0 auto;
+  color: var(--accent-text);
+}
+.qn-other-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-text);
+  font-weight: 600;
+  text-align: left;
+}
+.qn-back {
+  display: flex;
+  margin: 0.5rem auto 0;
+}
+
+/* The edit sheet's switch and the red remove row. */
+.qn-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3rem;
+  margin: 0 0 0.5rem;
+}
+input.qn-switch {
+  appearance: none;
+  position: relative;
+  flex: 0 0 auto;
+  width: 3.25rem;
+  height: 2rem;
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #48484a;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+input.qn-switch::after {
+  content: "";
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+}
+input.qn-switch:checked {
+  background: #6e9bff;
+}
+input.qn-switch:checked::after {
+  transform: translateX(1.25rem);
+}
+input.qn-switch:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+.qn-remove-row {
+  display: block;
+  min-height: 2.75rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #ff9d90;
+  font-weight: 600;
+  text-align: left;
+}
+.qn-submit {
+  margin-top: 1rem;
+}
+
+/* The removal confirmation: a bottom action sheet. Focus starts on 「取消」,
+   and a ring shows only for keyboard focus. */
+dialog.qn-confirm {
+  position: fixed;
+  inset: auto 0 0 0;
+  width: min(calc(100% - 1.5rem), 38rem);
+  max-width: none;
+  max-height: none;
+  margin: auto auto max(0.75rem, env(safe-area-inset-bottom));
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #f5f5f7;
+  overflow: visible;
+}
+dialog.qn-confirm::backdrop {
+  background: rgb(0 0 0 / 60%);
+}
+dialog.qn-confirm:focus {
+  outline: none;
+}
+.qn-confirm-card {
+  overflow: hidden;
+  border: 1px solid #2c2c2e;
+  border-radius: 1rem;
+  background: #1c1c1e;
+  text-align: center;
+}
+.qn-confirm-card h2 {
+  margin: 0;
+  padding: 1rem 1rem 0.25rem;
+  font-size: 1rem;
+}
+.qn-confirm-card p {
+  margin: 0;
+  padding: 0 1rem 1rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.qn-confirm-card p.status-error {
+  color: #ff9d90;
+}
+.qn-confirm-remove,
+.qn-confirm-cancel {
+  display: block;
+  width: 100%;
+  min-height: 3.25rem;
+  font-size: 1.0625rem;
+}
+.qn-confirm-remove {
+  border: 0;
+  border-top: 1px solid var(--hairline);
+  border-radius: 0;
+  background: transparent;
+  color: #ff9d90;
+}
+.qn-confirm-cancel {
+  margin-top: 0.5rem;
+  border: 1px solid #2c2c2e;
+  border-radius: 1rem;
+  background: #1c1c1e;
+  color: #f5f5f7;
+  font-weight: 700;
+}
+.qn-confirm button:focus {
+  outline: none;
+}
+.qn-confirm button:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: -4px;
+}
+
+.profile-sheet select:focus-visible,
+.profile-sheet textarea:focus-visible,
+.profile-sheet input:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  dialog.qn-confirm::backdrop {
+    background: #000;
+  }
+}
+@media (prefers-contrast: more) {
+  .qn-chip,
+  .qn-scale-option span,
+  .qn-select-button,
+  .qn-search,
+  .qn-confirm-card {
+    border-width: 2px;
+    border-color: currentColor;
+  }
+  .qn-chip[aria-pressed="true"],
+  .qn-scale-option input:checked + span {
+    outline: 2px solid currentColor;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  input.qn-switch,
+  input.qn-switch::after {
+    transition: none;
+  }
+}
+@media print {
+  dialog.qn-confirm {
+    display: none;
+  }
+}

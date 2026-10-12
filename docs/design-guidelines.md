@@ -55,8 +55,12 @@ suggestion is 40 px tall. The rest of the site keeps the full-size pill.
 
 - The easy-scan camera result sheet: secondary controls stay dark and outlined
   (the circular retake button).
-- The sign-in provider button (`.account-google-button`): dark filled.
 - Destructive buttons and icon-only chips are unchanged.
+
+**Sign-in:** the sign-in provider button (`.account-google-button`) is the standard
+full-size white pill with the Google G mark (Kirby, 2026-10-12; it was a dark
+exception before). The G mark must be Google's official multi-colour asset,
+never a redrawn one.
 
 **Home:** the home page keeps its blue button until its redesign adopts these
 tokens.
