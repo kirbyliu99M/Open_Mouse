@@ -1,0 +1,369 @@
+import AxeBuilder from "@axe-core/playwright";
+import { expect, test } from "@playwright/test";
+
+/**
+ * /learn, the information page (candidate wording; see
+ * src/lib/copy/learn-page.ts). Not run by the builder who wrote it (no
+ * Playwright on that machine): the first run is for whoever reviews the PR.
+ * The learning kit moved to /learn/kit and answers only on `next dev`, which
+ * is what this suite runs.
+ */
+test.describe("/learn information page", () => {
+  test("shows the title, six cards in order, the chart and the button, with no digits", async ({
+    page,
+  }) => {
+    await page.goto("/learn");
+    await expect(
+      page.getByRole("heading", {
+        level: 1,
+        name: "How to choose a mouse that fits",
+      }),
+    ).toBeVisible();
+    const cards = page.locator("ol.learn-cards > li");
+    await expect(cards).toHaveCount(6);
+    await expect(cards.locator("h2")).toHaveText([
+      /Know your hand/,
+      /Know your grip/,
+      /Palm thickness/,
+      /Match the size/,
+      /Look at the shape/,
+      /How we score/,
+    ]);
+    for (const label of [
+      "Length",
+      "Grip width",
+      "Height and hump",
+      "Front flare",
+      "Thumb rest",
+      "Weight",
+    ]) {
+      await expect(
+        page.locator(".learn-bar-label", { hasText: new RegExp(`^${label}$`) }),
+      ).toBeVisible();
+    }
+    await expect(page.getByText("Longer bar = counts more")).toBeVisible();
+    // The longest bar is the widest, and the weight bar the shortest.
+    const widths = await page
+      .locator(".learn-bar")
+      .evaluateAll((bars) => bars.map((b) => b.getBoundingClientRect().width));
+    expect(widths).toHaveLength(6);
+    expect(widths[0]).toBeGreaterThan(widths[5]);
+    // Hard rule 2 and the brief: the page shows no number. "A4" is a paper
+    // name, and the step badges 1 to 6 are the order of the steps (they are
+    // aria-hidden but still in innerText, so they are taken out of a clone
+    // first). Every other digit fails. textContent also covers the sentences
+    // that are visually hidden on a wide screen.
+    const text = (
+      await page.locator("main").evaluate((main) => {
+        const clone = main.cloneNode(true) as HTMLElement;
+        clone.querySelectorAll(".learn-card-number").forEach((n) => n.remove());
+        return clone.textContent ?? "";
+      })
+    ).replaceAll("A4", "");
+    expect(text).not.toMatch(/\d/);
+  });
+
+  test("links go to the scan and to How it works, and the primary button scans", async ({
+    page,
+  }) => {
+    await page.goto("/learn");
+    // The chevron is aria-hidden, so the names do not include it; and each
+    // link is looked for inside its own card, because "Scan my hand" is also
+    // the name of the button at the bottom.
+    await expect(
+      page
+        .locator(".learn-card--hand")
+        .getByRole("link", { name: "Scan my hand", exact: true }),
+    ).toHaveAttribute("href", "/scan/easy");
+    await expect(
+      page
+        .locator(".learn-card--score")
+        .getByRole("link", { name: "How it works", exact: true }),
+    ).toHaveAttribute("href", "/how-it-works");
+    const button = page
+      .locator(".learn-info-cta")
+      .and(page.getByRole("link", { name: "Scan my hand", exact: true }));
+    await expect(button).toHaveCount(1);
+    await expect(button).toHaveAttribute("href", "/scan/easy");
+    const box = await button.boundingBox();
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+  });
+
+  test("the three grip drawings sit side by side, also on a phone", async ({
+    page,
+  }) => {
+    await page.goto("/learn");
+    const images = page.locator(".learn-grips img");
+    await expect(images).toHaveCount(3);
+    await images.last().scrollIntoViewIfNeeded();
+    const boxes = await images.evaluateAll((els) =>
+      els.map((el) => {
+        const r = el.getBoundingClientRect();
+        return { x: r.x, y: r.y, w: r.width };
+      }),
+    );
+    expect(new Set(boxes.map((b) => Math.round(b.y))).size).toBe(1);
+    expect(boxes[0].x).toBeLessThan(boxes[1].x);
+    expect(boxes[1].x).toBeLessThan(boxes[2].x);
+    for (const b of boxes) expect(b.w).toBeGreaterThanOrEqual(90);
+  });
+
+  test("card 5 shows four tiles, each with its drawing, its text marks and its name", async ({
+    page,
+  }) => {
+    await page.goto("/learn");
+    await expect(page.locator(".learn-shape-tile")).toHaveCount(4);
+    // 4 base drawings + 4 arrow overlays, all decorative.
+    await expect(page.locator(".learn-shape img")).toHaveCount(8);
+    await expect(page.locator(".learn-shape figcaption")).toHaveText([
+      "Symmetrical",
+      "Ergonomic",
+      "Hump",
+      "Flare",
+    ]);
+    // The marks are real text, in the page for a screen reader too.
+    for (const mark of ["Centered peak", "Rear peak"]) {
+      await expect(
+        page.locator(".learn-shape-mark", { hasText: mark }),
+      ).toHaveCount(1);
+    }
+    // The flare's sentence sits under the drawing, in the tile's flow.
+    await expect(
+      page.locator(".learn-shape-note", {
+        hasText: "Schematic: exaggerated flare",
+      }),
+    ).toBeVisible();
+    const sizes = await page
+      .locator(".learn-shape-mark")
+      .evaluateAll((marks) =>
+        marks.map((m) => parseFloat(getComputedStyle(m).fontSize)),
+      );
+    expect(sizes).toHaveLength(6);
+    for (const size of sizes) expect(size).toBeGreaterThanOrEqual(12);
+  });
+
+  test("no sketch mark spills out of its tile, and the tiles are four across, two across or one, by width", async ({
+    page,
+  }) => {
+    const columns = async () =>
+      new Set(
+        await page
+          .locator(".learn-shape-tile")
+          .evaluateAll((tiles) =>
+            tiles.map((t) => Math.round(t.getBoundingClientRect().x)),
+          ),
+      ).size;
+    const spill = () =>
+      page.locator(".learn-shape-tile").evaluateAll((tiles) =>
+        tiles.flatMap((tile) => {
+          const box = tile.getBoundingClientRect();
+          return [...tile.querySelectorAll(".learn-shape-mark")]
+            .filter((m) => {
+              const r = m.getBoundingClientRect();
+              return (
+                r.left < box.left - 0.5 ||
+                r.right > box.right + 0.5 ||
+                r.top < box.top - 0.5 ||
+                r.bottom > box.bottom + 0.5
+              );
+            })
+            .map((m) => m.textContent);
+        }),
+      );
+    for (const [width, across] of [
+      [1440, 4],
+      [900, 2],
+      [390, 1],
+      [320, 1],
+    ] as const) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("/learn");
+      await page.locator(".learn-shapes").scrollIntoViewIfNeeded();
+      expect(await columns(), `${width} px`).toBe(across);
+      expect(await spill(), `${width} px`).toEqual([]);
+    }
+  });
+
+  test("on a wide screen the cards sit on the fixed grid: 1 and 2 share a row, then 3 to 6 each take the full width in order", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/learn");
+    const box = async (id: string) => {
+      const b = await page.locator(`.learn-card--${id}`).boundingBox();
+      if (!b) throw new Error(`no card ${id}`);
+      return b;
+    };
+    const [hand, grip, thickness, size, shape, score] = await Promise.all(
+      ["hand", "grip", "thickness", "size", "shape", "score"].map(box),
+    );
+    expect(Math.abs(hand.y - grip.y)).toBeLessThan(2);
+    expect(hand.x).toBeLessThan(grip.x);
+    // 3 to 6 (the chart is 6) are as wide as 1 and 2 together, stacked in order.
+    for (const full of [thickness, size, shape, score]) {
+      expect(full.width).toBeGreaterThan(hand.width * 1.9);
+      expect(Math.abs(full.x - hand.x)).toBeLessThan(2);
+    }
+    expect(thickness.y).toBeGreaterThan(hand.y + hand.height - 1);
+    expect(size.y).toBeGreaterThan(thickness.y + thickness.height - 1);
+    expect(shape.y).toBeGreaterThan(size.y + size.height - 1);
+    expect(score.y).toBeGreaterThan(shape.y + shape.height - 1);
+    // The compact card 4 (size) is about 116 px high.
+    expect(size.height).toBeLessThan(160);
+  });
+
+  test("the three palm thickness boxes sit in a row on a wide screen and stack on a phone, and are not controls", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/learn");
+    const options = page.locator(".learn-thickness-option");
+    await expect(options).toHaveCount(3);
+    await expect(page.locator(".learn-thickness dt")).toHaveText([
+      "Thick",
+      "Medium",
+      "Thin",
+    ]);
+    const ys = async () =>
+      options.evaluateAll((els) =>
+        els.map((e) => Math.round(e.getBoundingClientRect().y)),
+      );
+    expect(new Set(await ys()).size).toBe(1);
+    // Static text: nothing in the card is a control.
+    await expect(
+      page.locator(".learn-card--thickness").locator("button, input, a"),
+    ).toHaveCount(0);
+    await page.setViewportSize({ width: 390, height: 800 });
+    expect(new Set(await ys()).size).toBe(3);
+  });
+
+  test("nothing scrolls sideways at 320 px wide", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.goto("/learn");
+    await expect(page.locator(".learn-shape-tile")).toHaveCount(4);
+    const overflow = () =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+    expect(await overflow()).toBeLessThanOrEqual(0);
+  });
+
+  test("between 56rem and 70rem card 1 stacks, and from 70rem its text column is at least 200 px", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1000, height: 800 });
+    await page.goto("/learn");
+    const text = page.locator(".learn-card--hand p").first();
+    const image = page.locator(".learn-card--hand .learn-figure");
+    const [t, i] = [await text.boundingBox(), await image.boundingBox()];
+    expect(i!.y).toBeGreaterThan(t!.y + t!.height - 1);
+    // 1200 px, not the 1120 px edge of the breakpoint: the text column is then
+    // about 244 px (card 518 px inside its padding, less the 250 px drawing and
+    // the 24 px gap), so 200 px leaves room for a scrollbar.
+    await page.setViewportSize({ width: 1200, height: 800 });
+    const wide = await text.boundingBox();
+    expect(wide!.width).toBeGreaterThanOrEqual(200);
+    const side = await image.boundingBox();
+    expect(side!.x).toBeGreaterThan(wide!.x + wide!.width - 1);
+  });
+
+  test("the grip sentences show under each name at every width, and are read once", async ({
+    page,
+  }) => {
+    for (const width of [1440, 390, 320]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("/learn");
+      const texts = page.locator(".learn-grips .learn-grip-text");
+      await expect(texts).toHaveCount(3);
+      for (const t of await texts.all()) await expect(t).toBeVisible();
+      await expect(texts.nth(2)).toHaveText(
+        "Only your fingertips control the mouse.",
+      );
+      // The sr-only list is never shown.
+      const box = await page.locator(".learn-grips-text").boundingBox();
+      expect(box === null || (box.width <= 1 && box.height <= 1)).toBe(true);
+    }
+  });
+
+  test("with the text enlarged to 200 %: the flare note never meets its name, no page scrolls sideways", async ({
+    page,
+  }) => {
+    for (const width of [1440, 390, 320]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("/learn");
+      await page.addStyleTag({ content: "html{font-size:200% !important}" });
+      const tile = await page.locator(".learn-shape-tile").nth(3).boundingBox();
+      const note = await page.locator(".learn-shape-note").boundingBox();
+      const name = await page
+        .locator(".learn-shape figcaption")
+        .nth(3)
+        .boundingBox();
+      expect(note!.y + note!.height, `${width} px`).toBeLessThanOrEqual(
+        tile!.y + tile!.height + 0.5,
+      );
+      expect(tile!.y + tile!.height, `${width} px`).toBeLessThanOrEqual(
+        name!.y + 0.5,
+      );
+      const over = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+      expect(over, `${width} px`).toBeLessThanOrEqual(0);
+    }
+  });
+
+  test("the grip names are read once: the visible captions are hidden from a screen reader", async ({
+    page,
+  }) => {
+    await page.goto("/learn");
+    await expect(page.locator(".learn-grips figcaption")).toHaveCount(3);
+    for (const caption of await page.locator(".learn-grips figcaption").all()) {
+      await expect(caption).toHaveAttribute("aria-hidden", "true");
+    }
+    await expect(page.locator(".learn-grips-text dt")).toHaveText([
+      "Palm",
+      "Claw",
+      "Fingertip",
+    ]);
+  });
+
+  test("the footer's Learn link opens this page, not the kit", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page
+      .getByTestId("site-footer")
+      .getByRole("link", { name: "Learn" })
+      .click();
+    await expect(page).toHaveURL(/\/learn$/);
+    await expect(page.locator("ol.learn-cards")).toBeVisible();
+  });
+
+  test("has no axe violations", async ({ page }) => {
+    await page.goto("/learn");
+    await expect(page.locator("ol.learn-cards")).toBeVisible();
+    const results = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test("answers in zh-TW for a zh-TW visitor", async ({ browser }) => {
+    const context = await browser.newContext({ locale: "zh-TW" });
+    const page = await context.newPage();
+    await page.goto("/learn");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "如何挑選最合手的滑鼠？" }),
+    ).toBeVisible();
+    await expect(page.getByText("越長影響越大")).toBeVisible();
+    await context.close();
+  });
+});
+
+test.describe("the learning kit moved to /learn/kit", () => {
+  test("the kit index answers on next dev", async ({ page }) => {
+    await page.goto("/learn/kit");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Learning kit" }),
+    ).toBeVisible();
+  });
+});

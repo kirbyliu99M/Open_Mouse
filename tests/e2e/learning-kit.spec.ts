@@ -25,7 +25,7 @@ const TINY_PNG = Buffer.from(
  */
 async function renderKitPagePhoto(page: Page, index = 0): Promise<Buffer> {
   await page.setViewportSize({ width: 1800, height: 2400 });
-  await page.goto("/learn/print?hands=right");
+  await page.goto("/learn/kit/print?hands=right");
   const svg = page.locator(".learn-print-page svg").nth(index);
   return svg.screenshot({ type: "jpeg", quality: 92 });
 }
@@ -56,7 +56,7 @@ test.describe("learning kit", () => {
   test("the index links every kit page and keeps out of search", async ({
     page,
   }) => {
-    await page.goto("/learn");
+    await page.goto("/learn/kit");
     await expect(
       page.getByRole("heading", { level: 1, name: "Learning kit" }),
     ).toBeVisible();
@@ -77,7 +77,7 @@ test.describe("learning kit", () => {
 
   test("prints one A4 page per pose and hand", async ({ page }, testInfo) => {
     onlyInChromium(testInfo);
-    await page.goto("/learn/print?hands=both");
+    await page.goto("/learn/kit/print?hands=both");
     await expect(page.locator(".learn-print-page svg")).toHaveCount(14);
     const pdf = await page.pdf({
       format: "A4",
@@ -86,7 +86,7 @@ test.describe("learning kit", () => {
     });
     expect(countPdfPageObjects(pdf)).toBe(14);
 
-    await page.goto("/learn/print?hands=left");
+    await page.goto("/learn/kit/print?hands=left");
     await expect(page.locator(".learn-print-page svg")).toHaveCount(7);
   });
 
@@ -94,7 +94,7 @@ test.describe("learning kit", () => {
     page,
   }, testInfo) => {
     onlyInChromium(testInfo);
-    await page.goto("/learn/slates?from=5&count=10");
+    await page.goto("/learn/kit/slates?from=5&count=10");
     await expect(page.locator(".learn-print-page svg")).toHaveCount(2);
     await expect(page.getByText("Cards P005 to P014.")).toBeVisible();
     // Ruler values are written per hand: a Right and a Left column on every card.
@@ -138,7 +138,7 @@ test.describe("learning kit", () => {
     const photo = await renderKitPagePhoto(page);
     const uploads = watchUploads(page);
 
-    await page.goto("/learn/check?sheet=v1");
+    await page.goto("/learn/kit/check?sheet=v1");
     await page.getByTestId("learning-check-input").setInputFiles({
       name: "IMG_0001.jpg",
       mimeType: "image/jpeg",
@@ -208,7 +208,7 @@ test.describe("learning kit", () => {
     ]);
     const uploads = watchUploads(page);
 
-    await page.goto("/learn/check?sheet=v1");
+    await page.goto("/learn/kit/check?sheet=v1");
     await page.getByTestId("learning-check-input").setInputFiles({
       name: "IMG_0002.jpg",
       mimeType: "image/jpeg",
@@ -253,18 +253,18 @@ test.describe("learning kit", () => {
   }, testInfo) => {
     onlyInChromium(testInfo);
     const uploads = watchUploads(page);
-    await page.goto("/learn/check?sheet=v1&paper=letter");
+    await page.goto("/learn/kit/check?sheet=v1&paper=letter");
     const select = page.getByTestId("learning-check-paper");
     await expect(select).toHaveValue("letter");
 
     // Anything that is not a known size falls back to A4.
-    await page.goto("/learn/check?sheet=v1&paper=toString");
+    await page.goto("/learn/kit/check?sheet=v1&paper=toString");
     await expect(select).toHaveValue("a4");
-    await page.goto("/learn/check?sheet=v1&paper=nonsense");
+    await page.goto("/learn/kit/check?sheet=v1&paper=nonsense");
     await expect(select).toHaveValue("a4");
 
     const photo = await renderKitPagePhoto(page);
-    await page.goto("/learn/check?sheet=v1");
+    await page.goto("/learn/kit/check?sheet=v1");
     await select.selectOption("letter");
     await page.getByTestId("learning-check-input").setInputFiles({
       name: "IMG_0003.jpg",
@@ -287,7 +287,7 @@ test.describe("learning kit", () => {
     const photo = await renderKitPagePhoto(page, 5);
     const uploads = watchUploads(page);
 
-    await page.goto("/learn/check?sheet=v1");
+    await page.goto("/learn/kit/check?sheet=v1");
     await page.getByTestId("learning-check-input").setInputFiles({
       name: "IMG_0004.jpg",
       mimeType: "image/jpeg",
@@ -314,7 +314,7 @@ test.describe("learning kit", () => {
     const photo = await renderKitPagePhoto(page);
     const uploads = watchUploads(page);
 
-    await page.goto("/learn/check?sheet=v1");
+    await page.goto("/learn/kit/check?sheet=v1");
     await page.getByTestId("learning-check-input").setInputFiles({
       name: "IMG_0005.jpg",
       mimeType: "image/jpeg",
@@ -362,7 +362,7 @@ test.describe("learning kit", () => {
     const good = await renderKitPagePhoto(page);
     const uploads = watchUploads(page);
 
-    await page.goto("/learn/check?sheet=v1");
+    await page.goto("/learn/kit/check?sheet=v1");
     await page.getByTestId("learning-check-input").setInputFiles([
       // Not an image at all: the decoder refuses it.
       {

@@ -1,0 +1,649 @@
+/*
+ * /learn, the information page (Pencil board "三頁設計", Learn v2; candidate).
+ * Tokens only (tokens.css). The nav reuses home.css's .home-nav classes. The
+ * learning kit's own stylesheet is src/app/learn/kit/learn.css.
+ */
+.learn-info {
+  /* The content is 1200 px wide on a big screen (the design), plus the padding. */
+  max-width: 77rem;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 5rem;
+  /* The card fill: a faint lift from the page. Opaque, so contrast is stable. */
+  --learn-card-bg: color-mix(in srgb, var(--text-primary) 4%, var(--bg));
+  --learn-panel-bg: color-mix(in srgb, var(--text-primary) 2%, var(--bg));
+}
+
+.learn-info-wordmark {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+}
+
+.learn-info a:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+.learn-info-header {
+  margin: 2.5rem 0 2rem;
+}
+
+.learn-info h1 {
+  font-size: clamp(2rem, 6vw, 3.25rem);
+  margin: 0 0 0.75rem;
+}
+
+.learn-info-lead {
+  color: var(--text-secondary);
+  font-size: clamp(1rem, 2.4vw, 1.125rem);
+  margin: 0;
+  max-width: 40rem;
+}
+
+/* A phone is one column, 1 to 6. From 56rem the cards sit on a fixed grid (the
+   design, Learn v5, content 1200 px, candidate): row 1 is cards 1 and 2 (two
+   columns of 590 px, at least 360 px high); then cards 3 to 6 each take the
+   full width: 3 is the palm thickness card (three static boxes), 4 a compact
+   card (at least 116 px high; the old "Weight and connection" card was
+   removed, Kirby 2026-10-11). A row grows only if its text needs it, so nothing is clipped at a big text size. */
+.learn-cards {
+  list-style: none;
+  margin: 0 0 2.5rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+}
+
+@media (min-width: 56rem) {
+  .learn-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows:
+      minmax(22.5rem, auto) auto minmax(7.25rem, auto)
+      auto auto;
+    grid-template-areas:
+      "hand grip"
+      "thickness thickness"
+      "size size"
+      "shape shape"
+      "score score";
+  }
+  .learn-card--hand {
+    grid-area: hand;
+  }
+  .learn-card--grip {
+    grid-area: grip;
+  }
+  .learn-card--thickness {
+    grid-area: thickness;
+  }
+  .learn-card--size {
+    grid-area: size;
+  }
+  .learn-card--shape {
+    grid-area: shape;
+  }
+  .learn-card--score {
+    grid-area: score;
+  }
+}
+
+.learn-card {
+  border: 1px solid var(--hairline);
+  border-radius: 1.25rem;
+  background: var(--learn-card-bg);
+  padding: 1.25rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+/* The cards the design centres: the hand, the chart and the compact one (4,
+   one title and one sentence). */
+.learn-card--hand,
+.learn-card--score,
+.learn-card--size {
+  justify-content: center;
+}
+
+@media (min-width: 56rem) {
+  .learn-card {
+    padding: 1.75rem;
+  }
+}
+
+.learn-card p {
+  color: var(--text-secondary);
+  margin: 0 0 1rem;
+}
+/* The compact card (4) has no body to push against: the sentence
+   sits right under a tighter title and nothing is left below it. This comes
+   after `.learn-card p` on purpose (same specificity, later wins); the design's
+   height is about 116 px. */
+.learn-card--size p {
+  margin-bottom: 0;
+}
+/* Palm thickness (card 3): the sentence, then three static boxes (a name and one
+   line each, the design's dark boxes). One column on a phone, three from 56rem.
+   They are not controls: no hover, no pointer, no focus. Tokens only, so print,
+   high contrast and forced colours follow the page (the border is a real
+   hairline, so forced colours keeps it). */
+.learn-thickness {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+@media (min-width: 56rem) {
+  .learn-thickness {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.875rem;
+  }
+}
+.learn-thickness-option {
+  min-width: 0;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--hairline);
+  border-radius: 0.75rem;
+  background: var(--bg);
+}
+.learn-thickness-option dt {
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem;
+}
+.learn-thickness-option dd {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.learn-card--size .learn-card-title {
+  margin-bottom: 0.5rem;
+}
+@media (min-width: 56rem) {
+  .learn-card--size {
+    padding-block: 1.5rem;
+  }
+}
+
+.learn-card-title {
+  display: flex;
+  /* The number circle and the title text sit side by side; if they do not fit
+     (a long word such as "thickness" at 200 % text on a 320 px phone) the text
+     drops under the circle and wraps, instead of its longest word pushing the
+     page sideways (the text is an anonymous flex item, whose minimum width is
+     its longest word). */
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  font-size: 1.375rem;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.75rem;
+}
+
+.learn-card-number {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1.5px solid var(--accent-text);
+  border-radius: 50%;
+  color: var(--accent-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+@media (min-width: 56rem) {
+  /* The design has a plain blue numeral here, no ring. */
+  .learn-card-number {
+    width: auto;
+    height: auto;
+    border: 0;
+    border-radius: 0;
+    font-size: 0.875rem;
+    min-width: 1rem;
+  }
+}
+
+/* Text links (BTN-1 style B): --accent-text, no fill, a 44 px target. */
+.learn-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 2.75rem;
+  color: var(--accent-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.learn-info-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.125rem;
+  padding: 0 1.75rem;
+  /* A real border colour, not transparent: forced colours keeps it visible. */
+  border: 1px solid var(--button-primary-bg);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
+  font-size: 1rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+.learn-info-cta:active {
+  background: var(--button-primary-pressed);
+  border-color: var(--button-primary-pressed);
+}
+.learn-info a.learn-info-cta:focus-visible {
+  outline-offset: 3px;
+}
+
+@media (max-width: 40rem) {
+  /* The button spans the width on a phone, like the design. */
+  .learn-info-cta {
+    display: flex;
+  }
+}
+
+/* The hand on A4 (the home page's drawing) on the page's own black. */
+.learn-figure {
+  display: grid;
+  place-items: center;
+  margin: 0 0 0.5rem;
+}
+.learn-figure-hand img {
+  display: block;
+  width: min(100%, 17.5rem);
+  height: auto;
+  background: var(--bg);
+  border-radius: 0.875rem;
+}
+
+/* Card 1 from 70rem (1120 px): text on the left, the drawing on the right
+   (250 x 304, radius 14); the text column is then at least about 200 px. Between
+   56rem and 70rem the two columns of cards are narrower, so the drawing stays
+   under the text, as on a phone. */
+@media (min-width: 70rem) {
+  .learn-card--hand .learn-card-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 15.625rem;
+    grid-template-rows: auto auto 1fr;
+    align-items: start;
+    column-gap: 1.5rem;
+  }
+  .learn-card--hand h2,
+  .learn-card--hand p,
+  .learn-card--hand .learn-link {
+    grid-column: 1;
+  }
+  .learn-card--hand .learn-link {
+    align-self: start;
+  }
+  .learn-card--hand .learn-figure {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    margin: 0;
+  }
+  .learn-card--hand .learn-figure-hand img {
+    width: 15.625rem;
+    height: 19rem;
+    object-fit: contain;
+  }
+}
+
+/* Grip: Kirby's three drawings side by side at every width (about 80 px each
+   on a 320 px phone), the name and its one sentence under each. The list of
+   the three sentences is for a screen reader only, at every width: the visible
+   name and sentence are aria-hidden, so each is read once. */
+.learn-grips-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.learn-grips {
+  display: flex;
+  justify-content: center;
+  gap: 0.25rem;
+}
+.learn-grips figure {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 10.25rem; /* 164 px */
+  margin: 0;
+  text-align: center;
+}
+.learn-grips img {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+.learn-grips figcaption {
+  margin-top: 0.25rem;
+  overflow-wrap: anywhere;
+}
+.learn-grip-name {
+  display: block;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+/* The sentence under the name (Pencil v5, card 2): 12 px, secondary, a few
+   lines in a narrow column. */
+.learn-grip-text {
+  display: block;
+  margin-top: 0.125rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+/* Card 5, "Look at the shape" (LEARN-5, candidate): four line drawings, each
+   on a dark tile (272 x 262, radius 14, a hairline) with the drawing 252 px
+   wide in the middle, its text marks on top and its name under the tile
+   (14 / 600). One column below 40rem (the tile fills the width, up to 342 px;
+   the phone layout is a proposal Kirby has not seen), two columns from 40rem,
+   four from 76rem. The design's 1024 px for four columns is not used: there
+   a tile is about 220 px, the drawing about 200 px, and the 12 px marks run
+   into the arrows (they are fixed-size text over a shrinking drawing); at
+   76rem a tile is about 268 px, as designed. */
+.learn-shapes {
+  /* The tile's own colours. Fixed, not --bg / --text-*: the tile stays dark in
+     print, where those tokens turn white and black. #060709 is --bg (the design
+     has #05060A, one step darker, but no token); the two text colours are
+     --text-primary and --text-secondary as they are on screen. */
+  --learn-tile-bg: #060709;
+  --learn-tile-text: #f5f5f7;
+  --learn-tile-text-secondary: #a1a1a6;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: 1.125rem;
+  margin-top: 0.5rem;
+}
+@media (min-width: 40rem) {
+  .learn-shapes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 76rem) {
+  .learn-shapes {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (prefers-contrast: more) {
+  .learn-shapes {
+    --learn-tile-text-secondary: #f5f5f7;
+  }
+}
+
+.learn-shape {
+  /* A column, so that when one tile grows (a note that wraps at a large text
+     size) the tiles of the row grow with it and the names stay level. */
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 21.375rem; /* 342 px */
+  min-width: 0;
+  margin: 0;
+  text-align: center;
+}
+@media (min-width: 76rem) {
+  .learn-shape {
+    max-width: 17rem; /* 272 px */
+  }
+}
+.learn-shape-tile {
+  flex: 1 1 auto;
+  display: grid;
+  /* The drawing in the first row, a note under it (if the sketch has one) in
+     the second; a tile grows past its 272 : 262 shape if the note needs it. */
+  grid-template-rows: minmax(0, 1fr) auto;
+  place-items: center;
+  /* Marks are sized against the tile's width (the narrow rules below). */
+  container-type: inline-size;
+  box-sizing: border-box;
+  width: 100%;
+  aspect-ratio: 272 / 262;
+  padding: 0.625rem;
+  /* Not clipped: with the text only enlarged (200 %) a 12 px mark grows, and
+     the drawing does not, so a mark would be cut. Known limit: such a mark can
+     then run past the tile's edge (into the card's padding; the card clips
+     sideways, below). */
+  overflow: visible;
+  border: 1px solid var(--hairline);
+  border-radius: 0.875rem;
+  background: var(--learn-tile-bg);
+}
+/* The drawing's box: the base drawing sets its height, the arrows lie exactly
+   on it (same viewBox), and the marks are placed by percentages of it. */
+.learn-shape-art {
+  position: relative;
+  width: 100%;
+}
+.learn-shape-art img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.learn-shape-art .learn-shape-arrows {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  pointer-events: none;
+}
+/* The marks are real text at 12 px, never smaller. They hold their line
+   breaks (a line feed in the copy) and do not wrap on their own (the two peak
+   marks may, in a narrow tile: below). */
+.learn-shape-mark {
+  position: absolute;
+  top: var(--learn-mark-top);
+  left: var(--learn-mark-left, auto);
+  right: var(--learn-mark-right, auto);
+  color: var(--learn-tile-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  white-space: pre;
+  text-align: left;
+  pointer-events: none;
+}
+.learn-shape-mark[data-tone="primary"] {
+  color: var(--learn-tile-text);
+}
+/* A 320 px phone: less padding in the tile (6 px). */
+@media (max-width: 23.99rem) {
+  .learn-shape-tile {
+    padding: 0.375rem;
+  }
+}
+/* A narrow tile for its text: the drawing is about 230 px wide (15rem is the
+   drawing's width at 100 % text, so this also holds when only the text is
+   enlarged, where rem grows and the tile does not). The marks that would sit
+   on an arrow or the outline are nudged (the offsets are in
+   shape-sketches.ts), and the two peak marks may wrap within their half of the
+   drawing, so that neither runs out of the tile at a large text size. */
+@container (max-width: 15rem) {
+  .learn-shape-mark {
+    top: var(--learn-mark-top-narrow);
+    left: var(--learn-mark-left-narrow, auto);
+    right: var(--learn-mark-right-narrow, auto);
+  }
+  .learn-shape-mark[data-mark="centredPeak"],
+  .learn-shape-mark[data-mark="rearPeak"] {
+    white-space: normal;
+    max-width: 46%;
+  }
+}
+.learn-shape-mark[data-anchor="r"] {
+  text-align: right;
+}
+.learn-shape-mark[data-anchor="m"] {
+  text-align: center;
+  transform: translateX(-50%);
+}
+/* The schematic note is a full sentence, about 340 px at 12 px, wider than the
+   drawing (about 232 px). It is in the tile's flow under the drawing, centred,
+   and wraps; the tile grows with it, so it never meets the name below. */
+.learn-shape-note {
+  max-width: 100%;
+  margin-top: 0.125rem;
+  color: var(--learn-tile-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  text-align: center;
+}
+/* Marks that grow past a tile (large text) must not widen the page: the card
+   clips sideways only, 1rem beyond its edge (the page's own side gutter). */
+.learn-card--shape {
+  overflow-x: clip;
+  overflow-clip-margin: 1rem;
+}
+/* Windows high contrast: the tile keeps its dark fill and the light drawing
+   (the marks inherit the fixed light colours), with a border in the system
+   text colour. The base and the arrows are images, which forced colours leave
+   alone. */
+@media (forced-colors: active) {
+  .learn-shape-tile {
+    forced-color-adjust: none;
+    border-color: CanvasText;
+  }
+  /* The chart's bars: their fill would be forced to the page colour and vanish.
+     A system colour is kept. */
+  .learn-bar {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+  /* The hand and the three grip drawings are light lines made for a dark
+     panel: they keep the dark panel (as in print) instead of the forced page
+     colour. */
+  .learn-figure-hand img,
+  .learn-grips img {
+    forced-color-adjust: none;
+    background: #060709;
+    border-radius: 0.5rem;
+  }
+}
+.learn-shape figcaption {
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-top: 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+/* How we score: bar length = the engine weight relative to the largest. */
+.learn-chart {
+  align-self: stretch;
+  border: 1px solid var(--hairline);
+  border-radius: 0.75rem;
+  background: var(--learn-panel-bg);
+  padding: 1rem 1.25rem;
+  margin: 0 0 0.75rem;
+}
+.learn-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.625rem;
+}
+.learn-bars li {
+  display: grid;
+  /* The label column is at least 6.5rem, but never more than 45 % of the chart:
+     at a large text size 6.5rem would push the bar out of the page. */
+  grid-template-columns: minmax(min(6.5rem, 45%), 38%) minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+}
+.learn-bar-label {
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.learn-bar-track {
+  display: block;
+}
+.learn-bar {
+  display: block;
+  height: 0.625rem;
+  min-width: 0.625rem;
+  border-radius: 999px;
+  background: var(--accent-text);
+}
+.learn-card .learn-chart-note {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  margin: 0.75rem 0 0;
+}
+
+/* Card 6 on a wide screen: text on the left (420 px), the chart fills the rest. */
+@media (min-width: 56rem) {
+  .learn-card--score .learn-card-body {
+    display: grid;
+    grid-template-columns: min(26.25rem, 45%) minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr;
+    column-gap: 2.5rem;
+    align-content: center;
+  }
+  .learn-card--score h2,
+  .learn-card--score p,
+  .learn-card--score .learn-link {
+    grid-column: 1;
+  }
+  .learn-card--score .learn-link {
+    align-self: start;
+  }
+  .learn-card--score .learn-chart {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    margin: 0;
+    align-self: center;
+  }
+}
+
+/* Print keeps the page's light paper, but the drawings are light lines made for
+   the dark page: they stay on a dark panel (backgrounds are printed on purpose),
+   and so do the chart's bars. */
+@media print {
+  .learn-card {
+    break-inside: avoid;
+  }
+  .learn-info-cta {
+    border-color: var(--button-primary-bg);
+  }
+  .learn-figure-hand img,
+  .learn-grips img {
+    background: #060709;
+    border-radius: 0.5rem;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* The shape tiles keep their dark fill, and their marks keep the light
+     colours (the tile's own variables are fixed, not the print tokens). */
+  .learn-shape {
+    break-inside: avoid;
+  }
+  .learn-shape-tile {
+    border-color: #00000040;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .learn-bar {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

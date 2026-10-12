@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
+import { guardDevOnlyRoute } from "@/app/scan/demo-guard";
 import { ResultsDemoClient } from "@/components/results/ResultsDemoClient";
 
 export const metadata: Metadata = {
@@ -14,7 +14,7 @@ export default async function ResultsDemoPage({
 }: {
   searchParams: Promise<{ presentation?: string; photos?: string }>;
 }) {
-  guardDemoRouteFromProduction();
+  guardDevOnlyRoute();
   const { presentation, photos } = await searchParams;
   return (
     <ResultsDemoClient

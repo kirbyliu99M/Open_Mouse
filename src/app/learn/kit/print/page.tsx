@@ -3,7 +3,7 @@ import Link from "next/link";
 import { TopBar } from "@/components/nav/TopBar";
 import { KitPageSvg } from "@/components/learning/KitSvg";
 import { KitSheetSvg } from "@/components/learning/KitV2Svg";
-import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
+import { guardDevOnlyRoute } from "@/app/scan/demo-guard";
 import { learnCopy } from "@/lib/copy/learn";
 import { getLocale } from "@/server/i18n/getLocale";
 import {
@@ -41,7 +41,7 @@ export default async function LearnPrintPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  guardDemoRouteFromProduction();
+  guardDevOnlyRoute();
   const locale = await getLocale();
   const copy = learnCopy(locale);
   const params = await searchParams;
@@ -51,7 +51,7 @@ export default async function LearnPrintPage({
       <main className="learn-print-main">
         <div className="learn noPrint">
           <TopBar
-            backHref="/learn"
+            backHref="/learn/kit"
             backLabel={copy.learningKit}
             stepLabel={copy.step}
           />
@@ -63,13 +63,13 @@ export default async function LearnPrintPage({
               sheet === "A" ? copy.checkRulerA : copy.checkRulerB,
               copy.cardsPageBefore,
             ])}{" "}
-            <Link href="/learn/slates?kit=2">{copy.cardsPageLink}</Link>
+            <Link href="/learn/kit/slates?kit=2">{copy.cardsPageLink}</Link>
             {copy.stop}
           </p>
           <PrintButton label={copy.print1Page} />
           <p className="learn-note">
             {copy.otherSheet}{" "}
-            <Link href={`/learn/print?sheet=${sheet === "A" ? "B" : "A"}`}>
+            <Link href={`/learn/kit/print?sheet=${sheet === "A" ? "B" : "A"}`}>
               {copy.sheetLabel(sheet === "A" ? "B" : "A", sheet === "A")}
             </Link>
             {copy.stop}
@@ -99,7 +99,7 @@ export default async function LearnPrintPage({
     <main className="learn-print-main">
       <div className="learn noPrint">
         <TopBar
-          backHref="/learn"
+          backHref="/learn/kit"
           backLabel={copy.learningKit}
           stepLabel={copy.step}
         />

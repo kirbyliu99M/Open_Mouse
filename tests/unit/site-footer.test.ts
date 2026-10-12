@@ -144,8 +144,8 @@ describe("SiteFooter", () => {
 
   it("is absent on the print pages and the capture flow, present elsewhere", () => {
     for (const p of [
-      "/learn/print",
-      "/learn/slates",
+      "/learn/kit/print",
+      "/learn/kit/slates",
       "/sheet",
       "/scan",
       "/scan/easy",
@@ -161,7 +161,7 @@ describe("SiteFooter", () => {
       "/results/demo",
       "/results/abc",
       "/learn",
-      "/learn/check",
+      "/learn/kit/check",
       "/mice",
       "/sheets",
       "/scanner",
