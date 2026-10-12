@@ -22,7 +22,12 @@ function subscribe(onChange: () => void): () => void {
 /**
  * Whether the window is wide enough for the sidebar. The server and the first
  * static render say no (the phone layout); the results page only renders once
- * its data has loaded in the browser, so nothing is hydrated against it.
+ * its data has loaded in the browser, so nothing is hydrated against it. A
+ * page the server renders (the all-mice page) does not let this decide its
+ * layout: it puts both shells in the markup and CSS shows one
+ * (`ResultsFilterLayout` with `shells="both"`), and uses this only for focus
+ * and for closing a sheet that the window outgrew, where "no" before hydration
+ * does no harm.
  */
 export function useWideLayout(): boolean {
   return useSyncExternalStore(
