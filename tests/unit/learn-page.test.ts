@@ -423,6 +423,12 @@ describe("large text and high contrast (CSS the unit test can see)", () => {
     );
   });
 
+  it("a card title may wrap under its number circle and break a long word, so it never widens the page (320 px, 200 % text, 'thickness')", () => {
+    const rule = (css.match(/\.learn-card-title \{[^}]*\}/g) ?? []).join(" ");
+    expect(rule).toContain("flex-wrap: wrap");
+    expect(rule).toContain("overflow-wrap: anywhere");
+  });
+
   it("the schematic note is in the flow, and the narrow rules follow the tile's width, not the screen's", () => {
     expect(css).toMatch(/\.learn-shape-note \{[^}]*text-align: center/);
     expect(css).toContain("container-type: inline-size");
