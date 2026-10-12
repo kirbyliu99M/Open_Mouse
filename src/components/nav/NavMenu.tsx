@@ -16,9 +16,19 @@ import Link from "next/link";
 import { useLocale } from "@/client/i18n/LocaleProvider";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { navCopy } from "@/lib/copy/nav";
+import { UnansweredMarker } from "./UnansweredMarker";
 import "./nav-menu.css";
 
-export function NavMenu() {
+export function NavMenu({
+  profileUnanswered = false,
+}: {
+  /**
+   * True when the signed-in person has not answered the questionnaire: the
+   * profile item then carries the marker 「尚未填答」. Off by default; the rule
+   * that decides it belongs to the results work (Builder R), not to the menu.
+   */
+  profileUnanswered?: boolean;
+}) {
   const copy = navCopy(useLocale());
   const [open, setOpen] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -97,6 +107,7 @@ export function NavMenu() {
               <li>
                 <Link href="/account" onClick={() => setOpen(false)}>
                   {copy.account}
+                  {profileUnanswered && <UnansweredMarker />}
                 </Link>
               </li>
             </ul>

@@ -6,9 +6,16 @@ import { accountCopy } from "@/lib/copy/account";
 
 /**
  * The "in" action reads "Continue with Google" (docs/design/
- * easy-scan-shell-2026-09-25/README.md, screen 12) — outlined, neutral, no
- * drawn Google logo (Google's branding rules reserve their mark for their
- * own asset; a hand-drawn stand-in would misrepresent it).
+ * easy-scan-shell-2026-09-25/README.md, screen 12) on a white pill with
+ * Google's multi-colour G at its left (the profile frame, 2026-10-12). The G is
+ * `public/images/google-g.png`: Kirby's file, scaled to 128 px and nothing else
+ * (never recoloured, reshaped, shadowed or animated: it is Google's trademark
+ * and Google's sign-in branding rules forbid changing it). Kirby says it comes
+ * from Google's own website (2026-10-12; not checked by us); using Google's
+ * "Sign in with Google" brand asset (SVG) from the branding guidelines page is
+ * still preferred. The image is decoration (`alt=""`); the button's name is
+ * its text. The "out" action is the plain grey 「登出」 at the foot of the
+ * profile page.
  */
 export function AuthButton({ action }: { action: "in" | "out" }) {
   const { pending } = useFormStatus();
@@ -19,7 +26,9 @@ export function AuthButton({ action }: { action: "in" | "out" }) {
   return (
     <button
       type="submit"
-      className={action === "in" ? "account-google-button" : "button-secondary"}
+      className={
+        action === "in" ? "account-google-button" : "profile-signout-button"
+      }
       disabled={pending}
       aria-disabled={pending}
       // Explicit, so the button's own accessible name is always this text —
@@ -29,22 +38,14 @@ export function AuthButton({ action }: { action: "in" | "out" }) {
       aria-label={currentLabel}
     >
       {action === "in" && (
-        <svg
-          viewBox="0 0 24 24"
-          width="18"
-          height="18"
-          aria-hidden="true"
-          focusable="false"
-        >
-          <path
-            d="M5 12h11M12 6l6 6-6 6"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        // eslint-disable-next-line @next/next/no-img-element -- one fixed 128 px brand mark, shown at 28 px; no next/image config needed
+        <img
+          className="account-google-mark"
+          src="/images/google-g.png"
+          alt=""
+          width={28}
+          height={28}
+        />
       )}
       <span role="status" aria-live="polite">
         {currentLabel}

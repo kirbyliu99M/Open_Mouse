@@ -28,6 +28,8 @@ const EXPECTED_MODULES = [
   "mice-page.ts",
   "nav.ts",
   "privacy.ts",
+  "questionnaire.ts",
+  "results-additions.ts",
   "results-page.ts",
   "results-reasons.ts",
   "results-screens.ts",

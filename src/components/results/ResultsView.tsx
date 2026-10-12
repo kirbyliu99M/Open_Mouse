@@ -29,6 +29,7 @@ import { PurchaseSlot } from "./PurchaseSlot";
 import { ResultsDetails } from "./ResultsDetails";
 import { ResultsTopBar } from "./ResultsTopBar";
 import { ShareCardButton } from "./share/ShareCardButton";
+import { SimilarHands } from "./SimilarHands";
 import { PrintOpenDetails } from "./PrintOpenDetails";
 import { useMouseLinks } from "./useMouseLinks";
 import { WhyList } from "./WhyList";
@@ -55,7 +56,8 @@ const BAND_COPY = { "zh-TW": zhBands, en: enBands } as const;
  *
  * Order: top bar, hand type (when the response has one), photo, rank and
  * score (the official link sits on the fit-band chip's row), why, purchase
- * links (when there are any), details (closed), other picks, other mice
+ * links (when there are any), details (closed), other picks, the similar-hand
+ * block (the main page of a real scan only; candidate, 2026-10-12), other mice
  * (closed). The photo comes from the entry (`mouse.imageUrl`, filled by the
  * server for every entry). The official link and the purchase links come from
  * `useMouseLinks` for the mouse on screen only.
@@ -325,6 +327,11 @@ export function ResultsView({
         }
         onSelect={onSelectRank}
       />
+
+      {/* How people with a similar hand size rated the mice: about the
+          person, not about one mouse, so only the main page of a real scan
+          asks for it. It draws nothing until it has an answer. */}
+      {isMain && scanId && <SimilarHands scanId={scanId} language={language} />}
 
       <OtherMice
         ranked={view.rest}

@@ -97,6 +97,21 @@
   background: #1c1c1e;
   color: #f5f5f7;
 }
+.navMenuMarker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-left: auto;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+.navMenuMarkerDot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--accent-text);
+}
 .navMenuList a:hover,
 .navMenuList a:focus-visible {
   background: #17395f;

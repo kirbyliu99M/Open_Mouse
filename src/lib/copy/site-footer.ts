@@ -41,7 +41,7 @@ export const zhTW: SiteFooterCopy = {
   allMice: "所有滑鼠",
   howItWorks: "運作方式",
   privacy: "隱私",
-  account: "帳號",
+  account: "我的檔案",
   github: "GitHub",
   linksLabel: "網站連結",
 };
@@ -55,7 +55,7 @@ export const en: SiteFooterCopy = {
   allMice: "All mice",
   howItWorks: "How it works",
   privacy: "Privacy",
-  account: "Account",
+  account: "My profile",
   github: "GitHub",
   linksLabel: "Site links",
 };

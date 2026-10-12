@@ -11,7 +11,7 @@ const TITLES: readonly (readonly [string, string])[] = [
   ["/scan", `Scan on a printed sheet · ${SITE_NAME}`],
   ["/sheet", `Calibration sheet · ${SITE_NAME}`],
   ["/how-it-works", `How it works · ${SITE_NAME}`],
-  ["/account", `Account · ${SITE_NAME}`],
+  ["/account", `My profile · ${SITE_NAME}`],
   [
     "/results/a1b2c3d4-1111-4a2b-8c3d-9e0f1a2b3c4d",
     `Your results · ${SITE_NAME}`,

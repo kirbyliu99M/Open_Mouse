@@ -1,16 +1,28 @@
 import { auth, signIn, signOut } from "../../auth";
 import { createDrizzleAccountRepo } from "../../server/account/drizzle-repo";
 import { isAuthConfigured } from "../../server/auth/config";
-import { AccountView } from "./AccountView";
+import {
+  readAccountEmail,
+  readCatalogueChoices,
+  readMouseNames,
+  readSessionLatestScanId,
+} from "../../server/account/profile";
+import {
+  SCAN_SESSION_COOKIE,
+  parseSessionId,
+} from "../../server/scans/cookies";
+import { SignedInProfile, SignedOutAnswer } from "./AccountClient";
+import { mouseNamesFromRows } from "./profile-model";
 import { AuthButton } from "./AuthButton";
 import { LegacyHandKeySweep } from "@/components/results/LegacyHandKeySweep";
-import { Avatar } from "@/components/nav/Avatar";
 import { TopBar } from "@/components/nav/TopBar";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { accountCopy } from "@/lib/copy/account";
 import { getLocale } from "@/server/i18n/getLocale";
 import "./account.css";
+import "./questionnaire.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: accountCopy(await getLocale()).metaTitle };
@@ -24,35 +36,28 @@ export default async function AccountPage() {
 
   if (!session?.user) {
     const configured = isAuthConfigured();
+    // Whether this browser holds a scan decides where the link goes: the form
+    // for a scan of this browser's own session cookie, else a scan first. Both
+    // reads are extras: a failure leaves the link going to /scan/easy.
+    const sessionId = configured
+      ? parseSessionId((await cookies()).get(SCAN_SESSION_COOKIE)?.value)
+      : null;
+    const [ownScanId, choices] = configured
+      ? await Promise.all([
+          readSessionLatestScanId(sessionId).catch(() => null),
+          readCatalogueChoices().catch(() => []),
+        ])
+      : [null, []];
     return (
       <main className="account">
         <LegacyHandKeySweep />
-        <TopBar backHref="/" backLabel={copy.home} stepLabel={copy.account} />
-        <span className="account-hero-icon" aria-hidden="true">
-          <PersonIcon />
-        </span>
-        <h1>{copy.keepYourScans}</h1>
-        <p className="account-subtitle">{copy.subtitle}</p>
-        <ul className="account-benefits">
-          <li>
-            <span aria-hidden="true">
-              <BookmarkIcon />
-            </span>
-            {copy.benefitKeep}
-          </li>
-          <li>
-            <span aria-hidden="true">
-              <DeviceIcon />
-            </span>
-            {copy.benefitDevices}
-          </li>
-          <li>
-            <span aria-hidden="true">
-              <TrashIcon />
-            </span>
-            {copy.benefitDelete}
-          </li>
-        </ul>
+        <TopBar backHref="/" backLabel={copy.home} stepLabel={copy.title} />
+        <h1>{copy.title}</h1>
+        <p className="account-subtitle">
+          {configured
+            ? copy.signedOutSubtitle
+            : copy.signedOutSubtitleUnavailable}
+        </p>
         {configured ? (
           <>
             <form
@@ -63,9 +68,14 @@ export default async function AccountPage() {
             >
               <AuthButton action="in" />
             </form>
-            <Link className="account-skip-link" href="/scan/easy">
-              {copy.scanWithoutAccount}
-            </Link>
+            <SignedOutAnswer
+              scanId={ownScanId}
+              catalogue={choices}
+              mouseNames={mouseNamesFromRows(choices)}
+            />
+            <p className="account-fine-print">
+              {copy.answerWithoutAccountNote}
+            </p>
             <p className="account-fine-print">{copy.finePrint}</p>
           </>
         ) : (
@@ -86,125 +96,44 @@ export default async function AccountPage() {
     );
   }
 
+  const userId = session.user.id;
   const repo = createDrizzleAccountRepo();
-  const scans = await repo.listScans(session.user.id);
+  // The e-mail and the mouse names are extras: the page still renders, without
+  // them, when either read fails.
+  const [scans, email, mouseNames, catalogue] = await Promise.all([
+    repo.listScans(userId),
+    readAccountEmail(userId).catch(() => null),
+    readMouseNames().catch(() => ({}) as Record<string, string>),
+    readCatalogueChoices().catch(() => []),
+  ]);
 
   return (
     <main className="account">
       <LegacyHandKeySweep />
-      <TopBar backHref="/" backLabel={copy.home} stepLabel={copy.account} />
-      <div className="account-header">
-        <div>
-          <div className="account-identity" data-testid="account-identity">
-            <Avatar
-              className="avatar avatar-large"
-              image={session.user.image ?? null}
-            />
-            <p className="account-name">{session.user.name ?? copy.signedIn}</p>
-          </div>
-          <p className="eyebrow">{copy.account}</p>
-          <h1>{copy.yourScans}</h1>
-          <p className="note">{copy.keptUntil}</p>
-        </div>
-        <form
-          action={async () => {
-            "use server";
-            await signOut({ redirectTo: "/" });
-          }}
-        >
-          <AuthButton action="out" />
-        </form>
-      </div>
-      <AccountView scans={scans} />
+      <TopBar backHref="/" backLabel={copy.home} stepLabel={copy.title} />
+      <h1>{copy.title}</h1>
+      <p className="account-subtitle">{copy.signedInSubtitle}</p>
+      <SignedInProfile
+        catalogue={catalogue}
+        scans={scans}
+        profile={{
+          name: session.user.name ?? null,
+          email,
+          image: session.user.image ?? null,
+        }}
+        mouseNames={mouseNames}
+        signOut={
+          <form
+            action={async () => {
+              "use server";
+              await signOut({ redirectTo: "/" });
+            }}
+          >
+            <AuthButton action="out" />
+          </form>
+        }
+      />
     </main>
-  );
-}
-
-function PersonIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="26" height="26" focusable="false">
-      <circle
-        cx="12"
-        cy="8"
-        r="3.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      />
-      <path
-        d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function BookmarkIcon() {
-  return (
-    <svg viewBox="0 0 20 20" width="20" height="20" focusable="false">
-      <path
-        d="M5 3.5h10a1 1 0 0 1 1 1V17l-6-3.5L4 17V4.5a1 1 0 0 1 1-1Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M7.3 9.3l1.6 1.6 3-3.4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function DeviceIcon() {
-  return (
-    <svg viewBox="0 0 20 20" width="20" height="20" focusable="false">
-      <rect
-        x="6"
-        y="2.5"
-        width="8"
-        height="15"
-        rx="1.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-      <path
-        d="M9.3 15h1.4"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg viewBox="0 0 20 20" width="20" height="20" focusable="false">
-      <path
-        d="M4.5 6h11M8 6V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V6M6 6l.7 9.3a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9L14 6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M8.5 9v4M11.5 9v4"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-    </svg>
   );
 }
 

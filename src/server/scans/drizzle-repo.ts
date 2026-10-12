@@ -17,7 +17,12 @@ import type {
   UsableSession,
 } from "./repo";
 
-function ownershipPredicate(ctx: ScanOwnershipContext) {
+/**
+ * The SQL form of the ownership rule in `src/lib/contracts/routes.ts`. Exported
+ * so a reader that must follow the same rule (the profile page's "the scan of
+ * this browser session") reuses it instead of restating it.
+ */
+export function ownershipPredicate(ctx: ScanOwnershipContext) {
   const ownership = [];
   if (ctx.userId !== null) {
     ownership.push(eq(scanSessions.userId, ctx.userId));
