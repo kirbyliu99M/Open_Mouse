@@ -651,7 +651,8 @@ test.describe("desktop: the panel's colours, focus and the required grip page", 
     await expect(confirm).toHaveAccessibleDescription(
       "Choose a grip to continue.",
     );
-    await confirm.click();
+    // aria-disabled stays pressable (Playwright's own actionability refuses it).
+    await confirm.click({ force: true });
     await expect(grip.getByRole("alert")).toHaveText(
       "Choose a grip to continue.",
     );
