@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import ScanSubmitPanel from "../ScanSubmitPanel";
-import { guardDemoRouteFromProduction } from "../demo-guard";
+import { guardDevOnlyRoute } from "../demo-guard";
 import {
   MEASUREMENT_MODEL_VERSION,
   scanSubmissionSchema,
@@ -45,7 +45,7 @@ const DEMO_SUBMISSION = scanSubmissionSchema.parse({
 });
 
 export default function ScanSubmitDemoPage() {
-  guardDemoRouteFromProduction();
+  guardDevOnlyRoute();
   return (
     <main className="scanMain">
       <h1>Scan submit (mock data)</h1>

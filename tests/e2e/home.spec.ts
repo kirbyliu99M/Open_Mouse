@@ -805,7 +805,7 @@ test("signed in, the nav shows the Google avatar linking to the account page ins
   // Scoped to the nav: the site footer (root layout) has an Account link too.
   const account = page
     .getByRole("navigation", { name: "Primary" })
-    .getByRole("link", { name: "Account", exact: true });
+    .getByRole("link", { name: "My profile", exact: true });
   await expect(account).toHaveAttribute("href", "/account");
   await expect(account.locator("img")).toBeVisible();
   await expect(page.getByRole("link", { name: "Sign in" })).toHaveCount(0);
@@ -836,7 +836,7 @@ test("signed in with an avatar that fails to load, the nav shows the meteor mous
   // Scoped to the nav: the site footer (root layout) has an Account link too.
   const account = page
     .getByRole("navigation", { name: "Primary" })
-    .getByRole("link", { name: "Account", exact: true });
+    .getByRole("link", { name: "My profile", exact: true });
   // The fallback is the static meteor mouse, not the name's initial (Kirby,
   // 2026-10-10).
   const fallback = account.getByTestId("avatar-fallback");

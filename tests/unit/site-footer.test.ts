@@ -50,7 +50,7 @@ describe("SiteFooter", () => {
       ["/mice", "All mice"],
       ["/how-it-works", "How it works"],
       ["/how-it-works#privacy", "Privacy"],
-      ["/account", "Account"],
+      ["/account", "My profile"],
       [GITHUB_URL, "GitHub"],
     ]);
     const titles = [...html.matchAll(/<h2[^>]*>([^<]+)<\/h2>/g)].map(
@@ -88,7 +88,9 @@ describe("SiteFooter", () => {
     const html = render("/");
     expect(html).toContain(`href="${GITHUB_URL}" rel="noopener noreferrer"`);
     expect(html.match(/<a [^>]*rel="/g)).toHaveLength(1);
-    expect(html.lastIndexOf("GitHub")).toBeGreaterThan(html.indexOf("Account"));
+    expect(html.lastIndexOf("GitHub")).toBeGreaterThan(
+      html.indexOf("My profile"),
+    );
   });
 
   it("has an empty, hidden mount for the later star field, and a hidden mark", () => {
@@ -131,7 +133,7 @@ describe("SiteFooter", () => {
       for (const v of Object.values(table)) expect(v.length).toBeGreaterThan(0);
     expect(footerZh.howItWorks).toBe("運作方式");
     expect(footerZh.privacy).toBe("隱私");
-    expect(footerZh.account).toBe("帳號");
+    expect(footerZh.account).toBe("我的檔案");
     // New in the merged footer: candidates (未拍板).
     expect(footerZh.groupProduct).toBe("產品");
     expect(footerZh.groupTrust).toBe("信任");
@@ -144,8 +146,8 @@ describe("SiteFooter", () => {
 
   it("is absent on the print pages and the capture flow, present elsewhere", () => {
     for (const p of [
-      "/learn/print",
-      "/learn/slates",
+      "/learn/kit/print",
+      "/learn/kit/slates",
       "/sheet",
       "/scan",
       "/scan/easy",
@@ -161,7 +163,7 @@ describe("SiteFooter", () => {
       "/results/demo",
       "/results/abc",
       "/learn",
-      "/learn/check",
+      "/learn/kit/check",
       "/mice",
       "/sheets",
       "/scanner",

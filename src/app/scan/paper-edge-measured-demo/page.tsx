@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import ScanClient from "../ScanClient";
-import { guardDemoRouteFromProduction } from "../demo-guard";
+import { guardDevOnlyRoute } from "../demo-guard";
 import {
   MEASUREMENT_MODEL_VERSION,
   scanSubmissionSchema,
@@ -63,7 +63,7 @@ const DEMO_OVERLAY: PhotoOverlay = {
 };
 
 export default function ScanPaperEdgeMeasuredDemoPage() {
-  guardDemoRouteFromProduction();
+  guardDevOnlyRoute();
   return (
     <ScanClient
       demoLabel="Demo — sample measurements (paper-edge)"

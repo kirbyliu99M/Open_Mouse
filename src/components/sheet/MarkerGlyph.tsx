@@ -7,7 +7,7 @@ import type { MarkerLayout } from "@/client/sheet/layout";
 
 /**
  * One printed ArUco marker, drawn in sheet millimetres. Shared by the
- * calibration sheet (`/sheet`) and the learning kit (`/learn/print`) so both
+ * calibration sheet (`/sheet`) and the learning kit (`/learn/kit/print`) so both
  * print byte-identical markers.
  */
 export function MarkerGlyph({

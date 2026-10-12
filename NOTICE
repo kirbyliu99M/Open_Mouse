@@ -379,6 +379,56 @@ and package-lock.json.
                           terms for generated output were not checked:
                           Unconfirmed.
 
+  learn/grip-palm.webp, learn/grip-claw.webp, learn/grip-fingertip.webp
+                          Kirby's three grip illustrations (Palm, Claw,
+                          Fingertip) for the /learn page, resized to 640 x 640
+                          px and saved as WebP (2026-10-11); the drawing is
+                          unchanged and not recoloured. Per Claude's session
+                          notes they were drawn through AGY (the Gemini CLI)
+                          from Kirby's own hand reference at Kirby's request:
+                          that is not recorded in this repository, and AGY's
+                          other sources and the terms for its output were not
+                          checked: Unconfirmed.
+  learn/shape-symmetrical.svg, learn/shape-ergonomic.svg,
+  learn/shape-hump.svg, learn/shape-flare.svg
+                          Four line drawings for the "Look at the shape" card
+                          of /learn (2026-10-11 and 2026-10-12): a Logitech G
+                          Pro X Superlight 2 and a Razer Basilisk V3 seen from
+                          above, a Pulsar X2H CrazyLight Medium seen from the
+                          side, and a G-Wolves Warg seen from above. Claude (an
+                          Opus subagent) measured each outline and the part
+                          positions (wheel, button seams, side buttons) on the
+                          manufacturer's product photos (the photos are kept
+                          outside this repository and are not copied here), drew
+                          the paths from those measurements, and compared the
+                          rendered silhouette with the photo's silhouette; the
+                          overlap figures (about 0.98 to 0.99) are Claude's own
+                          measurements, not reviewed by a second tool. The
+                          drawings contain no logo, text or photo. The Flare
+                          drawing is a schematic: its front half is widened to
+                          three times the real excess width, and the page says
+                          so. Whether the manufacturers claim any rights in
+                          their product photographs or product shapes was not
+                          checked: Unconfirmed. This file draws no legal
+                          conclusion.
+  learn/shape-*-arrows.svg
+                          The arrow and dashed-guide overlays for the four
+                          drawings above, drawn by Claude (2026-10-12). Original
+                          work; no source.
+
+  google-g.png            The multi-colour "G" shown on the sign-in button
+                          (2026-10-12). It is a trademark of Google LLC. Kirby
+                          supplied the file and says it comes from Google's own
+                          website; that was not checked by Claude and no source
+                          page is recorded here: Unconfirmed. The file is scaled
+                          to 128 x 128 px and is otherwise unaltered (not
+                          recoloured, reshaped or animated). It is used only on
+                          the "Continue with Google" button. Google's sign-in
+                          branding terms were not read for this entry, and this
+                          file draws no legal conclusion; replacing the PNG with
+                          the official SVG from Google's branding page is
+                          recommended.
+
 
 4.1 Font: the wordmark's typeface
 

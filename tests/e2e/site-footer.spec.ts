@@ -19,7 +19,7 @@ const LINKS: readonly (readonly [href: string, name: string])[] = [
   ["/mice", "All mice"],
   ["/how-it-works", "How it works"],
   ["/how-it-works#privacy", "Privacy"],
-  ["/account", "Account"],
+  ["/account", "My profile"],
   [GITHUB, "GitHub"],
 ];
 
@@ -54,7 +54,7 @@ test.describe("the site footer, in English", () => {
       for (const [group, names] of [
         ["Product", ["Scan", "Learn", "All mice"]],
         ["Trust", ["How it works", "Privacy"]],
-        ["Project", ["Account", "GitHub"]],
+        ["Project", ["My profile", "GitHub"]],
       ] as const) {
         await expect(
           nav.getByRole("heading", { level: 2, name: group }),
@@ -609,7 +609,7 @@ test.describe("the site footer, for a browser that prefers Chinese", () => {
       "所有滑鼠",
       "運作方式",
       "隱私",
-      "帳號",
+      "我的檔案",
       "GitHub",
     ])
       await expect(
@@ -629,8 +629,8 @@ test.describe("the site footer, for a browser that prefers Chinese", () => {
 
 test.describe("pages with their own print layout have no footer", () => {
   for (const path of [
-    "/learn/print",
-    "/learn/slates",
+    "/learn/kit/print",
+    "/learn/kit/slates",
     "/sheet",
     "/scan/easy",
   ]) {

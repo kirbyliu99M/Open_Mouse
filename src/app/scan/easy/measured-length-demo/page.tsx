@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import EasyScanCamera from "@/client/camera/EasyScanCamera";
-import { guardDemoRouteFromProduction } from "../../demo-guard";
+import { guardDevOnlyRoute } from "../../demo-guard";
 import {
   MEASUREMENT_MODEL_VERSION,
   scanSubmissionSchema,
@@ -57,7 +57,7 @@ const DEMO_OVERLAY: PhotoOverlay = {
 };
 
 export default function EasyScanMeasuredLengthDemoPage() {
-  guardDemoRouteFromProduction();
+  guardDevOnlyRoute();
   return (
     <EasyScanCamera
       demoMeasured={{
