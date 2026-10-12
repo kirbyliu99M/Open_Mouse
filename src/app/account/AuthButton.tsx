@@ -10,9 +10,10 @@ import { accountCopy } from "@/lib/copy/account";
  * Google's multi-colour G at its left (the profile frame, 2026-10-12). The G is
  * `public/images/google-g.png`: Kirby's file, scaled to 128 px and nothing else
  * (never recoloured, reshaped, shadowed or animated: it is Google's trademark
- * and Google's sign-in branding rules forbid changing it). Its source is not
- * confirmed; replacing it with Google's own "Sign in with Google" brand asset
- * (SVG) is recommended. The image is decoration (`alt=""`); the button's name is
+ * and Google's sign-in branding rules forbid changing it). Kirby says it comes
+ * from Google's own website (2026-10-12; not checked by us); using Google's
+ * "Sign in with Google" brand asset (SVG) from the branding guidelines page is
+ * still preferred. The image is decoration (`alt=""`); the button's name is
  * its text. The "out" action is the plain grey 「登出」 at the foot of the
  * profile page.
  */
