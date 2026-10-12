@@ -222,6 +222,28 @@ const mineBody = (extra: Record<string, unknown> = {}) => ({
   feedback: null,
   ...extra,
 });
+const SIGNED_IN = [
+  200,
+  { user: { id: "u1", name: "A", image: null } },
+] as const;
+const SIGNED_OUT = [200, null] as const;
+type Reply = readonly [number, unknown];
+
+/** A fetch that routes the session and survey URLs and records what it was asked. */
+function routed(replies: { session: Reply; survey: Reply }) {
+  const urls: string[] = [];
+  const impl = async (url: string) => {
+    urls.push(url);
+    const [status, body] =
+      url === "/api/auth/session" ? replies.session : replies.survey;
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => body,
+    };
+  };
+  return { impl, urls };
+}
 const storageWith = (value: string | null): FlagStorage => ({
   getItem: (key) => (key === SURVEY_ANSWERED_KEY ? value : null),
   setItem: () => {},
@@ -261,51 +283,82 @@ describe("the dot rule", () => {
     ).toBe(true);
   });
 
-  it("signed in (200): the server decides, the device flag is ignored", async () => {
-    const empty = answer(200, mineBody());
+  it("signed in: /api/survey decides, the device flag is ignored", async () => {
+    const empty = routed({ session: SIGNED_IN, survey: [200, mineBody()] });
     expect(
       await fetchReminderStatus(undefined, empty.impl, () => storageWith("1")),
     ).toBe("unanswered");
-    const full = answer(200, mineBody({ ratings: [rating("a")] }));
+    expect(empty.urls).toEqual(["/api/auth/session", "/api/survey"]);
+    const full = routed({
+      session: SIGNED_IN,
+      survey: [200, mineBody({ ratings: [rating("a")] })],
+    });
     expect(
       await fetchReminderStatus(undefined, full.impl, () => storageWith(null)),
     ).toBe("answered");
-    expect(empty.calls[0].url).toBe("/api/survey");
   });
 
-  it("signed out (401): the dot shows unless the device says answered", async () => {
-    const none = answer(401, {});
-    expect(
-      await fetchReminderStatus(undefined, none.impl, () => storageWith(null)),
-    ).toBe("unanswered");
-    expect(
-      await fetchReminderStatus(undefined, none.impl, () => storageWith("1")),
-    ).toBe("answered");
+  it("signed out: the flag decides and /api/survey is never called", async () => {
+    for (const session of [SIGNED_OUT, [200, {}] as const]) {
+      const r = routed({ session, survey: [401, {}] });
+      expect(
+        await fetchReminderStatus(undefined, r.impl, () => storageWith(null)),
+      ).toBe("unanswered");
+      expect(
+        await fetchReminderStatus(undefined, r.impl, () => storageWith("1")),
+      ).toBe("answered");
+      expect(r.urls).not.toContain("/api/survey");
+    }
   });
 
   it("signed out with storage missing or throwing: the page still works, with the dot", async () => {
-    const none = answer(401, {});
-    expect(await fetchReminderStatus(undefined, none.impl, () => null)).toBe(
+    const r = routed({ session: SIGNED_OUT, survey: [401, {}] });
+    expect(await fetchReminderStatus(undefined, r.impl, () => null)).toBe(
+      "unanswered",
+    );
+    expect(await fetchReminderStatus(undefined, r.impl, throwingStorage)).toBe(
       "unanswered",
     );
     expect(
-      await fetchReminderStatus(undefined, none.impl, throwingStorage),
-    ).toBe("unanswered");
-    expect(
-      await fetchReminderStatus(undefined, none.impl, () => {
+      await fetchReminderStatus(undefined, r.impl, () => {
         throw new Error("no window.localStorage");
       }),
     ).toBe("unanswered");
+    expect(r.urls).not.toContain("/api/survey");
   });
 
-  it("anything else is unknown, which shows no dot", async () => {
-    for (const status of [429, 500, 404]) {
-      const r = answer(status, {});
-      expect(await fetchReminderStatus(undefined, r.impl)).toBe("unknown");
+  it("a session that cannot be read is unknown, and asks nothing more", async () => {
+    for (const session of [
+      [500, {}],
+      [503, {}],
+      [200, { user: "nobody" }],
+      [200, "text"],
+      [200, [1, 2]],
+    ] as const) {
+      const r = routed({ session, survey: [200, mineBody()] });
+      expect(
+        await fetchReminderStatus(undefined, r.impl, () => storageWith(null)),
+      ).toBe("unknown");
+      expect(r.urls).toEqual(["/api/auth/session"]);
     }
     expect(await fetchReminderStatus(undefined, failing)).toBe("unknown");
-    const bad = answer(200, { not: "a survey" });
-    expect(await fetchReminderStatus(undefined, bad.impl)).toBe("unknown");
+  });
+
+  it("signed in but /api/survey fails or is unreadable: unknown", async () => {
+    for (const survey of [
+      [429, {}],
+      [500, {}],
+      [401, {}],
+      [200, { not: "a survey" }],
+    ] as const) {
+      const r = routed({ session: SIGNED_IN, survey });
+      expect(await fetchReminderStatus(undefined, r.impl)).toBe("unknown");
+    }
+    const down = async (url: string) => {
+      if (url === "/api/survey") throw new Error("offline");
+      return { ok: true, status: 200, json: async () => SIGNED_IN[1] };
+    };
+    expect(await fetchReminderStatus(undefined, down)).toBe("unknown");
   });
 
   it("the flag is read and written without ever throwing", () => {

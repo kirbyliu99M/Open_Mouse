@@ -3,12 +3,14 @@
  * 2026-10-12): a small icon that leads to `/account`, with a blue dot while the
  * person has not answered. The rule that decides the dot (a candidate, Claude's
  * proposal):
- *   - signed in (`GET /api/survey` answers 200): the dot shows when the answers
- *     are empty, that is no ratings and no other mice;
- *   - signed out (`GET /api/survey` answers 401): the dot shows unless the
- *     device carries the "answered" flag (`SURVEY_ANSWERED_KEY`), which the
- *     anonymous submit sets after the server accepted it;
- *   - any other answer, a network error or a body the schema refuses: no dot
+ *   - first ask `GET /api/auth/session` (it answers 200 for everyone, so a
+ *     signed-out visit or a demo leaves no error line in the console);
+ *   - signed in: `GET /api/survey` decides: the dot shows when the answers are
+ *     empty, that is no ratings and no other mice;
+ *   - signed out: the dot shows unless the device carries the "answered" flag
+ *     (`SURVEY_ANSWERED_KEY`), which the anonymous submit sets after the server
+ *     accepted it. `/api/survey` is not called at all;
+ *   - any other answer, a network error or a body that cannot be read: no dot
  *     ("unknown"), because a dot on a guess would nag for nothing.
  * The flag lives in `localStorage`, which can be missing or throw (a private
  * window, blocked site data): every read and write is guarded, and the page is
@@ -19,6 +21,10 @@ import {
   type SurveyMineResponse,
 } from "@/lib/contracts/survey";
 import { SURVEY_PATH } from "@/lib/contracts/routes";
+import { parseSessionBody } from "@/components/nav/account-nav";
+
+/** The session route the nav reads too (`AccountNavLink`). */
+const SESSION_PATH = "/api/auth/session";
 
 /** The flag an anonymous submit leaves on the device once the server stored it. */
 export const SURVEY_ANSWERED_KEY = "palmate.survey.answered";
@@ -77,17 +83,45 @@ type FetchImpl = (
   json: () => Promise<unknown>;
 }>;
 
-/** Decide the dot. Never throws. `fetchImpl` and `getStorage` are for tests. */
+/**
+ * Is anyone signed in? Asked of `GET /api/auth/session`, as the nav's
+ * `AccountNavLink` does, because that route answers 200 for everyone (`null`
+ * when signed out) and so leaves no error line in the browser console, which a
+ * 401 from `/api/survey` would. `"unknown"` when the session cannot be read.
+ */
+async function readSession(
+  signal: AbortSignal | undefined,
+  fetchImpl: FetchImpl,
+): Promise<"signedIn" | "signedOut" | "unknown"> {
+  const res = await fetchImpl(SESSION_PATH, { signal, cache: "no-store" });
+  if (!res.ok) return "unknown";
+  const body: unknown = await res.json();
+  if (parseSessionBody(body) !== null) return "signedIn";
+  const empty =
+    body === null ||
+    (typeof body === "object" &&
+      !Array.isArray(body) &&
+      Object.keys(body).length === 0);
+  return empty ? "signedOut" : "unknown";
+}
+
+/**
+ * Decide the dot. Never throws. Signed out: the device flag decides and
+ * `/api/survey` is not called at all. Signed in: `/api/survey` decides.
+ * `fetchImpl` and `getStorage` are for tests.
+ */
 export async function fetchReminderStatus(
   signal?: AbortSignal,
   fetchImpl: FetchImpl = (input, init) => fetch(input, init),
   getStorage: () => FlagStorage | null = browserStorage,
 ): Promise<ReminderStatus> {
   try {
-    const res = await fetchImpl(SURVEY_PATH, { signal, cache: "no-store" });
-    if (res.status === 401) {
+    const session = await readSession(signal, fetchImpl);
+    if (session === "unknown") return "unknown";
+    if (session === "signedOut") {
       return readAnsweredFlag(getStorage) ? "answered" : "unanswered";
     }
+    const res = await fetchImpl(SURVEY_PATH, { signal, cache: "no-store" });
     if (!res.ok) return "unknown";
     const parsed = surveyMineResponseSchema.safeParse(await res.json());
     if (!parsed.success) return "unknown";
