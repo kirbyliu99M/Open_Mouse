@@ -9,7 +9,9 @@
  * bottom sheet replaces the old primer, shown once; capture runs the same
  * paper-edge pipeline `/scan/paper-edge-preview` uses and slides a bottom
  * sheet up over the frozen photo with the result — measured (dimension
- * lines + optional grip + "See my matches") or a gate failure (its one fix
+ * lines + "Continue", which opens the two optional question pages, grip
+ * and palm thickness, and the scan is sent from the last one) or a gate
+ * failure (its one fix
  * + "Try again", which goes back to the live camera for a new photo).
  *
  * Reuses the same pure live-loop building blocks as CameraCapture.tsx
@@ -28,6 +30,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useReducer,
   useRef,
   useState,
 } from "react";
@@ -42,10 +45,7 @@ import type {
   PaperSize,
   ScanSubmission,
 } from "../../lib/contracts/measurement";
-import {
-  LANDMARK,
-  scanSubmissionSchema,
-} from "../../lib/contracts/measurement";
+import { LANDMARK } from "../../lib/contracts/measurement";
 import { computeDownscaleSize } from "../photo/decode";
 import { rgbaToGrayscale, computeLaplacianVariance } from "../photo/sharpness";
 import {
@@ -185,7 +185,14 @@ import {
   readFirstRunTipSeen,
   markFirstRunTipSeen,
 } from "./easyScanPreferences";
-import ScanSubmitPanel from "../../app/scan/ScanSubmitPanel";
+import { GripPage, ThicknessPage } from "../scan/AnswerPages";
+import {
+  INITIAL_ANSWERS,
+  answersReducer,
+  buildSubmission,
+} from "../scan/answers";
+import { useScanSubmit } from "../scan/useScanSubmit";
+import { scanAnswersCopy } from "../../lib/copy/scan-answers";
 import { HandIcon, CheckIcon, HelpCircleIcon } from "./icons";
 import { track } from "../analytics/track";
 import { clampAttempt, issueCodes } from "../analytics/props";
@@ -203,8 +210,6 @@ import { measuredSheetNumbers } from "../photo/unverified-note";
 import "../../app/scan/scan.css";
 import "./camera.css";
 import "./easy-scan.css";
-
-type GripStyle = "palm" | "claw" | "fingertip";
 
 /** What the frozen photo needs to be drawn where the live frame was. */
 interface PhotoInfo {
@@ -388,16 +393,6 @@ function sampleLuma(
   }
   return out;
 }
-const GRIP_OPTIONS: readonly {
-  value: GripStyle | undefined;
-  key: "gripPalm" | "gripClaw" | "gripFingertip" | "gripNotSure";
-}[] = [
-  { value: "palm", key: "gripPalm" },
-  { value: "claw", key: "gripClaw" },
-  { value: "fingertip", key: "gripFingertip" },
-  { value: undefined, key: "gripNotSure" },
-];
-
 function HandToggle({
   state,
   onClick,
@@ -499,7 +494,19 @@ export default function EasyScanCamera({
   // Read by screen readers when the mode changes. A new `n` replaces the
   // message node so a repeat of the same text is announced again.
   const [modeAnnouncement, setModeAnnouncement] = useState({ n: 0, text: "" });
-  const [gripStyle, setGripStyle] = useState<GripStyle | undefined>(undefined);
+  // The two optional questions after the measured sheet (grip, palm
+  // thickness): which page is open and what was answered. The scan is sent
+  // from the last page, once both answers are in place (answers.ts).
+  const [answers, dispatchAnswers] = useReducer(
+    answersReducer,
+    INITIAL_ANSWERS,
+  );
+  const {
+    state: submitState,
+    submit: submitScanNow,
+    busy: submitBusy,
+    clearError: clearSubmitError,
+  } = useScanSubmit(demoMeasured ? undefined : "easy");
   const [tipOpen, setTipOpen] = useState(Boolean(forceTipOpen));
   const [cue, setCue] = useState<Cue | null>(null);
   const [cornerStates, setCornerStates] = useState<CornerStates>(
@@ -630,11 +637,14 @@ export default function EasyScanCamera({
   userLengthRef.current = userLengthMm;
   const paperSizeRef = useRef(paperSize);
   paperSizeRef.current = paperSize;
-  const gripStyleRef = useRef(gripStyle);
-  gripStyleRef.current = gripStyle;
 
   const sheetDialogRef = useRef<HTMLDialogElement>(null);
   const sheetTitleRef = useRef<HTMLParagraphElement>(null);
+  const answerDialogRef = useRef<HTMLDialogElement>(null);
+  const continueRef = useRef<HTMLButtonElement>(null);
+  // Set when the sheet closes to make room for a question page: its next
+  // opening is a return, not an arrival.
+  const sheetResumedRef = useRef(false);
   const tipDialogRef = useRef<HTMLDialogElement>(null);
   const helpTriggerRef = useRef<HTMLButtonElement>(null);
   const gotItRef = useRef<HTMLButtonElement>(null);
@@ -695,13 +705,15 @@ export default function EasyScanCamera({
     }
   }, [lengthStep]);
 
+  // False while a question page (grip, thickness) is open over the sheet.
+  const onSheet = answers.step === "sheet";
+  const answersOpen = result.kind === "measured" && !onSheet;
+
   // The measured / gate-failure bottom sheet: a native <dialog> for the
   // focus trap + Escape handling, opened the moment the pipeline settles
   // and closed again on retake. Focus goes to the sheet's own heading, not
   // whichever button happens to be first in DOM order (the browser's
-  // showModal() default) — for the measured sheet that would otherwise be
-  // the "Palm" grip chip, misleadingly outlined even though "Not sure" is
-  // the one actually selected.
+  // showModal() default).
   //
   // A layout effect, so the sheet's height is known before the first paint
   // and the photo starts moving clear of it in the same frame the sheet opens.
@@ -712,8 +724,24 @@ export default function EasyScanCamera({
   useLayoutEffect(() => {
     if (result.kind === "measured" || result.kind === "gateFailure") {
       const dialog = sheetDialogRef.current;
+      // A question page (grip, thickness) is open over the sheet: the sheet
+      // closes, but keeps the heights it measured, so the photo behind does not
+      // move when 返回 opens it again.
+      if (!onSheet) {
+        sheetResumedRef.current = true;
+        dialog?.close();
+        return;
+      }
+      // Coming back from a question page: the sheet does not slide in again
+      // (it was there a moment ago), and focus goes to the button that left.
+      const resumed = sheetResumedRef.current;
+      sheetResumedRef.current = false;
+      if (dialog) {
+        if (resumed) dialog.dataset.resumed = "true";
+        else delete dialog.dataset.resumed;
+      }
       dialog?.showModal();
-      sheetTitleRef.current?.focus();
+      (resumed ? continueRef.current : sheetTitleRef.current)?.focus();
       const measureBar = () => {
         const bottoms = [
           ...(topBarRef.current?.querySelectorAll("button") ?? []),
@@ -752,7 +780,18 @@ export default function EasyScanCamera({
     sheetDialogRef.current?.close();
     setSheetHeight(null);
     setBarBottom(null);
-  }, [result.kind]);
+  }, [result.kind, onSheet]);
+
+  // A question page is a modal of its own, opened the moment it mounts, and
+  // opened again if the browser closed it by itself while it should be open
+  // (see onClose below). A page change starts at the top, so a short phone
+  // does not keep the scroll position of the page before.
+  useLayoutEffect(() => {
+    const dialog = answerDialogRef.current;
+    if (!answersOpen || !dialog) return;
+    if (!dialog.open) dialog.showModal();
+    dialog.scrollTop = 0;
+  }, [answersOpen, answers.step]);
 
   const dismissTip = useCallback(() => {
     setTipOpen(false);
@@ -1081,6 +1120,8 @@ export default function EasyScanCamera({
         attempt,
       });
       setResult({ kind: "processing", previewUrl });
+      // Answers belong to the photo they followed.
+      dispatchAnswers({ type: "reset" });
       // What this analysis was started with, for both ways it can end: a later
       // capture changes `captureInfoRef` and must not change the record of an
       // earlier analysis still running, whether it finishes or throws.
@@ -1091,7 +1132,6 @@ export default function EasyScanCamera({
           hand: handChipRef.current.hand,
           handExplicit: handChipRef.current.locked,
           handednessFixInstruction: HAND_BUTTON_FIX_INSTRUCTION,
-          gripStyleStated: gripStyleRef.current,
           calibration:
             userLengthRef.current !== null
               ? { method: "user-length", handLengthMm: userLengthRef.current }
@@ -1446,6 +1486,8 @@ export default function EasyScanCamera({
   const retake = useCallback(() => {
     if (result.kind !== "none") URL.revokeObjectURL(result.previewUrl);
     setResult({ kind: "none" });
+    dispatchAnswers({ type: "reset" });
+    clearSubmitError();
     setPhotoInfo(null);
     // Also where no camera starts again (an upload-only screen).
     setAnnounced("");
@@ -1454,27 +1496,22 @@ export default function EasyScanCamera({
       window.isSecureContext &&
       typeof navigator.mediaDevices?.getUserMedia === "function";
     if (canUseCamera && deviceFit === "phone") void startCamera();
-  }, [result, startCamera, deviceFit]);
+  }, [result, startCamera, deviceFit, clearSubmitError]);
 
   const changePaperSize = useCallback((size: PaperSize) => {
     setPaperSize(size);
     writeStoredPaperSize(getBrowserStorage(), size);
   }, []);
 
-  const changeGrip = useCallback((next: GripStyle | undefined) => {
-    setGripStyle(next);
-    setResult((prev) => {
-      if (prev.kind !== "measured") return prev;
-      const submission = scanSubmissionSchema.parse({
-        hand: prev.submission.hand,
-        measurements: prev.submission.measurements,
-        calibration: prev.submission.calibration,
-        measurementModelVersion: prev.submission.measurementModelVersion,
-        ...(next !== undefined ? { gripStyleStated: next } : {}),
-      });
-      return { ...prev, submission };
-    });
-  }, []);
+  // The scan is sent from the last question page, with whatever was answered
+  // (answers.ts): a skipped question leaves its field out.
+  const sendScan = useCallback(
+    (final: Pick<typeof answers, "grip" | "thickness">) => {
+      if (resultRef.current.kind !== "measured") return;
+      submitScanNow(buildSubmission(resultRef.current.submission, final));
+    },
+    [submitScanNow],
+  );
 
   const toggleHand = useCallback(() => {
     if (!canToggleHandChip(resultRef.current.kind)) return;
@@ -2593,30 +2630,6 @@ export default function EasyScanCamera({
                     <p>{easy.disclosureNoPaper}</p>
                   </div>
                 )}
-              <p className="easySheetGripLabel">{easy.gripQuestion}</p>
-              <div
-                className="easyGripChips"
-                role="group"
-                aria-label={easy.gripGroupLabel}
-              >
-                {GRIP_OPTIONS.map((opt) => {
-                  const selected =
-                    opt.value === undefined
-                      ? gripStyle === undefined
-                      : gripStyle === opt.value;
-                  return (
-                    <button
-                      key={opt.key}
-                      type="button"
-                      className={`easyGripChip${selected ? " selected" : ""}`}
-                      aria-pressed={selected}
-                      onClick={() => changeGrip(opt.value)}
-                    >
-                      {common[opt.key]}
-                    </button>
-                  );
-                })}
-              </div>
               <div className="easySheetActions easyStickyActions">
                 <button
                   type="button"
@@ -2642,10 +2655,15 @@ export default function EasyScanCamera({
                   </svg>
                 </button>
                 <div className="easySeeMatches">
-                  <ScanSubmitPanel
-                    submission={result.submission}
-                    flow={demoMeasured ? undefined : "easy"}
-                  />
+                  <button
+                    type="button"
+                    className="primaryButton"
+                    ref={continueRef}
+                    data-testid="answers-continue-button"
+                    onClick={() => dispatchAnswers({ type: "open" })}
+                  >
+                    {scanAnswersCopy(locale).sheetContinue}
+                  </button>
                 </div>
               </div>
             </>
@@ -2696,6 +2714,71 @@ export default function EasyScanCamera({
               <summary>Debug</summary>
               <ScanDebugPanel snapshot={debugSnapshot} />
             </details>
+          )}
+        </dialog>
+      )}
+
+      {answersOpen && (
+        <dialog
+          ref={answerDialogRef}
+          className="answerDialog"
+          aria-labelledby="answer-title"
+          onClose={(e) => {
+            // The browser closed it itself: a second Esc, or the Android back
+            // gesture, with no tap in between is not cancelable, so onCancel
+            // never gets to stop it. State and dialog must stay in step:
+            // while the scan is being sent it opens again, otherwise it is a
+            // 返回 (and the effect above opens the dialog again if the page
+            // before it is a question page too).
+            if (answers.step === "thickness" && submitBusy) {
+              e.currentTarget.showModal();
+              return;
+            }
+            clearSubmitError();
+            dispatchAnswers({ type: "back" });
+          }}
+          onCancel={(e) => {
+            // Escape is 返回, and does nothing while the scan is being sent.
+            e.preventDefault();
+            if (answers.step === "thickness" && submitBusy) return;
+            clearSubmitError();
+            dispatchAnswers({ type: "back" });
+          }}
+        >
+          {answers.step === "grip" ? (
+            <GripPage
+              value={answers.grip}
+              onChange={(grip) => dispatchAnswers({ type: "chooseGrip", grip })}
+              onConfirm={() => dispatchAnswers({ type: "confirmGrip" })}
+              onSkip={() => dispatchAnswers({ type: "skipGrip" })}
+              onBack={() => dispatchAnswers({ type: "back" })}
+            />
+          ) : (
+            <ThicknessPage
+              value={answers.thickness}
+              onChange={(thickness) => {
+                clearSubmitError();
+                dispatchAnswers({ type: "chooseThickness", thickness });
+              }}
+              onSubmit={() => sendScan(answers)}
+              onSkip={() => {
+                const next = answersReducer(answers, {
+                  type: "skipThickness",
+                });
+                dispatchAnswers({ type: "skipThickness" });
+                sendScan(next);
+              }}
+              onBack={() => {
+                clearSubmitError();
+                dispatchAnswers({ type: "back" });
+              }}
+              busy={submitBusy}
+              opening={submitState.kind === "success"}
+              onRetake={retake}
+              errorKind={
+                submitState.kind === "error" ? submitState.errorKind : null
+              }
+            />
           )}
         </dialog>
       )}

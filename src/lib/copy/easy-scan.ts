@@ -56,8 +56,6 @@ export interface EasyScanCopy {
   measuring: string;
   disclosureBased: (mm: string) => string;
   disclosureNoPaper: string;
-  gripQuestion: string;
-  gripGroupLabel: string;
   tipTitleNoPaper: string;
   tipTitlePaper: string;
   tipSurface: string;
@@ -119,8 +117,6 @@ export const zhTW: EasyScanCopy = {
   measuring: "正在測量你的手…",
   disclosureBased: (mm) => `依你輸入的手長（${mm}${NBSP}mm）`,
   disclosureNoPaper: "未使用紙張測量。",
-  gripQuestion: "你怎麼握滑鼠？（選填）",
-  gripGroupLabel: "握法，選填",
   tipTitleNoPaper: "你的手長就是尺",
   tipTitlePaper: "只要一張空白紙",
   tipSurface: "素色、較深的平面",
@@ -186,8 +182,6 @@ export const en: EasyScanCopy = {
   disclosureBased: (mm) =>
     `Based on the hand length you entered (${mm}${NBSP}mm)`,
   disclosureNoPaper: "Measured without paper.",
-  gripQuestion: "How do you hold a mouse? (optional)",
-  gripGroupLabel: "Grip style, optional",
   tipTitleNoPaper: "Your hand length is the ruler",
   tipTitlePaper: "One blank sheet is all you need",
   tipSurface: "A plain, darker surface",
