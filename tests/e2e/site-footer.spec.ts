@@ -12,14 +12,13 @@ const GITHUB = "https://github.com/kirbyliu99M/Open_Mouse";
 const PHONE = { width: 390, height: 844 };
 const DESKTOP = { width: 1440, height: 900 };
 
-/** The seven links in the order the footer lays them out: href and visible name. */
+/** The six links in the order the footer lays them out: href and visible name. */
 const LINKS: readonly (readonly [href: string, name: string])[] = [
   ["/scan/easy", "Scan"],
   ["/learn", "Learn"],
   ["/mice", "All mice"],
   ["/how-it-works", "How it works"],
   ["/how-it-works#privacy", "Privacy"],
-  ["/account", "My profile"],
   [GITHUB, "GitHub"],
 ];
 
@@ -34,7 +33,7 @@ async function box(page: Page, name: string) {
 
 test.describe("the site footer, in English", () => {
   for (const path of ["/", "/how-it-works", "/account"]) {
-    test(`${path} has the one merged footer: name, headline, three groups, seven links`, async ({
+    test(`${path} has the one merged footer: name, headline, three groups, six links`, async ({
       page,
     }) => {
       await page.goto(path);
@@ -54,7 +53,7 @@ test.describe("the site footer, in English", () => {
       for (const [group, names] of [
         ["Product", ["Scan", "Learn", "All mice"]],
         ["Trust", ["How it works", "Privacy"]],
-        ["Project", ["My profile", "GitHub"]],
+        ["Project", ["GitHub"]],
       ] as const) {
         await expect(
           nav.getByRole("heading", { level: 2, name: group }),
@@ -206,25 +205,23 @@ test.describe("the site footer, in English", () => {
     }
   });
 
-  test("on a phone: Product and Trust side by side, Project below with Account on the left and GitHub on the right, rows 44 px", async ({
+  test("on a phone: Product and Trust side by side, Project below, rows 44 px", async ({
     page,
   }) => {
     await page.setViewportSize(PHONE);
     await page.goto("/how-it-works");
-    const [scan, learn, mice, how, privacy, account, github] =
-      await Promise.all(LINKS.map(([, name]) => box(page, name)));
+    const [scan, learn, mice, how, privacy, github] = await Promise.all(
+      LINKS.map(([, name]) => box(page, name)),
+    );
     // Two columns: Product | Trust, rows aligned.
     expect(scan!.x).toBeLessThan(how!.x);
     expect(Math.abs(scan!.y - how!.y)).toBeLessThan(1);
     expect(Math.abs(learn!.y - privacy!.y)).toBeLessThan(1);
     expect(Math.abs(scan!.x - learn!.x)).toBeLessThan(1);
-    // The Project row is lower than both columns; Account left, GitHub right,
-    // on the same line.
-    expect(account!.y).toBeGreaterThan(mice!.y + mice!.height);
-    expect(Math.abs(account!.y - github!.y)).toBeLessThan(1);
-    expect(account!.x).toBeLessThan(github!.x);
+    // The Project row is lower than both columns.
+    expect(github!.y).toBeGreaterThan(mice!.y + mice!.height);
     // Touch rows are at least 44 px high.
-    for (const b of [scan, learn, mice, how, privacy, account, github])
+    for (const b of [scan, learn, mice, how, privacy, github])
       expect(b!.height).toBeGreaterThanOrEqual(44);
     // The mark sits at the right, level with the two lines of text.
     const mark = await page.locator(".siteFooter-mark").boundingBox();
@@ -242,16 +239,16 @@ test.describe("the site footer, in English", () => {
   }) => {
     await page.setViewportSize(DESKTOP);
     await page.goto("/how-it-works");
-    const [scan, learn, mice, how, privacy, account, github] =
-      await Promise.all(LINKS.map(([, name]) => box(page, name)));
+    const [scan, learn, mice, how, privacy, github] = await Promise.all(
+      LINKS.map(([, name]) => box(page, name)),
+    );
     expect(scan!.x).toBeLessThan(how!.x);
-    expect(how!.x).toBeLessThan(account!.x);
+    expect(how!.x).toBeLessThan(github!.x);
     // Within a group each link is below the one before it.
     expect(learn!.y).toBeGreaterThan(scan!.y);
     expect(mice!.y).toBeGreaterThan(learn!.y);
     expect(Math.abs(mice!.x - scan!.x)).toBeLessThan(1);
     expect(privacy!.y).toBeGreaterThan(how!.y);
-    expect(github!.y).toBeGreaterThan(account!.y);
     expect(Math.abs(learn!.x - scan!.x)).toBeLessThan(1);
     // The groups are 236 px wide, 32 px apart.
     const groups = await page.locator(".siteFooter-group").evaluateAll((els) =>
@@ -609,7 +606,6 @@ test.describe("the site footer, for a browser that prefers Chinese", () => {
       "所有滑鼠",
       "運作方式",
       "隱私",
-      "我的檔案",
       "GitHub",
     ])
       await expect(

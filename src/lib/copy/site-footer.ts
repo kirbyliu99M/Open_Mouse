@@ -26,7 +26,6 @@ export interface SiteFooterCopy {
   howItWorks: string;
   privacy: string;
   /** Project group. */
-  account: string;
   github: string;
   /** The `aria-label` of the link area. */
   linksLabel: string;
@@ -41,7 +40,6 @@ export const zhTW: SiteFooterCopy = {
   allMice: "所有滑鼠",
   howItWorks: "運作方式",
   privacy: "隱私",
-  account: "我的檔案",
   github: "GitHub",
   linksLabel: "網站連結",
 };
@@ -55,7 +53,6 @@ export const en: SiteFooterCopy = {
   allMice: "All mice",
   howItWorks: "How it works",
   privacy: "Privacy",
-  account: "My profile",
   github: "GitHub",
   linksLabel: "Site links",
 };

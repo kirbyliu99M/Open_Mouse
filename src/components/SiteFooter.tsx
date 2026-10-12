@@ -29,8 +29,7 @@ export function showsSiteFooter(pathname: string | null): boolean {
   );
 }
 
-type IconName =
-  "camera" | "book" | "list" | "workflow" | "shield" | "user" | "branch";
+type IconName = "camera" | "book" | "list" | "workflow" | "shield" | "branch";
 
 /**
  * 16 px line icons (1.75 px stroke, `currentColor`), drawn for this footer.
@@ -68,12 +67,6 @@ const ICONS: Record<IconName, ReactNode> = {
     <>
       <path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z" />
       <path d="M9 12l2 2 4-4" />
-    </>
-  ),
-  user: (
-    <>
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 20c0-4 3.6-6 8-6s8 2 8 6" />
     </>
   ),
   branch: (
@@ -184,19 +177,14 @@ export function SiteFooter() {
               </li>
             </ul>
           </div>
-          {/* On a phone this group is its own row under a divider, Account on
-              the left and GitHub on the right (Kirby, 2026-10-10). */}
+          {/* On a phone this group is its own row under a divider. The profile
+              link left it on 2026-10-12 (Kirby): the page stays reachable from
+              the menu. */}
           <div className="siteFooter-group siteFooter-group--project">
             <h2 id="siteFooter-h-project" className="siteFooter-groupTitle">
               {copy.groupProject}
             </h2>
             <ul aria-labelledby="siteFooter-h-project">
-              <li>
-                <Link href="/account">
-                  <FooterIcon name="user" />
-                  {copy.account}
-                </Link>
-              </li>
               <li>
                 <a href={GITHUB_URL} rel="noopener noreferrer">
                   <FooterIcon name="branch" />

@@ -159,7 +159,7 @@
   padding-top: 1rem;
   border-top: 1px solid var(--footer-line);
 }
-/* Phone: the Project row has Account on the left and GitHub on the right. */
+/* Phone: the Project row sits under the other two groups. */
 .siteFooter-group--project ul {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

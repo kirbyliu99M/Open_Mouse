@@ -35,7 +35,7 @@ function render(at: string | null, locale: Locale = "en"): string {
 }
 
 describe("SiteFooter", () => {
-  it("renders in English for the en locale, with the name, the headline and the seven links in three groups", () => {
+  it("renders in English for the en locale, with the name, the headline and the six links in three groups", () => {
     const html = render("/");
     expect(html).toContain(SITE_NAME);
     expect(html).toContain("Ready to Find Yours?");
@@ -50,7 +50,6 @@ describe("SiteFooter", () => {
       ["/mice", "All mice"],
       ["/how-it-works", "How it works"],
       ["/how-it-works#privacy", "Privacy"],
-      ["/account", "My profile"],
       [GITHUB_URL, "GitHub"],
     ]);
     const titles = [...html.matchAll(/<h2[^>]*>([^<]+)<\/h2>/g)].map(
@@ -88,9 +87,7 @@ describe("SiteFooter", () => {
     const html = render("/");
     expect(html).toContain(`href="${GITHUB_URL}" rel="noopener noreferrer"`);
     expect(html.match(/<a [^>]*rel="/g)).toHaveLength(1);
-    expect(html.lastIndexOf("GitHub")).toBeGreaterThan(
-      html.indexOf("My profile"),
-    );
+    expect(html.lastIndexOf("GitHub")).toBeGreaterThan(html.indexOf("Privacy"));
   });
 
   it("has an empty, hidden mount for the later star field, and a hidden mark", () => {
@@ -133,7 +130,6 @@ describe("SiteFooter", () => {
       for (const v of Object.values(table)) expect(v.length).toBeGreaterThan(0);
     expect(footerZh.howItWorks).toBe("運作方式");
     expect(footerZh.privacy).toBe("隱私");
-    expect(footerZh.account).toBe("我的檔案");
     // New in the merged footer: candidates (未拍板).
     expect(footerZh.groupProduct).toBe("產品");
     expect(footerZh.groupTrust).toBe("信任");
