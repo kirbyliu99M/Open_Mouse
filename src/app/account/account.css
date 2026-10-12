@@ -99,6 +99,23 @@
 .account-google-button:active {
   background: var(--button-primary-pressed);
 }
+/* Google's G, unaltered (see AuthButton.tsx). The file has a white background:
+   it melts into the white pill, and in the short pressed state (light grey) it
+   shows as a white disc, because of the 50 % radius. In forced-colors mode the
+   button takes the system colours, where a white tile would show, so the mark is
+   dropped and the text button remains. */
+.account-google-mark {
+  display: block;
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+}
+@media (forced-colors: active) {
+  .account-google-mark {
+    display: none;
+  }
+}
 .account-unavailable {
   background: #242426;
 }
