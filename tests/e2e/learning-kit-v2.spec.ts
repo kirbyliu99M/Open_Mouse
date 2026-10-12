@@ -38,7 +38,7 @@ function watchUploads(page: Page): string[] {
 async function sheetAWithCard(page: Page): Promise<Buffer> {
   await page.setViewportSize({ width: 1800, height: 2400 });
   // The card: the first of the S0 cards, cut out of the cards page.
-  await page.goto("/learn/slates?kit=2&from=901&count=1");
+  await page.goto("/learn/kit/slates?kit=2&from=901&count=1");
   const cards = page.locator(".learn-print-page svg").first();
   const cardsBox = (await cards.boundingBox())!;
   const cardsScale = cardsBox.width / 210;
@@ -52,7 +52,7 @@ async function sheetAWithCard(page: Page): Promise<Buffer> {
     type: "png",
   });
 
-  await page.goto("/learn/print?sheet=A");
+  await page.goto("/learn/kit/print?sheet=A");
   const sheet = page.locator(".learn-print-page svg").first();
   const box = (await sheet.boundingBox())!;
   const scale = box.width / 210;
@@ -87,7 +87,7 @@ test.describe("kit v2 checker", () => {
     const photo = await sheetAWithCard(page);
     const uploads = watchUploads(page);
 
-    await page.goto("/learn/check?sheet=A");
+    await page.goto("/learn/kit/check?sheet=A");
     await expect(page.getByTestId("learning-check-sheet")).toHaveValue("A");
     // Five photos: the planned G02 x3, G04 x2 (any other count needs shotCounts).
     await page.getByTestId("learning-check-input").setInputFiles(
@@ -156,9 +156,9 @@ test.describe("kit v2 checker", () => {
     onlyInChromium(testInfo);
     const paper = page.getByTestId("learning-check-paper");
     for (const url of [
-      "/learn/check?paper=letter",
-      "/learn/check?sheet=A&paper=letter",
-      "/learn/check?sheet=B&paper=letter",
+      "/learn/kit/check?paper=letter",
+      "/learn/kit/check?sheet=A&paper=letter",
+      "/learn/kit/check?sheet=B&paper=letter",
     ]) {
       await page.goto(url);
       await expect(paper).toHaveValue("a4");
@@ -166,7 +166,7 @@ test.describe("kit v2 checker", () => {
       await expect(paper.locator("option")).toHaveCount(1);
     }
     // The earlier kit still offers both.
-    await page.goto("/learn/check?sheet=v1&paper=letter");
+    await page.goto("/learn/kit/check?sheet=v1&paper=letter");
     await expect(paper).toHaveValue("letter");
     await expect(paper).toBeEnabled();
     await expect(paper.locator("option")).toHaveCount(2);
@@ -177,18 +177,18 @@ test.describe("kit v2 checker", () => {
   }, testInfo) => {
     onlyInChromium(testInfo);
     const select = page.getByTestId("learning-check-sheet");
-    await page.goto("/learn/check");
+    await page.goto("/learn/kit/check");
     await expect(select).toHaveValue("A");
-    await page.goto("/learn/check?sheet=v1");
+    await page.goto("/learn/kit/check?sheet=v1");
     await expect(select).toHaveValue("v1");
-    await page.goto("/learn/check?sheet=B");
+    await page.goto("/learn/kit/check?sheet=B");
     await expect(select).toHaveValue("B");
-    await page.goto("/learn/check?sheet=C");
+    await page.goto("/learn/kit/check?sheet=C");
     await expect(select).toHaveValue("A");
-    await page.goto("/learn/check?sheet=toString");
+    await page.goto("/learn/kit/check?sheet=toString");
     await expect(select).toHaveValue("A");
     // Sheet B stays reachable, and says it is not used.
-    await page.goto("/learn/check?sheet=B");
+    await page.goto("/learn/kit/check?sheet=B");
     await expect(select.locator("option:checked")).toContainText("not used");
   });
 
@@ -230,7 +230,7 @@ test.describe("kit v2 checker", () => {
     const naive = sideways;
     const uploads = watchUploads(page);
 
-    await page.goto("/learn/check?sheet=A");
+    await page.goto("/learn/kit/check?sheet=A");
     await page.getByTestId("learning-check-input").setInputFiles([
       { name: "IMG_0001.jpg", mimeType: "image/jpeg", buffer: original },
       {

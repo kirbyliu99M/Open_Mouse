@@ -239,7 +239,7 @@ describe("the filled buttons: a near-white fill with a near-black label", () => 
   const PRIMARY: readonly (readonly [string, string, string | null])[] = [
     ["src/app/scan/scan.css", ".uploadButton", null],
     ["src/app/scan/scan.css", ".primaryButton", null],
-    ["src/app/learn/learn.css", ".learn-button", null],
+    ["src/app/learn/kit/learn.css", ".learn-button", null],
     ["src/app/globals.css", ".button-primary", null],
     ["src/app/account/account.css", ".account-start-button", null],
     ["src/components/results/results.css", ".results-page-action", null],
@@ -427,7 +427,10 @@ describe("the filled buttons: a near-white fill with a near-black label", () => 
   });
 
   it("under reduced motion the filled buttons keep full opacity, and only an unfilled chip fades", () => {
-    for (const file of ["src/app/scan/scan.css", "src/app/learn/learn.css"]) {
+    for (const file of [
+      "src/app/scan/scan.css",
+      "src/app/learn/kit/learn.css",
+    ]) {
       const rules = rulesOf(file);
       const reduced = rules.filter(
         (r) => r.media === "(prefers-reduced-motion: reduce)",
@@ -454,7 +457,7 @@ describe("the filled buttons: a near-white fill with a near-black label", () => 
 describe("the secondary buttons: a text link in --accent-text, no fill, no border, no underline (BTN-1, style B)", () => {
   const SECONDARY: readonly (readonly [string, string, string | null])[] = [
     ["src/app/globals.css", ".button-secondary", null],
-    ["src/app/learn/learn.css", ".learn-button-secondary", null],
+    ["src/app/learn/kit/learn.css", ".learn-button-secondary", null],
     ["src/components/errors/errors.css", ".errorAction-secondary", null],
     ["src/app/sheet/sheet.css", ".sheet-secondary", "screen"],
     [

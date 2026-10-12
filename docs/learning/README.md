@@ -41,7 +41,7 @@ but nothing below asks for it.
 
 Print from the local server (`npm run dev`), A4, **100% / Actual size**:
 
-- `http://localhost:3000/learn/print?sheet=A`: sheet A. The product sheet's four
+- `http://localhost:3000/learn/kit/print?sheet=A`: sheet A. The product sheet's four
   markers exactly (`computeSheetLayout()`'s), the centre line the middle finger
   goes along, the wrist line, the card slot at the top, and a **100 mm line**.
   Check it with a ruler at the start of every session and write what you
@@ -50,7 +50,7 @@ Print from the local server (`npm run dev`), A4, **100% / Actual size**:
 - `?sheet=B`: sheet B (built, not used for now). Six markers (ids 0 to 5) on the
   outer ring and a blank hand area. Its scale check is the 180 mm from the outer
   edge of marker 0 to the outer edge of marker 1.
-- `http://localhost:3000/learn/slates?kit=2&from=901&count=12`: participant
+- `http://localhost:3000/learn/kit/slates?kit=2&from=901&count=12`: participant
   cards, 24 to a page. P901 to P912 is the S0 pilot; `?kit=2&from=1&count=48`
   prints P001 to P048. Each card is 60 × 30 mm: a `P###` QR code and the number
   in 9 mm bold type (so a person can read it when the QR code will not decode).
@@ -130,7 +130,7 @@ and the pages are not served in production. There is no `/l/v2/...` page.
    to it, so that folder gets the same rule as `--out`). It starts its
    own dev server (see "A session (kit v1)": `--port`, `--base`, `--dry-run`
    and `--out` are as before) and checks the photos as kit v2 on
-   `/learn/check?paper=<size>&sheet=<sheet>`. `--paper a4` is optional (kit v2 is A4 only; any other
+   `/learn/kit/check?paper=<size>&sheet=<sheet>`. `--paper a4` is optional (kit v2 is A4 only; any other
    value is refused, and so is a session whose `paperSize` is not `a4`).
    `--show-checks` adds the pose-check and hand flags to the summary, after a
    line saying to label first; by default the summary shows counts and file names
@@ -359,7 +359,7 @@ has no entry for (for example a participant reviewed by hand and filed later).
 the checker) and, for each, ask: _would I measure from this photo?_ **Good** means
 yes. A **bad** photo takes one or more reasons from the list, which describe the
 photo and never the person (no health or injury reason); the reason `other` needs
-a note saying what. Do it **before** you open the run log or `/learn/check`: both
+a note saying what. Do it **before** you open the run log or `/learn/kit/check`: both
 show the product's verdict, and the checker page says so when a kit is chosen.
 After you finish, do not change a label; a mistake found later is disclosed in
 the report. The sorter's own summary shows counts and file names only, so you
@@ -372,7 +372,7 @@ relative `/`-separated path.
 
 ### Checking photos on the page
 
-`/learn/check` has a **Kit** selector. With a sheet chosen the page is A4 only (a `?paper=letter` is ignored and the size menu is locked); Letter is offered only for kit v1. It starts on sheet A (`?sheet=v1` selects the earlier
+`/learn/kit/check` has a **Kit** selector. With a sheet chosen the page is A4 only (a `?paper=letter` is ignored and the size menu is locked); Letter is offered only for kit v1. It starts on sheet A (`?sheet=v1` selects the earlier
 kit's pose pages, `?sheet=B` the unused sheet B; the
 sorter opens it with `?sheet=A`). With a sheet chosen the page analyses the photos as kit v2 and
 files them by participant and order, lists any participant in review, and its
@@ -409,7 +409,7 @@ product's: see the labelling rule above.
   (`https://open-mouse.vercel.app/l/v1/G03R`). The checker and the sorter read
   that text from the photo. The URL is a name, not a link (see "Where the
   pages live").
-- **Easy to test.** `/learn/check` reads photos on the device and says, per
+- **Easy to test.** `/learn/kit/check` reads photos on the device and says, per
   photo, what to retake and why. `npm run learn:sort` does the same for a
   whole folder and files the photos.
 - **Nothing to re-derive later.** Each photo's record (the run log, format 2,
@@ -420,11 +420,17 @@ product's: see the labelling rule above.
 ## Where the pages live
 
 Kirby's decision, 2026-09-30: the learning data is collected by hand, on his own
-machine, and **the production site does not serve the kit**. `/learn`,
-`/learn/print`, `/learn/slates`, `/learn/check` and every `/l/v1/...` page
-answer 404 in production (each page calls `guardDemoRouteFromProduction()`
-first, like the demo pages). They are served by a local dev server, which is
-also what `npm run learn:sort` starts, and by Vercel previews.
+machine, and **the production site does not serve the kit**. As of the
+page-learn change (2026-10-11, candidate) the kit is **dev only**: it answers
+404 everywhere except a local `next dev` (`NODE_ENV === "development"`), so it
+is not served in production, on Vercel previews, or by a local `next start`.
+The kit index is `/learn/kit` (dev only); `/learn` is now the public
+"How to choose a mouse that fits" information page. The kit pages are
+`/learn/kit`, `/learn/kit/print`, `/learn/kit/slates`, `/learn/kit/check` and
+every `/l/v1/...` page (the QR landing page keeps its path, because printed
+codes already encode it). Each page calls `guardDemoRouteFromProduction()`
+first, like the demo pages. They are served by a local dev server, which is
+also what `npm run learn:sort` starts.
 
 - **The QR codes encode the production address**, for example
   `https://open-mouse.vercel.app/l/v1/G03R` (`LEARNING_QR_BASE_URL` in
@@ -433,12 +439,12 @@ also what `npm run learn:sort` starts, and by Vercel previews.
   the code's text out of the photo and never goes online, so the pose, hand and
   participant are identified all the same.
 - **Print from the local server.** Run `npm run dev`, then open
-  `http://localhost:3000/learn/print?hands=both` and
-  `http://localhost:3000/learn/slates`.
-- **The check page is local too.** Open `http://localhost:3000/learn/check` on
+  `http://localhost:3000/learn/kit/print?hands=both` and
+  `http://localhost:3000/learn/kit/slates`.
+- **The check page is local too.** Open `http://localhost:3000/learn/kit/check` on
   the computer that has the photos.
-- `/l/v1/[token]` (the page a code names) exists on the local server and on
-  previews only; no participant reaches it by scanning.
+- `/l/v1/[token]` (the page a code names) exists on the local `next dev`
+  server only; no participant reaches it by scanning.
 
 ## Poses (kit v1)
 
@@ -468,13 +474,13 @@ correction is not built yet.
 ## A session (kit v1)
 
 _Kit v1 only. `npm run learn:sort` is kit v2 only since 2026-10-02: it no longer files kit v1 photos (see
-"Kit v2"). The steps below are how kit v1 sessions ran, and `/learn/check` with the Kit selector on "Kit v1"
+"Kit v2"). The steps below are how kit v1 sessions ran, and `/learn/kit/check` with the Kit selector on "Kit v1"
 still checks v1 photos._
 
 1. **Print once**, from the local dev server (`npm run dev`):
-   - `http://localhost:3000/learn/print?hands=both`: 14 A4 pages at 100%. Check
+   - `http://localhost:3000/learn/kit/print?hands=both`: 14 A4 pages at 100%. Check
      the 100 mm line with a ruler.
-   - `http://localhost:3000/learn/slates`: participant cards, 8 per page.
+   - `http://localhost:3000/learn/kit/slates`: participant cards, 8 per page.
 
    Pages are reusable across people.
 
@@ -487,7 +493,7 @@ still checks v1 photos._
 3. Work through G01 to G07 with the right hand, then G01 to G07 with the
    left, following the instructions on each printed page. Lift the hand and
    place it again between every photo.
-4. Before the person leaves, open `http://localhost:3000/learn/check` on the
+4. Before the person leaves, open `http://localhost:3000/learn/kit/check` on the
    computer, choose the session's photos, and retake anything marked
    **Retake**.
 5. At the computer, run (kit v1; the command now needs `--session` and files kit v2)
@@ -508,7 +514,7 @@ Keep the camera's file names: natural file-name order is capture order.
 **Pages printed on US Letter (kit v1 only).** The kit is designed for A4. Kit v2 is A4
 only: `learn:sort` takes no Letter and refuses a Letter session. For kit v1, on
 Letter paper, `--paper letter` was passed to `learn:sort` (the checker page has a
-"Sheet size of the pages" setting, and `/learn/check?paper=letter` presets it)
+"Sheet size of the pages" setting, and `/learn/kit/check?paper=letter` presets it)
 so the paper-edge plane assumes the right sheet size. Print at 100%: the marker
 layout stays the A4 layout, and the run log records the size used.
 
@@ -867,9 +873,9 @@ on blank-paper photos and had no parallax correction. This tool replaces it.
     is recognised after the start of the text, white space, a quote, a
     backtick, `(`, `[`, `{`, `<`, `,`, `;`, `:` or `=`; it is not one after a
     letter, digit, `.`, `~`, `/`, `-`, `>` or a closing bracket, so URLs
-    (`http://127.0.0.1:3401/learn/check`), relative paths (`../x/y`,
+    (`http://127.0.0.1:3401/learn/kit/check`), relative paths (`../x/y`,
     `~/x/y`, `<path>/x`), fractions (`3/4`) and dates (`2026/09/30`) stay.
-    A route in prose (`open /learn/print`) looks like a path and is hidden.
+    A route in prose (`open /learn/kit/print`) looks like a path and is hidden.
     A path under a system root (`/home`, `/Users`, `/tmp`, `/Applications`,
     `/Library`, ...) and a Windows or UNC path run to the next quote or line
     end and may contain spaces, so words after such a path on the same line go
@@ -1064,25 +1070,25 @@ on blank-paper photos and had no parallax correction. This tool replaces it.
 
 ## Files
 
-| Path                                                              | What                                                                              |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `src/lib/learning/kit.ts`                                         | Poses, QR payloads, capture order, photo sorter (pure, tested)                    |
-| `src/lib/learning/layout.ts`                                      | Page layouts in mm (pure, tested)                                                 |
-| `src/lib/learning/layoutv2.ts`                                    | Kit v2 sheets A and B and the participant card in mm (pure, tested)               |
-| `src/lib/learning/session.ts`                                     | Kit v2 contract (Claude's): session, participant, labels records                  |
-| `src/lib/learning/sortv2.ts`, `posecheck.ts`                      | Kit v2 sorter by shooting order; the G02/G04 pose check (pure, tested)            |
-| `src/lib/learning/exifstrip.ts`, `filing.ts`, `sessionfile.ts`    | EXIF stripping (pure); filing copies, participant and labels files; reading them  |
-| `src/lib/learning/order.ts`                                       | File-name order against file-time order (pure)                                    |
-| `src/lib/learning/qr.ts`                                          | QR module matrix (round-trip tested with jsQR)                                    |
-| `src/lib/learning/checks.ts`                                      | Per-photo verdict (pure, tested)                                                  |
-| `src/lib/learning/report.ts`, `findings.ts`, `plane.ts`           | The per-photo record, its planes, and recomputing from it (pure)                  |
-| `src/lib/learning/exif.ts`                                        | The EXIF white-list reader (pure)                                                 |
-| `src/lib/learning/runlog.ts`, `paths.ts`, `truth.ts`              | Run log, path rules for the sorter, `truth.json` schema                           |
-| `src/lib/learning/devserver.ts`                                   | The sorter's dev server: start, stop the whole tree, port probe                   |
-| `src/lib/learning/qrread.ts`, `batch.ts`                          | Kit-code-only QR reading; one bad photo does not stop a batch                     |
-| `src/lib/m2/`, `scripts/m2-evaluate.ts`                           | The M2 evaluator: statistics, recompute, gates, report (pure) and its CLI         |
-| `src/client/learning/analyse.ts`                                  | In-browser detection: QR, markers, paper edges, landmarks, EXIF                   |
-| `src/components/learning/KitSvg.tsx`, `KitV2Svg.tsx`              | Printed pose pages and kit v1 cards; kit v2 sheets and cards                      |
-| `src/app/learn/**`, `src/app/l/v1/**`                             | Kit index, print, cards, checker, QR landing pages (`noindex`; 404 in production) |
-| `scripts/learn-sort.ts`                                           | Folder sorter (never in CI)                                                       |
-| `tests/unit/learning-*.test.ts`, `tests/e2e/learning-kit.spec.ts` | Tests                                                                             |
+| Path                                                              | What                                                                                             |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `src/lib/learning/kit.ts`                                         | Poses, QR payloads, capture order, photo sorter (pure, tested)                                   |
+| `src/lib/learning/layout.ts`                                      | Page layouts in mm (pure, tested)                                                                |
+| `src/lib/learning/layoutv2.ts`                                    | Kit v2 sheets A and B and the participant card in mm (pure, tested)                              |
+| `src/lib/learning/session.ts`                                     | Kit v2 contract (Claude's): session, participant, labels records                                 |
+| `src/lib/learning/sortv2.ts`, `posecheck.ts`                      | Kit v2 sorter by shooting order; the G02/G04 pose check (pure, tested)                           |
+| `src/lib/learning/exifstrip.ts`, `filing.ts`, `sessionfile.ts`    | EXIF stripping (pure); filing copies, participant and labels files; reading them                 |
+| `src/lib/learning/order.ts`                                       | File-name order against file-time order (pure)                                                   |
+| `src/lib/learning/qr.ts`                                          | QR module matrix (round-trip tested with jsQR)                                                   |
+| `src/lib/learning/checks.ts`                                      | Per-photo verdict (pure, tested)                                                                 |
+| `src/lib/learning/report.ts`, `findings.ts`, `plane.ts`           | The per-photo record, its planes, and recomputing from it (pure)                                 |
+| `src/lib/learning/exif.ts`                                        | The EXIF white-list reader (pure)                                                                |
+| `src/lib/learning/runlog.ts`, `paths.ts`, `truth.ts`              | Run log, path rules for the sorter, `truth.json` schema                                          |
+| `src/lib/learning/devserver.ts`                                   | The sorter's dev server: start, stop the whole tree, port probe                                  |
+| `src/lib/learning/qrread.ts`, `batch.ts`                          | Kit-code-only QR reading; one bad photo does not stop a batch                                    |
+| `src/lib/m2/`, `scripts/m2-evaluate.ts`                           | The M2 evaluator: statistics, recompute, gates, report (pure) and its CLI                        |
+| `src/client/learning/analyse.ts`                                  | In-browser detection: QR, markers, paper edges, landmarks, EXIF                                  |
+| `src/components/learning/KitSvg.tsx`, `KitV2Svg.tsx`              | Printed pose pages and kit v1 cards; kit v2 sheets and cards                                     |
+| `src/app/learn/kit/**`, `src/app/l/v1/**`                         | Kit index, print, cards, checker, QR landing pages (`noindex`; 404 except on a local `next dev`) |
+| `scripts/learn-sort.ts`                                           | Folder sorter (never in CI)                                                                      |
+| `tests/unit/learning-*.test.ts`, `tests/e2e/learning-kit.spec.ts` | Tests                                                                                            |

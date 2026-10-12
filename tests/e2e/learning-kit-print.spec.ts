@@ -90,7 +90,7 @@ test.describe("kit v2 printing", () => {
     onlyInChromium(testInfo);
     const { geometry } = await printToPdf(
       page,
-      "/learn/print?sheet=A",
+      "/learn/kit/print?sheet=A",
       "sheet-A",
     );
     expect(geometry.pageCount).toBe(1);
@@ -141,7 +141,7 @@ test.describe("kit v2 printing", () => {
     onlyInChromium(testInfo);
     const { geometry } = await printToPdf(
       page,
-      "/learn/print?sheet=B",
+      "/learn/kit/print?sheet=B",
       "sheet-B",
     );
     expect(geometry.pageCount).toBe(1);
@@ -186,7 +186,7 @@ test.describe("kit v2 printing", () => {
     onlyInChromium(testInfo);
     const s0 = await printToPdf(
       page,
-      "/learn/slates?kit=2&from=901&count=12",
+      "/learn/kit/slates?kit=2&from=901&count=12",
       "cards-P901-P912",
     );
     expect(s0.geometry.pageCount).toBe(1);
@@ -196,7 +196,7 @@ test.describe("kit v2 printing", () => {
 
     const main = await printToPdf(
       page,
-      "/learn/slates?kit=2&from=1&count=48",
+      "/learn/kit/slates?kit=2&from=1&count=48",
       "cards-P001-P048",
     );
     expect(main.geometry.pageCount).toBe(2);
@@ -216,7 +216,7 @@ test.describe("kit v2 cards, read back", () => {
   }, testInfo) => {
     onlyInChromium(testInfo);
     await page.setViewportSize({ width: 1400, height: 1800 });
-    await page.goto("/learn/slates?kit=2&from=901&count=12");
+    await page.goto("/learn/kit/slates?kit=2&from=901&count=12");
     const svg = page.locator(".learn-print-page svg").first();
     const box = (await svg.boundingBox())!;
     const mmToPx = box.width / 210;
@@ -229,7 +229,7 @@ test.describe("kit v2 cards, read back", () => {
     };
     const photo = await page.screenshot({ clip, type: "png" });
 
-    await page.goto("/learn/check");
+    await page.goto("/learn/kit/check");
     await page.getByTestId("learning-check-input").setInputFiles({
       name: "IMG_0001.png",
       mimeType: "image/png",

@@ -1,6 +1,6 @@
 /**
  * Learning-kit sorter (kit v2, protocol `agreed-v2`): checks a folder of
- * session photos with the real `/learn/check` page (headless Chromium,
+ * session photos with the real `/learn/kit/check` page (headless Chromium,
  * MediaPipe and all), then files each photo by participant and pose, outside
  * the repo:
  *
@@ -259,7 +259,7 @@ async function run(): Promise<void> {
     try {
       const page = await browser.newPage();
       await page.goto(
-        `${baseUrl}/learn/check?paper=${paperSize}&sheet=${session.sheet}`,
+        `${baseUrl}/learn/kit/check?paper=${paperSize}&sheet=${session.sheet}`,
         { waitUntil: "networkidle" },
       );
       await page
@@ -293,7 +293,7 @@ async function run(): Promise<void> {
 
   /** Check the photos on a dev server this run starts (and always stops), or on `--base`. */
   async function reportsFromServer(): Promise<LearningPhotoReport[]> {
-    const readyUrl = `${baseUrl}/learn/check`;
+    const readyUrl = `${baseUrl}/learn/kit/check`;
     if (externalBase) {
       await waitForServer(readyUrl, { redact: show });
       say(`Checking ${photos.length} photos from ${input} …`);

@@ -74,7 +74,7 @@ function Ruler({ line }: { line: Line }) {
 
 /**
  * One printed page of the learning kit: a pose for one hand. Drawn at
- * exactly 210 × 265 mm; `/learn/print` sizes the SVG in mm for print.
+ * exactly 210 × 265 mm; `/learn/kit/print` sizes the SVG in mm for print.
  */
 export function KitPageSvg({
   gesture,

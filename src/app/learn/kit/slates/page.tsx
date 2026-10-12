@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { Locale } from "@/lib/contracts/locale";
 import { TopBar } from "@/components/nav/TopBar";
-import { guardDemoRouteFromProduction } from "@/app/scan/demo-guard";
+import { guardDevOnlyRoute } from "@/app/scan/demo-guard";
 import { SLATES_PER_PAGE, SlatePageSvg } from "@/components/learning/KitSvg";
 import { CardPageSvg } from "@/components/learning/KitV2Svg";
 import { formatParticipantId } from "@/lib/learning/kit";
@@ -52,7 +52,7 @@ function V2Cards({
     <main className="learn-print-main">
       <div className="learn noPrint">
         <TopBar
-          backHref="/learn"
+          backHref="/learn/kit"
           backLabel={copy.learningKit}
           stepLabel={copy.participantCards}
         />
@@ -93,7 +93,7 @@ export default async function LearnSlatesPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  guardDemoRouteFromProduction();
+  guardDevOnlyRoute();
   const params = await searchParams;
   const kitParam = Array.isArray(params.kit) ? params.kit[0] : params.kit;
   const locale = await getLocale();
@@ -111,7 +111,7 @@ export default async function LearnSlatesPage({
     <main className="learn-print-main">
       <div className="learn noPrint">
         <TopBar
-          backHref="/learn"
+          backHref="/learn/kit"
           backLabel={copy.learningKit}
           stepLabel={copy.participantCards}
         />
