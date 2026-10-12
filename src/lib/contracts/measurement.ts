@@ -263,6 +263,16 @@ export const userLengthEvidenceSchema = z.strictObject({
  * here: a manual-entry submission MUST state a grip (`gripStyleStated`, see
  * `scanSubmissionSchema`). No photo, so no scale reference and no parallax;
  * M2 accuracy statistics must exclude this method.
+ *
+ * Known scale mismatch (candidate, 2026-10-12, number unverified): a scan's
+ * palmWidthMm is a joint-centre distance (landmarks 5 to 17), which the notes
+ * above put 10-20 mm under a skin-to-skin width, and a ruler hand length runs
+ * 7-11 mm longer than the landmark distance. The typed values are skin
+ * measurements stored as typed, with no correction (Kirby: not corrected for
+ * now), so a manual-entry hand scores on a slightly wider and longer scale than
+ * a scanned one, and typed scans stay out of the similar-hand pool. A versioned
+ * typed-to-landmark mapping fitted on paired ruler and scan data (M2) is the
+ * way to align them; until then the results page discloses the estimate.
  */
 export const manualEntryEvidenceSchema = z.strictObject({
   method: z.literal("manual-entry"),
