@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { HandExplicitDemoClient } from "./HandExplicitDemoClient";
-import { guardDemoRouteFromProduction } from "../demo-guard";
+import { guardDevOnlyRoute } from "../demo-guard";
 import "../scan.css";
 
 export const metadata: Metadata = {
@@ -11,6 +11,6 @@ export const metadata: Metadata = {
 };
 
 export default function ScanHandExplicitDemoPage() {
-  guardDemoRouteFromProduction();
+  guardDevOnlyRoute();
   return <HandExplicitDemoClient />;
 }

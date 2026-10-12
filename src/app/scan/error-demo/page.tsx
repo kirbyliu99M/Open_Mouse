@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { guardDemoRouteFromProduction } from "../demo-guard";
+import { guardDevOnlyRoute } from "../demo-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +20,9 @@ const DEMO_ERROR_MESSAGE =
  * Dev/demo route that throws on purpose, so the error boundary
  * (`src/app/error.tsx`) can be exercised end to end: no other page fails
  * reliably. 404s in production like every other route in this folder
- * (`guardDemoRouteFromProduction`).
+ * (`guardDevOnlyRoute`).
  */
 export default function ErrorDemoPage(): never {
-  guardDemoRouteFromProduction();
+  guardDevOnlyRoute();
   throw new Error(DEMO_ERROR_MESSAGE);
 }

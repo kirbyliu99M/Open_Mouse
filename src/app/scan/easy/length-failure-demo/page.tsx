@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { guardDemoRouteFromProduction } from "../../demo-guard";
+import { guardDevOnlyRoute } from "../../demo-guard";
 import { LengthFailureDemoClient } from "./LengthFailureDemoClient";
 
 export const metadata: Metadata = {
@@ -10,6 +10,6 @@ export const metadata: Metadata = {
 };
 
 export default function LengthFailureDemoPage() {
-  guardDemoRouteFromProduction();
+  guardDevOnlyRoute();
   return <LengthFailureDemoClient />;
 }

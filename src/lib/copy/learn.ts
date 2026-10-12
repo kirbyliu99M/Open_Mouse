@@ -1,6 +1,6 @@
 /**
- * Words of the learning kit (/learn, /learn/print, /learn/slates,
- * /learn/check, the pose page behind a printed QR code, and the printed
+ * Words of the learning kit (/learn/kit, /learn/kit/print, /learn/kit/slates,
+ * /learn/kit/check, the pose page behind a printed QR code, and the printed
  * pages themselves). Every zh-TW string is a CANDIDATE (未拍板), Claude's
  * Taiwan wording (滑鼠, 掃描, 趴握/抓握/指握 as in `results-page.ts`), until
  * Kirby has read it. The kit is a research tool: file paths, commands, kit
@@ -78,7 +78,7 @@ export interface LearnCopy {
   privacyHeading: string;
   privacyBody: string;
 
-  // /learn/print
+  // /learn/kit/print
   printMetaTitle: string;
   step: string;
   printKitV2Sheet: (sheet: string, notUsed: boolean) => string;
@@ -100,7 +100,7 @@ export interface LearnCopy {
   printKitLead: (pages: number, hands: string) => string;
   printKitLeadAfter: string;
 
-  // /learn/slates
+  // /learn/kit/slates
   slatesMetaTitle: string;
   kitV2Cards: string;
   cardsLeadV2: (from: string, to: string) => string;
@@ -112,7 +112,7 @@ export interface LearnCopy {
   needMore: string;
   needMoreAfter: string;
 
-  // /learn/check
+  // /learn/kit/check
   checkMetaTitle: string;
   checkPhotos: string;
   checkLead: string;

@@ -1,5 +1,5 @@
 /**
- * The run log: everything one `/learn/check` download or one
+ * The run log: everything one `/learn/kit/check` download or one
  * `npm run learn:sort` run knows about a batch of photos, in one JSON file.
  * Pure and free of Node imports, so the checker page can use it too.
  *
