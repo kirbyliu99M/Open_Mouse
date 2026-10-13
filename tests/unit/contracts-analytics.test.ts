@@ -9,7 +9,8 @@ const SCAN_ID = "3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b";
 
 describe("analyticsEventSchemas", () => {
   it("accepts the documented shape of each event", () => {
-    const ok: Record<keyof typeof analyticsEventSchemas, unknown> = {
+    // The results-page events of 2026-10-13 are in contracts-analytics-results.test.ts.
+    const ok: Partial<Record<keyof typeof analyticsEventSchemas, unknown>> = {
       $pageview: {},
       home_cta_clicked: { cta: "scan" },
       scan_entry_shown: { flow: "easy", device: "in-app" },
