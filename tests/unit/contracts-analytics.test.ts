@@ -5,6 +5,14 @@ import {
   redactAnalyticsPath,
 } from "../../src/lib/contracts/analytics";
 
+const READY = {
+  state: "ready",
+  page: "main",
+  rank: 1,
+  filtered: false,
+  overallRank: 1,
+  poorFit: false,
+} as const;
 const SCAN_ID = "3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b";
 
 describe("analyticsEventSchemas", () => {
@@ -24,22 +32,9 @@ describe("analyticsEventSchemas", () => {
       scan_measured: { flow: "sheet", attempt: 3, paper: "manual" },
       scan_submitted: { flow: "easy" },
       scan_submit_failed: { flow: "easy", kind: "rateLimited" },
-      results_viewed: {
-        state: "ready",
-        topPick: "logitech-g-pro-x-superlight-2",
-        noGoodFit: false,
-      },
       analysis_shown: { outcome: "fallback" },
       analysis_retry_clicked: {},
-      results_list_opened: { list: "ranked" },
-      viewer_interacted: {},
-      retake_clicked: { from: "results" },
       scan_deleted: {},
-      outbound_clicked: {
-        mouse: "logitech-g-pro-x-superlight-2",
-        rank: 1,
-        retailer: "biggo",
-      },
     };
     for (const [name, props] of Object.entries(ok)) {
       const schema =
@@ -58,13 +53,10 @@ describe("analyticsEventSchemas", () => {
   });
 
   it("refuses a scan ID where a mouse slug goes", () => {
-    const viewed = analyticsEventSchemas.results_viewed;
-    expect(viewed.safeParse({ state: "ready", topPick: SCAN_ID }).success).toBe(
-      false,
-    );
+    const viewed = analyticsEventSchemas.results_page_viewed;
+    expect(viewed.safeParse({ ...READY, mouse: SCAN_ID }).success).toBe(false);
     expect(
-      viewed.safeParse({ state: "ready", topPick: SCAN_ID.toUpperCase() })
-        .success,
+      viewed.safeParse({ ...READY, mouse: SCAN_ID.toUpperCase() }).success,
     ).toBe(false);
   });
 
@@ -80,14 +72,11 @@ describe("analyticsEventSchemas", () => {
   });
 
   it("refuses a dashless UUID as a slug, and ready-only fields on other states", () => {
-    const viewed = analyticsEventSchemas.results_viewed;
+    const viewed = analyticsEventSchemas.results_page_viewed;
     const dashless = SCAN_ID.replaceAll("-", "");
+    expect(viewed.safeParse({ ...READY, mouse: dashless }).success).toBe(false);
     expect(
-      viewed.safeParse({ state: "ready", topPick: dashless, noGoodFit: false })
-        .success,
-    ).toBe(false);
-    expect(
-      viewed.safeParse({ state: "notFound", topPick: "logitech-mx-master-3s" })
+      viewed.safeParse({ state: "notFound", mouse: "logitech-mx-master-3s" })
         .success,
     ).toBe(false);
     expect(viewed.safeParse({ state: "notFound" }).success).toBe(true);
