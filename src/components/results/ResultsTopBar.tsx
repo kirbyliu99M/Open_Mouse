@@ -4,6 +4,7 @@ import type { Locale } from "@/lib/contracts/locale";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { SITE_NAME } from "@/lib/site";
 import { ShareCardButton } from "./share/ShareCardButton";
+import type { ShareOutcome } from "./share/shareDecision";
 import { SurveyReminderLink } from "./SurveyReminderLink";
 
 /**
@@ -16,10 +17,17 @@ export function ResultsTopBar({
   fit,
   language,
   onRetake,
+  onSurveyReminderClick,
+  onShareStarted,
+  onShareFinished,
 }: {
   fit: FitResponse;
   language: Locale;
+  /** The four callbacks are analytics only; the bar behaves the same without them. */
   onRetake?: () => void;
+  onSurveyReminderClick?: (unanswered: boolean) => void;
+  onShareStarted?: () => void;
+  onShareFinished?: (outcome: ShareOutcome) => void;
 }) {
   const copy = RESULTS_PAGE_COPY[language];
   return (
@@ -39,9 +47,18 @@ export function ResultsTopBar({
         {SITE_NAME}
       </Link>
       <div className="results-topBar-actions">
-        <SurveyReminderLink language={language} />
+        <SurveyReminderLink
+          language={language}
+          onClick={onSurveyReminderClick}
+        />
         <div className="results-topBar-share" data-share-position="top">
-          <ShareCardButton fit={fit} lang={language} variant="link" />
+          <ShareCardButton
+            fit={fit}
+            lang={language}
+            variant="link"
+            onShareStarted={onShareStarted}
+            onShareFinished={onShareFinished}
+          />
         </div>
       </div>
     </nav>

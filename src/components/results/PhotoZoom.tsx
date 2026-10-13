@@ -63,10 +63,13 @@ export function PhotoZoom({
   imageUrl,
   name,
   copy,
+  onOpened,
 }: {
   imageUrl: string;
   name: string;
   copy: PhotoZoomCopy;
+  /** Called when the person opens the photo (analytics only). */
+  onOpened?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -98,7 +101,10 @@ export function PhotoZoom({
         className="results-photoZoom-btn"
         aria-haspopup="dialog"
         aria-label={copy.enlarge(name)}
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOpen(true);
+          onOpened?.();
+        }}
         onPointerEnter={warm}
         onFocus={warm}
       >

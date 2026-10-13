@@ -37,9 +37,12 @@ function ClipboardListIcon() {
 export function SurveyReminderView({
   status,
   language,
+  onClick,
 }: {
   status: ReminderStatus;
   language: Locale;
+  /** Analytics only; the link behaves as before. */
+  onClick?: () => void;
 }) {
   const copy = resultsAdditionsCopy(language);
   const unanswered = status === "unanswered";
@@ -47,6 +50,7 @@ export function SurveyReminderView({
     <Link
       href="/account"
       className="results-topBar-reminder"
+      onClick={onClick}
       aria-label={unanswered ? copy.reminderNameUnanswered : copy.reminderName}
       data-unanswered={unanswered ? "true" : undefined}
     >
@@ -64,7 +68,14 @@ export function SurveyReminderView({
  * in `src/lib/results/surveyReminder.ts`). Until the answer is known there is
  * no dot, so nothing appears and disappears.
  */
-export function SurveyReminderLink({ language }: { language: Locale }) {
+export function SurveyReminderLink({
+  language,
+  onClick,
+}: {
+  language: Locale;
+  /** Called on a click with whether the questionnaire is still unanswered (analytics only). */
+  onClick?: (unanswered: boolean) => void;
+}) {
   const [status, setStatus] = useState<ReminderStatus>("unknown");
 
   useEffect(() => {
@@ -75,5 +86,11 @@ export function SurveyReminderLink({ language }: { language: Locale }) {
     return () => controller.abort();
   }, []);
 
-  return <SurveyReminderView status={status} language={language} />;
+  return (
+    <SurveyReminderView
+      status={status}
+      language={language}
+      onClick={onClick ? () => onClick(status === "unanswered") : undefined}
+    />
+  );
 }

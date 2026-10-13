@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Locale } from "@/lib/contracts/locale";
 import { resultsAdditionsCopy } from "@/lib/copy/results-additions";
 import {
@@ -84,13 +84,25 @@ export function resetSimilarHands(): void {
 export function SimilarHands({
   scanId,
   language,
+  onShown,
 }: {
   scanId: string;
   language: Locale;
+  /** Called once per mount when the block draws a list or its note (analytics only). */
+  onShown?: (status: "list" | "unavailable") => void;
 }) {
   const [state, setState] = useState<SimilarState>(
     () => settled.get(scanId) ?? { status: "loading" },
   );
+  const reported = useRef(false);
+  const onShownRef = useRef(onShown);
+  onShownRef.current = onShown;
+  useEffect(() => {
+    if (reported.current) return;
+    if (state.status !== "ready" && state.status !== "unavailable") return;
+    reported.current = true;
+    onShownRef.current?.(state.status === "ready" ? "list" : "unavailable");
+  }, [state.status]);
 
   useEffect(() => {
     const known = settled.get(scanId);

@@ -35,7 +35,7 @@ import {
 import { prefetchMouseLinks } from "@/components/results/mouseLinksStore";
 import { sweepLegacyHandKeys } from "@/components/results/handDisclosure";
 import { track } from "@/client/analytics/track";
-import { POOR_FIT_THRESHOLD } from "@/components/results/fitNotice";
+import type { ResultsAnalytics } from "@/lib/results/analyticsEvents";
 import { TopBar } from "@/components/nav/TopBar";
 import { DeleteScanAction } from "@/components/results/DeleteScanAction";
 import { useLocale } from "@/client/i18n/LocaleProvider";
@@ -59,6 +59,9 @@ type PageState =
  * request used" rule for the analysis request trivially.
  */
 const PREFERENCES: FitPreferencesInput = {};
+
+/** The real results pages send their events through `track`; the demo gets none. */
+const RESULTS_ANALYTICS: ResultsAnalytics = { send: track };
 
 /**
  * Fit requests in flight, shared by every run of the fit effect: React Strict
@@ -84,11 +87,8 @@ export interface ResultsScan {
    */
   requestAnalysis: (isMainPage: boolean) => void;
   retryAnalysis: () => void;
-  analytics: {
-    onRetake: () => void;
-    onListOpened: (list: "ranked" | "excluded") => void;
-    onViewerInteracted: () => void;
-  };
+  /** The sender the results pages use for their events (`track`). */
+  analytics: ResultsAnalytics;
 }
 
 const ResultsScanContext = createContext<ResultsScan | null>(null);
@@ -176,8 +176,6 @@ export function ResultsScanProvider({
   const analysisRunRef = useRef(0);
   // Whether the analysis was asked for already, for this fit.
   const analysisStartedRef = useRef(false);
-  // `viewer_interacted` is once per page, even if the viewer re-adds its listeners.
-  const viewerInteractedRef = useRef(false);
 
   const runAnalysis = useCallback(async () => {
     analysisStartedRef.current = true;
@@ -251,15 +249,11 @@ export function ResultsScanProvider({
       if (outcome.status === "ready") {
         const top = outcome.response.results[0];
         if (top && !routeSlugRef.current) prefetchMouseLinks(top.mouse.slug);
-        if (top)
-          track("results_viewed", {
-            state: "ready",
-            topPick: top.mouse.slug,
-            noGoodFit: top.total < POOR_FIT_THRESHOLD,
-          });
+        // The ready `results_page_viewed` is sent by the page that renders
+        // (`ResultsRankClient`): its fields need the header card.
         setPageState({ kind: "ready", response: outcome.response });
       } else {
-        track("results_viewed", { state: outcome.status });
+        track("results_page_viewed", { state: outcome.status });
         setPageState({ kind: outcome.status });
       }
     })();
@@ -271,23 +265,7 @@ export function ResultsScanProvider({
     // `attempt` is part of the request's identity and retriggers this effect
   }, [scanId, attempt]);
 
-  const onRetake = useCallback(
-    () => track("retake_clicked", { from: "results" }),
-    [],
-  );
-  const analytics = useMemo(
-    () => ({
-      onRetake,
-      onListOpened: (list: "ranked" | "excluded") =>
-        track("results_list_opened", { list }),
-      onViewerInteracted: () => {
-        if (viewerInteractedRef.current) return;
-        viewerInteractedRef.current = true;
-        track("viewer_interacted", {});
-      },
-    }),
-    [onRetake],
-  );
+  const analytics = RESULTS_ANALYTICS;
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
   const retryAnalysis = useCallback(() => {
@@ -335,7 +313,6 @@ export function ResultsScanProvider({
           backHref="/scan/easy"
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
-          onBackClick={onRetake}
         />
         <p className="results-page-status" role="status">
           {copy.loading}
@@ -351,17 +328,12 @@ export function ResultsScanProvider({
           backHref="/scan/easy"
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
-          onBackClick={onRetake}
         />
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">{copy.eyebrow}</p>
           <h1>{copy.notFound.title}</h1>
           <p>{copy.notFound.body}</p>
-          <Link
-            href="/scan/easy"
-            className="results-page-action"
-            onClick={onRetake}
-          >
+          <Link href="/scan/easy" className="results-page-action">
             {copy.scanAgain}
           </Link>
         </div>
@@ -381,7 +353,6 @@ export function ResultsScanProvider({
           backHref="/scan/easy"
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
-          onBackClick={onRetake}
         />
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">{copy.eyebrow}</p>
@@ -402,7 +373,6 @@ export function ResultsScanProvider({
           backHref="/scan/easy"
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
-          onBackClick={onRetake}
         />
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">{copy.eyebrow}</p>
@@ -423,7 +393,6 @@ export function ResultsScanProvider({
           backHref="/scan/easy"
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
-          onBackClick={onRetake}
         />
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">{copy.eyebrow}</p>
@@ -450,11 +419,7 @@ export function ResultsScanProvider({
             {copy.deleted.title}
           </h1>
           <p>{copy.deleted.body}</p>
-          <Link
-            href="/scan/easy"
-            className="results-page-action"
-            onClick={onRetake}
-          >
+          <Link href="/scan/easy" className="results-page-action">
             {copy.scanAgain}
           </Link>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ResultsView } from "@/components/results/ResultsView";
 import {
@@ -12,6 +12,15 @@ import {
   serializeFilters,
   type Filters,
 } from "@/lib/results/filters";
+import { clampCount } from "@/client/analytics/props";
+import { POOR_FIT_THRESHOLD } from "@/components/results/fitNotice";
+import {
+  filterSelectionProps,
+  filtersChanged,
+  headerCard,
+  resultsPageFields,
+  type FilterChangeSource,
+} from "@/lib/results/analyticsEvents";
 import { RESULTS_VIEWER_ENABLED } from "@/lib/results/features";
 import { mainResultsPath } from "@/lib/results/rankRoutes";
 import { useResultsScan } from "./ResultsScanProvider";
@@ -50,9 +59,27 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
   );
   const search = serializeFilters(filters);
 
+  const { analytics, response: fit } = scan;
+  // The latest applied filters, so a change can be compared with what was there.
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
+
   const onFiltersChange = useCallback(
-    (next: Filters) => {
+    (next: Filters, source: FilterChangeSource) => {
+      const changed = filtersChanged(filtersRef.current, next);
+      filtersRef.current = next;
       setFilters(next);
+      if (changed) {
+        // The page after the change: a filter is only changed on the main
+        // page, whose big header is always the list's first place.
+        const after = filteredView(fit, next);
+        analytics.send("filter_applied", {
+          ...resultsPageFields(1, after.active),
+          source,
+          ...filterSelectionProps(next),
+          count: clampCount(after.count),
+        });
+      }
       const query = mergeFilterParams(window.location.search, next);
       window.history.replaceState(
         null,
@@ -60,7 +87,7 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
         `${pathname}${query === "" ? "" : `?${query}`}${window.location.hash}`,
       );
     },
-    [pathname],
+    [pathname, analytics, fit],
   );
 
   const view = useMemo(
@@ -69,6 +96,30 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
   );
   const target = isMain ? null : resolveViewDetail(view, slug);
   const redirect = target?.kind === "main";
+
+  // `results_page_viewed`, once per page: the main page, or one detail page
+  // (a different slug is another page). Not while redirecting, and not when
+  // the filter leaves no mouse for the header.
+  const viewedRef = useRef<string | null>(null);
+  const pageKey = slug ?? "main";
+  useEffect(() => {
+    if (redirect || viewedRef.current === pageKey) return;
+    const card = headerCard(
+      view,
+      target?.kind === "detail" ? target.card.displayRank : 1,
+    );
+    if (!card) return;
+    viewedRef.current = pageKey;
+    analytics.send("results_page_viewed", {
+      state: "ready",
+      ...resultsPageFields(card.displayRank, view.active),
+      mouse: card.entry.mouse.slug,
+      overallRank: card.overallRank,
+      poorFit: card.entry.total < POOR_FIT_THRESHOLD,
+    });
+    // Later filter changes on the page are `filter_applied`, not a new view.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [redirect, pageKey]);
 
   useEffect(() => {
     if (redirect) router.replace(mainResultsPath(scanId, search));
@@ -94,7 +145,7 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
       showViewer={RESULTS_VIEWER_ENABLED}
       analysisState={scan.analysisState}
       onRetryAnalysis={scan.retryAnalysis}
-      analytics={scan.analytics}
+      analytics={analytics}
       filters={filters}
       // The detail page reads the filter it was opened with and has no filter
       // controls of its own.

@@ -33,6 +33,7 @@ export function ResultsDetails({
   showViewer,
   analysis,
   onViewerInteracted,
+  onOpened,
 }: {
   response: FitResponse;
   entry: FitEntry;
@@ -40,6 +41,8 @@ export function ResultsDetails({
   showViewer: boolean;
   analysis?: { state: AnalysisState; onRetry?: () => void };
   onViewerInteracted?: () => void;
+  /** Called each time the person opens the section (analytics only). */
+  onOpened?: () => void;
 }) {
   // The viewer mounts the first time the section is opened and stays after, so
   // closing it again does not tear the model down.
@@ -60,8 +63,10 @@ export function ResultsDetails({
             open: details.open,
             printOpened: details.hasAttribute(PRINT_OPENED_ATTRIBUTE),
           })
-        )
+        ) {
           setOpened(true);
+          onOpened?.();
+        }
       }}
     >
       <summary>

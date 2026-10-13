@@ -17,6 +17,7 @@ export function OtherPicks({
   filtering = false,
   hrefFor,
   onSelect,
+  onPick,
 }: {
   cards: FilteredCard[];
   language: Locale;
@@ -25,6 +26,8 @@ export function OtherPicks({
   hrefFor?: (card: FilteredCard) => string;
   /** Called with the card's place in the list (the filtered one). */
   onSelect?: (displayRank: number) => void;
+  /** Called when a card is clicked (analytics only; navigation is unchanged). */
+  onPick?: (card: FilteredCard) => void;
 }) {
   if (cards.length === 0) return null;
   const copy = RESULTS_PAGE_COPY[language];
@@ -72,6 +75,7 @@ export function OtherPicks({
                   href={hrefFor(card)}
                   className="results-card"
                   data-rank={card.displayRank}
+                  onClick={onPick ? () => onPick(card) : undefined}
                 >
                   {inner}
                 </Link>
@@ -80,7 +84,10 @@ export function OtherPicks({
                   type="button"
                   className="results-card"
                   data-rank={card.displayRank}
-                  onClick={() => onSelect?.(card.displayRank)}
+                  onClick={() => {
+                    onPick?.(card);
+                    onSelect?.(card.displayRank);
+                  }}
                 >
                   {inner}
                 </button>

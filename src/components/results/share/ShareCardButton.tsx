@@ -7,7 +7,7 @@ import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { shareCardCopy } from "@/lib/copy/share-card";
 import { shareFileName, topPick } from "./input";
 import type { QrStyle } from "./qrStyle";
-import { deliverShareFile } from "./shareDecision";
+import { deliverShareFile, type ShareOutcome } from "./shareDecision";
 import "./share.css";
 
 export interface ShareCardButtonProps {
@@ -26,6 +26,9 @@ export interface ShareCardButtonProps {
   qrSize?: number;
   /** The QR code's style; only a preview route passes it (default frameless, `DEFAULT_QR_STYLE`). */
   qrStyle?: QrStyle;
+  /** Analytics only; the real results pages pass it, a preview route does not. */
+  onShareStarted?: () => void;
+  onShareFinished?: (outcome: ShareOutcome) => void;
 }
 
 type Status = "idle" | "busy" | "error";
@@ -56,6 +59,8 @@ export function ShareCardButton({
   filtering = false,
   qrSize,
   qrStyle,
+  onShareStarted,
+  onShareFinished,
 }: ShareCardButtonProps) {
   const [status, setStatus] = useState<Status>("idle");
   const running = useRef(false);
@@ -76,6 +81,7 @@ export function ShareCardButton({
     if (running.current || top === null) return;
     running.current = true;
     setStatus("busy");
+    onShareStarted?.();
     try {
       // The card code, and with it `qrcode`, loads on the first click.
       const { makeShareCardPng } = await import("./render");
@@ -89,8 +95,10 @@ export function ShareCardButton({
         downloadFile,
       );
       setStatus(outcome === "failed" ? "error" : "idle");
+      onShareFinished?.(outcome);
     } catch {
       setStatus("error");
+      onShareFinished?.("failed");
     } finally {
       running.current = false;
     }

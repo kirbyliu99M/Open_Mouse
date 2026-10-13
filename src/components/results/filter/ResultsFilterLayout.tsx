@@ -14,6 +14,7 @@ import {
   type FilterSource,
   type Filters,
 } from "@/lib/results/filters";
+import type { FilterChangeSource } from "@/lib/results/analyticsEvents";
 import { FilterChips } from "./FilterChips";
 import { FilterFacets } from "./FilterFacets";
 import { FilterFocusContext } from "./FilterFocus";
@@ -93,6 +94,7 @@ export function ResultsFilterLayout({
   filters,
   count,
   onChange,
+  onSheetOpened,
   lead,
   shells = "switch",
   children,
@@ -109,7 +111,10 @@ export function ResultsFilterLayout({
   filters: Filters;
   /** How many cards the applied filters keep. */
   count: number;
-  onChange: (next: Filters) => void;
+  /** `source` says which control made the change (analytics only; a caller may ignore it). */
+  onChange: (next: Filters, source: FilterChangeSource) => void;
+  /** Called when the sheet is opened (analytics only). */
+  onSheetOpened?: () => void;
   /**
    * Optional content that comes first: above the filter bar on a phone, at the
    * top of the content column beside the sidebar (the all-mice page's search).
@@ -175,12 +180,16 @@ export function ResultsFilterLayout({
           {copy.found(count)}
         </p>
       </div>
-      <FilterChips filters={filters} language={language} onChange={onChange} />
+      <FilterChips
+        filters={filters}
+        language={language}
+        onChange={(next) => onChange(next, "chips")}
+      />
       <FilterFacets
         response={response}
         language={language}
         filters={filters}
-        onChange={onChange}
+        onChange={(next) => onChange(next, "sidebar")}
         startOpen={["brand", "size"]}
       />
       <FilterStatus count={count} language={language} />
@@ -196,7 +205,10 @@ export function ResultsFilterLayout({
             type="button"
             className="results-filterButton"
             aria-haspopup="dialog"
-            onClick={() => setSheetOpen(true)}
+            onClick={() => {
+              setSheetOpen(true);
+              onSheetOpened?.();
+            }}
           >
             <SlidersIcon />
             <span>{copy.openButton(chosen)}</span>
@@ -208,7 +220,7 @@ export function ResultsFilterLayout({
         <FilterChips
           filters={filters}
           language={language}
-          onChange={onChange}
+          onChange={(next) => onChange(next, "chips")}
         />
       </div>
       {!sheetOpen && <FilterStatus count={count} language={language} />}
@@ -218,7 +230,7 @@ export function ResultsFilterLayout({
           countSource={countSource}
           language={language}
           applied={filters}
-          onApply={onChange}
+          onApply={(next) => onChange(next, "sheet")}
           onClosed={onClosed}
         />
       )}
