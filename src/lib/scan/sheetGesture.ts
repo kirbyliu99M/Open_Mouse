@@ -88,3 +88,31 @@ export function createClickGuard(): ClickGuard {
     },
   };
 }
+
+/**
+ * How far the on-screen keyboard (or anything else that shrinks only the
+ * visual viewport) covers the bottom of the layout viewport, in CSS pixels.
+ *
+ * iOS Safari opens its keyboard over the page: the layout viewport, and so a
+ * `position: fixed` bottom sheet and `dvh`, keep their size while
+ * `window.visualViewport` shrinks. The sheet's bottom edge, with its Confirm
+ * button, then sits behind the keyboard, and the decimal keypad has no Done
+ * key to dismiss it. The result is `layoutHeight - visualHeight - offsetTop`
+ * (the offset is how far the page was panned down), never negative. Browsers
+ * that resize the layout viewport themselves (Android Chrome) give 0.
+ */
+export function keyboardInset(
+  layoutHeight: number,
+  visualHeight: number,
+  visualOffsetTop: number,
+): number {
+  if (
+    !Number.isFinite(layoutHeight) ||
+    !Number.isFinite(visualHeight) ||
+    !Number.isFinite(visualOffsetTop)
+  )
+    return 0;
+  const inset = layoutHeight - visualHeight - visualOffsetTop;
+  // A few pixels is rounding or a collapsing toolbar, not a keyboard.
+  return inset > 40 ? Math.round(inset) : 0;
+}

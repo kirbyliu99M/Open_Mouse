@@ -17,6 +17,7 @@ import {
   createClickGuard,
   handleOffset,
   isDrag,
+  keyboardInset,
   opensFromDrag,
 } from "@/lib/scan/sheetGesture";
 import type { ManualEntryDraft } from "@/lib/scan/manualEntry";
@@ -338,6 +339,32 @@ function SheetShell({
     };
   }, []);
 
+  // The on-screen keyboard (iOS Safari opens it over the page): keep the
+  // sheet, and so its Confirm button, above it, and keep the field being typed
+  // in on screen. `--me-kb` and `--me-vvh` are read by the sheet's CSS.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    const dialog = dialogRef.current;
+    if (!vv || !dialog) return;
+    const update = () => {
+      const inset = keyboardInset(window.innerHeight, vv.height, vv.offsetTop);
+      dialog.style.setProperty("--me-kb", `${inset}px`);
+      dialog.style.setProperty("--me-vvh", `${Math.round(vv.height)}px`);
+      if (inset > 0) {
+        const field = document.activeElement;
+        if (field instanceof HTMLInputElement && dialog.contains(field))
+          field.scrollIntoView({ block: "nearest" });
+      }
+    };
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, []);
+
   const finish = useCallback(() => {
     if (!mounted.current) return;
     const dialog = dialogRef.current;
@@ -437,6 +464,14 @@ function SheetShell({
       }}
       onPointerDown={(e) => {
         pressedBackdrop.current = e.target === e.currentTarget;
+        // The decimal keypad has no Done key: a press on empty space puts the
+        // keyboard away, so the buttons under it can be reached.
+        const active = document.activeElement;
+        if (
+          active instanceof HTMLInputElement &&
+          !(e.target as HTMLElement).closest("input, button, label, a")
+        )
+          active.blur();
       }}
       onClick={(e) => {
         // A tap on the dimmed area (the dialog itself, outside its box) closes,
