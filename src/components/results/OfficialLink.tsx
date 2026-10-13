@@ -17,11 +17,14 @@ export function OfficialLink({
   kind,
   brand,
   language,
+  onClick,
 }: {
   url: string | null | undefined;
   kind: OfficialUrlKind | null | undefined;
   brand: string;
   language: Locale;
+  /** Analytics only; the link behaves as before. */
+  onClick?: () => void;
 }) {
   if (!url) return null;
   const copy = RESULTS_PAGE_COPY[language];
@@ -30,7 +33,13 @@ export function OfficialLink({
       ? copy.officialProduct(brand)
       : copy.officialBrand(brand);
   return (
-    <a className="results-official" href={url} rel="noopener" target="_blank">
+    <a
+      className="results-official"
+      href={url}
+      rel="noopener"
+      target="_blank"
+      onClick={onClick}
+    >
       <span className="results-official-text">{label}</span>
       <span className="results-visuallyHidden"> {copy.opensInNewTab}</span>
       <ExternalLinkIcon />

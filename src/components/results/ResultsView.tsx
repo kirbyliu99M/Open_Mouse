@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { manualEntryCopy } from "@/lib/copy/manualEntry";
@@ -14,6 +15,17 @@ import {
 import { handTypeLabel } from "@/lib/results/handTypeLabel";
 import { pathForEntry } from "@/lib/results/rankRoutes";
 import type { Locale } from "@/lib/contracts/locale";
+import { retailerOf } from "@/lib/contracts/analytics";
+import {
+  createResultsEmit,
+  firstTime,
+  headerCard,
+  linkPositionOf,
+  officialKindOf,
+  resultsPageFields,
+  type FilterChangeSource,
+  type ResultsAnalytics,
+} from "@/lib/results/analyticsEvents";
 import type { AnalysisState } from "./analysisState";
 import { FilteredAnalysisLine } from "./FilteredAnalysisLine";
 import { FilterSummary } from "./filter/FilterSummary";
@@ -102,20 +114,15 @@ export function ResultsView({
   scanId?: string;
   /** The demo has no routes: the other picks are buttons that call this. */
   onSelectRank?: (rank: number) => void;
-  /** Analytics callbacks, passed only by the real results page (never the demo). */
-  analytics?: {
-    onRetake: () => void;
-    onListOpened: (list: "ranked" | "excluded") => void;
-    onViewerInteracted: () => void;
-  };
+  /** The analytics sender, passed only by the real results pages (never the demo). */
+  analytics?: ResultsAnalytics;
   /** The applied filters. */
   filters?: Filters;
   /** Passed only by the real results page; without it there is no filter UI. */
-  onFiltersChange?: (next: Filters) => void;
+  onFiltersChange?: (next: Filters, source: FilterChangeSource) => void;
 }) {
   const view = filteredView(response, filters);
-  const card =
-    view.cards.find((c) => c.displayRank === rank) ?? view.large ?? null;
+  const card = headerCard(view, rank);
   const entry = card?.entry ?? null;
   // The official link and the purchase links of the one mouse in the big
   // header: a static file per mouse, asked for once (never on the fit
@@ -146,6 +153,28 @@ export function ResultsView({
   // page (Kirby, 2026-10-11).
   const shareOverall = filtering && (view.count === 0 || view.swapped);
 
+  // Analytics (real pages only): every event carries the page fields of the
+  // mouse in the big header, built here once. The refs hold what is sent once
+  // per page: the viewer's first use, and the purchase block per mouse.
+  const emit = createResultsEmit(
+    analytics,
+    resultsPageFields(card?.displayRank ?? 1, filtering),
+  );
+  const viewerReported = useRef(false);
+  const purchaseShown = useRef(new Set<string>());
+  const shareHandlers = (
+    position: "top" | "hero" | "bottom",
+    overall: boolean,
+  ) =>
+    analytics
+      ? {
+          onShareStarted: () => emit("share_started", { position, overall }),
+          onShareFinished: (
+            outcome: "shared" | "downloaded" | "cancelled" | "failed",
+          ) => emit("share_finished", { position, outcome }),
+        }
+      : {};
+
   const content = (
     <>
       {isMain && entry && entry.total < POOR_FIT_THRESHOLD && (
@@ -167,7 +196,7 @@ export function ResultsView({
               response={response}
               filters={filters}
               language={language}
-              onChange={onFiltersChange}
+              onChange={(next) => onFiltersChange(next, "no_match")}
               headingLevel={hand ? 2 : 1}
             />
           )}
@@ -185,6 +214,12 @@ export function ResultsView({
                     imageUrl={entry.mouse.imageUrl}
                     name={`${entry.mouse.brand} ${entry.mouse.model}`}
                     copy={copy.photoZoom}
+                    onOpened={
+                      analytics
+                        ? () =>
+                            emit("photo_zoomed", { mouse: entry.mouse.slug })
+                        : undefined
+                    }
                   />
                 )}
               </MousePhoto>
@@ -241,6 +276,15 @@ export function ResultsView({
                     kind={links?.officialKind}
                     brand={entry.mouse.brand}
                     language={language}
+                    onClick={
+                      analytics
+                        ? () =>
+                            emit("official_link_clicked", {
+                              mouse: entry.mouse.slug,
+                              kind: officialKindOf(links?.officialKind),
+                            })
+                        : undefined
+                    }
                   />
                 </div>
               )}
@@ -282,8 +326,36 @@ export function ResultsView({
                   filtered), so while filtering it turns secondary and says so. */}
               <div className="results-hero-actions">
                 <PurchaseSlot
+                  // A new mouse is a new block: its impression counts again.
+                  key={entry.mouse.slug}
                   links={links?.purchaseLinks}
                   language={language}
+                  onShown={
+                    analytics
+                      ? (count) => {
+                          if (
+                            !firstTime(purchaseShown.current, entry.mouse.slug)
+                          )
+                            return;
+                          emit("purchase_links_shown", {
+                            mouse: entry.mouse.slug,
+                            count,
+                          });
+                        }
+                      : undefined
+                  }
+                  onLinkClick={
+                    analytics
+                      ? (link, index) =>
+                          // The shop's key, never the URL.
+                          emit("purchase_link_clicked", {
+                            mouse: entry.mouse.slug,
+                            overallRank: card.overallRank,
+                            retailer: retailerOf(link.url),
+                            position: linkPositionOf(index),
+                          })
+                      : undefined
+                  }
                 />
                 <div className="results-share-hero" data-share-position="hero">
                   <ShareCardButton
@@ -291,6 +363,7 @@ export function ResultsView({
                     lang={language}
                     variant="primary"
                     filtering={shareOverall}
+                    {...shareHandlers("hero", shareOverall)}
                   />
                 </div>
               </div>
@@ -312,7 +385,16 @@ export function ResultsView({
               ? { state: analysisState, onRetry: onRetryAnalysis }
               : undefined
           }
-          onViewerInteracted={analytics?.onViewerInteracted}
+          onViewerInteracted={
+            analytics
+              ? () => {
+                  if (viewerReported.current) return;
+                  viewerReported.current = true;
+                  emit("viewer_used", {});
+                }
+              : undefined
+          }
+          onOpened={analytics ? () => emit("details_opened", {}) : undefined}
         />
       )}
 
@@ -326,12 +408,31 @@ export function ResultsView({
             : undefined
         }
         onSelect={onSelectRank}
+        onPick={
+          analytics && scanId
+            ? (c) =>
+                emit("pick_opened", {
+                  toRank: c.displayRank,
+                  mouse: c.entry.mouse.slug,
+                })
+            : undefined
+        }
       />
 
       {/* How people with a similar hand size rated the mice: about the
           person, not about one mouse, so only the main page of a real scan
           asks for it. It draws nothing until it has an answer. */}
-      {isMain && scanId && <SimilarHands scanId={scanId} language={language} />}
+      {isMain && scanId && (
+        <SimilarHands
+          scanId={scanId}
+          language={language}
+          onShown={
+            analytics
+              ? (status) => analytics.send("similar_hands_shown", { status })
+              : undefined
+          }
+        />
+      )}
 
       <OtherMice
         ranked={view.rest}
@@ -339,7 +440,7 @@ export function ResultsView({
         hand={response.hand}
         language={language}
         filtering={filtering}
-        onOpened={() => analytics?.onListOpened("ranked")}
+        onOpened={analytics ? () => emit("other_mice_opened", {}) : undefined}
       />
 
       {view.hiddenExcludedCount > 0 && (
@@ -354,6 +455,7 @@ export function ResultsView({
           lang={language}
           variant="primary"
           filtering={shareOverall}
+          {...shareHandlers("bottom", shareOverall)}
         />
       </div>
     </>
@@ -367,7 +469,13 @@ export function ResultsView({
       <ResultsTopBar
         fit={response}
         language={language}
-        onRetake={analytics?.onRetake}
+        onRetake={analytics ? () => emit("rescan_clicked", {}) : undefined}
+        onSurveyReminderClick={
+          analytics
+            ? (unanswered) => emit("survey_reminder_clicked", { unanswered })
+            : undefined
+        }
+        {...shareHandlers("top", false)}
       />
       {/* A detail page has no filter controls: it says which filter it is
           under and how to get back to the list. */}
@@ -386,6 +494,9 @@ export function ResultsView({
           filters={filters}
           count={view.count}
           onChange={onFiltersChange}
+          onSheetOpened={
+            analytics ? () => emit("filter_sheet_opened", {}) : undefined
+          }
         >
           {content}
         </ResultsFilterLayout>
