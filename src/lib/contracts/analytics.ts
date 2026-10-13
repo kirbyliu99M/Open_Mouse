@@ -69,6 +69,97 @@ const mouseSlug = z
 const attempt = z.int().min(1).max(ANALYTICS_COUNT_CAP);
 const rank = z.int().min(1).max(100);
 
+/** Where a filter change was made: the wide sidebar, the narrow sheet, a chip
+ * (removing one option, or 全部清除), or the no-match block's buttons. */
+export const FILTER_SOURCES = [
+  "sidebar",
+  "sheet",
+  "chips",
+  "no_match",
+] as const;
+
+/** The three share buttons: the top bar's link, the one beside the purchase
+ * links (wide screens) and the one at the foot of the page. */
+export const SHARE_POSITIONS = ["top", "hero", "bottom"] as const;
+
+/** Shops a purchase link can point at; anything else is `other`. */
+export const RETAILERS = [
+  "pchome",
+  "momo",
+  "shopee",
+  "yahoo",
+  "biggo",
+  "feebee",
+  "amazon",
+  "other",
+] as const;
+export type Retailer = (typeof RETAILERS)[number];
+
+/** Registrable host → shop. A subdomain of a listed host counts as it. */
+const RETAILER_HOSTS: readonly (readonly [string, Retailer])[] = [
+  ["pchome.com.tw", "pchome"],
+  ["momoshop.com.tw", "momo"],
+  ["shopee.tw", "shopee"],
+  ["shope.ee", "shopee"],
+  ["buy.yahoo.com", "yahoo"],
+  ["tw.buy.yahoo.com", "yahoo"],
+  ["biggo.com.tw", "biggo"],
+  ["feebee.com.tw", "feebee"],
+  ["amazon.com", "amazon"],
+  ["amazon.co.jp", "amazon"],
+  ["amzn.to", "amazon"],
+];
+
+/**
+ * The shop a purchase link points at, from its host alone. The URL never
+ * leaves the browser in an event; this key does. An unknown host, or a string
+ * that is not an http(s) URL, is `other`.
+ */
+export function retailerOf(url: string): Retailer {
+  let host: string;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:")
+      return "other";
+    host = parsed.hostname.toLowerCase().replace(/\.$/, "");
+  } catch {
+    return "other";
+  }
+  for (const [domain, retailer] of RETAILER_HOSTS) {
+    if (host === domain || host.endsWith(`.${domain}`)) return retailer;
+  }
+  return "other";
+}
+
+/** A brand as an event value: lower case, every run of other characters one
+ * dash (`SteelSeries` → `steelseries`, `Cooler Master` → `cooler-master`). */
+const brandKey = z.string().regex(/^[a-z0-9][a-z0-9-]{0,39}$/);
+
+/** The key `brandKey` accepts, from a catalogue brand name; `null` when
+ * nothing is left (the caller drops that brand). */
+export function analyticsBrandKey(brand: string): string | null {
+  const key = brand
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/, "");
+  return key === "" ? null : key;
+}
+
+/** A link's row in the purchase block, or how many rows it has (at most four). */
+const linkPosition = z.int().min(1).max(4);
+
+/** Carried by every results-page event: `page` is the main page (the list's
+ * first place) or a detail page (places 2 to 5); `rank` is the place of the
+ * mouse in the big header in the list on screen; `filtered` says whether
+ * the filter is on. */
+const resultsPage = {
+  page: z.enum(["main", "detail"]),
+  rank: z.int().min(1).max(5),
+  filtered: z.boolean(),
+};
+
 export const analyticsEventSchemas = {
   /** A page view, captured on every App Router navigation. No properties of
    * its own: the path comes from PostHog's redacted `$current_url`. */
@@ -130,7 +221,7 @@ export const analyticsEventSchemas = {
     kind: z.enum(SUBMIT_FAILURE_KINDS),
   }),
 
-  /** The results page settled once (not again on a re-render). */
+  /** @deprecated Replaced by `results_page_viewed`; removed once no caller sends it. */
   results_viewed: z.union([
     z.strictObject({
       state: z.literal("ready"),
@@ -150,7 +241,7 @@ export const analyticsEventSchemas = {
 
   analysis_retry_clicked: z.strictObject({}),
 
-  /** The "other ranked mice" or "excluded mice" list was opened (not closed). */
+  /** @deprecated Replaced by `other_mice_opened`; removed once no caller sends it. */
   results_list_opened: z.strictObject({
     list: z.enum(["ranked", "excluded"]),
   }),
@@ -166,10 +257,7 @@ export const analyticsEventSchemas = {
   /** The scan was deleted from the results page. */
   scan_deleted: z.strictObject({}),
 
-  /**
-   * Reserved for the where-to-buy section (not built yet; its own issue).
-   * `retailer` is the store's key, `rank` the mouse's place in the list.
-   */
+  /** @deprecated Never sent; replaced by `purchase_link_clicked`. */
   outbound_clicked: z.strictObject({
     mouse: mouseSlug,
     rank,
@@ -183,6 +271,121 @@ export const analyticsEventSchemas = {
       "feebee",
     ]),
   }),
+
+  // ------------------------------------------------- results page (2026-10-13)
+  // Every event below carries `resultsPage`: which page, the place of the
+  // mouse in the big header, and whether the filter (篩選) is on. The demo
+  // page sends none of them.
+
+  /** A results page settled once (not again on a re-render). A detail page
+   * (place 2 to 5) counts too. `poorFit`: the mouse in the header scores
+   * under the poor-fit notice's threshold. */
+  results_page_viewed: z.union([
+    z.strictObject({
+      state: z.literal("ready"),
+      ...resultsPage,
+      mouse: mouseSlug,
+      overallRank: rank,
+      poorFit: z.boolean(),
+    }),
+    z.strictObject({
+      state: z.enum(RESULTS_STATES).exclude(["ready"]),
+    }),
+  ]),
+
+  /** The purchase block appeared with `count` links, once per mouse per page
+   * (the impression a click rate is computed against). */
+  purchase_links_shown: z.strictObject({
+    ...resultsPage,
+    mouse: mouseSlug,
+    count: linkPosition,
+  }),
+
+  /** A purchase link was clicked. `retailer` comes from `retailerOf(url)`;
+   * the URL itself is never sent. `position` is the link's row, from 1. */
+  purchase_link_clicked: z.strictObject({
+    ...resultsPage,
+    mouse: mouseSlug,
+    overallRank: rank,
+    retailer: z.enum(RETAILERS),
+    position: linkPosition,
+  }),
+
+  /** The maker's page link (next to the fit-band chip) was clicked. */
+  official_link_clicked: z.strictObject({
+    ...resultsPage,
+    mouse: mouseSlug,
+    kind: z.enum(["product", "brand"]),
+  }),
+
+  /** The person opened 「詳細」 (an opening for print does not count). */
+  details_opened: z.strictObject({ ...resultsPage }),
+
+  /** The first drag, zoom or tap on the 3D viewer, once per page. */
+  viewer_used: z.strictObject({ ...resultsPage }),
+
+  /** The photo of the mouse in the header was opened full size. */
+  photo_zoomed: z.strictObject({ ...resultsPage, mouse: mouseSlug }),
+
+  /** A card in 「其他推薦」 was clicked. `toRank` is the card's place in the
+   * list on screen (the filtered one while filtering). */
+  pick_opened: z.strictObject({
+    ...resultsPage,
+    toRank: rank,
+    mouse: mouseSlug,
+  }),
+
+  /** 「其他滑鼠」 was opened (not closed). */
+  other_mice_opened: z.strictObject({ ...resultsPage }),
+
+  /** The similar-hands block drew something: a list or its "not enough
+   * data" note. Nothing is sent while it draws nothing. */
+  similar_hands_shown: z.strictObject({
+    status: z.enum(["list", "unavailable"]),
+  }),
+
+  /** The applied filter changed (one event per change that reaches the
+   * page, so a sheet sends one on 「套用」, not one per tap). The arrays are
+   * the whole selection after the change; `count` is the number of cards it
+   * leaves, clamped to the cap (0 is the no-match state). `source` is where
+   * the change was made. */
+  filter_applied: z.strictObject({
+    ...resultsPage,
+    source: z.enum(FILTER_SOURCES),
+    brand: z.array(brandKey).max(ANALYTICS_COUNT_CAP),
+    size: z.array(z.enum(["small", "medium", "large"])).max(3),
+    weight: z.array(z.enum(["lt50", "50-69", "70-89", "gte90"])).max(4),
+    shape: z.array(z.enum(["ergonomic", "symmetrical"])).max(2),
+    connectivity: z.array(z.enum(["wireless", "wired"])).max(2),
+    count: z.int().min(0).max(ANALYTICS_COUNT_CAP),
+  }),
+
+  /** The filter sheet (narrow screens) was opened. */
+  filter_sheet_opened: z.strictObject({ ...resultsPage }),
+
+  /** A share button was pressed. `overall`: the button said it shares the
+   * overall #1 (a filtered page whose #1 is another mouse). */
+  share_started: z.strictObject({
+    ...resultsPage,
+    position: z.enum(SHARE_POSITIONS),
+    overall: z.boolean(),
+  }),
+
+  /** The share card was handed over: `ShareOutcome` from `deliverShareFile`. */
+  share_finished: z.strictObject({
+    ...resultsPage,
+    position: z.enum(SHARE_POSITIONS),
+    outcome: z.enum(["shared", "downloaded", "cancelled", "failed"]),
+  }),
+
+  /** The questionnaire reminder in the top bar was clicked. */
+  survey_reminder_clicked: z.strictObject({
+    ...resultsPage,
+    unanswered: z.boolean(),
+  }),
+
+  /** 「重新掃描」 in the top bar was clicked. */
+  rescan_clicked: z.strictObject({ ...resultsPage }),
 } as const;
 
 export type AnalyticsEventName = keyof typeof analyticsEventSchemas;
