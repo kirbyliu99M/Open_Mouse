@@ -41,6 +41,7 @@ import { DeleteScanAction } from "@/components/results/DeleteScanAction";
 import { useLocale } from "@/client/i18n/LocaleProvider";
 import { resultsScreensCopy } from "@/lib/copy/results-screens";
 import type { Locale } from "@/lib/contracts/locale";
+import type { RESCAN_STATES } from "@/lib/contracts/analytics";
 import "@/components/results/results.css";
 
 type PageState =
@@ -273,6 +274,10 @@ export function ResultsScanProvider({
     void runAnalysis();
   }, [runAnalysis]);
 
+  // 重新掃描 on a screen with no result: no list, so no page fields.
+  const rescanFrom = (state: (typeof RESCAN_STATES)[number]) =>
+    track("status_rescan_clicked", { state });
+
   const deletedHeadingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     if (pageState.kind === "deleted") deletedHeadingRef.current?.focus();
@@ -311,6 +316,7 @@ export function ResultsScanProvider({
       <main className="resultsMain">
         <TopBar
           backHref="/scan/easy"
+          onBackClick={() => rescanFrom("loading")}
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
         />
@@ -326,6 +332,7 @@ export function ResultsScanProvider({
       <main className="resultsMain">
         <TopBar
           backHref="/scan/easy"
+          onBackClick={() => rescanFrom("notFound")}
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
         />
@@ -333,7 +340,11 @@ export function ResultsScanProvider({
           <p className="results-eyebrow">{copy.eyebrow}</p>
           <h1>{copy.notFound.title}</h1>
           <p>{copy.notFound.body}</p>
-          <Link href="/scan/easy" className="results-page-action">
+          <Link
+            href="/scan/easy"
+            className="results-page-action"
+            onClick={() => rescanFrom("notFound")}
+          >
             {copy.scanAgain}
           </Link>
         </div>
@@ -351,6 +362,7 @@ export function ResultsScanProvider({
       <main className="resultsMain">
         <TopBar
           backHref="/scan/easy"
+          onBackClick={() => rescanFrom("rateLimited")}
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
         />
@@ -371,6 +383,7 @@ export function ResultsScanProvider({
       <main className="resultsMain">
         <TopBar
           backHref="/scan/easy"
+          onBackClick={() => rescanFrom("networkError")}
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
         />
@@ -391,6 +404,7 @@ export function ResultsScanProvider({
       <main className="resultsMain">
         <TopBar
           backHref="/scan/easy"
+          onBackClick={() => rescanFrom("serverError")}
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
         />
@@ -419,7 +433,11 @@ export function ResultsScanProvider({
             {copy.deleted.title}
           </h1>
           <p>{copy.deleted.body}</p>
-          <Link href="/scan/easy" className="results-page-action">
+          <Link
+            href="/scan/easy"
+            className="results-page-action"
+            onClick={() => rescanFrom("deleted")}
+          >
             {copy.scanAgain}
           </Link>
         </div>
