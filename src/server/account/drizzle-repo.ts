@@ -5,6 +5,7 @@ import {
   scanMeasurements,
   scanSessions,
   scans,
+  resultFeedback,
   surveyContributions,
   users,
 } from "../../db/schema";
@@ -92,6 +93,9 @@ export function createDrizzleAccountRepo(db = getDb()): AccountRepo {
         db
           .delete(surveyContributions)
           .where(eq(surveyContributions.userId, userId)),
+        // Result feedback is withdrawn by name too (its contract: "Delete
+        // everything" MUST remove it); the user's cascade is the second net.
+        db.delete(resultFeedback).where(eq(resultFeedback.userId, userId)),
         db.delete(scanSessions).where(eq(scanSessions.userId, userId)),
         db.delete(users).where(eq(users.id, userId)),
       ]);
