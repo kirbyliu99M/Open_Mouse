@@ -36,6 +36,8 @@ export interface ResultFeedbackCopy {
   done: string;
   close: string;
   already: string;
+  /** The comment holds characters that cannot be sent (not contact details). */
+  commentChars: string;
 }
 
 export const zhTW: ResultFeedbackCopy = {
@@ -55,6 +57,7 @@ export const zhTW: ResultFeedbackCopy = {
   done: "謝謝你的回饋",
   close: "完成",
   already: "這次的結果已經送出過回饋。",
+  commentChars: "意見裡有無法送出的字元，請刪掉後再試一次。",
 };
 
 export const en: ResultFeedbackCopy = {
@@ -75,6 +78,8 @@ export const en: ResultFeedbackCopy = {
   done: "Thanks for the feedback",
   close: "Done",
   already: "You've already sent feedback on this result.",
+  commentChars:
+    "The comment has characters that can't be sent. Please remove them and try again.",
 };
 
 /** The table for a locale. */

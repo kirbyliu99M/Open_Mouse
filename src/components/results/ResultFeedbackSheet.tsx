@@ -12,6 +12,7 @@ import { resultFeedbackCopy } from "@/lib/copy/result-feedback";
 import {
   RESULT_FEEDBACK_DWELL_MS,
   buildSubmission,
+  reachedEnd,
   fetchAnswered,
   markFeedbackDone,
   readFeedbackDone,
@@ -50,7 +51,10 @@ export function ResultFeedbackSheet({
 
   const [answered, setAnswered] = useState<boolean | null>(null);
   const [localDone, setLocalDone] = useState(false);
-  const [scrolledToEnd, setScrolledToEnd] = useState(false);
+  const [markerInView, setMarkerInView] = useState(false);
+  const [scrollMovedPx, setScrollMovedPx] = useState(0);
+  const [sheetHeight, setSheetHeight] = useState(0);
+  const sheetRef = useRef<HTMLElement>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [opened, setOpened] = useState(false);
   const [phase, setPhase] = useState<Phase>("form");
@@ -81,19 +85,26 @@ export function ResultFeedbackSheet({
     return () => window.clearTimeout(timer);
   }, []);
 
-  // The end of the list coming into view.
+  // The end of the list in view, and whether the person really scrolled (the
+  // marker already in view on load does not count).
   useEffect(() => {
     const marker = markerRef.current;
     if (!marker || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) {
-        setScrolledToEnd(true);
-        observer.disconnect();
-      }
+      const last = entries[entries.length - 1];
+      if (last) setMarkerInView(last.isIntersecting);
     });
     observer.observe(marker);
     return () => observer.disconnect();
   }, []);
+  useEffect(() => {
+    const startY = window.scrollY;
+    const onScroll = () =>
+      setScrollMovedPx(Math.max(0, Math.abs(window.scrollY - startY)));
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  const scrolledToEnd = reachedEnd({ markerInView, scrollMovedPx });
 
   const show = shouldShowSheet({
     answered,
@@ -109,7 +120,23 @@ export function ResultFeedbackSheet({
 
   const visible = opened && !localDone;
 
+  // Room under the page for the sheet, so the last block can be scrolled past it.
+  useEffect(() => {
+    const sheet = sheetRef.current;
+    if (!visible || !sheet) {
+      setSheetHeight(0);
+      return;
+    }
+    const measure = () => setSheetHeight(sheet.offsetHeight);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(sheet);
+    return () => observer.disconnect();
+  }, [visible, phase, commentOpen, failure]);
+
   const close = () => {
+    if (phase === "sending") return;
     markFeedbackDone(scanId);
     setLocalDone(true);
   };
@@ -145,9 +172,11 @@ export function ResultFeedbackSheet({
         ? qn.rateLimited
         : failure === "invalid_feedback"
           ? qn.sendFeedbackInvalid
-          : failure === "invalid"
-            ? qn.sendInvalid
-            : qn.sendNetwork;
+          : failure === "invalid_comment"
+            ? copy.commentChars
+            : failure === "invalid"
+              ? qn.sendInvalid
+              : qn.sendNetwork;
 
   const announcement = !visible
     ? ""
@@ -168,8 +197,10 @@ export function ResultFeedbackSheet({
       <p className="results-srOnly" role="status" aria-live="polite">
         {announcement}
       </p>
+      {visible && <div aria-hidden="true" style={{ height: sheetHeight }} />}
       {visible && (
         <section
+          ref={sheetRef}
           className="results-feedback"
           aria-label={copy.title}
           onKeyDown={(event) => {

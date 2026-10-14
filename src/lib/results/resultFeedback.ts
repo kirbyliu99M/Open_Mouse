@@ -17,12 +17,26 @@ import {
 } from "@/lib/contracts/result-feedback";
 import { resultFeedbackPath } from "@/lib/contracts/routes";
 import type { Locale } from "@/lib/contracts/locale";
+import { looksLikeContactDetails } from "@/lib/learning/session";
 import { browserStorage, type FlagStorage } from "./surveyReminder";
 
 /** How long the person has been on the page before the sheet may show. */
 export const RESULT_FEEDBACK_DWELL_MS = 20_000;
 
 const STORAGE_PREFIX = "palmate.resultFeedback.";
+
+/**
+ * Has the person scrolled to the end of the list? Only a real scroll counts:
+ * the end marker already in view on load (a short list, a tall window, a
+ * restored scroll position) is not it, and a page that cannot scroll has only
+ * the dwell time.
+ */
+export function reachedEnd(input: {
+  markerInView: boolean;
+  scrollMovedPx: number;
+}): boolean {
+  return input.markerInView && input.scrollMovedPx > 0;
+}
 
 export interface ShowSheetInput {
   /** `GET` said this scan was rated; `null` while unknown or when the call failed. */
@@ -46,7 +60,10 @@ export function shouldShowSheet(input: ShowSheetInput): boolean {
 
 export type BuildResult =
   | { ok: true; body: ResultFeedbackSubmission }
-  | { ok: false; reason: "invalid" | "invalid_feedback" };
+  | {
+      ok: false;
+      reason: "invalid" | "invalid_feedback" | "invalid_comment";
+    };
 
 /** The body to send: trimmed comment (omitted when empty), parsed by the contract. */
 export function buildSubmission(input: {
@@ -63,11 +80,22 @@ export function buildSubmission(input: {
   });
   if (parsed.success) return { ok: true, body: parsed.data };
   const onComment = parsed.error.issues.some((i) => i.path[0] === "comment");
-  return { ok: false, reason: onComment ? "invalid_feedback" : "invalid" };
+  if (!onComment) return { ok: false, reason: "invalid" };
+  return {
+    ok: false,
+    reason: looksLikeContactDetails(comment)
+      ? "invalid_feedback"
+      : "invalid_comment",
+  };
 }
 
 export type SendFailure =
-  "conflict" | "rate_limited" | "invalid" | "invalid_feedback" | "network";
+  | "conflict"
+  | "rate_limited"
+  | "invalid"
+  | "invalid_feedback"
+  | "invalid_comment"
+  | "network";
 
 export type SendResult =
   { ok: true; withdrawable: boolean } | { ok: false; reason: SendFailure };

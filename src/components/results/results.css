@@ -1757,7 +1757,7 @@
   pointer-events: auto;
   width: 100%;
   max-width: 32rem;
-  max-height: 85dvh;
+  max-height: 60dvh;
   overflow-y: auto;
   box-sizing: border-box;
   padding: 1rem 1.25rem 1.25rem;

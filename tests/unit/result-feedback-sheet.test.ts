@@ -6,6 +6,7 @@ import {
   failureFromStatus,
   fetchAnswered,
   markFeedbackDone,
+  reachedEnd,
   readFeedbackDone,
   sendFeedback,
   shouldShowSheet,
@@ -160,5 +161,24 @@ describe("local memory", () => {
         throw new Error("blocked");
       }),
     ).toBe(false);
+  });
+});
+
+describe("reachedEnd", () => {
+  it("needs the marker in view and a real scroll", () => {
+    expect(reachedEnd({ markerInView: true, scrollMovedPx: 0 })).toBe(false);
+    expect(reachedEnd({ markerInView: false, scrollMovedPx: 300 })).toBe(false);
+    expect(reachedEnd({ markerInView: true, scrollMovedPx: 1 })).toBe(true);
+  });
+});
+
+describe("buildSubmission comment refusals", () => {
+  it("tells control characters from contact details", () => {
+    expect(
+      buildSubmission({ stars: 3, comment: "bad\u0001char", locale: "en" }),
+    ).toEqual({ ok: false, reason: "invalid_comment" });
+    expect(
+      buildSubmission({ stars: 3, comment: "call 0912345678", locale: "en" }),
+    ).toEqual({ ok: false, reason: "invalid_feedback" });
   });
 });

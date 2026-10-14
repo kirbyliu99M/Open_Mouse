@@ -463,7 +463,7 @@ export function ResultsView({
       {/* The feedback sheet: the main page of a real scan only (the demo has
           no scan id). It waits for the end of the list, or 20 s. */}
       {isMain && scanId && (
-        <ResultFeedbackSheet scanId={scanId} language={language} />
+        <ResultFeedbackSheet key={scanId} scanId={scanId} language={language} />
       )}
     </>
   );
