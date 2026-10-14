@@ -1,4 +1,5 @@
 import type { FitEntry } from "../../lib/contracts/fit";
+import { shellFamily } from "./shell-family";
 import type { CatalogueMouse } from "./types";
 
 /**
@@ -9,8 +10,10 @@ import type { CatalogueMouse } from "./types";
  * catalogue row the entry was scored from, so v0 and v1 behave the same.
  *
  * Same shell means strict equality (`===`) of `brand`, the three dimensions
- * and the seven shape descriptors; a null matches only a null. Weight,
- * connectivity and everything else may differ. A group's shown entry is its
+ * and the seven shape descriptors (a null matches only a null), and the same
+ * model family (`shellFamily`: the name without its version words, so "M75" and
+ * "M75 Wireless" match and "Aerox 3" and "Rival 3" do not). Weight,
+ * connectivity and the version words may differ. A group's shown entry is its
  * member with the best total (a tie goes to the earlier rank); the others
  * become its `variants`, in their rank order before grouping. Shown entries
  * keep their order and are renumbered 1..n. A single-member group gets no
@@ -45,6 +48,7 @@ export function groupShells(
       row.sideCurvature ?? null,
       row.thumbRest ?? null,
       row.ringFingerRest ?? null,
+      shellFamily(row.model),
     ]);
   };
 

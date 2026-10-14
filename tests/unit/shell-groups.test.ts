@@ -42,13 +42,20 @@ const base: CatalogueMouse = {
   ringFingerRest: false,
 };
 
+/** Rows named as versions of one model ("Alpha", "Alpha Wireless", ...), so only the field a test changes can split them. */
+const VERSION_OF_ALPHA: Record<string, string> = {
+  a: "Alpha",
+  b: "Alpha Wireless",
+  c: "Alpha Wired",
+};
+
 const row = (
   slug: string,
   over: Partial<CatalogueMouse> = {},
 ): CatalogueMouse => ({
   ...base,
   slug,
-  model: slug.toUpperCase(),
+  model: VERSION_OF_ALPHA[slug] ?? slug.toUpperCase(),
   ...over,
 });
 
@@ -76,7 +83,9 @@ describe("groupShells: the key", () => {
     const out = groupShells([entry(a, 1, 80), entry(same, 2, 79)], [a, same]);
     expect(out).toHaveLength(1);
     expect(out[0]!.mouse.slug).toBe("a");
-    expect(out[0]!.variants).toEqual([{ slug: "b", model: "B", weightG: 70 }]);
+    expect(out[0]!.variants).toEqual([
+      { slug: "b", model: "Alpha Wireless", weightG: 70 },
+    ]);
   });
 
   const splitters: [string, Partial<CatalogueMouse>][] = [
@@ -97,6 +106,20 @@ describe("groupShells: the key", () => {
     const out = groupShells([entry(a, 1, 80), entry(other, 2, 79)], [a, other]);
     expect(out.map((e) => e.mouse.slug)).toEqual(["a", "b"]);
     expect(out.every((e) => e.variants === undefined)).toBe(true);
+  });
+
+  it("equal numbers are not enough: a different model family splits the group", () => {
+    const other = row("b", { model: "Beta" });
+    const out = groupShells([entry(a, 1, 80), entry(other, 2, 79)], [a, other]);
+    expect(out.map((e) => e.mouse.slug)).toEqual(["a", "b"]);
+    expect(out.every((e) => e.variants === undefined)).toBe(true);
+  });
+
+  it("versions of one model still group when only version words differ", () => {
+    const wired = row("c", { model: "Alpha 8K Wired" });
+    const out = groupShells([entry(a, 1, 80), entry(wired, 2, 79)], [a, wired]);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.variants?.map((v) => v.slug)).toEqual(["c"]);
   });
 
   it("strict equality: brand case is not folded and a trailing space is not trimmed", () => {
