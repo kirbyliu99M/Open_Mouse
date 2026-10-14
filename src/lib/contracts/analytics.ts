@@ -50,6 +50,16 @@ export const RESULTS_STATES = [
   "serverError",
 ] as const;
 
+/** The results page's screens that show no result, where 「重新掃描」 still is. */
+export const RESCAN_STATES = [
+  "loading",
+  "notFound",
+  "rateLimited",
+  "networkError",
+  "serverError",
+  "deleted",
+] as const;
+
 /** Upper bound for every count property. The schemas refuse a larger count,
  * so the client clamps to this before it captures. */
 export const ANALYTICS_COUNT_CAP = 20;
@@ -221,18 +231,6 @@ export const analyticsEventSchemas = {
     kind: z.enum(SUBMIT_FAILURE_KINDS),
   }),
 
-  /** @deprecated Replaced by `results_page_viewed`; removed once no caller sends it. */
-  results_viewed: z.union([
-    z.strictObject({
-      state: z.literal("ready"),
-      topPick: mouseSlug,
-      noGoodFit: z.boolean(),
-    }),
-    z.strictObject({
-      state: z.enum(RESULTS_STATES).exclude(["ready"]),
-    }),
-  ]),
-
   /** The written analysis settled. `fallback`: the template text was shown
    * instead of the model's. */
   analysis_shown: z.strictObject({
@@ -241,36 +239,8 @@ export const analyticsEventSchemas = {
 
   analysis_retry_clicked: z.strictObject({}),
 
-  /** @deprecated Replaced by `other_mice_opened`; removed once no caller sends it. */
-  results_list_opened: z.strictObject({
-    list: z.enum(["ranked", "excluded"]),
-  }),
-
-  /** The first drag, zoom or tap on the 3D viewer, once per page. */
-  viewer_interacted: z.strictObject({}),
-
-  /** "Scan again" (or the back link) from the results page. */
-  retake_clicked: z.strictObject({
-    from: z.enum(["results"]),
-  }),
-
   /** The scan was deleted from the results page. */
   scan_deleted: z.strictObject({}),
-
-  /** @deprecated Never sent; replaced by `purchase_link_clicked`. */
-  outbound_clicked: z.strictObject({
-    mouse: mouseSlug,
-    rank,
-    retailer: z.enum([
-      "official",
-      "pchome",
-      "momo",
-      "shopee",
-      "yahoo",
-      "biggo",
-      "feebee",
-    ]),
-  }),
 
   // ------------------------------------------------- results page (2026-10-13)
   // Every event below carries `resultsPage`: which page, the place of the
@@ -386,6 +356,13 @@ export const analyticsEventSchemas = {
 
   /** 「重新掃描」 in the top bar was clicked. */
   rescan_clicked: z.strictObject({ ...resultsPage }),
+
+  /** 「重新掃描」 (the back link or the page's button) on a results page that
+   * shows no result: still loading, an error, or the scan just deleted. It has
+   * no page fields, because there is no list. */
+  status_rescan_clicked: z.strictObject({
+    state: z.enum(RESCAN_STATES),
+  }),
 } as const;
 
 export type AnalyticsEventName = keyof typeof analyticsEventSchemas;

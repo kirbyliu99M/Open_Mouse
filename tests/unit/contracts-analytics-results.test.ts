@@ -63,10 +63,17 @@ describe("results-page events (2026-10-13)", () => {
       ["share_finished", { ...PAGE, position: "top", outcome: "cancelled" }],
       ["survey_reminder_clicked", { ...PAGE, unanswered: true }],
       ["rescan_clicked", PAGE],
+      ["status_rescan_clicked", { state: "deleted" }],
     ];
     for (const [name, props] of ok) {
       expect(s[name].safeParse(props).success, name).toBe(true);
     }
+  });
+
+  it("refuses a page field or an unknown state on the no-result rescan", () => {
+    const r = s.status_rescan_clicked;
+    expect(r.safeParse({ state: "ready" }).success).toBe(false);
+    expect(r.safeParse({ state: "notFound", ...PAGE }).success).toBe(false);
   });
 
   it("refuses a page event without its page fields, or with a place past 5", () => {
