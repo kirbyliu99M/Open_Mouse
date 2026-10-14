@@ -102,10 +102,7 @@ export async function handleResultFeedbackSubmission(
 
     let bodyText: string;
     try {
-      bodyText = await readLimitedBody(
-        request,
-        MAX_RESULT_FEEDBACK_BODY_BYTES,
-      );
+      bodyText = await readLimitedBody(request, MAX_RESULT_FEEDBACK_BODY_BYTES);
     } catch (error) {
       if (error instanceof BodyTooLargeError) {
         return json(413, { error: "Request body too large." });

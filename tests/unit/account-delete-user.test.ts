@@ -42,6 +42,7 @@ const USER_TABLES: Record<string, string> = {
   survey_contributions: `select count(*)::int as n from survey_contributions where user_id = $1`,
   survey_ratings: `select count(*)::int as n from survey_ratings where user_id = $1`,
   survey_other_mice: `select count(*)::int as n from survey_other_mice where user_id = $1`,
+  result_feedback: `select count(*)::int as n from result_feedback where user_id = $1`,
 };
 
 describe("Delete everything deletes the account, on a real Postgres", () => {
@@ -120,6 +121,10 @@ describe("Delete everything deletes the account, on a real Postgres", () => {
       otherMouse: { brand: BRAND_A, sizeFeel: FEEL_RIGHT, isCurrent: false },
     });
     expect(result).toBe("stored");
+    await w.pg.query(
+      `insert into result_feedback (user_id, notice_version, stars, locale, engine_version, grip, calibration_method, top_mice, created_on) values ($1, 'n', 4, 'zh-TW', 'v1', 'claw', 'printed-sheet', '[]'::jsonb, date_trunc('day', now() at time zone 'UTC') at time zone 'UTC')`,
+      [id],
+    );
   }
 
   it("lists every table with a user_id column, so a new one cannot be forgotten", async () => {
@@ -138,6 +143,7 @@ describe("Delete everything deletes the account, on a real Postgres", () => {
             "survey_contributions",
             "survey_ratings",
             "survey_other_mice",
+            "result_feedback",
           ].includes(t),
         )
         .sort(),

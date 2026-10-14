@@ -93,9 +93,7 @@ export function buildFeedbackStatements(
           ),
         })
         .from(scans)
-        .where(
-          and(eq(scans.id, write.scanId), isNull(scans.resultFeedbackAt)),
-        ),
+        .where(and(eq(scans.id, write.scanId), isNull(scans.resultFeedbackAt))),
     ),
 
     db
