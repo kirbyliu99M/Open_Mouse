@@ -160,6 +160,25 @@ export const similarPath = (scanId: string): string =>
   `/api/scans/${encodeURIComponent(scanId)}/similar`;
 
 /**
+ * Result feedback (candidate; result-feedback.ts). The scan follows the
+ * ownership rule above for both methods.
+ *
+ * `POST` — body: `resultFeedbackSubmissionSchema`. The snapshot is read from
+ * the scan on the server. 201 → `resultFeedbackSubmitResponseSchema`; 400
+ * invalid body (stars outside 1 to 5, an unknown notice version, a comment
+ * with control characters, an email address or a phone number) or a scan id
+ * that is not well formed; 404 unknown, foreign or expired scan; 409 this scan
+ * was already rated (nothing is stored or replaced); 413 body too large; 429
+ * rate limited per client IP (`errorResponseSchema`; nothing is stored).
+ *
+ * `GET` — 200 → `resultFeedbackStatusResponseSchema`; 404 and 429 as above.
+ *
+ * Every response from this path carries `Cache-Control: no-store`.
+ */
+export const resultFeedbackPath = (scanId: string): string =>
+  `/api/scans/${encodeURIComponent(scanId)}/feedback`;
+
+/**
  * `GET` — the home page's own best matches, from the caller's live scan.
  * 200 → `homeTopMiceResponseSchema` (home.ts); 404 when the caller has no live
  * scan; 429 rate limited per client IP. The caller is identified the same two
