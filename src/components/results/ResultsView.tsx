@@ -38,6 +38,7 @@ import { PhotoZoom } from "./PhotoZoom";
 import { VariantsLine } from "./VariantsLine";
 import { OfficialLink } from "./OfficialLink";
 import { PurchaseSlot } from "./PurchaseSlot";
+import { ResultFeedbackSheet } from "./ResultFeedbackSheet";
 import { ResultsDetails } from "./ResultsDetails";
 import { ResultsTopBar } from "./ResultsTopBar";
 import { ShareCardButton } from "./share/ShareCardButton";
@@ -458,6 +459,12 @@ export function ResultsView({
           {...shareHandlers("bottom", shareOverall)}
         />
       </div>
+
+      {/* The feedback sheet: the main page of a real scan only (the demo has
+          no scan id). It waits for the end of the list, or 20 s. */}
+      {isMain && scanId && (
+        <ResultFeedbackSheet scanId={scanId} language={language} />
+      )}
     </>
   );
 
