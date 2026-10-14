@@ -323,6 +323,24 @@ export const scans = pgTable(
     surveyContributedAt: timestamp("survey_contributed_at", {
       withTimezone: true,
     }),
+    /**
+     * Migration 0013: set once, when this scan's results were rated
+     * (`POST /api/scans/{id}/feedback`), which is what makes a second rating
+     * of the same scan a 409. It lives on the scan and goes with it; the
+     * feedback row never points back here (see `resultFeedback`).
+     *
+     * Migrate BEFORE deploying code that has this column, for the same reason
+     * as `survey_contributed_at` above: `db.insert(scans).values(...)` names
+     * EVERY column of this table in the INSERT, so with this code live and
+     * 0013 not yet applied, `POST /api/scans` (`insertScanWithMeasurements`)
+     * fails with `column "result_feedback_at" of relation "scans" does not
+     * exist`, not only the feedback route. The other way round is safe: code
+     * that predates 0013 never names the column, and the migration only adds
+     * it (nullable, no default).
+     */
+    resultFeedbackAt: timestamp("result_feedback_at", {
+      withTimezone: true,
+    }),
     createdAt: createdAt(),
   },
   (t) => [index("scans_session_id_idx").on(t.sessionId)],
@@ -605,6 +623,71 @@ export const surveyOtherMice = pgTable(
     check(
       "survey_other_mice_size_feel_length",
       sql`char_length(${t.sizeFeel}) BETWEEN 1 AND 40`,
+    ),
+  ],
+);
+
+// --- Result feedback (migration 0013, contract: src/lib/contracts/result-feedback.ts)
+//
+// A candidate (未拍板) until Kirby confirms it. The 1-to-5-star rating of a
+// scan's results, with one optional comment. The same rules as the survey
+// block above:
+//   - no `scan_id`, no `session_id`, no foreign key to `scans` or
+//     `scan_sessions`: a row survives the 24 h anonymous expiry and cannot
+//     point back to the scan. The only link is `scans.result_feedback_at`, a
+//     mark on the scan that goes with it.
+//   - no timestamp finer than a day: `created_on` is the start of the UTC day
+//     (a CHECK enforces it), the mark on the scan carries the exact instant.
+//   - the snapshot columns are read from the scan on the server (engine
+//     version, hand type classes, grip, calibration method, stated palm
+//     thickness, the engine's first three mice with their band). They hold no
+//     millimetre value and no bin. The value lists are plain text, not enums,
+//     as in the survey: the contract's schema refuses a value outside them, so
+//     a list change is not a migration (`grip` reuses the existing enum).
+//   - `comment` is read by the maintainers only; no response schema carries it.
+//   - `user_id` is set for a signed-in person only; their feedback goes with
+//     the account ("Delete everything" deletes it by name, and the user's
+//     cascade covers the inactive purge).
+export const resultFeedback = pgTable(
+  "result_feedback",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+    noticeVersion: text("notice_version").notNull(),
+    stars: smallint("stars").notNull(),
+    comment: text("comment"),
+    locale: text("locale").notNull(),
+    engineVersion: text("engine_version").notNull(),
+    handSize: text("hand_size"),
+    handWidth: text("hand_width"),
+    grip: gripStyleEnum("grip").notNull(),
+    calibrationMethod: text("calibration_method").notNull(),
+    palmThicknessStated: text("palm_thickness_stated"),
+    /** `[{ slug, band }]`, the engine's places 1 to 3 in order. */
+    topMice: jsonb("top_mice")
+      .$type<{ slug: string; band: string }[]>()
+      .notNull(),
+    /** Start of the UTC day on which the rating was given. */
+    createdOn: timestamp("created_on", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("result_feedback_user_id_idx").on(t.userId),
+    check(
+      "result_feedback_notice_version_set",
+      sql`char_length(${t.noticeVersion}) BETWEEN 1 AND 100`,
+    ),
+    check("result_feedback_stars_range", sql`${t.stars} BETWEEN 1 AND 5`),
+    check(
+      "result_feedback_comment_length",
+      sql`${t.comment} IS NULL OR char_length(${t.comment}) BETWEEN 1 AND ${sql.raw(String(MAX_FEEDBACK_CHARS))}`,
+    ),
+    check(
+      "result_feedback_created_on_a_day",
+      sql`(${t.createdOn} AT TIME ZONE 'UTC') = date_trunc('day', ${t.createdOn} AT TIME ZONE 'UTC')`,
+    ),
+    check(
+      "result_feedback_top_mice_array",
+      sql`jsonb_typeof(${t.topMice}) = 'array'`,
     ),
   ],
 );

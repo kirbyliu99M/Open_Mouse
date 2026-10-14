@@ -92,6 +92,13 @@
       "when": 1791789099341,
       "tag": "0012_wise_kate_bishop",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791986766178,
+      "tag": "0013_absent_stellaris",
+      "breakpoints": true
     }
   ]
 }
