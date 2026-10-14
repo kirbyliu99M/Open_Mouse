@@ -357,6 +357,24 @@ export const analyticsEventSchemas = {
   /** 「重新掃描」 in the top bar was clicked. */
   rescan_clicked: z.strictObject({ ...resultsPage }),
 
+  /** The result-feedback sheet appeared (result-feedback.ts, candidate):
+   * `trigger` says which came first, the end of the ranking or the dwell. */
+  result_feedback_shown: z.strictObject({
+    ...resultsPage,
+    trigger: z.enum(["scrolled", "dwell"]),
+  }),
+
+  /** The sheet's rating was stored (201). The stars only: the comment never
+   * leaves in an event, `commented` says whether there was one. */
+  result_feedback_submitted: z.strictObject({
+    ...resultsPage,
+    stars: z.int().min(1).max(5),
+    commented: z.boolean(),
+  }),
+
+  /** The sheet was closed with 「稍後再說」 before anything was sent. */
+  result_feedback_dismissed: z.strictObject({ ...resultsPage }),
+
   /** 「重新掃描」 (the back link or the page's button) on a results page that
    * shows no result: still loading, an error, or the scan just deleted. It has
    * no page fields, because there is no list. */
