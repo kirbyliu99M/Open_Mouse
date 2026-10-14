@@ -95,16 +95,18 @@ const reply = (status: number, body: unknown) => async () => ({
 
 describe("fetchAnswered", () => {
   it("reads answered", async () => {
-    expect(await fetchAnswered("s", undefined, reply(200, { answered: true }))).toBe(
-      true,
-    );
+    expect(
+      await fetchAnswered("s", undefined, reply(200, { answered: true })),
+    ).toBe(true);
     expect(
       await fetchAnswered("s", undefined, reply(200, { answered: false })),
     ).toBe(false);
   });
   it("fails quiet", async () => {
     expect(await fetchAnswered("s", undefined, reply(404, {}))).toBeNull();
-    expect(await fetchAnswered("s", undefined, reply(200, { x: 1 }))).toBeNull();
+    expect(
+      await fetchAnswered("s", undefined, reply(200, { x: 1 })),
+    ).toBeNull();
     expect(
       await fetchAnswered("s", undefined, async () => {
         throw new Error("offline");

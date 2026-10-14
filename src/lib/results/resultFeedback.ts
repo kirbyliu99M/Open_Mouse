@@ -67,11 +67,7 @@ export function buildSubmission(input: {
 }
 
 export type SendFailure =
-  | "conflict"
-  | "rate_limited"
-  | "invalid"
-  | "invalid_feedback"
-  | "network";
+  "conflict" | "rate_limited" | "invalid" | "invalid_feedback" | "network";
 
 export type SendResult =
   { ok: true; withdrawable: boolean } | { ok: false; reason: SendFailure };
