@@ -9,6 +9,7 @@ import {
   type HTMLAttributes,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import type { Locale } from "@/lib/contracts/locale";
 import type { ResultsEmit } from "@/lib/results/analyticsEvents";
 import {
@@ -117,18 +118,10 @@ export function ResultFeedbackSheet({
     return () => window.clearInterval(timer);
   }, [clockRunning]);
 
-  // The end of the list in view, and whether the person really scrolled (the
-  // marker already in view on load does not count).
-  useEffect(() => {
-    const marker = markerRef.current;
-    if (!marker || typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver((entries) => {
-      const last = entries[entries.length - 1];
-      if (last) setMarkerInView(last.isIntersecting);
-    });
-    observer.observe(marker);
-    return () => observer.disconnect();
-  }, []);
+  // Whether the person really scrolled, and whether the end of the list has
+  // been reached: in view, or already scrolled past (a jump to the bottom, or a
+  // footer taller than the window, never shows the marker to an observer). The
+  // marker already in view on load does not count: a real scroll is needed.
   useEffect(() => {
     const startY = window.scrollY;
     const onScroll = () => {
@@ -136,6 +129,12 @@ export function ResultFeedbackSheet({
       setScrollMovedPx(moved);
       // Sticky: scrolling back to where it started is still a scroll.
       if (moved > 0) setHasScrolled(true);
+      const marker = markerRef.current;
+      if (marker) {
+        setMarkerInView(
+          marker.getBoundingClientRect().top <= window.innerHeight,
+        );
+      }
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -334,29 +333,34 @@ export function ResultFeedbackSheet({
           style={{ "--feedback-h": `${spacerHeight}px` } as CSSProperties}
         />
       )}
-      {visible && (
-        <ResultFeedbackPanel
-          language={language}
-          phase={phase}
-          stars={stars}
-          comment={comment}
-          notesOpen={notesOpen}
-          failure={failure}
-          sectionRef={sectionRef}
-          sheetRef={sheetRef}
-          handleHandlers={handleHandlers}
-          onStars={(n) => {
-            setStars(n);
-            // A new star starts over: the last failure was about the old one.
-            setFailure(null);
-          }}
-          onComment={setComment}
-          onToggleNotes={() => setNotesOpen((open) => !open)}
-          onSubmit={() => void submit()}
-          onClose={dismiss}
-          onEscape={dismiss}
-        />
-      )}
+      {/* In the body, not in the page: the results view isolates its own
+          stacking context, and the site footer (later in the page) would paint
+          over a sheet that lives inside it. */}
+      {visible &&
+        createPortal(
+          <ResultFeedbackPanel
+            language={language}
+            phase={phase}
+            stars={stars}
+            comment={comment}
+            notesOpen={notesOpen}
+            failure={failure}
+            sectionRef={sectionRef}
+            sheetRef={sheetRef}
+            handleHandlers={handleHandlers}
+            onStars={(n) => {
+              setStars(n);
+              // A new star starts over: the last failure was about the old one.
+              setFailure(null);
+            }}
+            onComment={setComment}
+            onToggleNotes={() => setNotesOpen((open) => !open)}
+            onSubmit={() => void submit()}
+            onClose={dismiss}
+            onEscape={dismiss}
+          />,
+          document.body,
+        )}
     </>
   );
 }

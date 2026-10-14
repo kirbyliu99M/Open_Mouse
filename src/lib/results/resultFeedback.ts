@@ -40,7 +40,8 @@ export const RESULT_FEEDBACK_DRAG_CLOSE_PX = 64;
 const STORAGE_PREFIX = "palmate.resultFeedback.";
 
 /**
- * Has the person scrolled to the end of the list? Only a real scroll counts:
+ * Has the person scrolled to the end of the list? `markerInView` means the end
+ * marker is in view or already above the window. Only a real scroll counts:
  * the end marker already in view on load (a short list, a tall window, a
  * restored scroll position) is not it, and a page that cannot scroll has only
  * the dwell time.

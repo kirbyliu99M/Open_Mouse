@@ -1835,7 +1835,7 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 2.75rem 1.5rem calc(1rem + env(safe-area-inset-bottom));
+  padding: 2.75rem 1.25rem calc(1rem + env(safe-area-inset-bottom));
 }
 .results-feedback-scroll > * {
   width: 100%;
@@ -2006,9 +2006,10 @@
 /* The link on its own in A; the link and the pill on one row in B. */
 .results-feedback-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
+  gap: 0 0.75rem;
   margin-top: 0.5rem;
 }
 .results-feedback-actions[data-has-primary="true"] {
@@ -2019,12 +2020,14 @@
   align-items: center;
   gap: 0.375rem;
   min-height: 44px;
-  padding: 0 0.25rem;
+  padding: 0;
   border: 1px solid transparent;
   border-radius: 0.5rem;
   background: none;
   color: var(--accent-text);
   font: inherit;
+  font-size: 0.875rem;
+  white-space: nowrap;
   cursor: pointer;
 }
 .results-feedback-chevron {
@@ -2037,8 +2040,9 @@
 .results-feedback-primary {
   display: inline-grid;
   place-items: center;
+  flex: none;
   min-height: 44px;
-  padding: 0 1.5rem;
+  padding: 0 1.25rem;
   border: 0;
   border-radius: 999px;
   background: var(--button-primary-bg);
@@ -2048,6 +2052,9 @@
   cursor: pointer;
 }
 /* All three words share one cell, so the pill keeps the widest one's width. */
+.results-feedback-actions .results-feedback-primary {
+  margin-left: auto;
+}
 .results-feedback-primaryLabel {
   grid-area: 1 / 1;
 }
