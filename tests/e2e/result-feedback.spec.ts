@@ -353,7 +353,7 @@ test.describe("feedback sheet v2: a phone", () => {
     const x = h.x + h.width / 2;
     const y = h.y + h.height / 2;
     const cdp = await page.context().newCDPSession(page);
-    const touch = (type: string, dy: number) =>
+    const touch = (type: "touchStart" | "touchMove" | "touchEnd", dy: number) =>
       cdp.send("Input.dispatchTouchEvent", {
         type,
         touchPoints: type === "touchEnd" ? [] : [{ x, y: y + dy }],
