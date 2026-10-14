@@ -76,7 +76,7 @@ import { commentText } from "./survey";
  * changes; the server stores the version it was given, and an unknown one is
  * refused.
  */
-export const RESULT_FEEDBACK_NOTICE_VERSION = "result-feedback-notice-v1-draft";
+export const RESULT_FEEDBACK_NOTICE_VERSION = "result-feedback-notice-v2-draft";
 
 export const RESULT_FEEDBACK_MIN_STARS = 1;
 export const RESULT_FEEDBACK_MAX_STARS = 5;
