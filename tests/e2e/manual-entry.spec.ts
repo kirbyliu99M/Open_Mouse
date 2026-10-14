@@ -189,6 +189,8 @@ test.describe("typed hand length and width", () => {
     await page.mouse.move(x, y);
     await page.mouse.down();
     await page.mouse.move(x, y - 30, { steps: 4 });
+    // Slow on purpose: 30 px fast enough would be a flick (OPEN_FLICK_SPEED).
+    await page.waitForTimeout(150);
     await page.mouse.up();
     await expect(sheet(page)).toHaveCount(0);
 

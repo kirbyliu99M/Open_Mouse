@@ -4,12 +4,16 @@
  * felt on a real phone; nothing here is calibrated.
  */
 
-/** Movement under this is a tap, not a drag (px). */
+/**
+ * Past this a press is tracked as a drag (px): the strip follows the finger.
+ * It can still end as a tap (`isJitteryTap`).
+ */
 export const TAP_SLOP_PX = 8;
 
 /**
- * A finger tap wobbles: a press that moved past `TAP_SLOP_PX` but whose whole
- * travel stayed within this (px) still counts as a tap when it ends (candidate).
+ * A finger tap wobbles: a press that moved past `TAP_SLOP_PX` but never got
+ * further than this from where it went down (px) still counts as a tap when it
+ * ends (candidate).
  */
 export const TAP_MAX_TRAVEL_PX = 24;
 
@@ -34,13 +38,15 @@ export function isDrag(dx: number, dy: number): boolean {
 }
 
 /**
- * A press that ended as a jittery tap: total travel at most
- * `TAP_MAX_TRAVEL_PX` and downward travel at most `TAP_SLOP_PX`, so sideways
- * and upward wobble open the sheet but a drag downward never does. `dx`, `dy`
- * are the end position minus the start (`dy` positive is downward).
+ * A press that ended as a jittery tap: over the whole press it never got
+ * further than `TAP_MAX_TRAVEL_PX` from where it went down, and never more than
+ * `TAP_SLOP_PX` below it. Sideways and upward wobble open the sheet; a drag
+ * downward never does, even one that comes back before letting go. `farthest`
+ * is the largest distance from the start seen during the press, `farthestDown`
+ * the largest downward travel (0 if it only went up).
  */
-export function isJitteryTap(dx: number, dy: number): boolean {
-  return Math.hypot(dx, dy) <= TAP_MAX_TRAVEL_PX && dy <= TAP_SLOP_PX;
+export function isJitteryTap(farthest: number, farthestDown: number): boolean {
+  return farthest <= TAP_MAX_TRAVEL_PX && farthestDown <= TAP_SLOP_PX;
 }
 
 /**

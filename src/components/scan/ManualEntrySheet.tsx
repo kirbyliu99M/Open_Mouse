@@ -43,7 +43,8 @@ function prefersReducedMotion(): boolean {
 /**
  * The entry to typing instead of scanning (candidate, 2026-10-12): a strip at
  * the bottom of the scan screen, 「改用輸入數字 ⌃」, that opens the sheet on a
- * tap, on Enter or Space, or on a drag upward (Pointer Events, so a finger, a
+ * tap (one that wobbles a little, sideways or up, still counts:
+ * `isJitteryTap`), on Enter or Space, or on a drag upward (Pointer Events, so a finger, a
  * pen and a mouse all work). The drag is only a shortcut: a tap or the keyboard
  * always does the same (the visible text is the button's whole accessible
  * name, and nothing about dragging is announced: the button works without it),
@@ -73,9 +74,13 @@ export function ManualEntryHandle({
     startY: number;
     startT: number;
     moved: boolean;
+    /** The furthest the pointer got from the start, and below it (px). */
+    farthest: number;
+    farthestDown: number;
   } | null>(null);
-  // A drag that moved the strip may end in a click on the same element: that
-  // click must not open the sheet a second time, or open it after a drag down.
+  // A press that moved the strip may end in a click on the same element: that
+  // click must not open the sheet a second time (a jittery tap or a drag up
+  // already opened it on pointerup), or open it after a drag down.
   // The guard never outlives the gesture (see `createClickGuard`).
   const clickGuard = useRef(createClickGuard()).current;
   const guardTimer = useRef<number | undefined>(undefined);
@@ -97,6 +102,17 @@ export function ManualEntryHandle({
     node.style.transform = "";
   };
 
+  /** Keep how far the press has got from its start, for `isJitteryTap`. */
+  const track = (
+    p: NonNullable<typeof press.current>,
+    e: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    const dx = e.clientX - p.startX;
+    const dy = e.clientY - p.startY;
+    p.farthest = Math.max(p.farthest, Math.hypot(dx, dy));
+    p.farthestDown = Math.max(p.farthestDown, dy);
+  };
+
   const onPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     // A new press: whatever an earlier drag left behind is gone.
@@ -108,6 +124,8 @@ export function ManualEntryHandle({
       startY: e.clientY,
       startT: e.timeStamp,
       moved: false,
+      farthest: 0,
+      farthestDown: 0,
     };
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -120,6 +138,7 @@ export function ManualEntryHandle({
   const onPointerMove = (e: ReactPointerEvent<HTMLButtonElement>) => {
     const p = press.current;
     if (!p || p.id !== e.pointerId) return;
+    track(p, e);
     if (!p.moved && isDrag(e.clientX - p.startX, e.clientY - p.startY))
       p.moved = true;
     if (p.moved && !prefersReducedMotion()) {
@@ -136,6 +155,7 @@ export function ManualEntryHandle({
     const p = press.current;
     if (!p || p.id !== e.pointerId) return;
     press.current = null;
+    track(p, e);
     if (p.moved) {
       clickGuard.armAfterDrag();
       // A touch drag may end with no click at all: do not wait for one.
@@ -147,7 +167,7 @@ export function ManualEntryHandle({
       !cancelled &&
       p.moved &&
       (opensFromDrag(p.startY - e.clientY, e.timeStamp - p.startT) ||
-        isJitteryTap(e.clientX - p.startX, e.clientY - p.startY))
+        isJitteryTap(p.farthest, p.farthestDown))
     ) {
       onOpen();
     }
