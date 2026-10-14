@@ -186,7 +186,7 @@ const ratingSchema = z.strictObject({
  * The open comment, trimmed, 1 to `MAX_FEEDBACK_CHARS` characters. See the
  * header for why each refusal exists. It may hold line breaks and tabs.
  */
-const commentText = z
+export const commentText = z
   .string()
   .trim()
   .min(1)

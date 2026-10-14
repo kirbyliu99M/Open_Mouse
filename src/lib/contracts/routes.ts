@@ -160,6 +160,32 @@ export const similarPath = (scanId: string): string =>
   `/api/scans/${encodeURIComponent(scanId)}/similar`;
 
 /**
+ * Result feedback (candidate; result-feedback.ts). The scan follows the
+ * ownership rule above for both methods. A scan id in the path that is not a
+ * UUID is 404 (the scan repo is never asked), as on the other scan-scoped
+ * paths, so a body is never validated for a scan the caller cannot see.
+ *
+ * `POST` — body: `resultFeedbackSubmissionSchema`. The snapshot is computed
+ * on the server (result-feedback.ts says how). Order: 429 rate limited per
+ * client IP → 413 body too large → 404 malformed id, or unknown, foreign or
+ * expired scan → 400 body that is not JSON or fails the schema (stars outside
+ * 1 to 5, an unknown notice version, a comment with control characters, an
+ * email address or a phone number) → 409 this scan was already rated →
+ * 201 → `resultFeedbackSubmitResponseSchema`. Every non-2xx is
+ * `errorResponseSchema` and stores nothing. One rating per scan holds under
+ * concurrent POSTs: the mark on the scan is set by one conditional update
+ * (only where it is still null) in the same atomic request as the insert, and
+ * only the request that set it gets 201.
+ *
+ * `GET` — 200 → `resultFeedbackStatusResponseSchema`. Order: 429, then 404 as
+ * above.
+ *
+ * Every response from this path carries `Cache-Control: no-store`.
+ */
+export const resultFeedbackPath = (scanId: string): string =>
+  `/api/scans/${encodeURIComponent(scanId)}/feedback`;
+
+/**
  * `GET` — the home page's own best matches, from the caller's live scan.
  * 200 → `homeTopMiceResponseSchema` (home.ts); 404 when the caller has no live
  * scan; 429 rate limited per client IP. The caller is identified the same two
