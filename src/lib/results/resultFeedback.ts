@@ -224,3 +224,34 @@ export function markFeedbackDone(
     return false;
   }
 }
+
+// Analytics (the contract's `result_feedback_*` events). The page fields are
+// added by the results page's emitter; only the extra props are made here.
+
+/** `result_feedback_shown`: which came first, the end of the list or the dwell. */
+export function shownEvent(scrolledToEnd: boolean) {
+  return {
+    name: "result_feedback_shown" as const,
+    props: {
+      trigger: scrolledToEnd ? ("scrolled" as const) : ("dwell" as const),
+    },
+  };
+}
+
+/** `result_feedback_submitted`: the stars and whether a comment was sent, never its text. */
+export function submittedEvent(input: { stars: number; comment?: string }) {
+  return {
+    name: "result_feedback_submitted" as const,
+    props: {
+      stars: input.stars,
+      commented: (input.comment ?? "").trim() !== "",
+    },
+  };
+}
+
+/** `result_feedback_dismissed` is sent only while the form is open (not after thanks or 409). */
+export function dismissedEventDue(
+  phase: "form" | "sending" | "thanks" | "already",
+): boolean {
+  return phase === "form";
+}

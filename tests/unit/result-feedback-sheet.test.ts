@@ -7,6 +7,9 @@ import {
   fetchAnswered,
   markFeedbackDone,
   reachedEnd,
+  shownEvent,
+  submittedEvent,
+  dismissedEventDue,
   readFeedbackDone,
   sendFeedback,
   shouldShowSheet,
@@ -180,5 +183,31 @@ describe("buildSubmission comment refusals", () => {
     expect(
       buildSubmission({ stars: 3, comment: "call 0912345678", locale: "en" }),
     ).toEqual({ ok: false, reason: "invalid_feedback" });
+  });
+});
+
+describe("analytics events", () => {
+  it("shown carries the trigger that fired first", () => {
+    expect(shownEvent(true)).toEqual({
+      name: "result_feedback_shown",
+      props: { trigger: "scrolled" },
+    });
+    expect(shownEvent(false).props).toEqual({ trigger: "dwell" });
+  });
+  it("submitted carries stars and commented, never the text", () => {
+    expect(submittedEvent({ stars: 4, comment: "too high" })).toEqual({
+      name: "result_feedback_submitted",
+      props: { stars: 4, commented: true },
+    });
+    expect(submittedEvent({ stars: 2 }).props).toEqual({
+      stars: 2,
+      commented: false,
+    });
+  });
+  it("dismissed only while the form is open", () => {
+    expect(dismissedEventDue("form")).toBe(true);
+    expect(dismissedEventDue("thanks")).toBe(false);
+    expect(dismissedEventDue("already")).toBe(false);
+    expect(dismissedEventDue("sending")).toBe(false);
   });
 });
