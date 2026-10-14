@@ -29,6 +29,7 @@ const EXPECTED_MODULES = [
   "nav.ts",
   "privacy.ts",
   "questionnaire.ts",
+  "result-feedback.ts",
   "results-additions.ts",
   "results-page.ts",
   "results-reasons.ts",
