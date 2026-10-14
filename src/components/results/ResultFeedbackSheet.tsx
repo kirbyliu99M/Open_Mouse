@@ -7,6 +7,7 @@ import {
   RESULT_FEEDBACK_MIN_STARS,
 } from "@/lib/contracts/result-feedback";
 import { MAX_FEEDBACK_CHARS } from "@/lib/contracts/survey";
+import type { ResultsEmit } from "@/lib/results/analyticsEvents";
 import { questionnaireCopy } from "@/lib/copy/questionnaire";
 import { resultFeedbackCopy } from "@/lib/copy/result-feedback";
 import {
@@ -17,6 +18,9 @@ import {
   markFeedbackDone,
   readFeedbackDone,
   sendFeedback,
+  shownEvent,
+  submittedEvent,
+  dismissedEventDue,
   shouldShowSheet,
   type SendFailure,
 } from "@/lib/results/resultFeedback";
@@ -40,9 +44,12 @@ type Phase = "form" | "sending" | "thanks" | "already";
 export function ResultFeedbackSheet({
   scanId,
   language,
+  emit,
 }: {
   scanId: string;
   language: Locale;
+  /** The results page's emitter (real pages only); it adds the page fields. */
+  emit?: ResultsEmit;
 }) {
   const copy = resultFeedbackCopy(language);
   const qn = questionnaireCopy(language);
@@ -55,6 +62,7 @@ export function ResultFeedbackSheet({
   const [scrollMovedPx, setScrollMovedPx] = useState(0);
   const [sheetHeight, setSheetHeight] = useState(0);
   const sheetRef = useRef<HTMLElement>(null);
+  const shownSent = useRef(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [opened, setOpened] = useState(false);
   const [phase, setPhase] = useState<Phase>("form");
@@ -115,7 +123,14 @@ export function ResultFeedbackSheet({
   });
   // Once shown it stays until closed.
   useEffect(() => {
-    if (show) setOpened(true);
+    if (!show) return;
+    setOpened(true);
+    if (shownSent.current) return;
+    shownSent.current = true;
+    const event = shownEvent(scrolledToEnd);
+    emit?.(event.name, event.props);
+    // `scrolledToEnd` is read at the moment the sheet first shows.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show]);
 
   const visible = opened && !localDone;
@@ -141,6 +156,13 @@ export function ResultFeedbackSheet({
     setLocalDone(true);
   };
 
+  // 「稍後再說」 and Escape: "dismissed" only while nothing was sent.
+  const dismiss = () => {
+    if (phase === "sending") return;
+    if (dismissedEventDue(phase)) emit?.("result_feedback_dismissed", {});
+    close();
+  };
+
   const submit = async () => {
     if (phase === "sending") return;
     const built = buildSubmission({ stars, comment, locale: language });
@@ -153,6 +175,11 @@ export function ResultFeedbackSheet({
     const result = await sendFeedback(scanId, built.body);
     if (result.ok) {
       markFeedbackDone(scanId);
+      const event = submittedEvent({
+        stars: built.body.stars,
+        comment: built.body.comment,
+      });
+      emit?.(event.name, event.props);
       setPhase("thanks");
       return;
     }
@@ -204,7 +231,7 @@ export function ResultFeedbackSheet({
           className="results-feedback"
           aria-label={copy.title}
           onKeyDown={(event) => {
-            if (event.key === "Escape") close();
+            if (event.key === "Escape") dismiss();
           }}
         >
           {phase === "thanks" || phase === "already" ? (
@@ -294,7 +321,7 @@ export function ResultFeedbackSheet({
                 <button
                   type="button"
                   className="results-feedback-link"
-                  onClick={close}
+                  onClick={dismiss}
                   disabled={phase === "sending"}
                 >
                   {copy.dismiss}
