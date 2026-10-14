@@ -7,8 +7,10 @@ import {
   HANDLE_FOLLOW_MAX_PX,
   handleOffset,
   isDrag,
+  isJitteryTap,
   OPEN_DRAG_PX,
   opensFromDrag,
+  TAP_MAX_TRAVEL_PX,
   TAP_SLOP_PX,
 } from "../../src/lib/scan/sheetGesture";
 
@@ -18,6 +20,31 @@ describe("the manual-entry sheet gestures", () => {
     expect(isDrag(TAP_SLOP_PX, 0)).toBe(false);
     expect(isDrag(0, TAP_SLOP_PX + 1)).toBe(true);
     expect(isDrag(6, 6)).toBe(true);
+  });
+
+  it("counts a wobbly press as a tap: it stayed within the travel limit and barely went down", () => {
+    expect(isJitteryTap(0, 0)).toBe(true);
+    expect(isJitteryTap(10, 0)).toBe(true); // sideways
+    expect(isJitteryTap(12, 0)).toBe(true); // up only: never below the start
+    expect(isJitteryTap(Math.hypot(16, 16), 0)).toBe(true); // diagonal up, ~22.6
+    expect(isJitteryTap(TAP_MAX_TRAVEL_PX, 0)).toBe(true);
+    expect(isJitteryTap(TAP_MAX_TRAVEL_PX, TAP_SLOP_PX)).toBe(true);
+  });
+
+  it("rejects a press that got too far from the start at any point", () => {
+    expect(isJitteryTap(TAP_MAX_TRAVEL_PX + 0.01, 0)).toBe(false);
+    expect(isJitteryTap(Math.hypot(18, 16), 0)).toBe(false); // ~24.08
+    expect(isJitteryTap(Math.hypot(20, 20), 0)).toBe(false);
+    // Far sideways, only a little down: the total still decides.
+    expect(isJitteryTap(Math.hypot(24, 8), TAP_SLOP_PX)).toBe(false);
+  });
+
+  it("never counts a drag downward as a tap, even one that came back", () => {
+    expect(isJitteryTap(TAP_SLOP_PX, TAP_SLOP_PX)).toBe(true);
+    expect(isJitteryTap(TAP_SLOP_PX + 1, TAP_SLOP_PX + 1)).toBe(false);
+    expect(isJitteryTap(12, 12)).toBe(false);
+    // Down 20 px and back to where it started: farthest 20, down 20.
+    expect(isJitteryTap(20, 20)).toBe(false);
   });
 
   it("opens when the handle is dragged up far enough, however slowly", () => {
