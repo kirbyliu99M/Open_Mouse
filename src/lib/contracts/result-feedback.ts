@@ -16,8 +16,20 @@
  *     `HAND_TYPE_WIDTHS`, the same display-only classes the results page
  *     shows), the grip the engine used, how the scan was calibrated, the
  *     palm thickness the person stated, and the engine's first three mice with
- *     their fit band. The ranking is the engine's own, before any filter the
- *     page had on.
+ *     their fit band.
+ *   - How the snapshot is computed, so it does not depend on what the page
+ *     last asked for: the server runs the current default engine on the
+ *     scan's stored measurements with EMPTY preferences (`{}`: the same result
+ *     an empty fit request gets), at the moment of the POST. It does NOT read
+ *     `fit_results`, which every fit request overwrites with whatever
+ *     preferences (grip override, weight, vertical mice) that request carried.
+ *     So `grip` is the grip the engine used for `{}` (the stated grip, else
+ *     the predicted one), `palmThicknessStated` is the scan's own column, the
+ *     ranking is before any filter or preference the page had on, the band is
+ *     `bandOf` (src/lib/fit/bands.ts) of each mouse's total score, and the
+ *     hand type is what the fit response's `handType` would say (null when
+ *     that response has none). A first-three mouse with no band (`bandOf`
+ *     gives null) is a 500, not a guess: a ranked mouse always has a total.
  *   - Never kept: photos, a millimetre value, a hand-length or palm-width bin,
  *     names, email. Without a measurement, nothing here needs the survey's
  *     consent tick; the page shows a notice above the button instead
@@ -38,7 +50,13 @@
  *     the inactive-account purge. Deleting one scan does not remove it (there
  *     is no link to follow).
  *   - Anonymous feedback is tied to nothing; it cannot be taken back, and the
- *     notice says so before the button.
+ *     notice says so before the button. Signing in later and claiming the
+ *     scan does not change that: the row keeps a null user id.
+ *   - There is no route that withdraws one rating (no `DELETE`): the page must
+ *     not offer one. `withdrawable: true` means "Delete everything" removes it.
+ *   - The "Delete this scan" dialog and the account page's delete text must
+ *     not promise that deleting a scan removes its feedback. Their wording is
+ *     revisited together with the survey's (survey.ts says the same).
  *
  * Manual-entry scans can be rated: the calibration method in the snapshot is
  * what lets them be told apart (the survey refuses them for another reason,
