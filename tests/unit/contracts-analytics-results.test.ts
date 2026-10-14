@@ -63,11 +63,28 @@ describe("results-page events (2026-10-13)", () => {
       ["share_finished", { ...PAGE, position: "top", outcome: "cancelled" }],
       ["survey_reminder_clicked", { ...PAGE, unanswered: true }],
       ["rescan_clicked", PAGE],
+      ["result_feedback_shown", { ...PAGE, trigger: "dwell" }],
+      ["result_feedback_submitted", { ...PAGE, stars: 5, commented: true }],
+      ["result_feedback_dismissed", PAGE],
       ["status_rescan_clicked", { state: "deleted" }],
     ];
     for (const [name, props] of ok) {
       expect(s[name].safeParse(props).success, name).toBe(true);
     }
+  });
+
+  it("refuses result feedback with no stars, stars past 5, or a comment", () => {
+    const r = s.result_feedback_submitted;
+    expect(r.safeParse({ ...PAGE, commented: false }).success).toBe(false);
+    expect(r.safeParse({ ...PAGE, stars: 6, commented: false }).success).toBe(
+      false,
+    );
+    expect(
+      r.safeParse({ ...PAGE, stars: 3, commented: true, comment: "x" }).success,
+    ).toBe(false);
+    expect(
+      s.result_feedback_shown.safeParse({ ...PAGE, trigger: "load" }).success,
+    ).toBe(false);
   });
 
   it("refuses a page field or an unknown state on the no-result rescan", () => {
