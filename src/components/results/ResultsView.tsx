@@ -461,7 +461,8 @@ export function ResultsView({
       </div>
 
       {/* The feedback sheet: the main page of a real scan only (the demo has
-          no scan id). It waits for the end of the list, or 20 s. */}
+          no scan id). It waits for the end of the list, or 45 s of the tab
+          being visible after a real scroll (see resultFeedback.ts). */}
       {isMain && scanId && (
         <ResultFeedbackSheet
           key={scanId}

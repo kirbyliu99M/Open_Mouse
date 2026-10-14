@@ -1,45 +1,50 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type HTMLAttributes,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import type { Locale } from "@/lib/contracts/locale";
-import {
-  RESULT_FEEDBACK_MAX_STARS,
-  RESULT_FEEDBACK_MIN_STARS,
-} from "@/lib/contracts/result-feedback";
-import { MAX_FEEDBACK_CHARS } from "@/lib/contracts/survey";
 import type { ResultsEmit } from "@/lib/results/analyticsEvents";
-import { questionnaireCopy } from "@/lib/copy/questionnaire";
-import { resultFeedbackCopy } from "@/lib/copy/result-feedback";
 import {
-  RESULT_FEEDBACK_DWELL_MS,
+  RESULT_FEEDBACK_AUTOCLOSE_MS,
+  RESULT_FEEDBACK_TICK_MS,
+  addVisibleTime,
   buildSubmission,
-  reachedEnd,
+  canPageScroll,
+  dismissedEventDue,
+  dragClosesSheet,
   fetchAnswered,
   markFeedbackDone,
+  reachedEnd,
   readFeedbackDone,
   sendFeedback,
+  shouldShowSheet,
   shownEvent,
   submittedEvent,
-  dismissedEventDue,
-  shouldShowSheet,
   type SendFailure,
+  type SheetPhase,
 } from "@/lib/results/resultFeedback";
-
-const STARS = Array.from(
-  { length: RESULT_FEEDBACK_MAX_STARS - RESULT_FEEDBACK_MIN_STARS + 1 },
-  (_, i) => i + RESULT_FEEDBACK_MIN_STARS,
-);
-
-type Phase = "form" | "sending" | "thanks" | "already";
+import { ResultFeedbackPanel } from "./ResultFeedbackPanel";
+import { resultFeedbackCopy } from "@/lib/copy/result-feedback";
 
 /**
- * The feedback sheet of the results page (Kirby, 2026-10-14): a bottom sheet
- * that does not block the page (no backdrop, no focus trap) and is announced
- * politely. It appears when the end of the list has scrolled into view or the
- * person has been on the page `RESULT_FEEDBACK_DWELL_MS`, whichever comes
- * first, and only if `GET` says the scan was not rated and this device has not
- * closed it. The rules are in `src/lib/results/resultFeedback.ts`. Renders an
- * invisible marker for the end of the list; mount it after the last block.
+ * The feedback sheet of the results page (v2, Kirby 2026-10-15): a bottom
+ * sheet on a phone and a floating card on a desktop that does not block the
+ * page (no backdrop, no focus trap) and is announced politely. It appears when
+ * the end of the list has been scrolled into view, or after
+ * `RESULT_FEEDBACK_DWELL_MS` of the tab being visible once the person has
+ * scrolled (or the page cannot scroll), and only if `GET` says the scan was
+ * not rated and this device has not closed it. The rules are in
+ * `src/lib/results/resultFeedback.ts`; what is drawn is in
+ * `ResultFeedbackPanel`. Closing (X, Esc, or pulling the handle down) means
+ * this device is not asked again for this scan. Renders an invisible marker
+ * for the end of the list; mount it after the last block.
  */
 export function ResultFeedbackSheet({
   scanId,
@@ -52,23 +57,25 @@ export function ResultFeedbackSheet({
   emit?: ResultsEmit;
 }) {
   const copy = resultFeedbackCopy(language);
-  const qn = questionnaireCopy(language);
-  const uid = useId();
   const markerRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const shownSent = useRef(false);
 
   const [answered, setAnswered] = useState<boolean | null>(null);
   const [localDone, setLocalDone] = useState(false);
   const [markerInView, setMarkerInView] = useState(false);
   const [scrollMovedPx, setScrollMovedPx] = useState(0);
-  const [sheetHeight, setSheetHeight] = useState(0);
-  const sheetRef = useRef<HTMLElement>(null);
-  const shownSent = useRef(false);
-  const [elapsedMs, setElapsedMs] = useState(0);
+  const [hasScrolled, setHasScrolled] = useState(false);
+  // Until it is measured the page is assumed to scroll, so the timer waits.
+  const [canScroll, setCanScroll] = useState(true);
+  const [visibleMs, setVisibleMs] = useState(0);
+  const [spacerHeight, setSpacerHeight] = useState(0);
   const [opened, setOpened] = useState(false);
-  const [phase, setPhase] = useState<Phase>("form");
+  const [phase, setPhase] = useState<SheetPhase>("form");
   const [stars, setStars] = useState<number | null>(null);
   const [comment, setComment] = useState("");
-  const [commentOpen, setCommentOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const [failure, setFailure] = useState<SendFailure | null>(null);
 
   // This device's memory and the server's status, asked once.
@@ -84,14 +91,31 @@ export function ResultFeedbackSheet({
     return () => controller.abort();
   }, [scanId]);
 
-  // The dwell time.
+  // The visible-time clock: a tick counts only while the tab is visible, and
+  // each tick re-measures whether the page can scroll (the list may load late).
+  const clockRunning = !opened && !localDone;
   useEffect(() => {
-    const timer = window.setTimeout(
-      () => setElapsedMs(RESULT_FEEDBACK_DWELL_MS),
-      RESULT_FEEDBACK_DWELL_MS,
-    );
-    return () => window.clearTimeout(timer);
-  }, []);
+    if (!clockRunning) return;
+    const measure = () =>
+      setCanScroll(
+        canPageScroll({
+          scrollHeight: document.documentElement.scrollHeight,
+          viewportHeight: window.innerHeight,
+        }),
+      );
+    measure();
+    const timer = window.setInterval(() => {
+      setVisibleMs((ms) =>
+        addVisibleTime(
+          ms,
+          RESULT_FEEDBACK_TICK_MS,
+          document.visibilityState === "visible",
+        ),
+      );
+      measure();
+    }, RESULT_FEEDBACK_TICK_MS);
+    return () => window.clearInterval(timer);
+  }, [clockRunning]);
 
   // The end of the list in view, and whether the person really scrolled (the
   // marker already in view on load does not count).
@@ -107,8 +131,12 @@ export function ResultFeedbackSheet({
   }, []);
   useEffect(() => {
     const startY = window.scrollY;
-    const onScroll = () =>
-      setScrollMovedPx(Math.max(0, Math.abs(window.scrollY - startY)));
+    const onScroll = () => {
+      const moved = Math.max(0, Math.abs(window.scrollY - startY));
+      setScrollMovedPx(moved);
+      // Sticky: scrolling back to where it started is still a scroll.
+      if (moved > 0) setHasScrolled(true);
+    };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
@@ -118,7 +146,9 @@ export function ResultFeedbackSheet({
     answered,
     dismissedLocally: localDone,
     scrolledToEnd,
-    elapsedMs,
+    visibleElapsedMs: visibleMs,
+    hasScrolled,
+    canScroll,
     isDemo: false,
   });
   // Once shown it stays until closed.
@@ -139,24 +169,51 @@ export function ResultFeedbackSheet({
   useEffect(() => {
     const sheet = sheetRef.current;
     if (!visible || !sheet) {
-      setSheetHeight(0);
+      setSpacerHeight(0);
       return;
     }
-    const measure = () => setSheetHeight(sheet.offsetHeight);
+    const measure = () => setSpacerHeight(sheet.offsetHeight);
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(measure);
     observer.observe(sheet);
     return () => observer.disconnect();
-  }, [visible, phase, commentOpen, failure]);
+  }, [visible]);
 
-  const close = () => {
-    if (phase === "sending") return;
+  // The data note opens in place: bring it into view in the scrolling panel.
+  useEffect(() => {
+    if (!notesOpen) return;
+    const section = sectionRef.current;
+    const notes = section?.querySelector<HTMLElement>(
+      ".results-feedback-notes",
+    );
+    if (!notes) return;
+    const reduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    notes.scrollIntoView({
+      block: "nearest",
+      behavior: reduced ? "auto" : "smooth",
+    });
+  }, [notesOpen]);
+
+  /** After the sheet goes away, focus must not fall to the body. */
+  const rescueFocus = useCallback(() => {
+    const section = sectionRef.current;
+    if (!section || !section.contains(document.activeElement)) return;
+    const main = document.querySelector<HTMLElement>("main");
+    if (!main) return;
+    if (!main.hasAttribute("tabindex")) main.setAttribute("tabindex", "-1");
+    main.focus({ preventScroll: true });
+  }, []);
+
+  const close = useCallback(() => {
+    rescueFocus();
     markFeedbackDone(scanId);
     setLocalDone(true);
-  };
+  }, [scanId, rescueFocus]);
 
-  // 「稍後再說」 and Escape: "dismissed" only while nothing was sent.
+  // The X, Esc and the handle: "dismissed" only while nothing was sent.
   const dismiss = () => {
     if (phase === "sending") return;
     if (dismissedEventDue(phase)) emit?.("result_feedback_dismissed", {});
@@ -192,18 +249,64 @@ export function ResultFeedbackSheet({
     setPhase("form");
   };
 
-  const failureText =
-    failure === null
-      ? null
-      : failure === "rate_limited"
-        ? qn.rateLimited
-        : failure === "invalid_feedback"
-          ? qn.sendFeedbackInvalid
-          : failure === "invalid_comment"
-            ? copy.commentChars
-            : failure === "invalid"
-              ? qn.sendInvalid
-              : qn.sendNetwork;
+  // Thanks closes itself. If the focus was in the form that just went away,
+  // keep it inside the sheet (on the X) rather than dropping it to the body.
+  useEffect(() => {
+    if (phase !== "thanks") return;
+    const section = sectionRef.current;
+    if (section && document.activeElement === document.body) {
+      // The submit button was removed with the form.
+      section
+        .querySelector<HTMLElement>(".results-feedback-close")
+        ?.focus({ preventScroll: true });
+    }
+    const timer = window.setTimeout(close, RESULT_FEEDBACK_AUTOCLOSE_MS);
+    return () => window.clearTimeout(timer);
+  }, [phase, close]);
+
+  // The handle: pull down more than 64 px and let go to close. A phone only
+  // (the handle is hidden on a desktop). With reduced motion the sheet does not
+  // follow the finger; the pull is judged when it is released.
+  const drag = useRef<{ id: number; startY: number; dy: number } | null>(null);
+  const resetSheet = () => {
+    const sheet = sheetRef.current;
+    if (sheet) {
+      sheet.style.transition = "";
+      sheet.style.transform = "";
+    }
+  };
+  const handleHandlers: HTMLAttributes<HTMLDivElement> = {
+    onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (phase === "sending") return;
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      drag.current = { id: event.pointerId, startY: event.clientY, dy: 0 };
+      const sheet = sheetRef.current;
+      if (sheet) sheet.style.transition = "none";
+    },
+    onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => {
+      const current = drag.current;
+      if (!current || current.id !== event.pointerId) return;
+      current.dy = Math.max(0, event.clientY - current.startY);
+      const reduced = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      const sheet = sheetRef.current;
+      if (sheet && !reduced)
+        sheet.style.transform = `translateY(${current.dy}px)`;
+    },
+    onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => {
+      const current = drag.current;
+      if (!current || current.id !== event.pointerId) return;
+      drag.current = null;
+      if (dragClosesSheet(current.dy)) dismiss();
+      else resetSheet();
+    },
+    onPointerCancel: () => {
+      drag.current = null;
+      resetSheet();
+    },
+  };
 
   const announcement = !visible
     ? ""
@@ -224,120 +327,35 @@ export function ResultFeedbackSheet({
       <p className="results-srOnly" role="status" aria-live="polite">
         {announcement}
       </p>
-      {visible && <div aria-hidden="true" style={{ height: sheetHeight }} />}
       {visible && (
-        <section
-          ref={sheetRef}
-          className="results-feedback"
-          aria-label={copy.title}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") dismiss();
+        <div
+          aria-hidden="true"
+          className="results-feedback-spacer"
+          style={{ "--feedback-h": `${spacerHeight}px` } as CSSProperties}
+        />
+      )}
+      {visible && (
+        <ResultFeedbackPanel
+          language={language}
+          phase={phase}
+          stars={stars}
+          comment={comment}
+          notesOpen={notesOpen}
+          failure={failure}
+          sectionRef={sectionRef}
+          sheetRef={sheetRef}
+          handleHandlers={handleHandlers}
+          onStars={(n) => {
+            setStars(n);
+            // A new star starts over: the last failure was about the old one.
+            setFailure(null);
           }}
-        >
-          {phase === "thanks" || phase === "already" ? (
-            <div className="results-feedback-body">
-              <p className="results-feedback-title">
-                {phase === "thanks" ? copy.done : copy.already}
-              </p>
-              <button
-                type="button"
-                className="results-feedback-primary"
-                onClick={close}
-              >
-                {copy.close}
-              </button>
-            </div>
-          ) : (
-            <div className="results-feedback-body">
-              <p className="results-feedback-title">{copy.title}</p>
-              <fieldset
-                className="results-feedback-stars"
-                disabled={phase === "sending"}
-              >
-                <legend className="results-srOnly">{copy.starsGroup}</legend>
-                <div className="results-feedback-starRow" role="radiogroup">
-                  {STARS.map((n) => (
-                    <span key={n} className="results-feedback-star">
-                      <input
-                        type="radio"
-                        name={`${uid}-stars`}
-                        id={`${uid}-star-${n}`}
-                        value={n}
-                        checked={stars === n}
-                        aria-label={copy.starName(n)}
-                        onChange={() => setStars(n)}
-                      />
-                      <label
-                        htmlFor={`${uid}-star-${n}`}
-                        data-filled={
-                          stars !== null && n <= stars ? "true" : undefined
-                        }
-                        aria-hidden="true"
-                      >
-                        ★
-                      </label>
-                    </span>
-                  ))}
-                </div>
-                <p className="results-feedback-ends" aria-hidden="true">
-                  <span>{copy.lowLabel}</span>
-                  <span>{copy.highLabel}</span>
-                </p>
-              </fieldset>
-
-              {commentOpen ? (
-                <div className="results-feedback-comment">
-                  <textarea
-                    aria-label={copy.commentLabel}
-                    value={comment}
-                    rows={3}
-                    maxLength={MAX_FEEDBACK_CHARS}
-                    placeholder={copy.placeholder}
-                    aria-describedby={`${uid}-count`}
-                    disabled={phase === "sending"}
-                    onChange={(event) => setComment(event.target.value)}
-                  />
-                  <span id={`${uid}-count`} className="results-feedback-count">
-                    {qn.commentCount(comment.length, MAX_FEEDBACK_CHARS)}
-                  </span>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  className="results-feedback-link"
-                  onClick={() => setCommentOpen(true)}
-                >
-                  {copy.more}
-                </button>
-              )}
-
-              <p className="results-feedback-notice">{copy.notice}</p>
-              {failureText && (
-                <p className="results-feedback-error" role="alert">
-                  {failureText}
-                </p>
-              )}
-              <div className="results-feedback-actions">
-                <button
-                  type="button"
-                  className="results-feedback-link"
-                  onClick={dismiss}
-                  disabled={phase === "sending"}
-                >
-                  {copy.dismiss}
-                </button>
-                <button
-                  type="button"
-                  className="results-feedback-primary"
-                  disabled={stars === null || phase === "sending"}
-                  onClick={() => void submit()}
-                >
-                  {phase === "sending" ? copy.sending : copy.send}
-                </button>
-              </div>
-            </div>
-          )}
-        </section>
+          onComment={setComment}
+          onToggleNotes={() => setNotesOpen((open) => !open)}
+          onSubmit={() => void submit()}
+          onClose={dismiss}
+          onEscape={dismiss}
+        />
       )}
     </>
   );

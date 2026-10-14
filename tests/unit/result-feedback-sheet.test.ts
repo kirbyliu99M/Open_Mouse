@@ -1,41 +1,95 @@
 import { describe, expect, it } from "vitest";
 import { RESULT_FEEDBACK_NOTICE_VERSION } from "@/lib/contracts/result-feedback";
 import {
+  RESULT_FEEDBACK_AUTOCLOSE_MS,
+  RESULT_FEEDBACK_DRAG_CLOSE_PX,
   RESULT_FEEDBACK_DWELL_MS,
+  RESULT_FEEDBACK_TICK_MS,
+  addVisibleTime,
   buildSubmission,
+  canPageScroll,
+  commentVisible,
+  dismissedEventDue,
+  dragClosesSheet,
   failureFromStatus,
   fetchAnswered,
   markFeedbackDone,
+  primaryLabel,
   reachedEnd,
-  shownEvent,
-  submittedEvent,
-  dismissedEventDue,
   readFeedbackDone,
   sendFeedback,
   shouldShowSheet,
+  showSubmit,
+  shownEvent,
+  submittedEvent,
 } from "@/lib/results/resultFeedback";
 
+// A page that can scroll, that the person has not scrolled, in a visible tab.
 const base = {
   answered: false,
   dismissedLocally: false,
   scrolledToEnd: false,
-  elapsedMs: 0,
+  visibleElapsedMs: 0,
+  hasScrolled: false,
+  canScroll: true,
   isDemo: false,
 };
+
+describe("the constants", () => {
+  it("keep the v2 timing", () => {
+    expect(RESULT_FEEDBACK_DWELL_MS).toBe(45_000);
+    expect(RESULT_FEEDBACK_AUTOCLOSE_MS).toBe(3_000);
+    expect(RESULT_FEEDBACK_DRAG_CLOSE_PX).toBe(64);
+    expect(RESULT_FEEDBACK_TICK_MS).toBeGreaterThan(0);
+  });
+});
 
 describe("shouldShowSheet", () => {
   it("stays away on load", () => {
     expect(shouldShowSheet(base)).toBe(false);
   });
-  it("shows at the end of the list", () => {
+  it("shows at once when the end of the list was scrolled to", () => {
     expect(shouldShowSheet({ ...base, scrolledToEnd: true })).toBe(true);
   });
-  it("shows after the dwell time, not before", () => {
+  it("does not show on 45 s alone when the page can scroll and was not scrolled", () => {
     expect(
-      shouldShowSheet({ ...base, elapsedMs: RESULT_FEEDBACK_DWELL_MS - 1 }),
+      shouldShowSheet({ ...base, visibleElapsedMs: RESULT_FEEDBACK_DWELL_MS }),
     ).toBe(false);
     expect(
-      shouldShowSheet({ ...base, elapsedMs: RESULT_FEEDBACK_DWELL_MS }),
+      shouldShowSheet({
+        ...base,
+        visibleElapsedMs: 10 * RESULT_FEEDBACK_DWELL_MS,
+      }),
+    ).toBe(false);
+  });
+  it("shows after the visible dwell once the person has scrolled, not before", () => {
+    const scrolled = { ...base, hasScrolled: true };
+    expect(
+      shouldShowSheet({
+        ...scrolled,
+        visibleElapsedMs: RESULT_FEEDBACK_DWELL_MS - 1,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowSheet({
+        ...scrolled,
+        visibleElapsedMs: RESULT_FEEDBACK_DWELL_MS,
+      }),
+    ).toBe(true);
+  });
+  it("shows after the dwell when the page cannot scroll at all", () => {
+    const short = { ...base, canScroll: false };
+    expect(
+      shouldShowSheet({
+        ...short,
+        visibleElapsedMs: RESULT_FEEDBACK_DWELL_MS - 1,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowSheet({
+        ...short,
+        visibleElapsedMs: RESULT_FEEDBACK_DWELL_MS,
+      }),
     ).toBe(true);
   });
   it("never shows when answered, unknown, dismissed or in the demo", () => {
@@ -44,6 +98,91 @@ describe("shouldShowSheet", () => {
     expect(shouldShowSheet({ ...ready, answered: null })).toBe(false);
     expect(shouldShowSheet({ ...ready, dismissedLocally: true })).toBe(false);
     expect(shouldShowSheet({ ...ready, isDemo: true })).toBe(false);
+    const dwelled = {
+      ...base,
+      hasScrolled: true,
+      visibleElapsedMs: RESULT_FEEDBACK_DWELL_MS,
+    };
+    expect(shouldShowSheet(dwelled)).toBe(true);
+    expect(shouldShowSheet({ ...dwelled, answered: null })).toBe(false);
+    expect(shouldShowSheet({ ...dwelled, answered: true })).toBe(false);
+    expect(shouldShowSheet({ ...dwelled, dismissedLocally: true })).toBe(false);
+    expect(shouldShowSheet({ ...dwelled, isDemo: true })).toBe(false);
+  });
+});
+
+describe("the visible-time clock", () => {
+  it("adds a tick while the tab is visible", () => {
+    expect(addVisibleTime(0, RESULT_FEEDBACK_TICK_MS, true)).toBe(
+      RESULT_FEEDBACK_TICK_MS,
+    );
+  });
+  it("adds nothing while the tab is in the background", () => {
+    let ms = 0;
+    for (let i = 0; i < 600; i += 1) {
+      ms = addVisibleTime(ms, RESULT_FEEDBACK_TICK_MS, false);
+    }
+    expect(ms).toBe(0);
+  });
+  it("only the visible ticks count toward the 45 s", () => {
+    let ms = 0;
+    // 30 s visible, 5 minutes hidden, then 14 s visible: 44 s in all.
+    for (let i = 0; i < 30; i += 1) ms = addVisibleTime(ms, 1000, true);
+    for (let i = 0; i < 300; i += 1) ms = addVisibleTime(ms, 1000, false);
+    for (let i = 0; i < 14; i += 1) ms = addVisibleTime(ms, 1000, true);
+    expect(ms).toBe(44_000);
+    expect(
+      shouldShowSheet({ ...base, hasScrolled: true, visibleElapsedMs: ms }),
+    ).toBe(false);
+    ms = addVisibleTime(ms, 1000, true);
+    expect(
+      shouldShowSheet({ ...base, hasScrolled: true, visibleElapsedMs: ms }),
+    ).toBe(true);
+  });
+  it("ignores a bad step", () => {
+    expect(addVisibleTime(5, -1, true)).toBe(5);
+    expect(addVisibleTime(5, Number.NaN, true)).toBe(5);
+    expect(addVisibleTime(5, 0, true)).toBe(5);
+  });
+});
+
+describe("canPageScroll", () => {
+  it("is true only when the content is taller than the window", () => {
+    expect(canPageScroll({ scrollHeight: 2400, viewportHeight: 844 })).toBe(
+      true,
+    );
+    expect(canPageScroll({ scrollHeight: 844, viewportHeight: 844 })).toBe(
+      false,
+    );
+    // A one-pixel rounding difference is not a scrollable page.
+    expect(canPageScroll({ scrollHeight: 845, viewportHeight: 844 })).toBe(
+      false,
+    );
+  });
+});
+
+describe("dragClosesSheet", () => {
+  it("closes only past 64 px downward", () => {
+    expect(dragClosesSheet(64)).toBe(false);
+    expect(dragClosesSheet(65)).toBe(true);
+    expect(dragClosesSheet(0)).toBe(false);
+    expect(dragClosesSheet(-200)).toBe(false);
+  });
+});
+
+describe("what the sheet shows", () => {
+  it("draws no submit button and no comment box before a star is chosen", () => {
+    expect(showSubmit(null)).toBe(false);
+    expect(commentVisible(null)).toBe(false);
+    expect(showSubmit(1)).toBe(true);
+    expect(commentVisible(5)).toBe(true);
+  });
+  it("names the primary button by phase and failure", () => {
+    expect(primaryLabel("form", null)).toBe("send");
+    expect(primaryLabel("sending", null)).toBe("sending");
+    expect(primaryLabel("sending", "network")).toBe("sending");
+    expect(primaryLabel("form", "network")).toBe("retry");
+    expect(primaryLabel("form", "rate_limited")).toBe("retry");
   });
 });
 

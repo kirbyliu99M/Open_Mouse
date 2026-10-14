@@ -20,8 +20,22 @@ import type { Locale } from "@/lib/contracts/locale";
 import { looksLikeContactDetails } from "@/lib/learning/session";
 import { browserStorage, type FlagStorage } from "./surveyReminder";
 
-/** How long the person has been on the page before the sheet may show. */
-export const RESULT_FEEDBACK_DWELL_MS = 20_000;
+/**
+ * The fallback timer (v2, Kirby 2026-10-15): the sheet used to appear after 20
+ * s on the page, which covered people who were still reading. It is now 45 s
+ * of the tab being VISIBLE (a tab in the background does not count), and only
+ * once the person has scrolled for real, or the page cannot scroll at all.
+ */
+export const RESULT_FEEDBACK_DWELL_MS = 45_000;
+
+/** How often the visible-time clock ticks. */
+export const RESULT_FEEDBACK_TICK_MS = 1_000;
+
+/** The thanks panel closes by itself after this long. */
+export const RESULT_FEEDBACK_AUTOCLOSE_MS = 3_000;
+
+/** A downward drag of the handle longer than this (px) closes the sheet. */
+export const RESULT_FEEDBACK_DRAG_CLOSE_PX = 64;
 
 const STORAGE_PREFIX = "palmate.resultFeedback.";
 
@@ -38,24 +52,84 @@ export function reachedEnd(input: {
   return input.markerInView && input.scrollMovedPx > 0;
 }
 
+/**
+ * Add one tick to the visible-time clock. A tick that lands while the tab is
+ * hidden adds nothing, and a negative or non-finite step is ignored.
+ */
+export function addVisibleTime(
+  visibleMs: number,
+  stepMs: number,
+  tabVisible: boolean,
+): number {
+  if (!tabVisible || !Number.isFinite(stepMs) || stepMs <= 0) return visibleMs;
+  return visibleMs + stepMs;
+}
+
+/** Can the page scroll at all? (Its content is taller than the window.) */
+export function canPageScroll(input: {
+  scrollHeight: number;
+  viewportHeight: number;
+}): boolean {
+  return input.scrollHeight > input.viewportHeight + 1;
+}
+
+/** Does a handle drag of `dyPx` (positive is downward) close the sheet? */
+export function dragClosesSheet(dyPx: number): boolean {
+  return dyPx > RESULT_FEEDBACK_DRAG_CLOSE_PX;
+}
+
 export interface ShowSheetInput {
   /** `GET` said this scan was rated; `null` while unknown or when the call failed. */
   answered: boolean | null;
   dismissedLocally: boolean;
   scrolledToEnd: boolean;
-  elapsedMs: number;
+  /** Milliseconds the tab has been visible on this page. */
+  visibleElapsedMs: number;
+  /** The person has scrolled at least once (a real scroll event). */
+  hasScrolled: boolean;
+  /** The page is taller than the window, so scrolling is possible. */
+  canScroll: boolean;
   isDemo: boolean;
 }
 
 /**
  * Show the sheet when the status is known to be "not answered", it was not
  * closed on this device, it is not the demo, and either the end of the list
- * has been reached or the dwell time has passed.
+ * has been scrolled to, or the visible dwell time has passed AND the person
+ * has scrolled (or the page cannot scroll, so there is nothing to scroll to).
  */
 export function shouldShowSheet(input: ShowSheetInput): boolean {
   if (input.isDemo || input.dismissedLocally) return false;
   if (input.answered !== false) return false;
-  return input.scrolledToEnd || input.elapsedMs >= RESULT_FEEDBACK_DWELL_MS;
+  if (input.scrolledToEnd) return true;
+  const engaged = input.hasScrolled || !input.canScroll;
+  return engaged && input.visibleElapsedMs >= RESULT_FEEDBACK_DWELL_MS;
+}
+
+export type SheetPhase = "form" | "sending" | "thanks" | "already";
+
+export type PrimaryLabel = "send" | "sending" | "retry";
+
+/** The submit button is not drawn until a star is chosen. */
+export function showSubmit(stars: number | null): boolean {
+  return stars !== null;
+}
+
+/** Which word the primary button carries. */
+export function primaryLabel(
+  phase: SheetPhase,
+  failure: SendFailure | null,
+): PrimaryLabel {
+  if (phase === "sending") return "sending";
+  return failure === null ? "send" : "retry";
+}
+
+/**
+ * The comment box shows once a star is chosen, and stays (changing the star
+ * later does not fold it away).
+ */
+export function commentVisible(stars: number | null): boolean {
+  return stars !== null;
 }
 
 export type BuildResult =
@@ -250,8 +324,6 @@ export function submittedEvent(input: { stars: number; comment?: string }) {
 }
 
 /** `result_feedback_dismissed` is sent only while the form is open (not after thanks or 409). */
-export function dismissedEventDue(
-  phase: "form" | "sending" | "thanks" | "already",
-): boolean {
+export function dismissedEventDue(phase: SheetPhase): boolean {
   return phase === "form";
 }

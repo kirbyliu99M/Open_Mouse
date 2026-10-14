@@ -1,14 +1,18 @@
 /**
- * Words of the feedback sheet on the results page (Kirby, 2026-10-14): one to
- * five stars and an optional comment about whether the ranking feels right.
- * Every zh-TW string is a CANDIDATE (未拍板) until Kirby has read it.
+ * Words of the feedback sheet on the results page: one to five stars and an
+ * optional comment about whether the ranking feels right. This is the v2 sheet
+ * (Kirby, 2026-10-15; Pencil frames A to E). Every zh-TW string is a CANDIDATE
+ * (未拍板) until Kirby has read it.
  *
- * The notice (`notice`) goes with `RESULT_FEEDBACK_NOTICE_VERSION` in
- * `src/lib/contracts/result-feedback.ts`: when either changes, bump the
- * version and change the text together, as `questionnaire.ts` does for its
- * consent text. The failure lines (rate limited, network, invalid, contact
- * details in the comment) are the questionnaire's own, read from there so the
- * two never say different things.
+ * The data note (`keptBody`, `notKeptBody`, `withdrawBody`) goes with
+ * `RESULT_FEEDBACK_NOTICE_VERSION` in `src/lib/contracts/result-feedback.ts`:
+ * v2 of this text is `result-feedback-notice-v2-draft`. When either changes,
+ * bump the version and change the text together, as `questionnaire.ts` does
+ * for its consent text. v1 was one long paragraph; v2 adds "the palm thickness
+ * you stated" (the contract stores it) and splits the note into three rows.
+ * The failure lines for rate limited, invalid and contact details in the
+ * comment are the questionnaire's own, read from there so the two never say
+ * different things; `sendFailed` (network and anything else) is this sheet's.
  *
  * Numbers (the star, the counter) are passed in by the component, never
  * written here (hard rule 2).
@@ -25,19 +29,33 @@ export interface ResultFeedbackCopy {
   starName: (n: number) => string;
   /** The accessible name of the group of stars. */
   starsGroup: string;
-  more: string;
-  placeholder: string;
-  /** The accessible name of the comment box. */
+  /** The link that opens the data note. */
+  dataLink: string;
+  /** The floating label of the comment box (also its accessible name). */
   commentLabel: string;
-  notice: string;
+  /** The helper text under the comment box. */
+  helper: string;
+  /** `used / max`, both passed in. */
+  count: (used: number, max: number) => string;
   send: string;
   sending: string;
-  dismiss: string;
+  retry: string;
+  /** Network, or anything the questionnaire has no line for. */
+  sendFailed: string;
   done: string;
-  close: string;
+  /** The label of the confirm button after "already sent". */
+  ok: string;
+  /** The accessible name of the X: it also says what closing means. */
+  closeLabel: string;
   already: string;
   /** The comment holds characters that cannot be sent (not contact details). */
   commentChars: string;
+  keptTitle: string;
+  keptBody: string;
+  notKeptTitle: string;
+  notKeptBody: string;
+  withdrawTitle: string;
+  withdrawBody: string;
 }
 
 export const zhTW: ResultFeedbackCopy = {
@@ -46,40 +64,58 @@ export const zhTW: ResultFeedbackCopy = {
   highLabel: "非常符合",
   starName: (n) => `${n} 星，共 5 星`,
   starsGroup: "給這次推薦的星等",
-  more: "想多說一點（選填）",
-  placeholder: "例如哪一支排得太前面或太後面。請不要填寫聯絡方式。",
-  commentLabel: "你的意見",
-  notice:
-    "會保存：星等、你選填的意見，以及這次結果的概略資訊：手型大小分類、握法、量測方式和推薦的前三名。不會保存：照片與確切的手部尺寸。意見只有站方看得到，不會公開。沒有登入時送出的回饋，之後無法找回，也就無法撤回；登入後送出的回饋，可以在刪除帳號資料時一併撤回。",
+  dataLink: "資料如何使用",
+  commentLabel: "想多說一點（選填）",
+  helper: "例如哪一支排得太前面或太後面。請勿填寫聯絡方式。",
+  count: (used, max) => `${used} / ${max}`,
   send: "送出",
   sending: "送出中…",
-  dismiss: "稍後再說",
+  retry: "再試一次",
+  sendFailed: "送出失敗，請確認網路後再試一次。",
   done: "謝謝你的回饋",
-  close: "完成",
+  ok: "完成",
+  closeLabel: "關閉（這次結果不再詢問）",
   already: "這次的結果已經送出過回饋。",
   commentChars: "意見裡有無法送出的字元，請刪掉後再試一次。",
+  keptTitle: "會保存",
+  keptBody:
+    "星等、你選填的意見、手型分類、握法、量測方式、你自述的手掌厚度，以及推薦的前三名與配合度等級。",
+  notKeptTitle: "不保存",
+  notKeptBody: "照片、確切的手部尺寸、姓名與 Email。",
+  withdrawTitle: "撤回",
+  withdrawBody:
+    "登入後送出的回饋，可在刪除帳號資料時一併撤回；未登入送出的回饋無法找回，也無法撤回。",
 };
 
 export const en: ResultFeedbackCopy = {
-  title: "Does this match how mice feel in your hand?",
+  title: "Do these picks feel right for your hand?",
   lowLabel: "Not at all",
   highLabel: "Spot on",
   starName: (n) => `${n} of 5 stars`,
   starsGroup: "Stars for this recommendation",
-  more: "Tell us more (optional)",
-  placeholder:
-    "For example, a mouse ranked too high or too low. Please don't write contact details.",
-  commentLabel: "Your comment",
-  notice:
-    "Kept: your stars, the comment if you write one, and a rough outline of this result: your hand's size class, grip, how it was measured and the top three picks. Not kept: photos or exact hand measurements. Only the maintainers can see the comment, and it is never public. Feedback sent without signing in can't be found again, so it can't be taken back. Feedback sent while signed in can be taken back when you delete your account data.",
-  send: "Send",
-  sending: "Sending…",
-  dismiss: "Not now",
-  done: "Thanks for the feedback",
-  close: "Done",
+  dataLink: "How your data is used",
+  commentLabel: "Tell us more (optional)",
+  helper:
+    "For example, which mouse ranked too high or too low. Please don't add contact details.",
+  count: (used, max) => `${used} / ${max}`,
+  send: "Submit",
+  sending: "Submitting…",
+  retry: "Try again",
+  sendFailed: "Couldn't send. Check your connection and try again.",
+  done: "Thanks for your feedback",
+  ok: "Done",
+  closeLabel: "Close (we won't ask again for this result)",
   already: "You've already sent feedback on this result.",
   commentChars:
     "The comment has characters that can't be sent. Please remove them and try again.",
+  keptTitle: "Kept",
+  keptBody:
+    "Your stars, your optional comment, your hand-type class, grip, how the scan was measured, the palm thickness you stated, and the top three picks with their fit level.",
+  notKeptTitle: "Not kept",
+  notKeptBody: "Photos, exact hand measurements, names and email.",
+  withdrawTitle: "Withdrawing",
+  withdrawBody:
+    "Feedback sent while signed in can be withdrawn when you delete your account data. Feedback sent while signed out can't be found again, so it can't be withdrawn.",
 };
 
 /** The table for a locale. */
