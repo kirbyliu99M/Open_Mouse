@@ -343,6 +343,28 @@ test.describe("feedback sheet v2: a phone", () => {
     await expect(sheet(page)).toHaveCount(0);
   });
 
+  test("a real touch pull on the handle closes it (and does not scroll the page)", async ({
+    page,
+  }) => {
+    await stubScan(page);
+    await openSheet(page);
+    const scrollBefore = await page.evaluate(() => window.scrollY);
+    const h = (await page.locator(".results-feedback-handle").boundingBox())!;
+    const x = h.x + h.width / 2;
+    const y = h.y + h.height / 2;
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type: string, dy: number) =>
+      cdp.send("Input.dispatchTouchEvent", {
+        type,
+        touchPoints: type === "touchEnd" ? [] : [{ x, y: y + dy }],
+      });
+    await touch("touchStart", 0);
+    for (let dy = 15; dy <= 90; dy += 15) await touch("touchMove", dy);
+    await touch("touchEnd", 90);
+    await expect(sheet(page)).toHaveCount(0);
+    expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
+  });
+
   test("reduced motion: the sheet does not follow the pull, and the pull still closes it", async ({
     page,
   }) => {

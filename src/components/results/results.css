@@ -1797,7 +1797,9 @@
   width: 7.5rem;
   height: 1.75rem;
   transform: translateX(-50%);
-  touch-action: none;
+  /* The browser keeps only a sideways pan here, so a vertical pull reaches
+     the pointer events instead of scrolling the page. */
+  touch-action: pan-x;
   cursor: grab;
 }
 .results-feedback-handle span {
