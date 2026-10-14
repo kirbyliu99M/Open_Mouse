@@ -63,7 +63,7 @@ const aWrite = (over: Partial<FeedbackWrite> = {}): FeedbackWrite => ({
   snapshot: {
     engineVersion: "fit-v1-candidate.3",
     handSize: "medium",
-    handWidth: "regular",
+    handWidth: "slim",
     grip: "claw",
     calibrationMethod: "printed-sheet",
     palmThicknessStated: null,
