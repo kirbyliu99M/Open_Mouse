@@ -48,6 +48,18 @@ export const SIMILAR_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 export const SIMILAR_RATE_LIMIT_MAX = 60;
 
 /**
+ * `POST /api/scans/{scanId}/feedback` (key prefix `result-feedback:`): a
+ * person rates a scan once, so ten in ten minutes is room for a household
+ * behind one address and caps a script. `GET` has a larger budget of its own
+ * (`result-feedback-read:`, the similar route's number): the page asks once
+ * per results view. Candidates (未拍板), like every number here.
+ */
+export const RESULT_FEEDBACK_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+export const RESULT_FEEDBACK_RATE_LIMIT_MAX = 10;
+export const RESULT_FEEDBACK_READ_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+export const RESULT_FEEDBACK_READ_RATE_LIMIT_MAX = 60;
+
+/**
  * Structurally identical to `../analysis/handler.ts`'s `RateLimiter` —
  * duplicated here (rather than imported) so `scans`/`fit` don't take a
  * dependency on the `analysis` domain for a one-method interface; anything
