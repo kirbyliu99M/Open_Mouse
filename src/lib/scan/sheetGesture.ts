@@ -7,6 +7,12 @@
 /** Movement under this is a tap, not a drag (px). */
 export const TAP_SLOP_PX = 8;
 
+/**
+ * A finger tap wobbles: a press that moved past `TAP_SLOP_PX` but whose whole
+ * travel stayed within this (px) still counts as a tap when it ends (candidate).
+ */
+export const TAP_MAX_TRAVEL_PX = 24;
+
 /** Dragging the closed handle up by this much opens the sheet (px). */
 export const OPEN_DRAG_PX = 36;
 /** ...or by at least this much, fast enough (px, px per ms). */
@@ -25,6 +31,16 @@ export const HANDLE_FOLLOW_MAX_PX = 48;
 /** A pointer moved more than a tap allows, in any direction. */
 export function isDrag(dx: number, dy: number): boolean {
   return Math.hypot(dx, dy) > TAP_SLOP_PX;
+}
+
+/**
+ * A press that ended as a jittery tap: total travel at most
+ * `TAP_MAX_TRAVEL_PX` and downward travel at most `TAP_SLOP_PX`, so sideways
+ * and upward wobble open the sheet but a drag downward never does. `dx`, `dy`
+ * are the end position minus the start (`dy` positive is downward).
+ */
+export function isJitteryTap(dx: number, dy: number): boolean {
+  return Math.hypot(dx, dy) <= TAP_MAX_TRAVEL_PX && dy <= TAP_SLOP_PX;
 }
 
 /**

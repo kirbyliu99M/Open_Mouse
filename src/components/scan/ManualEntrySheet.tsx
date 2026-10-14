@@ -17,6 +17,7 @@ import {
   createClickGuard,
   handleOffset,
   isDrag,
+  isJitteryTap,
   opensFromDrag,
 } from "@/lib/scan/sheetGesture";
 import type { ManualEntryDraft } from "@/lib/scan/manualEntry";
@@ -145,7 +146,8 @@ export function ManualEntryHandle({
     if (
       !cancelled &&
       p.moved &&
-      opensFromDrag(p.startY - e.clientY, e.timeStamp - p.startT)
+      (opensFromDrag(p.startY - e.clientY, e.timeStamp - p.startT) ||
+        isJitteryTap(e.clientX - p.startX, e.clientY - p.startY))
     ) {
       onOpen();
     }

@@ -160,6 +160,86 @@ test.describe("phone: the handle, the sheet, the grip and thickness pages", () =
     await expect(entrySheet(page)).toBeVisible();
   }
 
+  /**
+   * A real finger on the handle, through CDP touch events (a tap that wobbles):
+   * touch down on the handle's centre, move by each step in turn, lift. Counts
+   * how many times a dialog is opened (showModal), to catch a second open.
+   */
+  async function touchGesture(page: Page, steps: { dx: number; dy: number }[]) {
+    await page.addInitScript(() => {
+      const w = window as unknown as { __dialogAdds: number };
+      w.__dialogAdds = 0;
+      const original = HTMLDialogElement.prototype.showModal;
+      HTMLDialogElement.prototype.showModal = function () {
+        w.__dialogAdds++;
+        return original.call(this);
+      };
+    });
+    await page.goto("/scan/easy");
+    await page.getByRole("button", { name: "Got it" }).click();
+    await expect(handle(page)).toBeVisible();
+    const box = await handle(page).boundingBox();
+    if (!box) throw new Error("the handle has no box");
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    const cdp = await page.context().newCDPSession(page);
+    const at = (dx: number, dy: number) => [{ x: x + dx, y: y + dy }];
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: at(0, 0),
+    });
+    for (const s of steps)
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: at(s.dx, s.dy),
+      });
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+  }
+  const dialogAdds = (page: Page) =>
+    page.evaluate(
+      () => (window as unknown as { __dialogAdds: number }).__dialogAdds,
+    );
+
+  test("a tap with 10 px of sideways jitter opens the sheet, once", async ({
+    page,
+  }) => {
+    await touchGesture(page, [
+      { dx: 4, dy: 0 },
+      { dx: 10, dy: 0 },
+    ]);
+    await expect(entrySheet(page)).toBeVisible();
+    // Give a second (wrongly doubled) open time to show up.
+    await page.waitForTimeout(600);
+    await expect(entrySheet(page)).toBeVisible();
+    expect(await dialogAdds(page)).toBe(1);
+  });
+
+  test("a tap with 12 px of upward jitter opens the sheet, once", async ({
+    page,
+  }) => {
+    await touchGesture(page, [
+      { dx: 0, dy: -6 },
+      { dx: 0, dy: -12 },
+    ]);
+    await expect(entrySheet(page)).toBeVisible();
+    await page.waitForTimeout(600);
+    await expect(entrySheet(page)).toBeVisible();
+    expect(await dialogAdds(page)).toBe(1);
+  });
+
+  test("a 12 px downward wiggle does not open the sheet", async ({ page }) => {
+    await touchGesture(page, [
+      { dx: 0, dy: 6 },
+      { dx: 0, dy: 12 },
+    ]);
+    await page.waitForTimeout(600);
+    await expect(entrySheet(page)).toHaveCount(0);
+    expect(await dialogAdds(page)).toBe(0);
+  });
+
   test("handle -> sheet -> grip with no Skip -> thickness skipped -> the POST is exactly the manual-entry shape", async ({
     page,
   }) => {
