@@ -184,10 +184,11 @@ test.describe("typed hand length and width", () => {
     const x = box.x + box.width / 2;
     const y = box.y + box.height / 2;
 
-    // Too short: it springs back and nothing opens.
+    // Too long for a wobbly tap (TAP_MAX_TRAVEL_PX), too short and slow to
+    // open as a drag: it springs back and nothing opens.
     await page.mouse.move(x, y);
     await page.mouse.down();
-    await page.mouse.move(x, y - 12, { steps: 4 });
+    await page.mouse.move(x, y - 30, { steps: 4 });
     await page.mouse.up();
     await expect(sheet(page)).toHaveCount(0);
 

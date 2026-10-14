@@ -163,7 +163,8 @@ test.describe("phone: the handle, the sheet, the grip and thickness pages", () =
   /**
    * A real finger on the handle, through CDP touch events (a tap that wobbles):
    * touch down on the handle's centre, move by each step in turn, lift. Counts
-   * how many times a dialog is opened (showModal), to catch a second open.
+   * how many times the entry sheet is opened (showModal), to catch a second
+   * open.
    */
   async function touchGesture(page: Page, steps: { dx: number; dy: number }[]) {
     await page.addInitScript(() => {
@@ -171,7 +172,8 @@ test.describe("phone: the handle, the sheet, the grip and thickness pages", () =
       w.__dialogAdds = 0;
       const original = HTMLDialogElement.prototype.showModal;
       HTMLDialogElement.prototype.showModal = function () {
-        w.__dialogAdds++;
+        // Only the entry sheet: the first-run tip is a modal dialog too.
+        if (this.dataset.testid === "manual-entry-sheet") w.__dialogAdds++;
         return original.call(this);
       };
     });
