@@ -12,6 +12,9 @@ const config = [
       "test-results/**",
       "next-env.d.ts",
       ".vercel/**",
+      // Agent git worktrees (each a full checkout of another branch, with its
+      // own node_modules); linting them lints other branches.
+      ".claude/**",
       // Vendored, unmodified third-party build output (WASM loader glue) —
       // see public/mediapipe/README for provenance. Not app code.
       "public/mediapipe/**",
