@@ -42,10 +42,11 @@ export type OfficialUrlKind = (typeof OFFICIAL_URL_KINDS)[number];
 
 /**
  * The links of ONE mouse (2026-10-11, candidate): the maker's own page and up to
- * four partner shops. Served as a static JSON file per mouse,
- * `GET /api/mice/<slug>/links`, built at deploy time from
- * `src/data/mouse-media.json` and `src/data/purchase-links.json`, so the CDN
- * answers it and no function runs (the results response stays small). The page
+ * four partner shops. Served by one function,
+ * `GET /api/mice/<slug>/links`, built from `src/data/mouse-media.json` and
+ * `src/data/purchase-links.json`, and kept by the CDN for a day per mouse (a
+ * route per slug would put 408 function outputs in every deployment: see the
+ * route). The results response stays small. The page
  * needs it only for the one mouse its big header shows. Never ranked or scored
  * by, and never part of the analysis input.
  */
