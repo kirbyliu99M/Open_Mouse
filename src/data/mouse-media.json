@@ -520,9 +520,9 @@
     "image": "/images/mice/fantech-tanto-s.webp"
   },
   "fantech-yari-e": {
-    "officialUrl": "https://fantechworld.com/products/yari-e-wg14e",
+    "officialUrl": "https://fantechworld.com/products/yari-pro-wg14p",
     "officialKind": "product",
-    "image": null
+    "image": "/images/mice/fantech-yari-e.webp"
   },
   "fantech-yari-pro": {
     "officialUrl": "https://fantechworld.com/products/yari-pro-wg14p",
@@ -1264,10 +1264,40 @@
     "officialKind": "product",
     "image": "/images/mice/logitech-g705.webp"
   },
+  "logitech-g903-hero": {
+    "officialUrl": "https://www.logitechg.com/en-us/shop/p/g903-hero-wireless-gaming-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-g903-hero.webp"
+  },
   "logitech-g903-lightspeed": {
     "officialUrl": "https://www.logitechg.com/en-us/shop/p/g903-hero-wireless-gaming-mouse",
     "officialKind": "product",
     "image": "/images/mice/logitech-g903-lightspeed.webp"
+  },
+  "logitech-mx-anywhere-3s": {
+    "officialUrl": "https://www.logitech.com/en-us/shop/p/mx-anywhere-3s",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-mx-anywhere-3s.webp"
+  },
+  "logitech-mx-ergo-s": {
+    "officialUrl": "https://www.logitech.com/en-us/shop/p/mx-ergo-s-wireless-trackball-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-mx-ergo-s.webp"
+  },
+  "logitech-mx-master-3s": {
+    "officialUrl": "https://www.logitech.com/en-us/shop/p/mx-master-3s",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-mx-master-3s.webp"
+  },
+  "logitech-mx-master-4": {
+    "officialUrl": "https://www.logitech.com/en-us/shop/p/mx-master-4",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-mx-master-4.webp"
+  },
+  "logitech-mx-vertical": {
+    "officialUrl": "https://www.logitech.com/en-us/shop/p/mx-vertical-ergonomic-mouse",
+    "officialKind": "product",
+    "image": "/images/mice/logitech-mx-vertical.webp"
   },
   "ninjutso-origin-one-x": {
     "officialUrl": "https://ninjutso.com/products/origin-one-x-wireless-ultra-light-weight-gaming-mouse",

@@ -11,6 +11,27 @@ import {
 } from "../../src/lib/results/mouseMedia";
 import bundled from "../../src/data/mouse-media.json";
 import catalogue from "../../src/db/seed/catalogue.json";
+import descriptors from "../../src/db/seed/logitech-descriptors.json";
+import facts from "../../src/db/seed/logitech-facts.json";
+import logitech from "../../src/db/seed/logitech.json";
+import type { CatalogueEntry } from "../../src/server/catalogue/candidate-map";
+import {
+  buildSeedRows,
+  type FactsFile,
+} from "../../src/server/catalogue/catalogue-rows";
+import type {
+  DescriptorRecord,
+  SpecRecord,
+} from "../../src/server/catalogue/seed-rows";
+
+const firstPartyAdditions = [
+  "logitech-g903-hero",
+  "logitech-mx-anywhere-3s",
+  "logitech-mx-ergo-s",
+  "logitech-mx-master-3s",
+  "logitech-mx-master-4",
+  "logitech-mx-vertical",
+];
 
 const VALID = {
   "logitech-g-pro-x-superlight-2": {
@@ -134,17 +155,45 @@ describe("the bundled mouse-media.json", () => {
   const entries = Object.entries(bundled);
   const slugs = catalogue.map((e) => e.slug);
 
-  it("is a valid file with one entry per catalogue mouse", () => {
-    expect(Object.keys(parseMouseMedia(bundled))).toHaveLength(406);
-    expect(entries).toHaveLength(406);
+  it("is a valid file with catalogue and photographed first-party mice", () => {
+    expect(Object.keys(parseMouseMedia(bundled))).toHaveLength(412);
+    expect(entries).toHaveLength(412);
     expect(slugs).toHaveLength(406);
   });
 
-  it("matches the catalogue slugs both ways", () => {
+  it("covers the catalogue and only the six first-party additions", () => {
     const media = new Set(Object.keys(bundled));
     const cat = new Set(slugs);
     expect(slugs.filter((s) => !media.has(s))).toEqual([]);
-    expect(Object.keys(bundled).filter((s) => !cat.has(s))).toEqual([]);
+    expect(
+      Object.keys(bundled)
+        .filter((s) => !cat.has(s))
+        .sort(),
+    ).toEqual(firstPartyAdditions);
+    for (const slug of firstPartyAdditions) {
+      expect(bundled[slug as keyof typeof bundled].image).toBe(
+        `/images/mice/${slug}.webp`,
+      );
+    }
+  });
+
+  it("gives every listed seed mouse except unresolved VUK Medium a photo", () => {
+    const media = bundled as Record<string, { image: string | null }>;
+    const built = buildSeedRows(
+      logitech as SpecRecord[],
+      descriptors as DescriptorRecord[],
+      {
+        entries: catalogue as CatalogueEntry[],
+        facts: facts as FactsFile,
+        imageExists: (slug) => media[slug]?.image != null,
+      },
+    );
+    const rows = [...built.withDescriptors, ...built.withoutDescriptors];
+    expect(
+      rows
+        .filter((row) => row.listed && row.imagePath === null)
+        .map((row) => row.slug),
+    ).toEqual(["g-wolves-vuk-medium"]);
   });
 
   it("has only https official links", () => {
@@ -154,10 +203,10 @@ describe("the bundled mouse-media.json", () => {
     expect(bad.map(([s]) => s)).toEqual([]);
   });
 
-  it("has 402 product links and 4 brand links", () => {
+  it("has 408 product links and 4 brand links", () => {
     const count = (k: string) =>
       entries.filter(([, v]) => v.officialKind === k).length;
-    expect(count("product")).toBe(402);
+    expect(count("product")).toBe(408);
     expect(count("brand")).toBe(4);
   });
 
@@ -184,13 +233,10 @@ describe("the bundled mouse-media.json", () => {
     expect(total).toBeLessThanOrEqual(10 * 1024 * 1024);
   });
 
-  it("has no photo for exactly the two mice whose maker lists none", () => {
+  it("keeps only VUK Medium without a verified photo", () => {
     const nulls = entries.filter(([, v]) => v.image === null);
-    expect(nulls.map(([slug]) => slug).sort()).toEqual([
-      "fantech-yari-e",
-      "g-wolves-vuk-medium",
-    ]);
-    expect(entries.length - nulls.length).toBe(404);
+    expect(nulls.map(([slug]) => slug)).toEqual(["g-wolves-vuk-medium"]);
+    expect(entries.length - nulls.length).toBe(411);
   });
 });
 
@@ -259,7 +305,7 @@ describe("the enlarged photos (public/images/mice/l)", () => {
   it("has a file for every non-null image and no other file", () => {
     expect(wanted.filter((f) => !have.includes(f))).toEqual([]);
     expect(have.filter((f) => !wanted.includes(f))).toEqual([]);
-    expect(have).toHaveLength(404);
+    expect(have).toHaveLength(411);
   });
 
   it("keeps each file at most 75 KB and the total at most 30 MB", () => {

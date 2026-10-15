@@ -7,10 +7,16 @@ enlarged `public/images/mice/l/<slug>.webp`) and the official-link data (`src/da
 
 - `mouse_official_urls.csv` with columns `brand, model, official_url, domain,
 url_type, image_prefix, image_count, hero_image` (one row per catalogue mouse,
-  joined to `src/db/seed/catalogue.json` on brand and model, case-insensitive).
+  plus any photographed first-party Logitech seed mice; joined on brand and
+  model, case-insensitive).
 - `Mice Pics/*.png`: 800x800 RGBA cut-outs from the makers' own sites.
 
 The originals and the CSV are not copied into the repo; `*.csv` is gitignored.
+`recovery-2026-10-15.json` records the manufacturer page and direct image URL
+for seven recovered photos, plus why VUK Medium still has no photo. The
+recovered 800x800 files are named `Recovered_<slug>.png` in `Mice Pics`; their
+fixed framing makes the shared crop output 555x480 and 1109x960, like the
+existing photos.
 
 ## Regenerate
 
@@ -18,11 +24,15 @@ The originals and the CSV are not copied into the repo; `*.csv` is gitignored.
 python tools/mouse-media/build_media.py \
   --pics "<path>/Mice Pics" --csv "<path>/mouse_official_urls.csv" \
   --catalogue src/db/seed/catalogue.json \
+  --logitech src/db/seed/logitech.json \
   --out-images public/images/mice --out-json src/data/mouse-media.json
 ```
 
-Needs Python 3 with Pillow. The script fails if a CSV row has no catalogue match
-or the reverse. Slow on purpose (WebP `method=6`): about seven minutes.
+Needs Python 3 with Pillow. The script requires a CSV row for every candidate
+catalogue mouse. With `--logitech`, it also accepts rows from the first-party
+Logitech seed; only photographed first-party rows need to be added to the CSV.
+It rejects unmatched CSV rows. Slow on purpose (WebP `method=6`): about seven
+minutes.
 
 Add `--out-large public/images/mice/l` to write the enlarged files in the same
 run, after the 480 px ones. To encode only the enlarged files (the 480 px files
@@ -30,7 +40,7 @@ and the JSON stay untouched; the same chosen image and crop window are used), ad
 `--only-large` as well:
 
 ```
-python tools/mouse-media/build_media.py   --pics "<path>/Mice Pics" --csv "<path>/mouse_official_urls.csv"   --catalogue src/db/seed/catalogue.json   --out-images public/images/mice --out-json src/data/mouse-media.json   --out-large public/images/mice/l --only-large
+python tools/mouse-media/build_media.py   --pics "<path>/Mice Pics" --csv "<path>/mouse_official_urls.csv"   --catalogue src/db/seed/catalogue.json --logitech src/db/seed/logitech.json   --out-images public/images/mice --out-json src/data/mouse-media.json   --out-large public/images/mice/l --only-large
 ```
 
 `--only-large` still needs `--out-images` and `--out-json` (they are required
