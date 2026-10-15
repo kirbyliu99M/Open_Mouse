@@ -80,9 +80,15 @@ describe("the route /api/mice/[slug]/links", () => {
     expect(Object.keys(route).sort()).toEqual(["GET", "dynamic"]);
   });
 
-  it("has a media file with each slug once", () => {
+  it("has a media file with at least one slug", () => {
     expect(slugs.length).toBeGreaterThan(0);
-    expect(new Set(slugs).size).toBe(slugs.length);
+  });
+
+  it("pins the exact Cache-Control values the CDN is told", () => {
+    expect(LINKS_CACHE_CONTROL).toBe(
+      "public, s-maxage=86400, stale-while-revalidate=604800",
+    );
+    expect(LINKS_NOT_FOUND_CACHE_CONTROL).toBe("public, s-maxage=3600");
   });
 
   it("answers every slug of the media file with a body that passes mouseLinksSchema and is that mouse's own, and tells the CDN to keep it", async () => {

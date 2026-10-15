@@ -11,7 +11,7 @@ import { parsePurchaseLinks } from "../../../../../lib/results/purchaseLinks";
 /**
  * `GET /api/mice/<slug>/links`: the official link and up to four purchase
  * links of one mouse (`mouseLinksSchema`). One function answers every slug,
- * and the CDN keeps each answer for a day (`CACHE_CONTROL`), so a mouse costs
+ * and the CDN keeps each answer for a day (`LINKS_CACHE_CONTROL`), so a mouse costs
  * about one function run a day. It is deliberately NOT `generateStaticParams`
  * over every slug: Vercel then lists one ~7 MB function output per mouse, 408
  * of them, 2.7 GB of every deployment's 10 GB Deployment Storage (measured

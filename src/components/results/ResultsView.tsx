@@ -126,7 +126,7 @@ export function ResultsView({
   const card = headerCard(view, rank);
   const entry = card?.entry ?? null;
   // The official link and the purchase links of the one mouse in the big
-  // header: a static file per mouse, asked for once (never on the fit
+  // header: one small cached response per mouse, asked for once (never on the fit
   // response, never for the small cards). `null` until it arrives, and for
   // good when there is none.
   const links = useMouseLinks(entry?.mouse.slug);

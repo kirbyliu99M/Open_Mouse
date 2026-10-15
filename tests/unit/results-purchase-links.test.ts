@@ -28,7 +28,7 @@ describe("the bundled purchase-links.json", () => {
     expect(parsePurchaseLinks(bundled)).toEqual(bundled);
   });
 
-  it("only names mice that are in mouse-media.json, so the static route has a page for every key", () => {
+  it("only names mice that are in mouse-media.json, so the route can answer for every key", () => {
     const known = new Set(Object.keys(mouseMedia));
     const unknown = Object.keys(bundled).filter((slug) => !known.has(slug));
     expect(unknown).toEqual([]);
