@@ -78,10 +78,50 @@ describe("the static route /api/mice/[slug]/links", () => {
     expect(dynamicParams).toBe(false);
   });
 
-  it("lists exactly the 406 slugs of the media file, each once", () => {
-    expect(params).toHaveLength(406);
-    expect(new Set(params.map((p) => p.slug)).size).toBe(406);
+  it("lists exactly the 412 slugs of the media file, each once", () => {
+    expect(params).toHaveLength(412);
+    expect(new Set(params.map((p) => p.slug)).size).toBe(412);
     expect(params.map((p) => p.slug).sort()).toEqual(Object.keys(media).sort());
+  });
+
+  it.each([
+    ["fantech-yari-e", "https://fantechworld.com/products/yari-pro-wg14p"],
+    [
+      "g-wolves-vuk-medium",
+      "https://shop.g-wolves.com/products/g-wolves-vuk-medium",
+    ],
+    [
+      "logitech-g903-hero",
+      "https://www.logitechg.com/en-us/shop/p/g903-hero-wireless-gaming-mouse",
+    ],
+    [
+      "logitech-mx-master-4",
+      "https://www.logitech.com/en-us/shop/p/mx-master-4",
+    ],
+    [
+      "logitech-mx-master-3s",
+      "https://www.logitech.com/en-us/shop/p/mx-master-3s",
+    ],
+    [
+      "logitech-mx-anywhere-3s",
+      "https://www.logitech.com/en-us/shop/p/mx-anywhere-3s",
+    ],
+    [
+      "logitech-mx-vertical",
+      "https://www.logitech.com/en-us/shop/p/mx-vertical-ergonomic-mouse",
+    ],
+    [
+      "logitech-mx-ergo-s",
+      "https://www.logitech.com/en-us/shop/p/mx-ergo-s-wireless-trackball-mouse",
+    ],
+  ])("serves the verified official product link for %s", async (slug, url) => {
+    const res = await GET(new Request("http://x/api/mice/x/links"), {
+      params: Promise.resolve({ slug }),
+    });
+    expect(res.status).toBe(200);
+    const links = mouseLinksSchema.parse(await res.json());
+    expect(links.officialUrl).toBe(url);
+    expect(links.officialKind).toBe("product");
   });
 
   it("answers every listed slug with a body that passes mouseLinksSchema and is that mouse's own", async () => {
