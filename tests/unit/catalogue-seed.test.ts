@@ -183,8 +183,8 @@ describe("the fit repo over the seeded table", () => {
     expect(m575.formFactor).toBe("trackball");
     expect(listedOnly(catalogue)).toHaveLength(N.listed);
     expect(
-      listedOnly(catalogue).filter((m) => m.formFactor === "trackball"),
-    ).toEqual([expect.objectContaining({ model: "MX Ergo S" })]);
+      listedOnly(catalogue).filter((m) => m.formFactor !== "standard"),
+    ).toEqual([]);
   });
 
   it("returns the connectivity column for every row (the results filter reads it from here)", async () => {
