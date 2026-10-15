@@ -7,7 +7,16 @@ describe("shellFamily: version words are removed", () => {
     ["M55 Wired", "M55 Wireless"],
     ["Viper V3 HyperSpeed", "Viper V3 Pro"],
     ["G502 X", "G502 X Lightspeed"],
-    ["Keychron M3 4K".replace("Keychron ", ""), "M3 8K"],
+    ["M3 4K", "M3 8K"],
+    ["ROG Chakram", "ROG Chakram Core"],
+    ["M3", "M3 Lite"],
+    ["HTS", "HTS Ultra 8K"],
+    ["XM1", "XM1 RGB"],
+    ["Ying", "Ying Magnesium"],
+    ["MAYA", "MAYA Champion Edition"],
+    ["Paro Reject", "Paro Reject Special Edition"],
+    ["Scimitar Elite Wireless", "Scimitar Elite Wireless SE"],
+    ["Alpha", "Alpha Carbon"],
     ["Model D 2 Pro 1K", "Model D 2 Pro 4K/8K"],
     ["Sabre v2 Pro CF", "Sabre v2 Pro MG"],
     ["OP1 8k", "OP1 8k Purple"],
@@ -24,6 +33,36 @@ describe("shellFamily: version words are removed", () => {
       shellFamily("pulsefire haste 2"),
     );
     expect(shellFamily("Susanto-X")).toBe("susanto x");
+  });
+});
+
+describe("shellFamily: every version word is pinned", () => {
+  // The same list as VERSION_WORDS: removing a word from the source fails its
+  // row here, and adding one means adding it here (the file header's rule).
+  const WORDS = [
+    "wired",
+    "wireless",
+    "hyperspeed",
+    "lightspeed",
+    "pro",
+    "core",
+    "se",
+    "lite",
+    "ultra",
+    "rgb",
+    "cf",
+    "mg",
+    "magnesium",
+    "aurora",
+    "purple",
+    "champion",
+    "special",
+    "edition",
+    "carbon",
+  ];
+  it.each(WORDS)("%s alone does not change the family", (word) => {
+    expect(shellFamily(`Alpha ${word}`)).toBe("alpha");
+    expect(shellFamily(`ALPHA ${word.toUpperCase()}`)).toBe("alpha");
   });
 });
 

@@ -292,3 +292,70 @@ describe("groupShells on the real seed (v0)", () => {
     expect(grouped.length + variantSlugs.size).toBe(scored.results.length);
   });
 });
+
+describe("groupShells on the real catalogue: the cases that motivated the family rule (candidate)", () => {
+  const rows = (catalogueJson as unknown as Record<string, unknown>[]).map(
+    (e) =>
+      ({
+        slug: e.slug,
+        brand: e.brand,
+        model: e.model,
+        lengthMm: e.lengthMm,
+        widthMm: e.widthMm,
+        heightMm: e.heightMm,
+        weightG: e.weightG ?? null,
+        size: "medium",
+        handCompatibility: e.handCompatibility ?? null,
+        shape: e.shape ?? null,
+        humpPlacement: e.humpPlacement ?? null,
+        frontFlare: e.frontFlare ?? null,
+        sideCurvature: e.sideCurvature ?? null,
+        thumbRest: e.thumbRest ?? null,
+        ringFingerRest: null,
+      }) as unknown as CatalogueMouse,
+  );
+  const out = groupShells(
+    rows.map((r, i) => entry(r, i + 1, 100 - i * 0.01)),
+    rows,
+  );
+  const cardOf = (slug: string) =>
+    out.find(
+      (e) => e.mouse.slug === slug || e.variants?.some((v) => v.slug === slug),
+    );
+
+  it("has every slug it relies on", () => {
+    for (const s of [
+      "steelseries-aerox-3",
+      "steelseries-aerox-3-wireless",
+      "steelseries-rival-3",
+      "steelseries-rival-3-wireless",
+      "corsair-m75",
+      "corsair-m75-wireless",
+    ]) {
+      expect(cardOf(s), s).toBeDefined();
+    }
+  });
+
+  it("Aerox 3 and Rival 3 have equal numbers but are two cards", () => {
+    const a = rows.find((r) => r.slug === "steelseries-aerox-3")!;
+    const b = rows.find((r) => r.slug === "steelseries-rival-3")!;
+    expect([a.lengthMm, a.widthMm, a.heightMm]).toEqual([
+      b.lengthMm,
+      b.widthMm,
+      b.heightMm,
+    ]);
+    expect(cardOf("steelseries-aerox-3")).not.toBe(
+      cardOf("steelseries-rival-3"),
+    );
+  });
+
+  it("the versions of one model share a card", () => {
+    expect(cardOf("steelseries-aerox-3")).toBe(
+      cardOf("steelseries-aerox-3-wireless"),
+    );
+    expect(cardOf("steelseries-rival-3")).toBe(
+      cardOf("steelseries-rival-3-wireless"),
+    );
+    expect(cardOf("corsair-m75")).toBe(cardOf("corsair-m75-wireless"));
+  });
+});
