@@ -1726,8 +1726,10 @@
   }
 }
 
-/* The feedback sheet (ResultFeedbackSheet): a bottom sheet that leaves the page
-   usable behind it. The marker is the end of the list the sheet waits for. */
+/* The feedback sheet (ResultFeedbackSheet, v2): a bottom sheet on a phone and a
+   floating card from 768 px, that leaves the page usable behind it. The marker
+   is the end of the list the sheet waits for. The sheet's fill is its own
+   token, not a change to the site's. */
 .results-feedback-marker {
   height: 1px;
 }
@@ -1742,38 +1744,120 @@
   white-space: nowrap;
   border: 0;
 }
+/* Room at the very bottom of the page, after the footer: the sheet's height
+   and its gap to the window edge, set by the component while it shows. */
+body {
+  padding-bottom: var(--feedback-room, 0px);
+}
 .results-feedback {
+  --feedback-sheet-bg: #121316;
+  --feedback-ease: cubic-bezier(0.2, 0, 0, 1);
   position: fixed;
   right: 0;
   bottom: 0;
   left: 0;
   z-index: 40;
-  display: flex;
-  justify-content: center;
-  padding: 0 0.75rem env(safe-area-inset-bottom);
   pointer-events: none;
 }
-.results-feedback-body {
+.results-feedback-sheet {
   pointer-events: auto;
-  width: 100%;
-  max-width: 32rem;
-  max-height: 60dvh;
-  overflow-y: auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
-  padding: 1rem 1.25rem 1.25rem;
-  border: 1px solid var(--hairline);
-  border-bottom: 0;
-  border-radius: 1.25rem 1.25rem 0 0;
-  background: var(--bg);
+  width: 100%;
+  max-height: 60dvh;
+  border-top: 1px solid var(--hairline);
+  border-radius: 24px 24px 0 0;
+  background: var(--feedback-sheet-bg);
   color: var(--text-primary);
-  box-shadow: 0 -8px 32px rgb(0 0 0 / 0.35);
+  box-shadow: 0 -8px 32px rgb(0 0 0 / 0.45);
+  animation: results-feedback-in 200ms var(--feedback-ease);
+  transition: transform 160ms var(--feedback-ease);
+}
+@keyframes results-feedback-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* The handle's grab area is wider and taller than the 36 x 4 bar. */
+.results-feedback-handle {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 7.5rem;
+  height: 1.75rem;
+  transform: translateX(-50%);
+  /* The browser keeps only a sideways pan here, so a vertical pull reaches
+     the pointer events instead of scrolling the page. */
+  touch-action: pan-x;
+  cursor: grab;
+}
+.results-feedback-handle span {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--text-tertiary);
+}
+.results-feedback-close {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.5rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.results-feedback-close[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: default;
+}
+.results-feedback-scroll {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2.75rem 1.25rem 0.5rem;
+}
+.results-feedback-scroll[data-finished="true"] {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+}
+.results-feedback-scroll > * {
+  width: 100%;
 }
 .results-feedback-title {
-  margin: 0 0 0.75rem;
-  font-size: 1.0625rem;
+  margin: 0 0 1rem;
+  padding: 0 1rem;
+  box-sizing: border-box;
+  text-align: center;
+  font-size: 1.25rem;
+  line-height: 1.35;
   font-weight: 600;
+  text-wrap: balance;
 }
 .results-feedback-stars {
+  width: 100%;
+  max-width: 296px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -1785,9 +1869,12 @@
 }
 .results-feedback-star {
   position: relative;
-  flex: 1 1 0;
   display: flex;
+  flex: 0 0 auto;
+  align-items: center;
   justify-content: center;
+  width: 56px;
+  height: 56px;
 }
 .results-feedback-star input {
   position: absolute;
@@ -1802,87 +1889,168 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  font-size: 2rem;
-  line-height: 1;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
   color: var(--text-tertiary);
   pointer-events: none;
 }
 .results-feedback-star label[data-filled="true"] {
-  color: var(--accent-text);
+  color: var(--text-primary);
 }
 .results-feedback-star input:focus-visible + label {
   outline: 2px solid var(--accent-text);
-  outline-offset: 2px;
-  border-radius: 0.5rem;
+  outline-offset: -2px;
 }
+/* Each end label sits centred under its star and may be wider than it. */
 .results-feedback-ends {
   display: flex;
   justify-content: space-between;
-  margin: 0.125rem 0 0;
+  margin: 0;
   font-size: 0.8125rem;
+  line-height: 1.3;
   color: var(--text-secondary);
 }
-.results-feedback-comment {
-  position: relative;
-  margin-top: 0.75rem;
+.results-feedback-ends span {
+  display: flex;
+  justify-content: center;
+  width: 56px;
+  white-space: nowrap;
 }
-.results-feedback-comment textarea {
+/* A region that opens in place: grid rows animate without a layout jump. */
+.results-feedback-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 140ms ease-in;
+}
+.results-feedback-collapse[data-open="true"] {
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 200ms ease-out;
+}
+.results-feedback-collapseInner {
+  min-height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity 140ms ease-in,
+    visibility 0s linear 140ms;
+}
+.results-feedback-collapse[data-open="true"] > .results-feedback-collapseInner {
+  visibility: visible;
+  opacity: 1;
+  transition:
+    opacity 200ms ease-out,
+    visibility 0s;
+}
+/* The comment box: an outlined field, its label sits on the top border. */
+.results-feedback-field {
+  position: relative;
+  margin-top: 1.25rem;
+}
+.results-feedback-field textarea {
   display: block;
   width: 100%;
   box-sizing: border-box;
-  min-height: 5.5rem;
-  padding: 0.75rem 1rem 1.75rem;
+  min-height: 6.5rem;
+  padding: 1rem 1rem 2rem;
   border: 1px solid var(--control-border);
   border-radius: 0.75rem;
   background: transparent;
   color: var(--text-primary);
   font: inherit;
-  resize: vertical;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
 }
-.results-feedback-comment textarea::placeholder {
+.results-feedback-field textarea:focus {
+  border-color: var(--accent-text);
+  box-shadow: 0 0 0 1px var(--accent-text);
+}
+.results-feedback-field label {
+  position: absolute;
+  top: -0.6rem;
+  left: 0.75rem;
+  padding: 0 0.25rem;
+  background: var(--feedback-sheet-bg);
   color: var(--text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  pointer-events: none;
+}
+.results-feedback-field:focus-within label {
+  color: var(--accent-text);
 }
 .results-feedback-count {
   position: absolute;
   right: 1rem;
-  bottom: 0.5rem;
+  bottom: 0.625rem;
   font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
   color: var(--text-secondary);
   pointer-events: none;
 }
-.results-feedback-notice {
-  margin: 0.75rem 0 0;
+.results-feedback-helper,
+.results-feedback-error {
+  margin: 0.5rem 0.25rem 0;
   font-size: 0.8125rem;
   line-height: 1.45;
   color: var(--text-secondary);
 }
 .results-feedback-error {
-  margin: 0.5rem 0 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
   font-size: 0.875rem;
   color: var(--text-primary);
 }
+.results-feedback-error svg {
+  flex: none;
+  margin-top: 0.125rem;
+}
+/* The link on its own in A; the link and the pill on one row in B. */
+/* The bottom row is outside the scrolling part, so the pill is always in view. */
 .results-feedback-actions {
   display: flex;
+  flex: none;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
+  gap: 0 0.75rem;
+  box-sizing: border-box;
+  padding: 0.25rem 1.25rem calc(0.75rem + env(safe-area-inset-bottom));
+}
+.results-feedback-actions[data-has-primary="true"] {
   justify-content: space-between;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
 }
 .results-feedback-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
   min-height: 44px;
-  padding: 0 0.25rem;
-  border: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
   background: none;
   color: var(--accent-text);
   font: inherit;
+  font-size: 0.875rem;
+  white-space: nowrap;
   cursor: pointer;
 }
+.results-feedback-chevron {
+  display: inline-flex;
+  transition: transform 200ms ease-out;
+}
+.results-feedback-link[aria-expanded="true"] .results-feedback-chevron {
+  transform: rotate(-90deg);
+}
 .results-feedback-primary {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
   min-height: 44px;
-  padding: 0 1.5rem;
+  padding: 0 1.25rem;
   border: 0;
   border-radius: 999px;
   background: var(--button-primary-bg);
@@ -1891,21 +2059,167 @@
   font-weight: 600;
   cursor: pointer;
 }
-.results-feedback-primary:active:not(:disabled) {
+/* All three words share one cell, so the pill keeps the widest one's width. */
+.results-feedback-actions .results-feedback-primary {
+  margin-left: auto;
+}
+.results-feedback-primaryLabel {
+  grid-area: 1 / 1;
+}
+.results-feedback-primaryLabel[data-active="false"] {
+  visibility: hidden;
+}
+.results-feedback-primary:active:not([aria-disabled="true"]) {
   background: var(--button-primary-pressed);
 }
-.results-feedback-primary:disabled {
-  opacity: 0.4;
+.results-feedback-primary[aria-disabled="true"] {
+  opacity: var(--button-primary-disabled-opacity, 0.5);
   cursor: default;
+}
+.results-feedback-notes {
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+.results-feedback-notes li {
+  padding: 1rem 0;
+  border-top: 1px solid var(--hairline);
+}
+.results-feedback-noteTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.results-feedback-noteBody {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+/* D: the thanks panel. */
+.results-feedback-thanks {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding-bottom: 0.5rem;
+}
+.results-feedback-thanks .results-feedback-title {
+  margin: 0;
+}
+.results-feedback-bigCheck {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #26272b;
+  color: var(--text-primary);
 }
 .results-feedback-link:focus-visible,
 .results-feedback-primary:focus-visible,
-.results-feedback-comment textarea:focus-visible {
+.results-feedback-close:focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 2px;
 }
+
+/* From 768 px: a floating card at the bottom right, no handle. */
+@media (min-width: 768px) {
+  .results-feedback {
+    right: 1.5rem;
+    bottom: 1.5rem;
+    left: auto;
+    width: 400px;
+  }
+  .results-feedback-sheet {
+    border: 1px solid var(--hairline);
+    border-radius: 20px;
+    box-shadow: 0 12px 40px rgb(0 0 0 / 0.5);
+  }
+  .results-feedback-handle {
+    display: none;
+  }
+  .results-feedback-scroll {
+    padding-top: 2.5rem;
+  }
+  .results-feedback-scroll[data-finished="true"] {
+    padding-bottom: 1.25rem;
+  }
+  .results-feedback-actions {
+    padding-bottom: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .results-feedback-sheet {
+    animation: none;
+    transition: none;
+  }
+  .results-feedback-collapse,
+  .results-feedback-collapse[data-open="true"],
+  .results-feedback-collapseInner,
+  .results-feedback-collapse[data-open="true"]
+    > .results-feedback-collapseInner,
+  .results-feedback-chevron {
+    transition: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .results-feedback-sheet {
+    border-color: var(--text-secondary);
+  }
+  .results-feedback-field textarea {
+    border-color: var(--text-primary);
+  }
+  .results-feedback-notes li {
+    border-color: var(--text-secondary);
+  }
+  .results-feedback-link {
+    border-color: currentColor;
+  }
+  .results-feedback-primary {
+    border: 1px solid var(--text-primary);
+  }
+  .results-feedback-bigCheck {
+    border: 1px solid currentColor;
+  }
+}
+
+/* Windows high contrast: author colours are replaced, so the focus of the
+   comment box (a border colour and a shadow) needs a real outline, and the
+   pill and the X need a border to be seen as controls. The stars differ in
+   shape (an outline against a solid fill), not only in colour. */
+@media (forced-colors: active) {
+  .results-feedback-field textarea:focus {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+  .results-feedback-link:focus-visible,
+  .results-feedback-primary:focus-visible,
+  .results-feedback-close:focus-visible,
+  .results-feedback-star input:focus-visible + label {
+    outline: 2px solid Highlight;
+  }
+  .results-feedback-primary,
+  .results-feedback-close {
+    border: 1px solid ButtonText;
+  }
+  .results-feedback-sheet {
+    border: 1px solid CanvasText;
+  }
+}
+
 @media print {
   .results-feedback {
     display: none;
+  }
+  body {
+    padding-bottom: 0;
   }
 }
