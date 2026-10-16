@@ -74,6 +74,21 @@ test.describe("/results/demo", () => {
     page.on("console", (msg) => {
       if (msg.type() === "error") errors.push(msg.text());
     });
+    // The fixtures use mouse slugs that are not all in the catalogue (the
+    // "With exclusions" one has pulsar-xlite-v3-mini), so the page's links
+    // prefetch can get a real 404, which the browser logs as a console error.
+    // This test is about the page's own errors, so the links route is stubbed.
+    await page.route("**/api/mice/*/links", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          officialUrl: "https://example.com/mouse",
+          officialKind: "product",
+          purchaseLinks: [],
+        }),
+      }),
+    );
 
     const response = await page.goto("/results/demo");
     expect(response?.status()).toBe(200);
