@@ -24,9 +24,14 @@ import {
   PAPER_SIZES_MM,
   type PaperSize,
 } from "../../lib/contracts/measurement";
-import { applyHomography, type Point2 } from "../geometry/homography";
+import {
+  applyHomography,
+  type Homography,
+  type Point2,
+} from "../geometry/homography";
 import { estimateFocalFromExif } from "../geometry/exif-focal";
 import { computeCorrectedHandMeasurements } from "../geometry/measurements";
+import { computeNominalFocalShadow } from "../geometry/nominalFocalShadow";
 import type { PaperEdgeCalibrationResult } from "../paper/calibration";
 import type { SheetQuadDetection } from "../paper/detect";
 import {
@@ -39,7 +44,7 @@ import { runPaperEdgeHandGates } from "./gates";
 import { resolvePipelineHand } from "./hand";
 import { assemblePaperEdgeSubmission } from "./submission";
 import type { DetectedMarker } from "./markers";
-import type { FocalDiagnostics } from "./diagnostics";
+import type { FocalDiagnostics, ShadowPriorDiagnostics } from "./diagnostics";
 import type { PipelineResult } from "./pipeline";
 
 export interface PaperEdgeFinishInput {
@@ -67,6 +72,14 @@ export interface PaperEdgeFinishInput {
   readonly crop: PixelRect | null;
   /** The photo file's bytes, read only once the gates have passed (for the EXIF focal length). */
   readonly readJpegBytes: () => Promise<Uint8Array | null>;
+  /**
+   * Shadow mode (candidate): work out what a nominal focal length would have
+   * changed, for the diagnostics only. Default true. `false` skips it; the
+   * result is the same either way (tests/unit/nominal-focal-shadow.test.ts).
+   */
+  readonly shadowPrior?: boolean;
+  /** Replaces the shadow computation; a seam for the test that it cannot change the result. */
+  readonly computeShadow?: typeof computeNominalFocalShadow;
 }
 
 export interface PaperEdgeFinish {
@@ -75,6 +88,39 @@ export interface PaperEdgeFinish {
   readonly parallaxCorrected: boolean | null;
   /** The focal length the correction used; `null` when the run ended before it. */
   readonly focal: FocalDiagnostics | null;
+  /** What the nominal focal prior would have changed; `null` unless the run ended in a measurement (or shadow mode is off). Not part of `result`. */
+  readonly shadowPrior: ShadowPriorDiagnostics | null;
+}
+
+/**
+ * The shadow hand-length delta for an ok scan. Wrapped so that nothing it does,
+ * a throw included, can reach the scan: the worst case is a `null` delta.
+ */
+function shadowPriorOf(
+  input: PaperEdgeFinishInput,
+  frames: ReturnType<typeof analysisFrames>,
+  homography: Homography,
+  reportedHandLengthMm: number,
+): ShadowPriorDiagnostics | null {
+  if (input.shadowPrior === false) return null;
+  const compute = input.computeShadow ?? computeNominalFocalShadow;
+  try {
+    const shadow = compute({
+      // Copies: whatever the shadow does to its input, the scan's own points stay as they are.
+      landmarksPx: input.hand.landmarksPx.map((p) => ({ x: p.x, y: p.y })),
+      homography,
+      focalFrame: frames.focalFrame,
+      principalFrame: frames.principalFrame,
+      reportedHandLengthMm,
+    });
+    const delta = shadow?.handLengthDeltaMm;
+    return {
+      handLengthDeltaMm:
+        typeof delta === "number" && Number.isFinite(delta) ? delta : null,
+    };
+  } catch {
+    return { handLengthDeltaMm: null };
+  }
 }
 
 /**
@@ -105,6 +151,7 @@ export async function finishPaperEdge(
       },
       parallaxCorrected: null,
       focal: null,
+      shadowPrior: null,
     };
   }
   const paperCornersFull = corners.map(toFull) as unknown as readonly [
@@ -162,6 +209,7 @@ export async function finishPaperEdge(
       result: { status: "error", errors: report.errors, overlay },
       parallaxCorrected: null,
       focal: null,
+      shadowPrior: null,
     };
   }
 
@@ -209,6 +257,7 @@ export async function finishPaperEdge(
       },
       parallaxCorrected: null,
       focal: null,
+      shadowPrior: null,
     };
   }
 
@@ -230,6 +279,7 @@ export async function finishPaperEdge(
       },
       parallaxCorrected: corrected.parallaxCorrected,
       focal,
+      shadowPrior: null,
     };
   }
   const submission = assemblePaperEdgeSubmission({
@@ -251,5 +301,13 @@ export async function finishPaperEdge(
     },
     parallaxCorrected: corrected.parallaxCorrected,
     focal,
+    // Beside the result, never in it: the measurements, the submission and the
+    // warnings above are already final.
+    shadowPrior: shadowPriorOf(
+      input,
+      frames,
+      geometry.homography,
+      corrected.measurements.handLengthMm,
+    ),
   };
 }

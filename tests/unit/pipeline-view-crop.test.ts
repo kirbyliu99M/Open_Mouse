@@ -50,6 +50,7 @@ import {
   type RunPhotoPipelineInput,
 } from "../../src/client/photo/pipeline";
 import { visibleRectInStream } from "../../src/client/camera/visibleView";
+import { computeQuadSkew } from "../../src/client/camera/quad";
 import { buildExifJpeg, TAG } from "./helpers/exif-jpeg";
 
 const DECODED = { width: 2250, height: 3000 };
@@ -434,5 +435,100 @@ describe("paper-edge pipeline with a previewView: the photo is cut to what was o
       model: "orientation-differs",
       modelApplies: false,
     });
+  });
+});
+
+describe("diagnostics: the sheet's skew and the shadow prior (candidate, 2026-10-16)", () => {
+  it("a measured photo carries the corner-angle deviation of its quad and a shadow delta, and the shadow does not touch the measurements", async () => {
+    arrange(null);
+    const result = ok(await run());
+    const [tl, tr, br, bl] = PAPER_FULL;
+    // The scene's sheet is an exact rectangle.
+    expect(result.diagnostics?.paper?.maxAngleDeviationDeg).toBeCloseTo(
+      computeQuadSkew({
+        topLeft: tl,
+        topRight: tr,
+        bottomRight: br,
+        bottomLeft: bl,
+      }).maxAngleDeviationDeg,
+      9,
+    );
+    expect(result.diagnostics?.paper?.maxAngleDeviationDeg).toBeCloseTo(0, 6);
+    expect(result.diagnostics?.shadowPrior).not.toBeNull();
+    expect(
+      Number.isFinite(result.diagnostics?.shadowPrior?.handLengthDeltaMm),
+    ).toBe(true);
+    // The measurements are the ones worked out from the maths alone (no shadow).
+    const right = reference({
+      focalFrame: DECODED,
+      principalFrame: DECODED,
+      corners: PAPER_FULL,
+      landmarks: HAND_FULL,
+    });
+    expect(result.measurements).toEqual(right.measurements);
+    expect(result.diagnostics?.measured.handLengthMm).toBe(
+      right.measurements.handLengthMm,
+    );
+  });
+
+  it("a skewed sheet reads as its largest corner-angle deviation", async () => {
+    arrange(null);
+    const skewed = [
+      PAPER_FULL[0],
+      PAPER_FULL[1],
+      { x: PAPER_FULL[2].x + 120, y: PAPER_FULL[2].y },
+      PAPER_FULL[3],
+    ] as const;
+    vi.mocked(detectPaperQuad).mockReturnValue({
+      corners: [...skewed] as never,
+      cornersSeen: 4,
+      cornersFound: [true, true, true, true],
+      partialCorners: [...skewed] as never,
+      minSideCoverage: 1,
+      edgeFitResidualPx: 0.3,
+      worstSideIndex: 0,
+      paperRegionFound: true,
+    });
+    const result = await run();
+    const expected = computeQuadSkew({
+      topLeft: skewed[0],
+      topRight: skewed[1],
+      bottomRight: skewed[2],
+      bottomLeft: skewed[3],
+    }).maxAngleDeviationDeg;
+    expect(expected).toBeGreaterThan(3);
+    expect(result.diagnostics?.paper?.maxAngleDeviationDeg).toBeCloseTo(
+      expected,
+      9,
+    );
+  });
+
+  it("a photo with the sheet but no hand still has its skew, and no shadow", async () => {
+    arrange(null);
+    vi.mocked(detectHandLandmarks).mockResolvedValue(null);
+    const result = await run();
+    expect(result.status).toBe("error");
+    expect(
+      Number.isFinite(result.diagnostics?.paper?.maxAngleDeviationDeg),
+    ).toBe(true);
+    expect(result.diagnostics?.shadowPrior).toBeNull();
+  });
+
+  it("a photo with no sheet has neither", async () => {
+    arrange(null);
+    vi.mocked(detectPaperQuad).mockReturnValue({
+      corners: null,
+      cornersSeen: 2,
+      cornersFound: [true, true, false, false],
+      partialCorners: [null, null, null, null] as never,
+      minSideCoverage: 0.4,
+      edgeFitResidualPx: 0,
+      worstSideIndex: 0,
+      paperRegionFound: true,
+    });
+    const result = await run();
+    expect(result.status).toBe("error");
+    expect(result.diagnostics?.paper?.maxAngleDeviationDeg).toBeNull();
+    expect(result.diagnostics?.shadowPrior).toBeNull();
   });
 });

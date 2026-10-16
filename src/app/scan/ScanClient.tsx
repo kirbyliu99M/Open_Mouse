@@ -25,7 +25,10 @@ import {
 } from "@/client/photo/landmarks";
 import { track } from "@/client/analytics/track";
 import { clampAttempt, issueCodes } from "@/client/analytics/props";
-import { buildScanQuality } from "@/client/analytics/scanQuality";
+import {
+  buildScanQuality,
+  rejectedPaperSkew,
+} from "@/client/analytics/scanQuality";
 import type { AttemptMethod } from "@/client/camera/attemptLog";
 import { detectDeviceFit } from "@/client/camera/deviceFit";
 import ScanSubmitPanel from "./ScanSubmitPanel";
@@ -628,11 +631,14 @@ export default function ScanClient({
           setManualCorners(defaultManualCorners(result.overlay));
           setState({ kind: "needsManualCard", overlay: result.overlay });
         } else {
+          // Only where the sheet's four corners were found (paper-edge mode).
+          const paperSkew = rejectedPaperSkew(result.diagnostics);
           reportOutcomeOnce(() =>
             track("scan_rejected", {
               flow: "sheet",
               attempt,
               codes: issueCodes(result.errors.map((e) => e.code)),
+              ...(paperSkew ? { paperSkew } : {}),
             }),
           );
           setState({

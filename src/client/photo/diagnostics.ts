@@ -6,6 +6,7 @@
  * error code alone does not say why (a sheet that fills 65 % of the photo and a
  * sheet that fills 90 % can both read "PAPER_CURLED").
  */
+import { computeQuadSkew } from "../camera/quad";
 import type { FrameSize, PixelRect } from "../camera/visibleView";
 
 export interface PaperDiagnostics {
@@ -23,6 +24,14 @@ export interface PaperDiagnostics {
   readonly heightFraction: number | null;
   /** The worst side's mean edge-fit distance in mm, the number `PAPER_CURLED` is decided on; `null` without four corners. */
   readonly edgeFitResidualMm: number | null;
+  /**
+   * The largest deviation of the sheet's four corners from a right angle in the
+   * photo, in degrees (`computeQuadSkew`), which is how straight on the shot
+   * was; `null` unless all four corners were found. Read only for the
+   * `paperSkew` bucket; no gate looks at it (the live auto-shutter has its own
+   * limit in camera/constants.ts).
+   */
+  readonly maxAngleDeviationDeg: number | null;
   /** The smallest fraction of any side that was seen, 0-1. */
   readonly minSideCoverage: number;
   /**
@@ -89,6 +98,21 @@ export interface PipelineDiagnostics {
   readonly measured: MeasuredDiagnostics;
   /** Where the parallax correction's focal length came from, and its value; `null` where the pipeline stopped before that. */
   readonly focal: FocalDiagnostics | null;
+  /**
+   * SHADOW MODE (2026-10-16, candidate): what a nominal focal length would have
+   * changed, worked out beside the real measurement and used by nothing in it;
+   * `null` where the run did not end in a measurement. Stays on the device (the
+   * attempt log, and the `priorEffect` bucket of `scan_quality`).
+   */
+  readonly shadowPrior: ShadowPriorDiagnostics | null;
+}
+
+export interface ShadowPriorDiagnostics {
+  /**
+   * The hand length with the nominal focal prior minus the one reported, in mm;
+   * `null` when the shadow could not be worked out (it never fails the scan).
+   */
+  readonly handLengthDeltaMm: number | null;
 }
 
 export interface MeasuredDiagnostics {
@@ -105,6 +129,24 @@ export interface FocalDiagnostics {
 type Pt = { readonly x: number; readonly y: number };
 
 const len = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y);
+
+/**
+ * How far the sheet's corners are from right angles, in degrees
+ * (`computeQuadSkew`, the same measure the live cue reads), from the detector's
+ * corners (TL, TR, BR, BL). `null` where it is not a finite number.
+ */
+export function paperMaxAngleDeviationDeg(
+  corners: readonly [Pt, Pt, Pt, Pt],
+): number | null {
+  const [topLeft, topRight, bottomRight, bottomLeft] = corners;
+  const { maxAngleDeviationDeg } = computeQuadSkew({
+    topLeft,
+    topRight,
+    bottomRight,
+    bottomLeft,
+  });
+  return Number.isFinite(maxAngleDeviationDeg) ? maxAngleDeviationDeg : null;
+}
 
 /**
  * The sheet's share of the photo: its width (mean of the top and bottom edges)

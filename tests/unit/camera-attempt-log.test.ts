@@ -49,6 +49,7 @@ const DIAGNOSTICS: PipelineDiagnostics = {
     widthFraction: 0.8123456,
     heightFraction: 0.7654321,
     edgeFitResidualMm: 1.62345,
+    maxAngleDeviationDeg: 7.4321,
     minSideCoverage: 0.71234,
     gateFailures: ["PAPER_CURLED"],
   },
@@ -57,6 +58,7 @@ const DIAGNOSTICS: PipelineDiagnostics = {
   parallaxCorrected: null,
   measured: { handLengthMm: null, palmWidthMm: null },
   focal: null,
+  shadowPrior: { handLengthDeltaMm: -5.8374 },
 };
 
 const ERROR_RESULT: PipelineResult = {
@@ -136,6 +138,7 @@ describe("buildAttemptRecord", () => {
       widthFraction: 0.8123,
       heightFraction: 0.7654,
       edgeFitResidualMm: 1.623,
+      maxAngleDeviationDeg: 7.4,
       minSideCoverage: 0.712,
       gateFailures: ["PAPER_CURLED"],
     });
@@ -1066,5 +1069,86 @@ describe("measured and focal — what a few scans in a row are compared on", () 
       palmWidthMm: 66.1,
     });
     expect(json[0].focal).toEqual({ source: "exif", px: 2871.6 });
+  });
+});
+
+describe("shadowPrior and the sheet's skew: local numbers for Copy JSON, never sent", () => {
+  const okResult = (diagnostics: PipelineDiagnostics): PipelineResult => ({
+    status: "ok",
+    measurements: {} as never,
+    submission: {} as never,
+    warnings: [],
+    overlay: ERROR_RESULT.overlay,
+    diagnostics,
+  });
+  const build = (diagnostics: PipelineDiagnostics) =>
+    buildAttemptRecord({
+      at: "2026-10-16T10:20:30.000Z",
+      userAgent: "x",
+      capture: CAPTURE,
+      outcome: { kind: "result", result: okResult(diagnostics) },
+    });
+  const NONE = { handLengthDeltaMm: null };
+
+  it("the delta and the angle are kept to 0.1", () => {
+    const r = build({
+      ...DIAGNOSTICS,
+      shadowPrior: { handLengthDeltaMm: -5.8374 },
+    });
+    expect(r.shadowPrior).toEqual({ handLengthDeltaMm: -5.8 });
+    expect(r.paper?.maxAngleDeviationDeg).toBe(7.4);
+  });
+
+  it("no shadow is a null delta", () => {
+    expect(build({ ...DIAGNOSTICS, shadowPrior: null }).shadowPrior).toEqual(
+      NONE,
+    );
+    expect(
+      build({ ...DIAGNOSTICS, shadowPrior: { handLengthDeltaMm: null } })
+        .shadowPrior,
+    ).toEqual(NONE);
+  });
+
+  it("a thrown pipeline has none", () => {
+    const thrown = buildAttemptRecord({
+      at: "2026-10-16T10:20:30.000Z",
+      userAgent: "x",
+      capture: CAPTURE,
+      outcome: { kind: "thrown", code: "X", message: "x" },
+    });
+    expect(thrown.shadowPrior).toEqual(NONE);
+  });
+
+  it("an old stored record without the fields still parses, with null", () => {
+    const old = JSON.parse(JSON.stringify(record())) as Record<string, unknown>;
+    delete old.shadowPrior;
+    (old.paper as Record<string, unknown>).maxAngleDeviationDeg = undefined;
+    const parsed = parseAttempts(JSON.stringify([old]));
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].shadowPrior).toEqual(NONE);
+    expect(parsed[0].paper?.maxAngleDeviationDeg).toBeNull();
+  });
+
+  it("round-trips through storage", () => {
+    const r = build({
+      ...DIAGNOSTICS,
+      shadowPrior: { handLengthDeltaMm: 2.04 },
+    });
+    expect(parseAttempts(serialiseAttempts([r]))).toEqual([r]);
+  });
+
+  it("sanitising rebuilds it from a finite number: NaN, Infinity, strings and data URLs become null", () => {
+    const dataUrl = `data:image/jpeg;base64,${"A".repeat(10_000)}`;
+    for (const bad of [Number.NaN, Infinity, "-5", dataUrl, {}, null]) {
+      const r = sanitizeAttempt({
+        at: "2026-10-16T10:20:30.000Z",
+        result: "ok",
+        shadowPrior: { handLengthDeltaMm: bad, extra: dataUrl },
+        paper: { cornersSeen: 4, maxAngleDeviationDeg: bad },
+      })!;
+      expect(r.shadowPrior).toEqual(NONE);
+      expect(r.paper?.maxAngleDeviationDeg).toBeNull();
+      expect(JSON.stringify(r)).not.toMatch(/data:|base64/i);
+    }
   });
 });
