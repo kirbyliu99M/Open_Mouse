@@ -16,6 +16,14 @@ lives in `src/server/fit/coefficients.ts` only.
 
 Once CAT-1 adds `listed`, unlisted rows will never reach the engine; today every seeded row does.
 
+**Typed (manual-entry) width is scored on the scan's scale (2026-10-17, candidate).** A typed hand width is a
+ruler, skin-to-skin width; the grip-width target below (width x 0.88) was made for a scan's joint-centre
+width (landmarks 5 to 17), about 19 mm narrower on the one hand measured (85 mm typed against 65.7 mm
+scanned). So for a `manual-entry` scan the engine's input width is the typed width x
+`MANUAL_ENTRY.widthToLandmarkScale` (0.77, one pair), done by `scoringMeasurements`
+(`src/server/fit/scoring-measurements.ts`) in front of both scoring entries; the stored and displayed values
+stay as typed and the length is not converted. Every other calibration method scores as stored.
+
 ## 2. Grip
 
 - Stated grip → weights `w = {stated: 1}`.
