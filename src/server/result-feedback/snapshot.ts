@@ -7,6 +7,7 @@ import {
 import { bandOf } from "../../lib/fit/bands";
 import { scoreFitDefault } from "../fit/engine";
 import { listedOnly } from "../fit/listed";
+import { scoringMeasurements } from "../fit/scoring-measurements";
 import { groupShells } from "../fit/shell-groups";
 import type { CatalogueMouse } from "../fit/types";
 import type { OwnedScan } from "../scans/repo";
@@ -19,7 +20,9 @@ const EMPTY_PREFERENCES = fitPreferencesSchema.parse({});
  * It is a fresh run of the default engine on the scan's stored measurements
  * with empty preferences, the same inputs `loadOwnedFit` gives an empty fit
  * request (the scan's stated grip and palm thickness, no override), listed
- * mice only, same-shell entries grouped as the fit route groups them. Nothing
+ * mice only, same-shell entries grouped as the fit route groups them, and a
+ * typed hand width scored on the scan's scale (`scoringMeasurements`, as in
+ * `loadOwnedFit`, so the snapshot matches the page). Nothing
  * is read from or written to `fit_results`: every fit request overwrites it
  * with that request's own preferences.
  *
@@ -35,7 +38,7 @@ export function buildSnapshot(
 ): ResultFeedbackSnapshot {
   const listed = listedOnly(catalogue);
   const engineOutput = scoreFitDefault(
-    scan.measurements,
+    scoringMeasurements(scan.measurements, scan.calibrationMethod),
     listed,
     {
       ...EMPTY_PREFERENCES,

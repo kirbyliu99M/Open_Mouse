@@ -9,6 +9,7 @@ import type { ScanRepo } from "../scans/repo";
 import type { FitRepo } from "./repo";
 import { buildFitResultRows } from "./rows";
 import { scoreFitDefault, storedNullScore } from "./engine";
+import { scoringMeasurements } from "./scoring-measurements";
 import { DEFAULT_ENGINE } from "./coefficients";
 import { listedOnly } from "./listed";
 import { withFilterFacts } from "./filter-facts";
@@ -89,8 +90,10 @@ export async function loadOwnedFit(
 
   // Unlisted rows (CAT-1) leave here, before scoring and before the priors.
   const catalogue = listedOnly(await deps.fitRepo.loadCatalogue());
+  // A typed width is scored on the scan's scale; `owned.measurements` itself
+  // (returned below, shown on the page) stays as typed.
   const engineOutput = scoreFitDefault(
-    owned.measurements,
+    scoringMeasurements(owned.measurements, owned.calibrationMethod),
     catalogue,
     {
       ...prefs,
