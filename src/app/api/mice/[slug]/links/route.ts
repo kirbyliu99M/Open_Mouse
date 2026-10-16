@@ -1,27 +1,27 @@
 import mouseMediaFile from "../../../../../data/mouse-media.json";
 import purchaseLinksFile from "../../../../../data/purchase-links.json";
-import { linksForMouse } from "../../../../../lib/results/mouseLinks";
+import {
+  LINKS_CACHE_CONTROL,
+  LINKS_NOT_FOUND_CACHE_CONTROL,
+  linksForMouse,
+} from "../../../../../lib/results/mouseLinks";
 import { parseMouseMedia } from "../../../../../lib/results/mouseMedia";
 import { parsePurchaseLinks } from "../../../../../lib/results/purchaseLinks";
 
 /**
  * `GET /api/mice/<slug>/links`: the official link and up to four purchase
- * links of one mouse (`mouseLinksSchema`). Static: `generateStaticParams`
- * lists every slug in `src/data/mouse-media.json`, so the build writes one
- * small JSON file per mouse and the CDN answers it, with no function run (the
- * results response stays small). `dynamicParams = false` makes any other slug
- * a 404 from the platform. The two files are parsed once, when the module is
- * loaded.
+ * links of one mouse (`mouseLinksSchema`). One function answers every slug,
+ * and the CDN keeps each answer for a day (`LINKS_CACHE_CONTROL`), so a mouse costs
+ * about one function run a day. It is deliberately NOT `generateStaticParams`
+ * over every slug: Vercel then lists one ~7 MB function output per mouse, 408
+ * of them, 2.7 GB of every deployment's 10 GB Deployment Storage (measured
+ * 2026-10-15, Kirby: option A). An unknown slug is a 404 from the handler.
+ * The two files are parsed once, when the module is loaded.
  */
-export const dynamic = "force-static";
-export const dynamicParams = false;
+export const dynamic = "force-dynamic";
 
 const media = parseMouseMedia(mouseMediaFile);
 const purchase = parsePurchaseLinks(purchaseLinksFile);
-
-export function generateStaticParams(): { slug: string }[] {
-  return Object.keys(media).map((slug) => ({ slug }));
-}
 
 export async function GET(
   _request: Request,
@@ -29,6 +29,16 @@ export async function GET(
 ): Promise<Response> {
   const { slug } = await context.params;
   const links = linksForMouse(media, purchase, slug);
-  if (!links) return Response.json({ error: "Not found" }, { status: 404 });
-  return Response.json(links);
+  if (!links) {
+    return Response.json(
+      { error: "Not found" },
+      {
+        status: 404,
+        headers: { "Cache-Control": LINKS_NOT_FOUND_CACHE_CONTROL },
+      },
+    );
+  }
+  return Response.json(links, {
+    headers: { "Cache-Control": LINKS_CACHE_CONTROL },
+  });
 }
