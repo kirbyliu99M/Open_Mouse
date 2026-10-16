@@ -87,3 +87,18 @@ describe("shellFamily: different models stay apart", () => {
     expect(shellFamily("X2 v3 eS Mini")).toBe("x2 v3 es mini");
   });
 });
+
+describe("shellFamily: a name of only version words keeps its whole name", () => {
+  it.each(["Pro", "Ultra", "Lite", "Pro Wireless", "X Mouse Pro"])(
+    "%s is not the empty family",
+    (model) => {
+      expect(shellFamily(model)).not.toBe("");
+      expect(shellFamily(model)).toBe(model.toLowerCase().trim());
+    },
+  );
+
+  it("keeps two such names of one brand apart", () => {
+    expect(shellFamily("Pro")).not.toBe(shellFamily("Ultra"));
+    expect(shellFamily("Pro Wireless")).not.toBe(shellFamily("Pro"));
+  });
+});

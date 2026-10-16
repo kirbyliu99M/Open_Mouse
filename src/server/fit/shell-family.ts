@@ -50,11 +50,15 @@ const POLLING_RATE = /^\d+k(\/\d+k)?$/;
 const COLLAB_TAG = /^x\s+\S+\s+/;
 
 export function shellFamily(model: string): string {
-  return model
+  const family = model
     .toLowerCase()
     .replace(COLLAB_TAG, "")
     .replace(/[()]/g, " ")
     .split(/[\s-]+/)
     .filter((w) => w !== "" && !VERSION_WORDS.has(w) && !POLLING_RATE.test(w))
     .join(" ");
+  // A name made only of version words ("Pro", "Ultra", "X Mouse Pro") would
+  // otherwise share the empty family with every other such name of its brand
+  // and size, and the cards would merge. Keep the whole name instead.
+  return family === "" ? model.toLowerCase().trim() : family;
 }
