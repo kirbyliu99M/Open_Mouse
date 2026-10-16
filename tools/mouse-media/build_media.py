@@ -8,6 +8,7 @@ import argparse
 import csv
 import io
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -131,6 +132,11 @@ def main():
     ap.add_argument("--pics", required=True, type=Path)
     ap.add_argument("--csv", required=True, type=Path)
     ap.add_argument("--catalogue", required=True, type=Path)
+    ap.add_argument(
+        "--logitech",
+        type=Path,
+        help="optional first-party Logitech seed; permits CSV rows for its mice",
+    )
     ap.add_argument("--out-images", required=True, type=Path)
     ap.add_argument("--out-json", required=True, type=Path)
     ap.add_argument(
@@ -161,6 +167,17 @@ def main():
     slug_by_key = {key(e["brand"], e["model"]): e["slug"] for e in catalogue}
     if len(slug_by_key) != len(catalogue):
         sys.exit("catalogue has duplicate (brand, model) keys")
+    catalogue_keys = set(slug_by_key)
+    if a.logitech is not None:
+        logitech = json.loads(a.logitech.read_text(encoding="utf-8"))
+        for e in logitech:
+            k = key(e["brand"], e["model"])
+            slug = re.sub(
+                r"[^a-z0-9]+", "-", f"{e['brand']} {e['model']}".lower()
+            ).strip("-")
+            if k in slug_by_key and slug_by_key[k] != slug:
+                sys.exit(f"conflicting slug for {e['brand']} / {e['model']}")
+            slug_by_key[k] = slug
 
     with a.csv.open(encoding="utf-8-sig", newline="") as f:
         rows = list(csv.DictReader(f))
@@ -173,7 +190,7 @@ def main():
         if k in seen:
             sys.exit(f"duplicate CSV row: {r['brand']} / {r['model']}")
         seen[k] = r
-    missing = [s for k, s in slug_by_key.items() if k not in seen]
+    missing = [slug_by_key[k] for k in catalogue_keys if k not in seen]
     if missing:
         sys.exit(f"catalogue rows without CSV match: {missing}")
 

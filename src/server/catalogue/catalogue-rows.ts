@@ -89,6 +89,19 @@ export function logitechVisibility(
   };
 }
 
+/** The current length/width fit model cannot rank vertical mice or trackballs. */
+function fitVisibility(
+  brand: string,
+  model: string,
+  formFactor: FormFactor,
+): { category: CatalogueCategory; listed: boolean } {
+  const visibility = logitechVisibility(brand, model);
+  return {
+    ...visibility,
+    listed: visibility.listed && formFactor === "standard",
+  };
+}
+
 export const imagePathFor = (slug: string): string =>
   `/images/mice/${slug}.webp`;
 
@@ -234,12 +247,15 @@ const catalogueColumns = (
   formFactor: FormFactor | null,
   dataSource: DataSource,
   imageExists: (slug: string) => boolean,
-): CatalogueColumns => ({
-  ...logitechVisibility(row.brand, row.model),
-  formFactor: formFactor ?? deriveFormFactor(row),
-  imagePath: imageExists(row.slug) ? imagePathFor(row.slug) : null,
-  dataSource,
-});
+): CatalogueColumns => {
+  const resolvedFormFactor = formFactor ?? deriveFormFactor(row);
+  return {
+    ...fitVisibility(row.brand, row.model, resolvedFormFactor),
+    formFactor: resolvedFormFactor,
+    imagePath: imageExists(row.slug) ? imagePathFor(row.slug) : null,
+    dataSource,
+  };
+};
 
 export function buildSeedRows(
   specs: readonly SpecRecord[],
@@ -315,6 +331,7 @@ export function buildSeedRows(
     };
     const fields = entryFields(entry);
     assertConsistent(`${entry.brand} ${entry.model}`, fields);
+    const formFactor = deriveFormFactor(dims);
     withDescriptors.push({
       slug,
       brand: entry.brand,
@@ -325,10 +342,8 @@ export function buildSeedRows(
       size: computeSize(dims),
       sourceUrl: entry.sourceUrl,
       specRetrievedAt: new Date(entry.retrievedAt),
-      // Candidates are gaming mice, but a Logitech one still goes through the
-      // series rule: only G and MX are listed.
-      ...logitechVisibility(entry.brand, entry.model),
-      formFactor: deriveFormFactor(dims),
+      ...fitVisibility(entry.brand, entry.model, formFactor),
+      formFactor,
       imagePath: imageExists(slug) ? imagePathFor(slug) : null,
       dataSource: entry.dataSource,
       ...fields,
