@@ -40,6 +40,7 @@ describe("analyticsEventSchemas", () => {
         resolution: "from_1920",
         edgeFit: "under_0_5_mm",
         paperSkew: "from_3_to_6",
+        paperAspect: "under_2_pct",
         priorEffect: "lower_5_plus",
       },
       scan_submitted: { flow: "easy" },
@@ -178,6 +179,7 @@ describe("scan_quality carries conditions, never the hand or the phone", () => {
     resolution: "from_1280_to_1919",
     edgeFit: "from_0_5_to_1_mm",
     paperSkew: "under_3",
+    paperAspect: "under_2_pct",
     priorEffect: "within_2",
   } as const;
   const schema = analyticsEventSchemas.scan_quality;
@@ -243,9 +245,12 @@ describe("paperSkew and priorEffect are buckets, and paperSkew is optional only 
       resolution: "from_1920",
       edgeFit: "under_0_5_mm",
       paperSkew: "under_3",
+      paperAspect: "from_4_pct",
       priorEffect: "lower_5_plus",
     };
     expect(q.safeParse(ok).success).toBe(true);
+    expect(q.safeParse({ ...ok, paperAspect: 0.6627 }).success).toBe(false);
+    expect(q.safeParse({ ...ok, paperAspect: "6.3pct" }).success).toBe(false);
     expect(q.safeParse({ ...ok, priorEffect: -5.8 }).success).toBe(false);
     expect(q.safeParse({ ...ok, priorEffect: "lower_6_mm" }).success).toBe(
       false,
