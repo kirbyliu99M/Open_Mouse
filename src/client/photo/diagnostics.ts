@@ -32,6 +32,17 @@ export interface PaperDiagnostics {
    * limit in camera/constants.ts).
    */
   readonly maxAngleDeviationDeg: number | null;
+  /**
+   * The sheet's observed shape: the mean of its top and bottom edges over the
+   * mean of its left and right edges, in the analysed photo's pixels (the
+   * short side over the long, so about 0.7071 for A4 seen flat and straight
+   * on); `null` unless all four corners were found. The same ratio as
+   * `widthFraction * analysed width / (heightFraction * analysed height)`,
+   * worked out from the corners so that no rounding or second photo size
+   * enters it. Read only for the `paperAspect` bucket (2026-10-17,
+   * candidate); no gate looks at it.
+   */
+  readonly observedAspect: number | null;
   /** The smallest fraction of any side that was seen, 0-1. */
   readonly minSideCoverage: number;
   /**
@@ -165,4 +176,18 @@ export function paperSizeFractions(
     widthFraction: (len(tl, tr) + len(bl, br)) / 2 / imageWidth,
     heightFraction: (len(tl, bl) + len(tr, br)) / 2 / imageHeight,
   };
+}
+
+/**
+ * The sheet's observed width over height (see `PaperDiagnostics.observedAspect`):
+ * the mean of the top and bottom edges over the mean of the left and right
+ * edges, from the detector's corners (TL, TR, BR, BL; TL to TR is the sheet's
+ * short side). `null` where it is not a finite positive number.
+ */
+export function paperObservedAspect(
+  corners: readonly [Pt, Pt, Pt, Pt],
+): number | null {
+  const [tl, tr, br, bl] = corners;
+  const aspect = (len(tl, tr) + len(bl, br)) / (len(tl, bl) + len(tr, br));
+  return Number.isFinite(aspect) && aspect > 0 ? aspect : null;
 }

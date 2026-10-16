@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { paperSizeFractions } from "../../src/client/photo/diagnostics";
+import {
+  paperObservedAspect,
+  paperSizeFractions,
+} from "../../src/client/photo/diagnostics";
 import { computeQuadWidthFraction } from "../../src/client/camera/quad";
 
 const rect = (x: number, y: number, w: number, h: number) =>
@@ -67,5 +70,47 @@ describe("paperSizeFractions", () => {
   it("is null for a photo without a size", () => {
     expect(paperSizeFractions(rect(0, 0, 10, 10), 0, 100)).toBeNull();
     expect(paperSizeFractions(rect(0, 0, 10, 10), 100, -1)).toBeNull();
+  });
+});
+
+describe("paperObservedAspect", () => {
+  it("is the mean of the top and bottom edges over the mean of the left and right", () => {
+    // A4-shaped sheet, 2000 x 2828 px.
+    expect(paperObservedAspect(rect(500, 600, 2000, 2828))).toBeCloseTo(
+      2000 / 2828,
+      10,
+    );
+  });
+
+  it("averages each pair of edges, so a sheet in perspective reads its mean shape", () => {
+    const trapezoid = [
+      { x: 100, y: 0 },
+      { x: 900, y: 0 },
+      { x: 1000, y: 1000 },
+      { x: 0, y: 1000 },
+    ] as const;
+    // top 800, bottom 1000: mean 900; both sides are the same length.
+    const side = Math.hypot(100, 1000);
+    expect(paperObservedAspect(trapezoid)).toBeCloseTo(900 / side, 10);
+  });
+
+  it("equals the fractions times the photo's size, as the paperAspect bucket reads it", () => {
+    const corners = [
+      { x: 120, y: 80 },
+      { x: 880, y: 100 },
+      { x: 900, y: 1000 },
+      { x: 100, y: 960 },
+    ] as const;
+    const f = paperSizeFractions(corners, 1024, 1920)!;
+    expect(paperObservedAspect(corners)).toBeCloseTo(
+      (f.widthFraction * 1024) / (f.heightFraction * 1920),
+      10,
+    );
+  });
+
+  it("is null for a collapsed or non-finite sheet", () => {
+    expect(paperObservedAspect(rect(0, 0, 0, 0))).toBeNull();
+    expect(paperObservedAspect(rect(0, 0, 10, 0))).toBeNull();
+    expect(paperObservedAspect(rect(0, 0, Number.NaN, 10))).toBeNull();
   });
 });
