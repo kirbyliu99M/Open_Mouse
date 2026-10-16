@@ -8,6 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  JOINT_PROFILES,
   HAND_SIZES_MM,
   HAND_TEMPLATE,
   IMAGE_HEIGHT_PX,
@@ -15,6 +16,11 @@ import {
   NO_PERTURBATION,
   covariance2,
   decompose,
+  jointPerturbation,
+  normal,
+  poolConditions,
+  sampleDist,
+  uniform,
   drawScene,
   drawScenes,
   errorStats,
@@ -27,10 +33,14 @@ import {
   buildCamera,
   runCondition,
   trueHandSheetMm,
+  type ConditionResult,
+  type Dist,
   type Perturbation,
 } from "../../scripts/scan-error-budget-core";
 import {
+  breakEven,
   buildErrorBudget,
+  buildSigmaInput,
   renderMarkdown,
 } from "../../scripts/scan-error-budget-report";
 
@@ -239,22 +249,150 @@ describe("one perturbation at a time pushes the error the way the geometry says"
     expect(corner.handLength.sd).toBeLessThan(landmark.handLength.sd);
   });
 
-  it("a definition offset is a pure bias of minus the offset", () => {
-    const r = run({ ...NO_PERTURBATION, definitionOffsetMm: 4 });
-    expect(r.handLength.bias).toBeCloseTo(-4, 2);
-    expect(r.handLength.sd).toBeLessThan(0.01);
-    expect(r.palmWidth.bias).toBeCloseTo(-4, 2);
+  it("a fixed definition offset is a pure bias of minus the offset, in either direction", () => {
+    const longer = run({
+      ...NO_PERTURBATION,
+      definitionOffsetMm: { length: fixed(6.2), width: fixed(10) },
+    });
+    expect(longer.handLength.bias).toBeCloseTo(-6.2, 2);
+    expect(longer.handLength.sd).toBeLessThan(0.01);
+    expect(longer.palmWidth.bias).toBeCloseTo(-10, 2);
+    const shorter = run({
+      ...NO_PERTURBATION,
+      definitionOffsetMm: { length: fixed(-7.5), width: fixed(0) },
+    });
+    expect(shorter.handLength.bias).toBeCloseTo(7.5, 2);
+    expect(shorter.palmWidth.bias).toBeCloseTo(0, 2);
+  });
+
+  it("a random definition offset has the SD it is given and no bias", () => {
+    const r = run({
+      ...NO_PERTURBATION,
+      definitionOffsetMm: {
+        length: normal(0, 5.6),
+        width: normal(0, 3.4),
+      },
+    });
+    expect(r.handLength.sd).toBeGreaterThan(4.2);
+    expect(r.handLength.sd).toBeLessThan(7);
+    expect(r.palmWidth.sd).toBeGreaterThan(2.5);
+    expect(r.palmWidth.sd).toBeLessThan(4.3);
+    expect(Math.abs(r.handLength.bias)).toBeLessThan(1.8);
+  });
+
+  it("a systematic landmark displacement moves only its own axis, by about its size", () => {
+    const len = run({
+      ...NO_PERTURBATION,
+      landmarkBiasMm: { length: fixed(3), width: fixed(0) },
+    });
+    expect(len.handLength.bias).toBeGreaterThan(2.8);
+    expect(len.handLength.bias).toBeLessThan(3.2);
+    expect(Math.abs(len.palmWidth.bias)).toBeLessThan(0.1);
+    const wid = run({
+      ...NO_PERTURBATION,
+      landmarkBiasMm: { length: fixed(0), width: fixed(-3) },
+    });
+    expect(wid.palmWidth.bias).toBeLessThan(-2.8);
+    expect(wid.palmWidth.bias).toBeGreaterThan(-3.2);
+    expect(Math.abs(wid.handLength.bias)).toBeLessThan(0.1);
+  });
+
+  it("joints that are really lower than the product assumes (MCP 2 and 5) read a little short", () => {
+    const r = run({
+      ...NO_PERTURBATION,
+      mcpHeightOffsetMm: { index: 1.8, little: 3 },
+    });
+    expect(r.palmWidth.bias).toBeLessThan(-0.05);
+    expect(r.palmWidth.bias).toBeGreaterThan(-1);
+    expect(Math.abs(r.handLength.bias)).toBeLessThan(0.01);
   });
 });
 
-describe("no EXIF: the focal comes from the corners", () => {
-  it("noise-free corners give an exact result whenever the pipeline corrects at all", () => {
+describe("sampleDist", () => {
+  it("always consumes exactly two uniforms, whatever the distribution", () => {
+    for (const dist of [fixed(1), uniform(0, 1), normal(0, 1)]) {
+      const rng = mulberry32(5);
+      const reference = mulberry32(5);
+      sampleDist(dist, rng);
+      reference();
+      reference();
+      expect(rng()).toBe(reference());
+    }
+  });
+
+  it("is deterministic and has the stated moments", () => {
+    const draws = (dist: Dist) => {
+      const rng = mulberry32(11);
+      return Array.from({ length: 20000 }, () => sampleDist(dist, rng));
+    };
+    expect(draws(normal(2, 3))).toEqual(draws(normal(2, 3)));
+    const n = errorStats(draws(normal(2, 3)));
+    expect(n.bias).toBeGreaterThan(1.9);
+    expect(n.bias).toBeLessThan(2.1);
+    expect(n.sd).toBeGreaterThan(2.9);
+    expect(n.sd).toBeLessThan(3.1);
+    const u = draws(uniform(-1, 3));
+    expect(Math.min(...u)).toBeGreaterThanOrEqual(-1);
+    expect(Math.max(...u)).toBeLessThan(3);
+  });
+});
+
+describe("tilt cap and lens as scene parameters", () => {
+  it("draws within the stated tilt cap, and the same scene for the same arguments", () => {
+    for (const cap of [10, 20, 30, 45]) {
+      let maxTilt = 0;
+      for (let i = 0; i < 60; i++) {
+        const s = drawScene(SEED, i, { tiltMaxDeg: cap });
+        expect(s).toEqual(drawScene(SEED, i, { tiltMaxDeg: cap }));
+        expect(s.tiltDeg).toBeGreaterThanOrEqual(0);
+        expect(s.tiltDeg).toBeLessThanOrEqual(cap);
+        maxTilt = Math.max(maxTilt, s.tiltDeg);
+      }
+      expect(maxTilt).toBeGreaterThan(0.7 * cap);
+    }
+  });
+
+  it("scales the camera distance and the true focal with focalScale, and rejects nonsense", () => {
+    const wide = drawScene(SEED, 3, { focalScale: 0.5 });
+    expect(wide.focalScale).toBe(0.5);
+    expect(wide.distanceMm).toBeGreaterThanOrEqual(175);
+    expect(wide.distanceMm).toBeLessThanOrEqual(250);
+    expect(buildCamera(wide).fPx).toBeCloseTo(
+      0.5 * buildCamera(drawScene(SEED, 3)).fPx,
+      9,
+    );
+    expect(() => drawScene(SEED, 0, { tiltMaxDeg: 90 })).toThrow(RangeError);
+    expect(() => drawScene(SEED, 0, { focalScale: 0 })).toThrow(RangeError);
+  });
+
+  it("a wider tilt cap lets more scans use the focal estimated from the paper", () => {
+    const p = jointPerturbation(JOINT_PROFILES[1], "homography");
+    const low = runCondition(
+      SEED,
+      N,
+      "10",
+      p,
+      drawScenes(SEED, N, { tiltMaxDeg: 10 }),
+    );
+    const high = runCondition(
+      SEED,
+      N,
+      "45",
+      p,
+      drawScenes(SEED, N, { tiltMaxDeg: 45 }),
+    );
+    expect(high.estimateFraction).toBeGreaterThan(low.estimateFraction);
+  });
+});
+
+describe("no EXIF: the focal comes from the corners (current policy)", () => {
+  it("noise-free corners give an exact result on the paths that correct", () => {
     const r = run({ ...NO_PERTURBATION, focalMode: "homography" });
-    expect(r.bySource.corrected.handLength.n).toBeGreaterThan(0);
-    expect(r.bySource.corrected.handLength.p95Abs).toBeLessThan(0.01);
-    expect(
-      r.bySource.flat.handLength.n + r.bySource.corrected.handLength.n,
-    ).toBe(N);
+    expect(r.byPath.estimate.n).toBeGreaterThan(0);
+    expect(r.byPath.estimate.handLength.p95Abs).toBeLessThan(0.01);
+    expect(r.byPath.exif.n).toBe(0);
+    expect(r.byPath.nominal.n).toBe(0);
+    expect(r.byPath.estimate.n + r.byPath.flat.n).toBe(N);
   });
 
   it("corner noise at near-overhead tilt pushes most scans onto the flat path, which reads long", () => {
@@ -263,23 +401,211 @@ describe("no EXIF: the focal comes from the corners", () => {
       focalMode: "homography",
       cornerSigmaPx: 2,
     });
-    expect(r.correctedFraction).toBeLessThan(0.5);
-    expect(r.bySource.flat.handLength.bias).toBeGreaterThan(3);
+    expect(r.estimateFraction).toBeLessThan(0.5);
+    expect(r.byPath.flat.handLength.bias).toBeGreaterThan(3);
+    expect(r.fallback.n).toBe(r.byPath.flat.n);
+  });
+});
+
+describe("nominal focal prior (candidate fix)", () => {
+  const noisy: Perturbation = {
+    ...NO_PERTURBATION,
+    cornerSigmaPx: 1,
+    landmarkSigmaPx: 0,
+  };
+  const flat = run({ ...noisy, focalMode: "homography" });
+  const exact = run({ ...noisy, focalMode: "nominal" });
+
+  it("with no perturbation and an exact prior every scan comes out at the truth", () => {
+    for (const focalMode of ["nominal", "nominalOnly"] as const) {
+      const r = run({ ...NO_PERTURBATION, focalMode });
+      expect(r.rejected).toBe(0);
+      expect(r.correctedFraction).toBe(1);
+      expect(r.handLength.p95Abs).toBeLessThan(0.01);
+      expect(r.palmWidth.p95Abs).toBeLessThan(0.01);
+    }
+  });
+
+  it("the prior only stands in where the estimate was judged unreliable; the other scans are untouched", () => {
+    expect(exact.byPath.flat.n).toBe(0);
+    expect(exact.byPath.nominal.n).toBe(flat.byPath.flat.n);
+    expect(exact.byPath.estimate.n).toBe(flat.byPath.estimate.n);
+    expect(exact.byPath.estimate.handLength).toEqual(
+      flat.byPath.estimate.handLength,
+    );
+    expect(exact.fallback.n).toBe(flat.fallback.n);
+  });
+
+  it("an exact prior beats no correction on the same fallback scans, by a lot", () => {
+    expect(exact.fallback.handLength.rms).toBeLessThan(
+      0.5 * flat.fallback.handLength.rms,
+    );
+    expect(exact.fallback.palmWidth.rms).toBeLessThan(
+      0.5 * flat.fallback.palmWidth.rms,
+    );
+    expect(exact.handLength.rms).toBeLessThan(flat.handLength.rms);
+  });
+
+  it("a prior that is too long reads long and one that is too short reads short, around the exact prior", () => {
+    const at = (rel: number) =>
+      run({ ...noisy, focalMode: "nominal", nominalPriorRel: fixed(rel) });
+    const long = at(0.3);
+    const short = at(-0.3);
+    expect(long.fallback.handLength.bias).toBeGreaterThan(
+      exact.fallback.handLength.bias + 0.3,
+    );
+    expect(short.fallback.handLength.bias).toBeLessThan(
+      exact.fallback.handLength.bias - 0.3,
+    );
+    expect(long.fallback.palmWidth.bias).toBeGreaterThan(
+      exact.fallback.palmWidth.bias,
+    );
+    expect(short.fallback.palmWidth.bias).toBeLessThan(
+      exact.fallback.palmWidth.bias,
+    );
+  });
+
+  it("a prior that is badly wrong is worse than none; a modest error is not", () => {
+    const at = (rel: number) =>
+      run({ ...noisy, focalMode: "nominal", nominalPriorRel: fixed(rel) })
+        .fallback.handLength.rms;
+    expect(at(-0.1)).toBeLessThan(flat.fallback.handLength.rms);
+    expect(at(0.1)).toBeLessThan(flat.fallback.handLength.rms);
+    expect(at(-0.7)).toBeGreaterThan(flat.fallback.handLength.rms);
+    expect(at(5)).toBeGreaterThan(flat.fallback.handLength.rms);
+  });
+
+  it("a uniform prior spread keeps about the same mean as an exact one and adds spread", () => {
+    const spread = run({
+      ...noisy,
+      focalMode: "nominal",
+      nominalPriorRel: uniform(-0.3, 0.3),
+    });
+    expect(spread.fallback.handLength.sd).toBeGreaterThan(
+      exact.fallback.handLength.sd,
+    );
+    expect(
+      Math.abs(
+        spread.fallback.handLength.bias - exact.fallback.handLength.bias,
+      ),
+    ).toBeLessThan(0.6);
+  });
+
+  it("the prior-only variant ignores the paper estimate: every scan takes the nominal path", () => {
+    const r = run({ ...noisy, focalMode: "nominalOnly" });
+    expect(r.byPath.nominal.n).toBe(N);
+    expect(r.byPath.estimate.n).toBe(0);
+    expect(r.estimateFraction).toBe(0);
+  });
+});
+
+describe("pooling and break-even", () => {
+  const fake = (mean: [number, number], v: number): ConditionResult => {
+    const empty = {
+      n: 0,
+      handLength: errorStats([]),
+      palmWidth: errorStats([]),
+    };
+    const stats = errorStats([0]);
+    return {
+      name: "fake",
+      n: 10,
+      rejected: 0,
+      correctedFraction: 1,
+      estimateFraction: 1,
+      handLength: stats,
+      palmWidth: stats,
+      mean,
+      covariance: [
+        [v, 0],
+        [0, v],
+      ],
+      byPath: { exif: empty, estimate: empty, nominal: empty, flat: empty },
+      fallback: empty,
+      byHandSize: {},
+    };
+  };
+
+  it("poolConditions applies the law of total variance across conditions", () => {
+    const pooled = poolConditions([fake([-1, 2], 1), fake([1, 2], 1)]);
+    expect(pooled.mean).toEqual([0, 2]);
+    expect(pooled.covariance[0][0]).toBeCloseTo(2, 12); // 1 within + 1 between
+    expect(pooled.covariance[1][1]).toBeCloseTo(1, 12);
+    expect(pooled.betweenSd[0]).toBeCloseTo(1, 12);
+    expect(pooled.betweenSd[1]).toBeCloseTo(0, 12);
+    expect(() => poolConditions([])).toThrow(RangeError);
+  });
+
+  it("buildSigmaInput adds the systematic variance (half² / 3) per axis, and Rogers on top", () => {
+    const s = buildSigmaInput("t", [fake([0, 0], 4), fake([0, 0], 4)], 3);
+    expect(s.covScan[0][0]).toBeCloseTo(4, 12);
+    expect(s.systematicVar).toBeCloseTo(3, 12);
+    expect(s.cov[0][0]).toBeCloseTo(7, 12);
+    expect(s.cov[1][1]).toBeCloseTo(7, 12);
+    expect(s.covWithDefinition[0][0]).toBeCloseTo(7 + 5.6 ** 2, 12);
+    expect(s.covWithDefinition[1][1]).toBeCloseTo(7 + 3.4 ** 2, 12);
+  });
+
+  it("breakEven interpolates both crossings, and reports open ends and never-better", () => {
+    const pts = [-1, -0.5, 0, 0.5, 1].map((rel) => ({
+      rel,
+      rms: 1 + 4 * Math.abs(rel),
+    }));
+    const b = breakEven(pts, 3);
+    expect(b.neverBetter).toBe(false);
+    expect(b.lower).toBeCloseTo(-0.5, 12);
+    expect(b.upper).toBeCloseTo(0.5, 12);
+    expect(b.lowerOpen).toBe(false);
+    expect(b.bestRel).toBe(0);
+    expect(breakEven(pts, 6).upperOpen).toBe(true);
+    expect(breakEven(pts, 6).lowerOpen).toBe(true);
+    expect(breakEven(pts, 0.5).neverBetter).toBe(true);
   });
 });
 
 describe("report", () => {
-  const report = buildErrorBudget(SEED, 12, { handLength: 6, palmWidth: 4 });
+  const options = {
+    tiltCaps: [10, 30],
+    frameOptions: {
+      fixedGrid: [-0.1, 0, 0.1],
+      uniformHalves: [0.2],
+      onlyHalves: [0.2],
+    },
+  };
+  const report = buildErrorBudget(
+    SEED,
+    12,
+    { handLength: 6, palmWidth: 4 },
+    options,
+  );
 
   it("labels itself as a simulation, in the data and in the Markdown", () => {
     expect(report.label).toBe("模擬，非實測");
     const md = renderMarkdown(report);
     expect(md.split("\n")[0]).toContain("模擬，非實測");
     expect(md).toContain("Σ_input");
-    expect(md).toContain("不是**實測");
+    expect(md).toContain("不是實測");
+    expect(md).toContain("主要情境：影格、無 EXIF");
   });
 
-  it("covers every source in each joint profile and survives JSON", () => {
+  it("makes the frame, no-EXIF scenario primary: every profile, every tilt cap, both paths", () => {
+    expect(report.frame).toHaveLength(3);
+    for (const r of report.frame) {
+      expect(r.cells.map((c) => c.tiltMaxDeg)).toEqual([10, 30]);
+      for (const cell of r.cells) {
+        expect(cell.current.estimateFraction).toBeGreaterThanOrEqual(0);
+        expect(cell.current.estimateFraction).toBeLessThanOrEqual(1);
+        expect(cell.current.byPath.exif.n).toBe(0);
+        expect(cell.priors).toHaveLength(5);
+      }
+    }
+    expect(report.frame[1].cells[0].lenses.map((l) => l.focalScale)).toEqual([
+      0.5, 2,
+    ]);
+    expect(report.frame[0].cells[0].lenses).toHaveLength(0);
+  });
+
+  it("covers every source in each EXIF comparison profile and survives JSON", () => {
     expect(report.profiles).toHaveLength(3);
     for (const p of report.profiles) {
       expect(p.singles.map((s) => s.source)).toEqual([
@@ -293,5 +619,24 @@ describe("report", () => {
       expect(p.joint.covariance[0][1]).toBe(p.joint.covariance[1][0]);
     }
     expect(JSON.parse(JSON.stringify(report)).seed).toBe(SEED);
+  });
+
+  it("gives a bias vector and a symmetric Sigma for the current policy and both candidates", () => {
+    expect(report.sigma).toHaveLength(3);
+    for (const s of report.sigma) {
+      for (const x of [s.current, s.nominal, s.nominalOnly]) {
+        expect(x.bias).toHaveLength(2);
+        expect(x.cov[0][1]).toBe(x.cov[1][0]);
+        expect(x.cov[0][0]).toBeGreaterThan(x.covScan[0][0]);
+        expect(x.covWithDefinition[0][0]).toBeGreaterThan(x.cov[0][0]);
+      }
+      expect(s.current.bias[0]).toBeGreaterThan(s.nominal.bias[0]);
+    }
+  });
+
+  it("is deterministic: the same seed gives the same report", () => {
+    expect(
+      buildErrorBudget(SEED, 12, { handLength: 6, palmWidth: 4 }, options),
+    ).toEqual(report);
   });
 });

@@ -7,8 +7,12 @@
  *   npx tsx scripts/scan-error-budget.ts --json out/scan-error-budget.json
  *   npx tsx scripts/scan-error-budget.ts --n 500 --seed 7
  *
- * Prints Markdown to stdout. Local and deterministic (a fixed seed, no network,
- * no clock, no files read); not part of CI. The synthetic world is in
+ * Prints Markdown to stdout (about 2 minutes at the default N = 2000). The
+ * primary scenario is the frame capture without EXIF; the tilt cap is swept
+ * (10 / 20 / 30 / 45 degrees) because the real tilt distribution is unknown,
+ * and the candidate nominal-focal-prior fix is compared with the current
+ * policy. Local and deterministic (a fixed seed, no network, no clock, no
+ * files read); not part of CI. The synthetic world is in
  * scan-error-budget-core.ts and the conditions and rendering in
  * scan-error-budget-report.ts; those are the parts the unit tests cover.
  */
