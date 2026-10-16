@@ -14,9 +14,11 @@ import { MANUAL_ENTRY } from "../../lib/contracts/measurement";
  * their own `measurements` and pass only this function's result to the engine.
  *
  * Every other method, and a scan with no recorded method, scores as stored.
- * Pure: the input is never modified. The scaled width is clamped to the
- * contract's width range instead of throwing (better a score than a 500); a
- * width that is not a finite number cannot be scaled and is left as it is.
+ * Pure: the input is never modified. The scaled width is NOT clamped to the
+ * contract's width range: the engine does not validate measurements, and a
+ * floor of 50 mm would flatten every typed width under about 65 mm (a small
+ * hand) to the same score input. A width that is not a finite number cannot be
+ * scaled and is left as it is.
  */
 export function scoringMeasurements(
   measurements: HandMeasurements,
@@ -25,7 +27,8 @@ export function scoringMeasurements(
   if (calibrationMethod !== "manual-entry") return measurements;
   const typed = measurements.palmWidthMm;
   if (!Number.isFinite(typed)) return measurements;
-  const { min, max } = MANUAL_ENTRY.handWidthRangeMm;
-  const scaled = typed * MANUAL_ENTRY.widthToLandmarkScale;
-  return { ...measurements, palmWidthMm: Math.min(max, Math.max(min, scaled)) };
+  return {
+    ...measurements,
+    palmWidthMm: typed * MANUAL_ENTRY.widthToLandmarkScale,
+  };
 }

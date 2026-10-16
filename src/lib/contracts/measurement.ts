@@ -264,22 +264,27 @@ export const userLengthEvidenceSchema = z.strictObject({
  * `scanSubmissionSchema`). No photo, so no scale reference and no parallax;
  * M2 accuracy statistics must exclude this method.
  *
- * Known scale mismatch (candidate, 2026-10-12, number unverified): a scan's
- * palmWidthMm is a joint-centre distance (landmarks 5 to 17), which the notes
- * above put 10-20 mm under a skin-to-skin width, and a ruler hand length runs
- * 7-11 mm longer than the landmark distance. The typed values are skin
- * measurements stored as typed. Kirby's own pair (2026-10-17) put the gap at
- * 19 mm, not "slightly": a ruler breadth of 85 mm against a scan's 65.7 mm
- * (ratio 0.77), and typed 85 sent the fit to wide mice (Scimitar Elite first,
- * G903 Hero 319th) that a scan of the same hand does not pick. So (Kirby: OK,
- * 2026-10-17) the typed WIDTH is converted to the scan's scale, by
- * `MANUAL_ENTRY.widthToLandmarkScale`, for scoring only: the stored value, the
- * typed value the page shows and the contract's own checks stay as typed. The
- * factor is a candidate from that one pair; a versioned typed-to-landmark
- * mapping fitted on paired ruler and scan data replaces it (the small
- * collection of 2026-10-17). The length is not converted: a typed ruler length
- * and a scan's length agreed within 1 mm on that hand. Typed scans stay out of
- * the similar-hand pool, and the results page still discloses the estimate.
+ * Known scale mismatch (candidate, 2026-10-12; measured on one hand,
+ * 2026-10-17): a scan's palmWidthMm is a joint-centre distance (landmarks 5 to
+ * 17), which the notes above put 10-20 mm under a skin-to-skin width. The
+ * typed values are skin measurements stored as typed. On Kirby's hand the gap
+ * was 19 mm, not "slightly": a ruler breadth of 85 mm against a scan's
+ * 65.7 mm (ratio 0.77). Typed 85 sent the fit to wide mice (Scimitar Elite
+ * first; G903 Hero, the mouse he actually likes, 319th of 402 mice, and still
+ * 326th after this conversion, because its LENGTH score is 22: the claw length
+ * target is 0.62 of the hand). So (Kirby: OK, 2026-10-17) the typed WIDTH is
+ * converted to the scan's scale, by `MANUAL_ENTRY.widthToLandmarkScale`, for
+ * scoring only: the stored value, the typed value the page shows and the
+ * contract's own checks stay as typed. The factor is a candidate from that one
+ * pair (and a ratio, where the 10-20 mm above reads more like a constant); a
+ * versioned typed-to-landmark mapping fitted on paired ruler and scan data
+ * replaces it (the small collection of 2026-10-17). The length is not
+ * converted: on that hand a ruler length from the wrist crease (190 mm) and the
+ * scans' mean (189.4 mm) agree within 1 mm, but that is two errors of about
+ * 6 mm cancelling (no parallax correction on the video-frame path against a
+ * joint-centre length shorter than the skin length), so a scan that does
+ * correct would read about 6 mm short of a ruler. Typed scans stay out of the
+ * similar-hand pool, and the results page still discloses the estimate.
  */
 export const manualEntryEvidenceSchema = z.strictObject({
   method: z.literal("manual-entry"),
