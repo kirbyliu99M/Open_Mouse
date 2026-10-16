@@ -63,8 +63,19 @@ export const FOCAL_SOURCES = ["exif", "homography", "none"] as const;
  * - edge fit: the worst side's mean edge-fit distance of the sheet in mm; the
  *   PAPER_CURLED gate is 1.5.
  *
- * Never sent: the focal length in px (it narrows down the phone model), the
- * user agent, the device model, the exact variance, any hand measurement.
+ * The event's own properties never carry: the focal length in px (it narrows
+ * down the phone model), the user agent, the device model, the exact variance,
+ * any hand measurement. This is about the event's payload only: posthog-js
+ * adds its own properties to every event ($raw_user_agent, $device, $os,
+ * $browser_version, $screen_*, $viewport_*, $browser_language, $timezone;
+ * read from the package, 2026-10-16), and this file does not remove them.
+ * Whether to strip those is a decision of its own.
+ *
+ * Read it knowing two things. Only a scan that was measured sends it, so a
+ * share such as "focal source none" is a share of successful scans, and a scan
+ * that failed a gate because of it is not in it. And a frame taken from the
+ * live video (`method: "canvas"`) has no EXIF, so `focalSource: "exif"` can
+ * only come from `takePhoto` or `upload`: cut the shares by `method`.
  */
 export const SHARPNESS_BUCKETS = ["below_gate", "near_gate", "clear"] as const;
 export const RESOLUTION_BUCKETS = [
