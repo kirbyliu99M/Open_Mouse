@@ -1221,7 +1221,7 @@ export default function EasyScanCamera({
           const quality = buildScanQuality({
             flow: "easy",
             attempt,
-            method: info?.method ?? "upload",
+            method: info?.method,
             diagnostics: pipelineResult.diagnostics,
           });
           if (quality) track("scan_quality", quality);
