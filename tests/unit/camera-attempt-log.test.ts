@@ -50,6 +50,7 @@ const DIAGNOSTICS: PipelineDiagnostics = {
     heightFraction: 0.7654321,
     edgeFitResidualMm: 1.62345,
     maxAngleDeviationDeg: 7.4321,
+    observedAspect: 0.662712345,
     minSideCoverage: 0.71234,
     gateFailures: ["PAPER_CURLED"],
   },
@@ -139,6 +140,7 @@ describe("buildAttemptRecord", () => {
       heightFraction: 0.7654,
       edgeFitResidualMm: 1.623,
       maxAngleDeviationDeg: 7.4,
+      observedAspect: 0.6627,
       minSideCoverage: 0.712,
       gateFailures: ["PAPER_CURLED"],
     });
@@ -1097,6 +1099,7 @@ describe("shadowPrior and the sheet's skew: local numbers for Copy JSON, never s
     });
     expect(r.shadowPrior).toEqual({ handLengthDeltaMm: -5.8 });
     expect(r.paper?.maxAngleDeviationDeg).toBe(7.4);
+    expect(r.paper?.observedAspect).toBe(0.6627);
   });
 
   it("no shadow is a null delta", () => {
@@ -1123,10 +1126,12 @@ describe("shadowPrior and the sheet's skew: local numbers for Copy JSON, never s
     const old = JSON.parse(JSON.stringify(record())) as Record<string, unknown>;
     delete old.shadowPrior;
     (old.paper as Record<string, unknown>).maxAngleDeviationDeg = undefined;
+    (old.paper as Record<string, unknown>).observedAspect = undefined;
     const parsed = parseAttempts(JSON.stringify([old]));
     expect(parsed).toHaveLength(1);
     expect(parsed[0].shadowPrior).toEqual(NONE);
     expect(parsed[0].paper?.maxAngleDeviationDeg).toBeNull();
+    expect(parsed[0].paper?.observedAspect).toBeNull();
   });
 
   it("round-trips through storage", () => {
@@ -1144,10 +1149,15 @@ describe("shadowPrior and the sheet's skew: local numbers for Copy JSON, never s
         at: "2026-10-16T10:20:30.000Z",
         result: "ok",
         shadowPrior: { handLengthDeltaMm: bad, extra: dataUrl },
-        paper: { cornersSeen: 4, maxAngleDeviationDeg: bad },
+        paper: {
+          cornersSeen: 4,
+          maxAngleDeviationDeg: bad,
+          observedAspect: bad,
+        },
       })!;
       expect(r.shadowPrior).toEqual(NONE);
       expect(r.paper?.maxAngleDeviationDeg).toBeNull();
+      expect(r.paper?.observedAspect).toBeNull();
       expect(JSON.stringify(r)).not.toMatch(/data:|base64/i);
     }
   });

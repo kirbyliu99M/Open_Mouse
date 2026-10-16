@@ -44,6 +44,20 @@ export const PAPER_SKEW_HIGH_FROM_DEG = 6;
 export const PAPER_SKEW_TOP_FROM_DEG = 9;
 
 /**
+ * Paper aspect (2026-10-17, candidate): the sheet's observed width over height
+ * is compared with the supported papers' true ones (A4 210 x 297 mm, Letter
+ * 215.9 x 279.4 mm; the short side over the long) and the nearer one's
+ * relative deviation is bucketed. A sheet seen flat and straight on reads
+ * within a fraction of a percent; in Kirby's own scans nine ordinary photos
+ * sat within 0.6 % and the one that read 26 mm short sat 6.3 % off. The
+ * cut-offs are candidates, not a gate: nothing is refused on them.
+ */
+export const PAPER_ASPECT_A4 = 210 / 297;
+export const PAPER_ASPECT_LETTER = 215.9 / 279.4;
+export const PAPER_ASPECT_MID_FROM = 0.02;
+export const PAPER_ASPECT_HIGH_FROM = 0.04;
+
+/**
  * Prior effect (shadow mode): the hand length with a nominal focal length
  * minus the one the person was shown, in mm. A candidate cut-off pair.
  */
@@ -104,6 +118,39 @@ export function paperSkewBucket(
 }
 
 /**
+ * How far the sheet's observed shape is from the nearer supported paper's true
+ * one, as a fraction: `|observed / true - 1|` for A4 and for Letter, the
+ * smaller of the two, under 2 %, 2 % to under 4 %, 4 % and over. The input is
+ * the sheet's observed width over height (`observedAspect` in the paper
+ * diagnostics). Not a finite positive number is `null`.
+ */
+export function paperAspectBucket(
+  observedAspect: number | null | undefined,
+): ScanQualityProps["paperAspect"] | null {
+  if (
+    typeof observedAspect !== "number" ||
+    !Number.isFinite(observedAspect) ||
+    observedAspect <= 0
+  ) {
+    return null;
+  }
+  // The detector already turns the corners so that TL to TR is the short side
+  // (detect.ts, before it returns them), so this is a precaution: a value
+  // above 1 would be a sheet read across the frame, and short over long does
+  // not depend on which way it lies. The nearest of A4 and Letter is used, so
+  // a strongly tilted A4 can fall one step short of the worst bucket.
+  const shortOverLong =
+    observedAspect > 1 ? 1 / observedAspect : observedAspect;
+  const deviation = Math.min(
+    Math.abs(shortOverLong / PAPER_ASPECT_A4 - 1),
+    Math.abs(shortOverLong / PAPER_ASPECT_LETTER - 1),
+  );
+  if (deviation < PAPER_ASPECT_MID_FROM) return "under_2_pct";
+  if (deviation < PAPER_ASPECT_HIGH_FROM) return "from_2_to_4_pct";
+  return "from_4_pct";
+}
+
+/**
  * How far the nominal-focal shadow hand length is from the shown one, in four
  * wide steps. `deltaMm` is shadow minus shown: at or below -5 is
  * `lower_5_plus`, above -5 up to -2 `lower_2_to_5`, between -2 and 2 (neither
@@ -156,13 +203,14 @@ export function buildScanQuality(
   const resolution = resolutionBucket(diagnostics.decoded);
   const edgeFit = edgeFitBucket(diagnostics.paper?.edgeFitResidualMm);
   const paperSkew = paperSkewBucket(diagnostics.paper?.maxAngleDeviationDeg);
+  const paperAspect = paperAspectBucket(diagnostics.paper?.observedAspect);
   // A shadow that could not be worked out is a step of its own, not a reason
   // to drop the whole event (the focal source, the buckets and the skew are
   // still true), and it is where the shadow is most worth watching.
   const priorEffect =
     priorEffectBucket(diagnostics.shadowPrior?.handLengthDeltaMm) ??
     "unavailable";
-  if (!sharpness || !resolution || !edgeFit || !paperSkew) {
+  if (!sharpness || !resolution || !edgeFit || !paperSkew || !paperAspect) {
     return null;
   }
   return {
@@ -175,6 +223,7 @@ export function buildScanQuality(
     resolution,
     edgeFit,
     paperSkew,
+    paperAspect,
     priorEffect,
   };
 }

@@ -70,6 +70,7 @@ import { finishPaperEdge } from "./paperEdgeFinish";
 import type { IssueDetail } from "./issue-detail";
 import {
   paperMaxAngleDeviationDeg,
+  paperObservedAspect,
   paperSizeFractions,
   type FocalDiagnostics,
   type HandDiagnostics,
@@ -608,6 +609,7 @@ async function runPaperEdgePipeline(
     maxAngleDeviationDeg: quad.corners
       ? paperMaxAngleDeviationDeg(quad.corners)
       : null,
+    observedAspect: quad.corners ? paperObservedAspect(quad.corners) : null,
     minSideCoverage: quad.minSideCoverage,
     gateFailures: [],
   };

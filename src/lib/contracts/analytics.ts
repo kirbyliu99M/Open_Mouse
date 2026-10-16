@@ -110,6 +110,22 @@ export const PAPER_SKEW_BUCKETS = [
 ] as const;
 
 /**
+ * How far the sheet looks from its true shape in the photo, as a fraction:
+ * the observed width over height of the sheet's four corners, against the
+ * nearest supported paper (A4 0.7071, Letter 0.7727). A sheet seen straight on
+ * and flat reads within a fraction of a percent; a tilted or curled one reads
+ * lower or higher. A candidate (未拍板), 2026-10-17: in Kirby's own data nine
+ * ordinary scans sat within 0.6 % and the one that read 26 mm short sat 6.3 %
+ * off, so this is a cheap flag for a photo that deserves distrust. It
+ * describes the SHEET, not the hand.
+ */
+export const PAPER_ASPECT_BUCKETS = [
+  "under_2_pct",
+  "from_2_to_4_pct",
+  "from_4_pct",
+] as const;
+
+/**
  * SHADOW MODE (2026-10-16, candidate): the client works out what the hand
  * length WOULD have been if the parallax correction had used a nominal focal
  * length (a 26 mm-equivalent main camera) instead of its own estimate or no
@@ -332,6 +348,8 @@ export const analyticsEventSchemas = {
     resolution: z.enum(RESOLUTION_BUCKETS),
     edgeFit: z.enum(EDGE_FIT_BUCKETS),
     paperSkew: z.enum(PAPER_SKEW_BUCKETS),
+    /** How far the sheet's observed shape is from the paper's true one (2026-10-17, candidate). */
+    paperAspect: z.enum(PAPER_ASPECT_BUCKETS),
     /** What a nominal focal length would have changed, shadow mode only. */
     priorEffect: z.enum(PRIOR_EFFECT_BUCKETS),
   }),

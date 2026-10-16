@@ -91,6 +91,8 @@ export interface AttemptRecord {
     readonly edgeFitResidualMm: number | null;
     /** The sheet's largest corner-angle deviation in degrees (how straight on the shot was), to 0.1; `null` without four corners. */
     readonly maxAngleDeviationDeg: number | null;
+    /** The sheet's observed short side over long side (about 0.7071 for A4 seen flat), to 0.0001; `null` without four corners or in a record from before it was kept. */
+    readonly observedAspect: number | null;
     readonly minSideCoverage: number;
     /** The paper gates that failed, whether or not the result reported them first. */
     readonly gateFailures: readonly string[];
@@ -284,6 +286,7 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
           heightFraction: cleanNumber(paper.heightFraction, 4),
           edgeFitResidualMm: cleanNumber(paper.edgeFitResidualMm, 3),
           maxAngleDeviationDeg: cleanNumber(paper.maxAngleDeviationDeg, 1),
+          observedAspect: cleanNumber(paper.observedAspect, 4),
           minSideCoverage: cleanNumber(paper.minSideCoverage, 3) ?? 0,
           gateFailures: cleanList(paper.gateFailures, MAX_CODES, (item) =>
             cleanString(item, MAX_CODE_LENGTH),
