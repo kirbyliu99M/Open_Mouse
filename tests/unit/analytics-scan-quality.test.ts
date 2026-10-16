@@ -3,6 +3,7 @@ import {
   CAPTURE_METHODS,
   EDGE_FIT_BUCKETS,
   FOCAL_SOURCES,
+  PAPER_ASPECT_BUCKETS,
   PAPER_SKEW_BUCKETS,
   PRIOR_EFFECT_BUCKETS,
   RESOLUTION_BUCKETS,
@@ -12,6 +13,7 @@ import {
 import {
   buildScanQuality,
   edgeFitBucket,
+  paperAspectBucket,
   paperSkewBucket,
   priorEffectBucket,
   rejectedPaperSkew,
@@ -38,6 +40,7 @@ function diag(over: Partial<PipelineDiagnostics> = {}): PipelineDiagnostics {
       heightFraction: 0.8,
       edgeFitResidualMm: 0.3,
       maxAngleDeviationDeg: 1.5,
+      observedAspect: 0.7066,
       minSideCoverage: 0.9,
       gateFailures: [],
     },
@@ -150,6 +153,69 @@ describe("paperSkewBucket (largest corner-angle deviation, degrees)", () => {
   );
 });
 
+describe("paperAspectBucket (observed width over height against A4 and Letter)", () => {
+  const A4 = 210 / 297;
+  const LETTER = 215.9 / 279.4;
+
+  it("an exact A4 or Letter sheet is under 2 %", () => {
+    expect(paperAspectBucket(A4)).toBe("under_2_pct");
+    expect(paperAspectBucket(LETTER)).toBe("under_2_pct");
+  });
+
+  it.each([
+    [0.0199, "under_2_pct"],
+    [0.02, "from_2_to_4_pct"],
+    [0.0399, "from_2_to_4_pct"],
+    [0.04, "from_4_pct"],
+    [0.2, "from_4_pct"],
+  ] as const)("a deviation of %s from A4 -> %s", (deviation, bucket) => {
+    // A sheet that reads too narrow, and (clear of Letter, below 4 %) too wide.
+    expect(paperAspectBucket(A4 * (1 - deviation))).toBe(bucket);
+    if (deviation < 0.04) {
+      expect(paperAspectBucket(A4 * (1 + deviation))).toBe(bucket);
+    }
+  });
+
+  it("the deviation is against the nearer paper: Letter's own shape is not an outlier", () => {
+    expect(paperAspectBucket(LETTER * 1.0199)).toBe("under_2_pct");
+    expect(paperAspectBucket(LETTER * 0.9801)).toBe("under_2_pct");
+    expect(paperAspectBucket(LETTER * 1.02)).toBe("from_2_to_4_pct");
+    expect(paperAspectBucket(LETTER * 1.0399)).toBe("from_2_to_4_pct");
+    expect(paperAspectBucket(LETTER * 1.04)).toBe("from_4_pct");
+  });
+
+  // Kirby's real scans (2026-10-17): (widthFraction, heightFraction) of an
+  // analysed photo of 1024 x 1920 px; observed = (w * 1024) / (h * 1920).
+  const observed = (w: number, h: number) => (w * 1024) / (h * 1920);
+  it.each([
+    [0.6687, 0.5051],
+    [0.5987, 0.4514],
+    [0.6385, 0.4787],
+    [0.6318, 0.4779],
+    [0.7151, 0.5382],
+    [0.652, 0.4931],
+    [0.7296, 0.5517],
+    [0.6728, 0.5081],
+  ] as const)("ordinary scan (%s, %s) is under 2 percent", (w, h) => {
+    const a = observed(w, h);
+    expect(Math.abs(a / A4 - 1)).toBeLessThan(0.007);
+    expect(paperAspectBucket(a)).toBe("under_2_pct");
+  });
+
+  it("the outlier scan (0.765, 0.6157) is 4 % or more off, about 6.3 %", () => {
+    const a = observed(0.765, 0.6157);
+    expect(Math.abs(a / A4 - 1)).toBeCloseTo(0.063, 2);
+    expect(paperAspectBucket(a)).toBe("from_4_pct");
+  });
+
+  it.each([0, -0.7, Number.NaN, Infinity, -Infinity, null, undefined])(
+    "%s -> null",
+    (v) => {
+      expect(paperAspectBucket(v)).toBeNull();
+    },
+  );
+});
+
 describe("priorEffectBucket (shadow hand length minus the shown one, mm)", () => {
   it.each([
     [-30, "lower_5_plus"],
@@ -222,8 +288,24 @@ describe("buildScanQuality", () => {
       resolution: "from_1920",
       edgeFit: "under_0_5_mm",
       paperSkew: "under_3",
+      paperAspect: "under_2_pct",
       priorEffect: "within_2",
     });
+  });
+
+  it("takes paperAspect from the paper's observed shape", () => {
+    const far = buildScanQuality({
+      ...base,
+      diagnostics: diag({
+        paper: { ...diag().paper!, observedAspect: 0.6627 },
+      }),
+    });
+    expect(far?.paperAspect).toBe("from_4_pct");
+    const mid = buildScanQuality({
+      ...base,
+      diagnostics: diag({ paper: { ...diag().paper!, observedAspect: 0.69 } }),
+    });
+    expect(mid?.paperAspect).toBe("from_2_to_4_pct");
   });
 
   it("takes paperSkew from the paper's angle and priorEffect from the shadow delta", () => {
@@ -323,6 +405,18 @@ describe("buildScanQuality", () => {
         { paper: { ...diag().paper!, maxAngleDeviationDeg: -2 } },
       ],
       [
+        "observed aspect null (no four corners)",
+        { paper: { ...diag().paper!, observedAspect: null } },
+      ],
+      [
+        "observed aspect NaN",
+        { paper: { ...diag().paper!, observedAspect: Number.NaN } },
+      ],
+      [
+        "observed aspect not positive",
+        { paper: { ...diag().paper!, observedAspect: 0 } },
+      ],
+      [
         "edge fit null (no four corners)",
         {
           paper: {
@@ -332,6 +426,7 @@ describe("buildScanQuality", () => {
             heightFraction: null,
             edgeFitResidualMm: null,
             maxAngleDeviationDeg: null,
+            observedAspect: null,
             minSideCoverage: 0.5,
             gateFailures: [],
           },
@@ -369,6 +464,7 @@ describe("privacy: the output is the contract's shape and nothing more", () => {
     ...RESOLUTION_BUCKETS,
     ...EDGE_FIT_BUCKETS,
     ...PAPER_SKEW_BUCKETS,
+    ...PAPER_ASPECT_BUCKETS,
     ...PRIOR_EFFECT_BUCKETS,
   ]);
 
@@ -384,6 +480,7 @@ describe("privacy: the output is the contract's shape and nothing more", () => {
       heightFraction: 0.7123,
       edgeFitResidualMm: 0.777,
       maxAngleDeviationDeg: 7.4321,
+      observedAspect: 0.6627,
       minSideCoverage: 0.91,
       gateFailures: ["PAPER_CURLED"],
     },
@@ -450,6 +547,9 @@ describe("privacy: the output is the contract's shape and nothing more", () => {
         "86.2",
         "5.837",
         "7.43",
+        "0.6627",
+        "0.663",
+        "0.063",
       ]) {
         expect(text).not.toContain(needle);
       }
