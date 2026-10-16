@@ -79,7 +79,8 @@ export const zhTW: ResultFeedbackCopy = {
   starsGroup: "給這次推薦的星等",
   dataLink: "資料如何使用",
   commentLabel: "想多說一點（選填）",
-  helper: "例如哪一支排得太前面或太後面。請勿填寫聯絡方式。",
+  helper:
+    "例如哪一支排得太前面或太後面。請勿填寫聯絡方式。未登入送出的回饋無法撤回。",
   count: (used, max) => `${used} / ${max}`,
   send: "送出",
   sending: "送出中…",
@@ -94,7 +95,7 @@ export const zhTW: ResultFeedbackCopy = {
   keptBody:
     "星等、你選填的意見、手型分類、握法、量測方式、你自述的手掌厚度，以及推薦的前三名與配合度等級。",
   notKeptTitle: "不保存",
-  notKeptBody: "照片、確切的手部尺寸、姓名與 Email。",
+  notKeptBody: "照片與確切的手部尺寸；也不會另外蒐集姓名或 Email。",
   withdrawTitle: "撤回",
   withdrawBody:
     "登入後送出的回饋，可在刪除帳號資料時一併撤回；未登入送出的回饋無法找回，也無法撤回。",
@@ -111,7 +112,7 @@ export const en: ResultFeedbackCopy = {
   dataLink: "How your data is used",
   commentLabel: "Tell us more (optional)",
   helper:
-    "For example, which mouse ranked too high or too low. Please don't add contact details.",
+    "For example, which mouse ranked too high or too low. Please don't add contact details. Feedback sent while signed out can't be withdrawn.",
   count: (used, max) => `${used} / ${max}`,
   send: "Submit",
   sending: "Submitting…",
@@ -127,7 +128,8 @@ export const en: ResultFeedbackCopy = {
   keptBody:
     "Your stars, your optional comment, your hand-type class, grip, how the scan was measured, the palm thickness you stated, and the top three picks with their fit level.",
   notKeptTitle: "Not kept",
-  notKeptBody: "Photos, exact hand measurements, names and email.",
+  notKeptBody:
+    "Photos and exact hand measurements. We also don't collect names or email separately.",
   withdrawTitle: "Withdrawing",
   withdrawBody:
     "Feedback sent while signed in can be withdrawn when you delete your account data. Feedback sent while signed out can't be found again, so it can't be withdrawn.",
