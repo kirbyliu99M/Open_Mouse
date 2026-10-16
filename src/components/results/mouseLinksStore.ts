@@ -1,8 +1,8 @@
 /**
  * The page's client-side store of per-mouse links (2026-10-11): one
- * `GET /api/mice/<slug>/links` per mouse while the page lives. It is a static
- * file on the CDN, so a request costs no function run, but the page still asks
- * for it only once:
+ * `GET /api/mice/<slug>/links` per mouse while the page lives. The answer is
+ * cached by the CDN for a day, so a request rarely runs the function, but the
+ * page still asks for it only once:
  * - a finished answer is kept for the life of the page (`cache`). Only an
  *   answer about the mouse is kept, `null` ("none") included: a 404, or a body
  *   that fails `mouseLinksSchema`. A network error or a 5xx says nothing about

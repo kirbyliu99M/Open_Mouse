@@ -15,9 +15,9 @@ export const CATALOGUE_EXPECTED = {
   /** seedRows + imported. */
   rows: 429,
   /** Rows with listed = true. */
-  listed: 411,
-  /** Rows with listed = false (Logitech, neither G nor MX). */
-  unlisted: 18,
+  listed: 408,
+  /** Rows with listed = false: 18 other Logitech mice and 3 unsupported forms. */
+  unlisted: 21,
   /** Rows with category = office. */
   office: 23,
   /** data_source = first_party: the 38 seed rows and the 8 `official` candidates. */
@@ -31,5 +31,5 @@ export const CATALOGUE_EXPECTED = {
   /** CAT-2: every built row (seed rows + imported). */
   rowConnectivity: { wired: 79, wireless: 349, unknown: 1 },
   /** CAT-2: the listed rows only. */
-  listedConnectivity: { wired: 78, wireless: 332, unknown: 1 },
+  listedConnectivity: { wired: 78, wireless: 329, unknown: 1 },
 } as const;
