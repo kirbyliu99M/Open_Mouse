@@ -153,6 +153,21 @@ describe("paperSkewBucket (largest corner-angle deviation, degrees)", () => {
   );
 });
 
+describe("paperAspectBucket does not depend on which way the sheet lies in the frame", () => {
+  it("reads a sheet lying across the frame (about 1.41) the same as one standing up (about 0.71)", () => {
+    for (const standing of [0.7071, 0.7113, 0.7053, 0.7727, 0.6627, 0.68]) {
+      expect(paperAspectBucket(1 / standing)).toBe(paperAspectBucket(standing));
+    }
+    expect(paperAspectBucket(297 / 210)).toBe("under_2_pct");
+    expect(paperAspectBucket(279.4 / 215.9)).toBe("under_2_pct");
+    // Kirby's 163.5 mm scan (0.6627) is just as far off turned the other way.
+    expect(paperAspectBucket(1 / 0.6627)).toBe("from_4_pct");
+  });
+  it("an aspect of exactly 1 is a square, far from any sheet", () => {
+    expect(paperAspectBucket(1)).toBe("from_4_pct");
+  });
+});
+
 describe("paperAspectBucket (observed width over height against A4 and Letter)", () => {
   const A4 = 210 / 297;
   const LETTER = 215.9 / 279.4;

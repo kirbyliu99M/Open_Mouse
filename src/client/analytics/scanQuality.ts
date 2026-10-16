@@ -134,9 +134,15 @@ export function paperAspectBucket(
   ) {
     return null;
   }
+  // The corners are in image order, so a sheet lying across the frame (or
+  // turned past 45 degrees) has its top edge along the LONG side and reads
+  // about 1.41 rather than 0.71 (orientation.ts says the same of TL to TR).
+  // Short over long does not depend on which way the sheet lies.
+  const shortOverLong =
+    observedAspect > 1 ? 1 / observedAspect : observedAspect;
   const deviation = Math.min(
-    Math.abs(observedAspect / PAPER_ASPECT_A4 - 1),
-    Math.abs(observedAspect / PAPER_ASPECT_LETTER - 1),
+    Math.abs(shortOverLong / PAPER_ASPECT_A4 - 1),
+    Math.abs(shortOverLong / PAPER_ASPECT_LETTER - 1),
   );
   if (deviation < PAPER_ASPECT_MID_FROM) return "under_2_pct";
   if (deviation < PAPER_ASPECT_HIGH_FROM) return "from_2_to_4_pct";
