@@ -27,7 +27,7 @@ export function mouseLinksPath(slug: string): string {
 
 /**
  * The links of `slug`, or `null` when the mouse is not in `media` (the route
- * only exists for the mice in that file). Purchase links are empty when the
+ * answers any other slug with a 404). Purchase links are empty when the
  * slug has none. Own keys only: a slug like "constructor" reads nothing.
  */
 export function linksForMouse(
