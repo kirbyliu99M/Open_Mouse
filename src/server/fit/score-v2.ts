@@ -18,6 +18,7 @@ import {
 } from "./coefficients-v2";
 import {
   assertCovariance,
+  correctMeasurementsForBias,
   inverse3,
   quadForm,
   targetCovariance,
@@ -47,6 +48,17 @@ export { ENGINE_IS_PROVISIONAL, ENGINE_VERSION_V2 } from "./coefficients-v2";
  * fit-v2 STRUCTURE prototype (候選, 未拍板). Offline only: not wired into
  * `engine.ts`, the API or the contract. Same sub-scores, weights and tables as
  * v1; what changes is how uncertainty and grip are handled.
+ *
+ * ## Bias first, then covariance
+ *
+ * A covariance cannot express a systematic error. If the scan reads long by a
+ * known amount b = `params.biasInput`, the input is corrected to x - b before
+ * anything else, and Sigma_in is the covariance of the error AROUND that
+ * corrected value (it already contains the uncertainty of b: the spread of the
+ * bias across tilt caps and an unknown landmark offset). `biasInput = [0, 0]`
+ * switches the correction off; then a bias that is really there is NOT in
+ * Sigma_in and the scores are too confident (use Sigma + b b^T,
+ * `sigmaWithUncorrectedBias`).
  *
  * ## The maths: tolerance, measurement noise and correlation
  *
@@ -118,6 +130,12 @@ export function resolveParams(
     asymmetry: { ...DEFAULT_PARAMS_V2.asymmetry, ...overrides.asymmetry },
   };
   assertCovariance(params.sigmaInput);
+  if (
+    params.biasInput.length !== 2 ||
+    !params.biasInput.every(Number.isFinite)
+  ) {
+    throw new Error("biasInput must be two finite numbers");
+  }
   return params;
 }
 
@@ -454,6 +472,8 @@ export interface FitV2Response {
     mode: "stated" | FitV2Params["gripUnknownMode"];
   };
   params: FitV2Params;
+  /** The hand length and palm width the targets were computed from: the measurement minus `params.biasInput`. */
+  correctedInput: { handLengthMm: number; palmWidthMm: number };
   targetsByGrip: Record<GripStyle, FitTargets>;
   /** Tolerance and measurement noise reported separately, per grip in play. */
   uncertainty: Partial<Record<GripStyle, GripUncertainty>>;
@@ -503,7 +523,10 @@ export function scoreFitV2(
   options: FitV2Options = {},
 ): FitV2Response {
   const params = resolveParams(options.params);
-  const grips = buildGripContextV2(measurements, prefs, params);
+  // Correct the input for the systematic bias first; the covariance below is
+  // then propagated around the corrected value.
+  const corrected = correctMeasurementsForBias(measurements, params.biasInput);
+  const grips = buildGripContextV2(corrected, prefs, params);
   const { uncertainty, sigma } = sigmaByGripFor(params, grips.gripsInPlay);
 
   const ranges: Partial<Record<GripStyle, GripRanges>> = {};
@@ -605,6 +628,10 @@ export function scoreFitV2(
       mode: grips.stated !== null ? "stated" : params.gripUnknownMode,
     },
     params,
+    correctedInput: {
+      handLengthMm: corrected.handLengthMm,
+      palmWidthMm: corrected.palmWidthMm,
+    },
     targetsByGrip: grips.targetsByGrip,
     uncertainty,
     ranges,

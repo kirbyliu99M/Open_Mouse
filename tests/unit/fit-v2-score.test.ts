@@ -6,10 +6,12 @@ import {
   ENGINE_VERSION_V1,
 } from "../../src/server/fit/coefficients";
 import {
+  BIAS_INPUT_FRAME_B,
   DEFAULT_PARAMS_V2,
   ENGINE_IS_PROVISIONAL,
   ENGINE_VERSION_V2,
   SIGMA_INPUT_B_WITH_EXIF,
+  SIGMA_INPUT_FRAME_B,
   V1_EQUIVALENT_PARAMS_V2,
   type Matrix2,
 } from "../../src/server/fit/coefficients-v2";
@@ -26,7 +28,11 @@ import {
   uncertaintyForGrip,
 } from "../../src/server/fit/score-v2";
 import { scoreFrontFlare, scoreThumb } from "../../src/server/fit/subscores-v2";
-import { computeTargets } from "../../src/server/fit/targets";
+import {
+  computeTargets,
+  computeTargetsByGrip,
+} from "../../src/server/fit/targets";
+import { LENGTH_FACTOR } from "../../src/server/fit/coefficients";
 import {
   describedCatalogue,
   goldenHands,
@@ -64,11 +70,14 @@ describe("fit-v2 scaffolding", () => {
     expect(engineSource).not.toMatch(/score-v2|coefficients-v2/);
   });
 
-  it("defaults to the simulated profile-B-with-EXIF covariance", () => {
+  it("defaults to the simulated frame (no EXIF) covariance and bias, not the EXIF comparison", () => {
     expect(DEFAULT_PARAMS_V2.sigmaInput).toEqual([
-      [2.58, 0.28],
-      [0.28, 1.61],
+      [18.77, 4.82],
+      [4.82, 6.09],
     ]);
+    expect(DEFAULT_PARAMS_V2.sigmaInput).not.toEqual(SIGMA_INPUT_B_WITH_EXIF);
+    expect(DEFAULT_PARAMS_V2.biasInput).toEqual([3.85, 1.32]);
+    expect(V1_EQUIVALENT_PARAMS_V2.biasInput).toEqual([0, 0]);
     expect(DEFAULT_PARAMS_V2.asymmetry).toEqual({
       length: 1,
       gripWidth: 1,
@@ -169,8 +178,8 @@ describe("2. tolerance and measurement noise are kept and reported apart", () =>
 
 describe("correlation cannot change the marginal total, only joint quantities", () => {
   const diagonalOnly: Matrix2 = [
-    [SIGMA_INPUT_B_WITH_EXIF[0][0], 0],
-    [0, SIGMA_INPUT_B_WITH_EXIF[1][1]],
+    [SIGMA_INPUT_FRAME_B[0][0], 0],
+    [0, SIGMA_INPUT_FRAME_B[1][1]],
   ];
 
   it("totals are identical with and without Cov(handLength, palmWidth)", () => {
@@ -250,6 +259,7 @@ describe("3. acceptable range: symmetric only by default", () => {
       { ...prefs, gripStyle: "claw" },
       "right",
       priors,
+      { params: { biasInput: [0, 0] } },
     );
     expect(res.results[0].subscoresByGrip.claw?.length.score).toBeCloseTo(
       60,
@@ -404,5 +414,82 @@ describe("6. no new mouse-geometry coefficient", () => {
       "utf8",
     );
     expect(src).not.toMatch(/THUMB_SCORE|HUMP_|CURVATURE|FACTOR/);
+  });
+});
+
+describe("bias is subtracted before the targets, the covariance is propagated around the corrected input", () => {
+  const bias: [number, number] = [4, 1.5];
+  const measured = claw.measurements;
+  const corrected = {
+    ...measured,
+    handLengthMm: measured.handLengthMm - bias[0],
+    palmWidthMm: measured.palmWidthMm - bias[1],
+  };
+
+  it("reports the corrected input and computes every target from it", () => {
+    const r = run(measured, seedCatalogue, prefs, {
+      params: { biasInput: bias },
+    });
+    expect(r.correctedInput).toEqual({
+      handLengthMm: corrected.handLengthMm,
+      palmWidthMm: corrected.palmWidthMm,
+    });
+    expect(r.targetsByGrip).toEqual(
+      computeTargetsByGrip(
+        corrected.handLengthMm,
+        corrected.palmWidthMm,
+        undefined,
+      ),
+    );
+    const none = run(measured, seedCatalogue, prefs, {
+      params: { biasInput: [0, 0] },
+    });
+    expect(
+      none.targetsByGrip.claw.lengthMm - r.targetsByGrip.claw.lengthMm,
+    ).toBeCloseTo(LENGTH_FACTOR.claw * bias[0], 9);
+  });
+
+  it("correcting by b is exactly feeding the corrected hand with no correction", () => {
+    const a = run(measured, seedCatalogue, prefs, {
+      params: { biasInput: bias },
+    });
+    const b = run(corrected, seedCatalogue, prefs, {
+      params: { biasInput: [0, 0] },
+    });
+    expect(a.results.map((e) => [e.mouse.slug, e.totalRaw])).toEqual(
+      b.results.map((e) => [e.mouse.slug, e.totalRaw]),
+    );
+  });
+
+  it("does not touch the covariance: tolerance and measurement noise stay as given", () => {
+    const a = run(measured, seedCatalogue, prefs, {
+      params: { biasInput: bias },
+    });
+    const b = run(measured, seedCatalogue, prefs, {
+      params: { biasInput: [0, 0] },
+    });
+    expect(a.uncertainty).toEqual(b.uncertainty);
+  });
+
+  it("the default bias really moves the scores (it is not a no-op)", () => {
+    const withDefault = run();
+    const off = run(measured, seedCatalogue, prefs, {
+      params: { biasInput: [0, 0] },
+    });
+    expect(withDefault.params.biasInput).toEqual(BIAS_INPUT_FRAME_B);
+    expect(withDefault.results.map((e) => e.totalRaw)).not.toEqual(
+      off.results.map((e) => e.totalRaw),
+    );
+  });
+
+  it("rejects a bias that is not finite or that leaves a non-positive measurement", () => {
+    expect(() => resolveParams({ biasInput: [Number.NaN, 0] })).toThrow(
+      /finite/,
+    );
+    expect(() =>
+      run(measured, seedCatalogue, prefs, {
+        params: { biasInput: [measured.handLengthMm, 0] },
+      }),
+    ).toThrow(/non-positive/);
   });
 });

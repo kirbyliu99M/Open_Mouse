@@ -3,9 +3,11 @@ import { GRIP_STYLES } from "../../lib/contracts/fit";
 import type { HandMeasurements } from "../../lib/contracts/measurement";
 import { ENGINE_VERSION_V1 } from "./coefficients";
 import {
+  BIAS_INPUT_FRAME_NOMINAL_PRIOR_B,
   DEFAULT_PARAMS_V2,
   ENGINE_VERSION_V2,
-  SIGMA_INPUT_B_NO_EXIF,
+  SIGMA_INPUT_B_WITH_EXIF,
+  SIGMA_INPUT_FRAME_NOMINAL_PRIOR_B,
   V1_EQUIVALENT_PARAMS_V2,
   type FitV2Params,
 } from "./coefficients-v2";
@@ -28,14 +30,21 @@ const f1 = (n: number) => n.toFixed(1);
 const f2 = (n: number) => n.toFixed(2);
 const pct = (p: number) => `${Math.round(p * 100)}%`;
 
+const topFive = (list: readonly string[]) => list.slice(0, 5);
+
 /**
  * v1 vs v2 on the same catalogue and hands, as markdown. Pure and
  * deterministic (the resampling is seeded). Three v2 variants are compared with
  * v1 so a difference can be traced to its cause:
  *
- *  - "v2": the v2 defaults (equal grip thirds, simulated Sigma_input);
- *  - "v2, v1 grip": the same Sigma_input but v1's palm-ratio grip weights;
+ *  - "v2": the v2 defaults (equal grip thirds, the SIMULATED frame, no-EXIF
+ *    Sigma_input and bias correction);
+ *  - "v2, v1 grip": the same input handling but v1's palm-ratio grip weights;
  *  - "v2, v1-equivalent": must equal v1 exactly (a sanity column).
+ *
+ * A separate section lists, per hand, what changes between the v1-equivalent
+ * setting and the v2 default, one change at a time (Sigma_input, then the bias
+ * correction, then the equal grip weights).
  */
 export function buildCompareReportV2(
   catalogue: readonly CatalogueMouse[],
@@ -56,8 +65,12 @@ export function buildCompareReportV2(
   );
   lines.push("");
   lines.push(
-    `Sigma_input (v2 default, SIMULATED, not measured) = ${JSON.stringify(DEFAULT_PARAMS_V2.sigmaInput)} mm^2; no-EXIF = ${JSON.stringify(SIGMA_INPUT_B_NO_EXIF)}; v1-equivalent = ${JSON.stringify(V1_EQUIVALENT_PARAMS_V2.sigmaInput)}. Resamples M = 200, seed fixed.`,
+    `Input uncertainty (all SIMULATED, not measured; scan error budget, frame capture = no EXIF): v2 default Sigma_input = ${JSON.stringify(DEFAULT_PARAMS_V2.sigmaInput)} mm^2 with bias vector ${JSON.stringify(DEFAULT_PARAMS_V2.biasInput)} mm subtracted from (handLength, palmWidth) first; EXIF comparison = ${JSON.stringify(SIGMA_INPUT_B_WITH_EXIF)}, no bias; candidate nominal-focal-prior fix = ${JSON.stringify(SIGMA_INPUT_FRAME_NOMINAL_PRIOR_B)}, bias ${JSON.stringify(BIAS_INPUT_FRAME_NOMINAL_PRIOR_B)}; v1-equivalent = ${JSON.stringify(V1_EQUIVALENT_PARAMS_V2.sigmaInput)}, no bias. Resamples M = 200, seed fixed.`,
   );
+  lines.push("");
+  lines.push("## v2 default vs v1-equivalent: what differs");
+  lines.push("");
+  lines.push(...defaultVsEquivalentParams());
   lines.push("");
 
   const summary: string[] = [
@@ -87,15 +100,33 @@ export function buildCompareReportV2(
       g.hand,
       priors,
     );
-    const stNo = rankingStabilityV2(
+    const stExif = rankingStabilityV2(
       g.measurements,
       catalogue,
       prefs,
       g.hand,
       priors,
-      { params: { sigmaInput: SIGMA_INPUT_B_NO_EXIF } },
+      { params: { sigmaInput: SIGMA_INPUT_B_WITH_EXIF, biasInput: [0, 0] } },
     );
-    const noBySlug = new Map(stNo.perMouse.map((m) => [m.slug, m] as const));
+    const exifBySlug = new Map(
+      stExif.perMouse.map((m) => [m.slug, m] as const),
+    );
+    const stNominal = rankingStabilityV2(
+      g.measurements,
+      catalogue,
+      prefs,
+      g.hand,
+      priors,
+      {
+        params: {
+          sigmaInput: SIGMA_INPUT_FRAME_NOMINAL_PRIOR_B,
+          biasInput: BIAS_INPUT_FRAME_NOMINAL_PRIOR_B,
+        },
+      },
+    );
+    const nominalBySlug = new Map(
+      stNominal.perMouse.map((m) => [m.slug, m] as const),
+    );
 
     detail.push(`## ${name}`);
     detail.push("");
@@ -116,24 +147,47 @@ export function buildCompareReportV2(
     }
     detail.push("");
     detail.push(
-      "Stability of the v2 top 5 (resampled true hands; totals are on the tolerance-only scale; no-EXIF = the larger simulated Sigma_input):",
+      "Stability of the v2 top 5 in the FRAME scenario (the default: no EXIF, simulated Sigma_input, bias corrected; resampled true hands; totals are on the tolerance-only scale). For contrast: the EXIF comparison (not what the frame capture gives) and the candidate nominal-focal-prior fix:",
     );
     detail.push("");
     detail.push(
-      "| v2 rank | mouse | top-1 prob | top-5 prob | total P10-P90 | top-1 (no EXIF) | top-5 (no EXIF) |",
+      "| v2 rank | mouse | top-1 prob (frame) | top-5 prob (frame) | total P10-P90 (frame) | top-1 (EXIF comparison) | top-5 (EXIF comparison) | top-1 (nominal prior) | top-5 (nominal prior) |",
     );
-    detail.push("|---|---|---|---|---|---|---|");
+    detail.push("|---|---|---|---|---|---|---|---|---|");
     const bySlug = new Map(st.perMouse.map((m) => [m.slug, m] as const));
     for (const e of v2.results.slice(0, 5)) {
       const m = bySlug.get(e.mouse.slug);
-      const n = noBySlug.get(e.mouse.slug);
-      if (!m || !n) continue;
+      const x = exifBySlug.get(e.mouse.slug);
+      const n = nominalBySlug.get(e.mouse.slug);
+      if (!m || !x || !n) continue;
       detail.push(
-        `| ${e.rank} | ${e.mouse.slug} | ${pct(m.top1Prob)} | ${pct(m.top5Prob)} | ${f1(m.totalP10)}-${f1(m.totalP90)} | ${pct(n.top1Prob)} | ${pct(n.top5Prob)} |`,
+        `| ${e.rank} | ${e.mouse.slug} | ${pct(m.top1Prob)} | ${pct(m.top5Prob)} | ${f1(m.totalP10)}-${f1(m.totalP90)} | ${pct(x.top1Prob)} | ${pct(x.top5Prob)} | ${pct(n.top1Prob)} | ${pct(n.top5Prob)} |`,
       );
     }
     detail.push("");
     detail.push(rangeLine(v2));
+    detail.push("");
+    detail.push(
+      "From the v1-equivalent setting (= v1) to the v2 default, one change at a time (top-5 overlap and Kendall tau are against v1; the last row is the v2 default):",
+    );
+    detail.push("");
+    detail.push(
+      "| Step | top-1 | top-5 overlap with v1 | tau with v1 | enters the top 5 vs v1 | leaves the top 5 vs v1 |",
+    );
+    detail.push("|---|---|---|---|---|---|");
+    for (const step of defaultSteps()) {
+      const r = scoreFitV2(g.measurements, catalogue, prefs, g.hand, priors, {
+        params: step.params,
+      });
+      const rs = slugs(r);
+      const inV1 = new Set(topFive(s));
+      const inStep = new Set(topFive(rs));
+      const entered = topFive(rs).filter((x) => !inV1.has(x));
+      const left = topFive(s).filter((x) => !inStep.has(x));
+      detail.push(
+        `| ${step.label} | ${rs[0]} | ${topKOverlap(s, rs, 5)}/5 | ${f2(kendallTau(s, rs))} | ${entered.join(", ") || "-"} | ${left.join(", ") || "-"} |`,
+      );
+    }
     detail.push("");
   }
 
@@ -149,4 +203,52 @@ function rangeLine(v2: FitV2Response): string {
   }).filter(Boolean);
   const nIn = v2.results.filter((e) => e.inRangeAnyGrip).length;
   return `Acceptable range (sub-score >= ${v2.params.rangeThresholdScore}, mm): ${parts.join("; ")}. Mice in range on all three dimensions for some grip: ${nIn} of ${v2.results.length}.`;
+}
+
+/** The one-at-a-time path from the v1-equivalent setting to the v2 default. */
+function defaultSteps(): { label: string; params: Partial<FitV2Params> }[] {
+  const eq = V1_EQUIVALENT_PARAMS_V2;
+  const withSigma: Partial<FitV2Params> = {
+    ...eq,
+    sigmaInput: DEFAULT_PARAMS_V2.sigmaInput,
+  };
+  const withBias: Partial<FitV2Params> = {
+    ...withSigma,
+    biasInput: DEFAULT_PARAMS_V2.biasInput,
+  };
+  const withGrip: Partial<FitV2Params> = {
+    ...withBias,
+    gripUnknownMode: DEFAULT_PARAMS_V2.gripUnknownMode,
+  };
+  return [
+    { label: "v1-equivalent (= v1)", params: eq },
+    { label: "+ frame Sigma_input", params: withSigma },
+    { label: "+ bias correction", params: withBias },
+    { label: "+ equal grip weights (= v2 default)", params: withGrip },
+  ];
+}
+
+const same = (a: unknown, b: unknown) =>
+  JSON.stringify(a) === JSON.stringify(b);
+
+/** A table of every parameter on which the v2 default and the v1-equivalent setting differ. */
+function defaultVsEquivalentParams(): string[] {
+  const d = DEFAULT_PARAMS_V2;
+  const e = V1_EQUIVALENT_PARAMS_V2;
+  const rows: [string, unknown, unknown][] = [
+    ["sigmaInput (mm^2)", e.sigmaInput, d.sigmaInput],
+    ["biasInput (mm, subtracted first)", e.biasInput, d.biasInput],
+    ["gripUnknownMode", e.gripUnknownMode, d.gripUnknownMode],
+    ["tolerance (mm)", e.tolerance, d.tolerance],
+    ["asymmetry", e.asymmetry, d.asymmetry],
+    ["rangeThresholdScore", e.rangeThresholdScore, d.rangeThresholdScore],
+  ];
+  return [
+    "| Parameter | v1-equivalent | v2 default | differs |",
+    "|---|---|---|---|",
+    ...rows.map(
+      ([name, a, b]) =>
+        `| ${name} | ${JSON.stringify(a)} | ${JSON.stringify(b)} | ${same(a, b) ? "no" : "**yes**"} |`,
+    ),
+  ];
 }

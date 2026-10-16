@@ -5,12 +5,18 @@ import {
   LENGTH_FACTOR,
 } from "../../src/server/fit/coefficients";
 import {
-  SIGMA_INPUT_B_NO_EXIF,
+  SIGMA_INPUT_FRAME_B,
+  BIAS_INPUT_FRAME_B,
+  BIAS_INPUT_FRAME_NOMINAL_PRIOR_B,
   SIGMA_INPUT_B_WITH_EXIF,
+  SIGMA_INPUT_FRAME_B_UNCORRECTED,
+  SIGMA_INPUT_FRAME_NOMINAL_PRIOR_B,
+  sigmaWithUncorrectedBias,
   type Matrix2,
 } from "../../src/server/fit/coefficients-v2";
 import {
   assertCovariance,
+  correctMeasurementsForBias,
   cholesky2,
   drawInputError,
   inverse3,
@@ -62,7 +68,7 @@ describe("Sigma_target = J Sigma_input J^T", () => {
   });
 
   it("is symmetric and rank 2 for both default profiles", () => {
-    for (const s of [SIGMA_INPUT_B_WITH_EXIF, SIGMA_INPUT_B_NO_EXIF]) {
+    for (const s of [SIGMA_INPUT_B_WITH_EXIF, SIGMA_INPUT_FRAME_B]) {
       const cov = targetCovariance(s, "fingertip");
       for (let i = 0; i < 3; i++) {
         for (let j = 0; j < 3; j++) {
@@ -76,6 +82,61 @@ describe("Sigma_target = J Sigma_input J^T", () => {
         cov[0][2] * (cov[1][0] * cov[2][1] - cov[1][1] * cov[2][0]);
       expect(Math.abs(det)).toBeLessThan(1e-9);
     }
+  });
+});
+
+describe("simulated frame constants and the bias helpers", () => {
+  it("every default Sigma_input is a valid covariance", () => {
+    for (const m of [
+      SIGMA_INPUT_FRAME_B,
+      SIGMA_INPUT_FRAME_NOMINAL_PRIOR_B,
+      SIGMA_INPUT_B_WITH_EXIF,
+      SIGMA_INPUT_FRAME_B_UNCORRECTED,
+    ]) {
+      expect(() => assertCovariance(m)).not.toThrow();
+    }
+  });
+
+  it("the frame Sigma is wider than the EXIF comparison, and the nominal-prior candidate is tighter than the frame default", () => {
+    expect(SIGMA_INPUT_FRAME_B[0][0]).toBeGreaterThan(
+      SIGMA_INPUT_B_WITH_EXIF[0][0],
+    );
+    expect(SIGMA_INPUT_FRAME_NOMINAL_PRIOR_B[0][0]).toBeLessThan(
+      SIGMA_INPUT_FRAME_B[0][0],
+    );
+    expect(Math.abs(BIAS_INPUT_FRAME_NOMINAL_PRIOR_B[0])).toBeLessThan(
+      BIAS_INPUT_FRAME_B[0],
+    );
+  });
+
+  it("sigmaWithUncorrectedBias adds the outer product b b^T", () => {
+    const s = sigmaWithUncorrectedBias(
+      [
+        [4, 1],
+        [1, 2],
+      ],
+      [3, -2],
+    );
+    expect(s).toEqual([
+      [13, -5],
+      [-5, 6],
+    ]);
+    expect(SIGMA_INPUT_FRAME_B_UNCORRECTED[0][0]).toBeCloseTo(
+      SIGMA_INPUT_FRAME_B[0][0] + BIAS_INPUT_FRAME_B[0] ** 2,
+      12,
+    );
+  });
+
+  it("correctMeasurementsForBias subtracts from handLength and palmWidth only", () => {
+    const m = { handLengthMm: 190, palmLengthMm: 105, palmWidthMm: 80 };
+    expect(correctMeasurementsForBias(m, [3, 1])).toEqual({
+      handLengthMm: 187,
+      palmLengthMm: 105,
+      palmWidthMm: 79,
+    });
+    expect(correctMeasurementsForBias(m, [0, 0])).toEqual(m);
+    expect(() => correctMeasurementsForBias(m, [Number.NaN, 0])).toThrow();
+    expect(() => correctMeasurementsForBias(m, [0, 80])).toThrow();
   });
 });
 
@@ -108,12 +169,12 @@ describe("assertCovariance and cholesky2", () => {
   });
 
   it("L L^T reproduces the matrix", () => {
-    const L = cholesky2(SIGMA_INPUT_B_NO_EXIF);
+    const L = cholesky2(SIGMA_INPUT_FRAME_B);
     expect(L[0][1]).toBe(0);
-    expect(L[0][0] * L[0][0]).toBeCloseTo(SIGMA_INPUT_B_NO_EXIF[0][0], 12);
-    expect(L[1][0] * L[0][0]).toBeCloseTo(SIGMA_INPUT_B_NO_EXIF[1][0], 12);
+    expect(L[0][0] * L[0][0]).toBeCloseTo(SIGMA_INPUT_FRAME_B[0][0], 12);
+    expect(L[1][0] * L[0][0]).toBeCloseTo(SIGMA_INPUT_FRAME_B[1][0], 12);
     expect(L[1][0] ** 2 + L[1][1] ** 2).toBeCloseTo(
-      SIGMA_INPUT_B_NO_EXIF[1][1],
+      SIGMA_INPUT_FRAME_B[1][1],
       12,
     );
   });
@@ -187,7 +248,7 @@ describe("seeded sampler", () => {
   });
 
   it("draws errors whose sample covariance matches Sigma_input", () => {
-    const sigma: Matrix2 = SIGMA_INPUT_B_NO_EXIF;
+    const sigma: Matrix2 = SIGMA_INPUT_FRAME_B;
     const chol = cholesky2(sigma);
     const normal = normalSampler(mulberry32(12345));
     const n = 40000;

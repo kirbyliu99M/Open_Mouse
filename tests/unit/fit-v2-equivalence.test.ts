@@ -5,7 +5,10 @@ import {
   type GripStyle,
 } from "../../src/lib/contracts/fit";
 import type { HandMeasurements } from "../../src/lib/contracts/measurement";
-import { V1_EQUIVALENT_PARAMS_V2 } from "../../src/server/fit/coefficients-v2";
+import {
+  DEFAULT_PARAMS_V2,
+  V1_EQUIVALENT_PARAMS_V2,
+} from "../../src/server/fit/coefficients-v2";
 import { excludeReasonV1 } from "../../src/server/fit/exclusions-v1";
 import { argmaxGrip, gripWeights } from "../../src/server/fit/grip-weights";
 import { computePriors } from "../../src/server/fit/priors";
@@ -129,6 +132,30 @@ describe("fit-v2 is v1 under the v1-equivalent setting", () => {
       gripWidth: 1,
       height: 1,
     });
+  });
+
+  it("the equivalence needs bias = 0: the default bias alone breaks it", () => {
+    const g = goldenHands.medium_claw;
+    const priors = computePriors(seedCatalogue);
+    const prefs = { includeVertical: false } as const;
+    const v1 = scoreFitV1(g.measurements, seedCatalogue, prefs, g.hand, priors);
+    const v2 = scoreFitV2(
+      g.measurements,
+      seedCatalogue,
+      prefs,
+      g.hand,
+      priors,
+      {
+        params: {
+          ...V1_EQUIVALENT_PARAMS_V2,
+          biasInput: DEFAULT_PARAMS_V2.biasInput,
+        },
+      },
+    );
+    const v1Totals = new Map(v1.results.map((e) => [e.mouse.slug, e.total]));
+    expect(v2.results.some((e) => v1Totals.get(e.mouse.slug) !== e.total)).toBe(
+      true,
+    );
   });
 
   it("v2 excludes exactly what v1 excludes (same rule function)", () => {

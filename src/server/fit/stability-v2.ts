@@ -7,6 +7,7 @@ import type { HandMeasurements } from "../../lib/contracts/measurement";
 import { STABILITY_SAMPLES, STABILITY_SEED } from "./coefficients-v2";
 import {
   cholesky2,
+  correctMeasurementsForBias,
   drawInputError,
   mulberry32,
   normalSampler,
@@ -27,7 +28,8 @@ import type { CatalogueMouse } from "./types";
 /**
  * Ranking stability under input uncertainty (fit-v2 prototype, 候選).
  *
- * Draw M "true hands" x_s = x + e_s with e_s ~ N(0, Sigma_input), jointly in
+ * Draw M "true hands" x_s = (x - b) + e_s with e_s ~ N(0, Sigma_input), where
+ * b is `params.biasInput` (0 = no correction), jointly in
  * (handLength, palmWidth), so the length and height targets move together.
  * Each draw is scored with the tolerance only (no measurement widening: the
  * measurement noise is now in the draw), ranked with v1's order, and the
@@ -100,6 +102,8 @@ export function rankingStabilityV2(
     GRIP_STYLES.map((g) => [g, tolSigma]),
   ) as Record<GripStyle, typeof tolSigma>;
 
+  // The "true hand" is drawn around the bias-corrected input.
+  const centre = correctMeasurementsForBias(measurements, params.biasInput);
   const chol = cholesky2(params.sigmaInput);
   const normal = normalSampler(mulberry32(seed));
   const top1 = new Array<number>(ranked.length).fill(0);
@@ -109,9 +113,9 @@ export function rankingStabilityV2(
   for (let s = 0; s < samples; s++) {
     const [eL, eW] = drawInputError(chol, normal);
     const drawn: HandMeasurements = {
-      ...measurements,
-      handLengthMm: measurements.handLengthMm + eL,
-      palmWidthMm: measurements.palmWidthMm + eW,
+      ...centre,
+      handLengthMm: centre.handLengthMm + eL,
+      palmWidthMm: centre.palmWidthMm + eW,
     };
     const grips = buildGripContextV2(drawn, prefs, params);
     const rows = ranked.map((mouse, idx) => {

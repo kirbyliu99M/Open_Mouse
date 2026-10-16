@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  SIGMA_INPUT_B_NO_EXIF,
+  SIGMA_INPUT_B_WITH_EXIF,
+  SIGMA_INPUT_FRAME_B,
   STABILITY_SAMPLES,
   STABILITY_SEED,
 } from "../../src/server/fit/coefficients-v2";
@@ -45,7 +46,7 @@ describe("4. ranking stability under Sigma_input", () => {
   });
 
   it("top-1 probabilities sum to 1 and top-5 probabilities to 5", () => {
-    const s = stab({ params: { sigmaInput: SIGMA_INPUT_B_NO_EXIF } });
+    const s = stab({ params: { sigmaInput: SIGMA_INPUT_FRAME_B } });
     const sum = (f: (m: (typeof s.perMouse)[number]) => number) =>
       s.perMouse.reduce((acc, m) => acc + f(m), 0);
     expect(sum((m) => m.top1Prob)).toBeCloseTo(1, 12);
@@ -92,14 +93,54 @@ describe("4. ranking stability under Sigma_input", () => {
   });
 
   it("more input uncertainty spreads the totals and leaves more mice with an uncertain top-5 place", () => {
-    const tight = stab();
-    const loose = stab({ params: { sigmaInput: SIGMA_INPUT_B_NO_EXIF } });
+    const tight = stab({
+      params: { sigmaInput: SIGMA_INPUT_B_WITH_EXIF, biasInput: [0, 0] },
+    });
+    const loose = stab({
+      params: { sigmaInput: SIGMA_INPUT_FRAME_B, biasInput: [0, 0] },
+    });
     const spread = (s: typeof tight) =>
       s.perMouse.reduce((acc, m) => acc + (m.totalP90 - m.totalP10), 0);
     const uncertain = (s: typeof tight) =>
       s.perMouse.filter((m) => m.top5Prob > 0 && m.top5Prob < 1).length;
     expect(spread(loose)).toBeGreaterThan(spread(tight));
     expect(uncertain(loose)).toBeGreaterThanOrEqual(uncertain(tight));
+  });
+
+  it("draws the true hand around the bias-corrected input", () => {
+    const bias: [number, number] = [6, 2];
+    const zero: [[number, number], [number, number]] = [
+      [0, 0],
+      [0, 0],
+    ];
+    const s = stab({
+      samples: 10,
+      params: { sigmaInput: zero, biasInput: bias },
+    });
+    // No spread: every draw is the corrected hand, so the top mouse is the one
+    // scoreFitV2 ranks first for the hand with the bias already removed.
+    const corrected = {
+      ...hand.measurements,
+      handLengthMm: hand.measurements.handLengthMm - bias[0],
+      palmWidthMm: hand.measurements.palmWidthMm - bias[1],
+    };
+    const base = scoreFitV2(
+      corrected,
+      seedCatalogue,
+      prefs,
+      hand.hand,
+      priors,
+      { params: { biasInput: [0, 0] } },
+    );
+    expect(s.perMouse[0].slug).toBe(base.results[0].mouse.slug);
+    expect(s.perMouse[0].top1Prob).toBe(1);
+    const off = stab({
+      samples: 10,
+      params: { sigmaInput: zero, biasInput: [0, 0] },
+    });
+    expect(off.perMouse.map((m) => m.totalP50)).not.toEqual(
+      s.perMouse.map((m) => m.totalP50),
+    );
   });
 
   it("rejects a bad sample count", () => {

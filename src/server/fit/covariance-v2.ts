@@ -1,4 +1,5 @@
 import type { GripStyle } from "../../lib/contracts/fit";
+import type { HandMeasurements } from "../../lib/contracts/measurement";
 import {
   GRIP_WIDTH_FACTOR,
   HEIGHT_FACTOR,
@@ -65,6 +66,27 @@ export function targetCovariance(
     [cell(1, 0), cell(1, 1), cell(1, 2)],
     [cell(2, 0), cell(2, 1), cell(2, 2)],
   ];
+}
+
+/**
+ * The measurement with the systematic bias removed: handLength and palmWidth
+ * minus `bias` (mm), everything else untouched (palmLength is only read by the
+ * "v1_ratio" grip mode). A bias of [0, 0] returns the same values. Throws when
+ * the bias is not finite or the corrected value would not be positive.
+ */
+export function correctMeasurementsForBias(
+  measurements: HandMeasurements,
+  bias: readonly [number, number],
+): HandMeasurements {
+  if (!Number.isFinite(bias[0]) || !Number.isFinite(bias[1])) {
+    throw new Error("biasInput must be finite");
+  }
+  const handLengthMm = measurements.handLengthMm - bias[0];
+  const palmWidthMm = measurements.palmWidthMm - bias[1];
+  if (!(handLengthMm > 0 && palmWidthMm > 0)) {
+    throw new Error("biasInput leaves a non-positive corrected measurement");
+  }
+  return { ...measurements, handLengthMm, palmWidthMm };
 }
 
 /** Throws unless `m` is symmetric positive semi-definite (a valid covariance). */

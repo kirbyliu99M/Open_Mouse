@@ -15,6 +15,28 @@ describe("v1 vs v2 comparison report", () => {
     expect(report).toContain("fit-v2-structure-candidate.0");
   });
 
+  it("states the frame scenario and lists what differs between the v2 default and the v1-equivalent setting", () => {
+    expect(report).toContain("frame capture = no EXIF");
+    expect(report).toContain("## v2 default vs v1-equivalent: what differs");
+    expect(report).toMatch(
+      /\| biasInput \(mm, subtracted first\) \|.*\*\*yes\*\*/,
+    );
+    expect(report).toMatch(/\| sigmaInput \(mm\^2\) \|.*\*\*yes\*\*/);
+    expect(report).toMatch(/\| tolerance \(mm\) \|.*\| no \|/);
+    expect(report).toContain("top-5 prob (frame)");
+    expect(report).toContain("+ bias correction");
+  });
+
+  it("the first step of the path to the default is v1 itself (top-5 overlap 5/5, tau 1.00)", () => {
+    const rows = report
+      .split("\n")
+      .filter((l) => l.startsWith("| v1-equivalent (= v1) |"));
+    expect(rows).toHaveLength(Object.keys(goldenHands).length);
+    for (const row of rows) {
+      expect(row).toContain("| 5/5 | 1.00 |");
+    }
+  });
+
   it("has one section per golden hand and a v1-equivalent tau of 1.00", () => {
     for (const name of Object.keys(goldenHands)) {
       expect(report).toContain(`## ${name}`);

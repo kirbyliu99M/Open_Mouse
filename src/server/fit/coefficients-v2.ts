@@ -25,11 +25,69 @@ export type Matrix2 = readonly [
  * Σ_input: covariance of the scan's (handLength, palmWidth) error, mm^2, in
  * that order. Supplied by the caller; these are only the defaults.
  *
- * 候選，無實測依據. Source: the scan error budget SIMULATION (branch
- * `scan-error-budget-2026-10-16`, commit 213a1ba6, profile B), not a
- * measurement. Kirby's single-person, single-phone S25 repeat run (5 scans)
- * gave SD 0.84 mm (hand length) and 0.55 mm (palm width), which is one device
- * and says nothing about other phones.
+ * The product captures a FRAME OF THE VIDEO (`CAMERA_CONSTANTS.capture.source =
+ * "frame"`), which has no EXIF. So the DEFAULT below is the frame, no-EXIF
+ * simulation; the with-EXIF value is kept only as a comparison.
+ *
+ * 候選，無實測依據. Everything below is the output of the scan error budget
+ * SIMULATION (branch `scan-error-budget-2026-10-16`, commit b8c44949,
+ * `npx tsx scripts/scan-error-budget.ts`, seed 20261016, N = 2000, joint
+ * profile B), not a measurement. Kirby's single-person, single-phone S25
+ * repeat run (5 scans) gave SD 0.84 mm (hand length) and 0.55 mm (palm width)
+ * and a hand length 0.8 mm under his tape: one device, one hand, a tape of
+ * unrecorded definition; it cannot calibrate any of this.
+ */
+
+/**
+ * Frame, no EXIF, the CURRENT pipeline (an unreliable focal estimate means no
+ * parallax correction). Pooled with equal weight over tilt caps of 10 / 20 /
+ * 30 / 45 degrees (the real tilt distribution is unknown, so the spread
+ * between caps is part of this covariance), plus the variance of an unknown
+ * systematic landmark displacement uniform in +-2 mm (half^2 / 3 = 1.33 mm^2
+ * on each axis; the +-2 mm is self-set, no source). It is bimodal: about half
+ * the scans are corrected (near unbiased, larger spread), the rest are not
+ * (about +6 mm long). This is a covariance AROUND the bias vector
+ * `BIAS_INPUT_FRAME_B`; if the bias is not subtracted use
+ * `SIGMA_INPUT_FRAME_B_UNCORRECTED` instead.
+ */
+export const SIGMA_INPUT_FRAME_B: Matrix2 = [
+  [18.77, 4.82],
+  [4.82, 6.09],
+];
+
+/**
+ * The matching bias vector: the pooled mean of (handLength, palmWidth) error,
+ * mm. The measured value minus this is the corrected input. It is dominated by
+ * the scans that fall back to no parallax correction, so it moves with the
+ * tilt distribution and with any change to the pipeline (it is +3.0 to +4.8 mm
+ * for hand length across the simulated profiles, and the spread of the cap
+ * means is 1.1 mm). The simulation cannot say whether the real phone
+ * pipeline has this bias: Kirby's S25 shows a hand-length bias of -0.8 mm
+ * against a tape of unrecorded definition, so subtracting +3.85 mm there
+ * would overshoot unless the unknown landmark and definition offsets happen
+ * to be about +4.6 mm in the other direction. 候選，無實測依據; set it to
+ * [0, 0] to switch the correction off.
+ */
+export const BIAS_INPUT_FRAME_B: readonly [number, number] = [3.85, 1.32];
+
+/**
+ * The same, for the candidate fix in the error budget (a nominal 26 mm-
+ * equivalent focal prior, uniform +-20% per scan, replaces "no parallax
+ * correction" when the paper-corner estimate is unreliable). Not what the
+ * product does today; kept so v2 can be run against it. 候選，無實測依據.
+ */
+export const SIGMA_INPUT_FRAME_NOMINAL_PRIOR_B: Matrix2 = [
+  [5.59, 0.39],
+  [0.39, 4.02],
+];
+export const BIAS_INPUT_FRAME_NOMINAL_PRIOR_B: readonly [number, number] = [
+  0.01, -0.41,
+];
+
+/**
+ * COMPARISON ONLY: with an EXIF focal length (not what the frame capture
+ * gives), joint profile B, tilt <= 10 degrees. 候選，無實測依據; same source.
+ * It has no systematic landmark term and no bias vector.
  */
 export const SIGMA_INPUT_B_WITH_EXIF: Matrix2 = [
   [2.58, 0.28],
@@ -37,15 +95,23 @@ export const SIGMA_INPUT_B_WITH_EXIF: Matrix2 = [
 ];
 
 /**
- * Same profile with no EXIF focal length (the focal is estimated from the
- * paper corners). 候選，無實測依據; same source. The simulation also found a
- * systematic bias of about +5 mm that a covariance cannot express and that is
- * NOT included here.
+ * The second-moment matrix Sigma + b b^T: the covariance to use when a known
+ * bias b is NOT subtracted from the input (the mean-squared error matrix
+ * instead of the covariance around the mean).
  */
-export const SIGMA_INPUT_B_NO_EXIF: Matrix2 = [
-  [10.39, 3.07],
-  [3.07, 2.95],
-];
+export function sigmaWithUncorrectedBias(
+  sigma: Matrix2,
+  bias: readonly [number, number],
+): Matrix2 {
+  return [
+    [sigma[0][0] + bias[0] * bias[0], sigma[0][1] + bias[0] * bias[1]],
+    [sigma[1][0] + bias[1] * bias[0], sigma[1][1] + bias[1] * bias[1]],
+  ];
+}
+
+/** SIGMA_INPUT_FRAME_B for a run that does not subtract BIAS_INPUT_FRAME_B (about [[33.6, 9.9], [9.9, 7.8]]). */
+export const SIGMA_INPUT_FRAME_B_UNCORRECTED: Matrix2 =
+  sigmaWithUncorrectedBias(SIGMA_INPUT_FRAME_B, BIAS_INPUT_FRAME_B);
 
 /**
  * v1's measurement noise as a diagonal Σ_input: diag(6^2, 4^2) mm^2. This is
@@ -71,8 +137,12 @@ export const TOLERANCE_MM: Tolerance = {
 
 /**
  * Upper-side tolerance divided by lower-side tolerance, per dimension. 1 is
- * symmetric, which is what v1 does. Evidence (D4) does not support any
- * asymmetry, so it stays 1 and is off by default. 候選，無實測依據; source: none.
+ * symmetric, which is what v1 does. Directional evidence for "too small is
+ * worse than too large" exists (Eksioglu 2004, Yoo 2011, Oude Hengel 2008:
+ * the narrow side drops more); a NUMBER does not (three different devices and
+ * outcome measures, none in mouse mm). So the structure is kept and the value
+ * stays 1, off by default, until there is data to size it. 候選，無實測依據;
+ * source: none for the value.
  */
 export const ASYMMETRY: Tolerance = { length: 1, gripWidth: 1, height: 1 };
 
@@ -103,8 +173,15 @@ export const EQUAL_GRIP_WEIGHT = 1 / 3;
 
 /** Everything a v2 run reads that the caller may override. */
 export interface FitV2Params {
-  /** Σ_input over (handLength, palmWidth), mm^2. */
+  /** Σ_input over (handLength, palmWidth), mm^2: the covariance of the error AROUND `biasInput`. */
   sigmaInput: Matrix2;
+  /**
+   * Systematic bias of (handLength, palmWidth), mm: the input is corrected by
+   * subtracting it BEFORE the targets are computed and the uncertainty is
+   * propagated. 0 = no correction. Σ_input cannot express a bias, which is why
+   * it is a separate input.
+   */
+  biasInput: readonly [number, number];
   /** Preference tolerance per dimension (the lower-side sigma), mm. */
   tolerance: Tolerance;
   /** Upper-side tolerance / lower-side tolerance, per dimension; 1 = symmetric. */
@@ -115,12 +192,15 @@ export interface FitV2Params {
 }
 
 /**
- * The v2 defaults. Σ_input is the SIMULATED profile-B-with-EXIF value (see
- * above): it is far tighter than v1's diag(36, 16), so the default v2 totals
- * are sharper than v1's. 候選，無實測依據.
+ * The v2 defaults. Σ_input and the bias vector are the SIMULATED frame,
+ * no-EXIF values (see above): the pipeline the product actually runs. Σ_input
+ * is tighter than v1's diag(36, 16) (SD 4.3 and 2.5 mm against 6 and 4), and
+ * the bias correction moves every target (hand length -3.85 mm, palm width
+ * -1.32 mm). 候選，無實測依據.
  */
 export const DEFAULT_PARAMS_V2: FitV2Params = {
-  sigmaInput: SIGMA_INPUT_B_WITH_EXIF,
+  sigmaInput: SIGMA_INPUT_FRAME_B,
+  biasInput: BIAS_INPUT_FRAME_B,
   tolerance: TOLERANCE_MM,
   asymmetry: ASYMMETRY,
   rangeThresholdScore: RANGE_THRESHOLD_SCORE,
@@ -129,11 +209,12 @@ export const DEFAULT_PARAMS_V2: FitV2Params = {
 
 /**
  * The setting under which v2 reproduces v1: v1's measurement variances as a
- * diagonal Σ_input, v1's sigma as the tolerance, symmetric, v1's grip
- * weights when no grip is stated.
+ * diagonal Σ_input, NO bias correction, v1's sigma as the tolerance,
+ * symmetric, v1's grip weights when no grip is stated.
  */
 export const V1_EQUIVALENT_PARAMS_V2: FitV2Params = {
   sigmaInput: SIGMA_INPUT_V1_EQUIVALENT,
+  biasInput: [0, 0],
   tolerance: TOLERANCE_MM,
   asymmetry: { length: 1, gripWidth: 1, height: 1 },
   rangeThresholdScore: RANGE_THRESHOLD_SCORE,
