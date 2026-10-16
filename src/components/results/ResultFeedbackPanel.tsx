@@ -156,7 +156,8 @@ export interface ResultFeedbackPanelProps {
   onToggleNotes: () => void;
   onSubmit: () => void;
   onClose: () => void;
-  onEscape: () => void;
+  /** Escape was pressed; `composing` is true while an input method is composing. */
+  onEscape: (composing: boolean) => void;
 }
 
 /**
@@ -199,6 +200,9 @@ export function ResultFeedbackPanel({
   const helperId = `${uid}-helper`;
   const countId = `${uid}-count`;
   const commentId = `${uid}-comment`;
+  const titleId = `${uid}-title`;
+  const lowHintId = `${uid}-low`;
+  const highHintId = `${uid}-high`;
   const open = commentVisible(stars);
 
   return (
@@ -206,9 +210,11 @@ export function ResultFeedbackPanel({
       ref={sectionRef}
       className="results-feedback"
       data-phase={phase}
-      aria-label={copy.title}
+      role="dialog"
+      aria-labelledby={titleId}
       onKeyDown={(event) => {
-        if (event.key === "Escape") onEscape();
+        if (event.key !== "Escape") return;
+        onEscape(event.nativeEvent.isComposing || event.keyCode === 229);
       }}
     >
       <div ref={sheetRef} className="results-feedback-sheet">
@@ -237,7 +243,7 @@ export function ResultFeedbackPanel({
                   <CheckIcon size={28} />
                 </span>
               )}
-              <p className="results-feedback-title">
+              <p id={titleId} className="results-feedback-title">
                 {phase === "thanks" ? copy.done : copy.already}
               </p>
               {phase === "already" && (
@@ -252,79 +258,141 @@ export function ResultFeedbackPanel({
             </div>
           </div>
         ) : (
-          <div className="results-feedback-scroll">
-            <p className="results-feedback-title">{copy.title}</p>
-            <fieldset className="results-feedback-stars" disabled={sending}>
-              <legend className="results-srOnly">{copy.starsGroup}</legend>
-              <div className="results-feedback-starRow" role="radiogroup">
-                {STARS.map((n) => {
-                  const filled = stars !== null && n <= stars;
-                  return (
-                    <span key={n} className="results-feedback-star">
-                      <input
-                        type="radio"
-                        name={`${uid}-stars`}
-                        id={`${uid}-star-${n}`}
-                        value={n}
-                        checked={stars === n}
-                        aria-label={copy.starName(n)}
-                        onChange={() => onStars(n)}
-                      />
-                      <label
-                        htmlFor={`${uid}-star-${n}`}
-                        data-filled={filled ? "true" : undefined}
-                        aria-hidden="true"
-                      >
-                        <StarIcon filled={filled} />
-                      </label>
-                    </span>
-                  );
-                })}
-              </div>
-              <p className="results-feedback-ends" aria-hidden="true">
-                <span>{copy.lowLabel}</span>
-                <span>{copy.highLabel}</span>
+          <>
+            <div className="results-feedback-scroll">
+              <p id={titleId} className="results-feedback-title">
+                {copy.title}
               </p>
-            </fieldset>
-
-            <div
-              className="results-feedback-collapse"
-              data-open={open ? "true" : "false"}
-            >
-              <div className="results-feedback-collapseInner" inert={!open}>
-                <div className="results-feedback-field">
-                  <textarea
-                    id={commentId}
-                    value={comment}
-                    rows={3}
-                    maxLength={MAX_FEEDBACK_CHARS}
-                    aria-invalid={error !== null || undefined}
-                    aria-describedby={`${error ? `${uid}-error` : helperId} ${countId}`}
-                    disabled={sending}
-                    onChange={(event) => onComment(event.target.value)}
-                  />
-                  <label htmlFor={commentId}>{copy.commentLabel}</label>
-                  <span id={countId} className="results-feedback-count">
-                    {copy.count(comment.length, MAX_FEEDBACK_CHARS)}
-                  </span>
+              <fieldset className="results-feedback-stars" disabled={sending}>
+                <legend className="results-srOnly">{copy.starsGroup}</legend>
+                <div className="results-feedback-starRow" role="radiogroup">
+                  {STARS.map((n) => {
+                    const filled = stars !== null && n <= stars;
+                    return (
+                      <span key={n} className="results-feedback-star">
+                        <input
+                          type="radio"
+                          name={`${uid}-stars`}
+                          id={`${uid}-star-${n}`}
+                          value={n}
+                          checked={stars === n}
+                          aria-label={copy.starName(
+                            n,
+                            RESULT_FEEDBACK_MAX_STARS,
+                          )}
+                          aria-describedby={
+                            n === RESULT_FEEDBACK_MIN_STARS
+                              ? lowHintId
+                              : n === RESULT_FEEDBACK_MAX_STARS
+                                ? highHintId
+                                : undefined
+                          }
+                          onChange={() => onStars(n)}
+                        />
+                        <label
+                          htmlFor={`${uid}-star-${n}`}
+                          data-filled={filled ? "true" : undefined}
+                          aria-hidden="true"
+                        >
+                          <StarIcon filled={filled} />
+                        </label>
+                      </span>
+                    );
+                  })}
                 </div>
-                {error ? (
-                  <p
-                    id={`${uid}-error`}
-                    className="results-feedback-error"
-                    role="alert"
-                  >
-                    <AlertIcon />
-                    <span>{error}</span>
-                  </p>
-                ) : (
-                  <p id={helperId} className="results-feedback-helper">
-                    {copy.helper}
-                  </p>
-                )}
+                <p className="results-feedback-ends" aria-hidden="true">
+                  <span>{copy.lowLabel}</span>
+                  <span>{copy.highLabel}</span>
+                </p>
+                {/* The end labels are for the eye; these say what 1 and 5 mean. */}
+                <span id={lowHintId} className="results-srOnly">
+                  {copy.lowHint(RESULT_FEEDBACK_MIN_STARS)}
+                </span>
+                <span id={highHintId} className="results-srOnly">
+                  {copy.highHint(RESULT_FEEDBACK_MAX_STARS)}
+                </span>
+              </fieldset>
+
+              <div
+                className="results-feedback-collapse"
+                data-open={open ? "true" : "false"}
+              >
+                <div className="results-feedback-collapseInner" inert={!open}>
+                  <div className="results-feedback-field">
+                    <textarea
+                      id={commentId}
+                      value={comment}
+                      rows={3}
+                      maxLength={MAX_FEEDBACK_CHARS}
+                      aria-invalid={error !== null || undefined}
+                      aria-describedby={`${error ? `${uid}-error` : helperId} ${countId}`}
+                      disabled={sending}
+                      onChange={(event) => onComment(event.target.value)}
+                    />
+                    <label htmlFor={commentId}>{copy.commentLabel}</label>
+                    <span id={countId} className="results-feedback-count">
+                      {copy.count(comment.length, MAX_FEEDBACK_CHARS)}
+                    </span>
+                  </div>
+                  {error ? (
+                    <p
+                      id={`${uid}-error`}
+                      className="results-feedback-error"
+                      role="alert"
+                    >
+                      <AlertIcon />
+                      <span>{error}</span>
+                    </p>
+                  ) : (
+                    <p id={helperId} className="results-feedback-helper">
+                      {copy.helper}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div
+                id={notesId}
+                className="results-feedback-collapse"
+                data-open={notesOpen ? "true" : "false"}
+              >
+                <div
+                  className="results-feedback-collapseInner"
+                  inert={!notesOpen}
+                >
+                  <ul className="results-feedback-notes">
+                    <li>
+                      <p className="results-feedback-noteTitle">
+                        <CheckIcon />
+                        <span>{copy.keptTitle}</span>
+                      </p>
+                      <p className="results-feedback-noteBody">
+                        {copy.keptBody}
+                      </p>
+                    </li>
+                    <li>
+                      <p className="results-feedback-noteTitle">
+                        <CrossIcon />
+                        <span>{copy.notKeptTitle}</span>
+                      </p>
+                      <p className="results-feedback-noteBody">
+                        {copy.notKeptBody}
+                      </p>
+                    </li>
+                    <li>
+                      <p className="results-feedback-noteTitle">
+                        <UndoIcon />
+                        <span>{copy.withdrawTitle}</span>
+                      </p>
+                      <p className="results-feedback-noteBody">
+                        {copy.withdrawBody}
+                      </p>
+                    </li>
+                  </ul>
+                </div>
               </div>
             </div>
-
+            {/* The bottom row stays at the bottom of the sheet; what is above it scrolls. */}
             <div
               className="results-feedback-actions"
               data-has-primary={showSubmit(stars) ? "true" : "false"}
@@ -361,46 +429,7 @@ export function ResultFeedbackPanel({
                 </button>
               )}
             </div>
-
-            <div
-              id={notesId}
-              className="results-feedback-collapse"
-              data-open={notesOpen ? "true" : "false"}
-            >
-              <div
-                className="results-feedback-collapseInner"
-                inert={!notesOpen}
-              >
-                <ul className="results-feedback-notes">
-                  <li>
-                    <p className="results-feedback-noteTitle">
-                      <CheckIcon />
-                      <span>{copy.keptTitle}</span>
-                    </p>
-                    <p className="results-feedback-noteBody">{copy.keptBody}</p>
-                  </li>
-                  <li>
-                    <p className="results-feedback-noteTitle">
-                      <CrossIcon />
-                      <span>{copy.notKeptTitle}</span>
-                    </p>
-                    <p className="results-feedback-noteBody">
-                      {copy.notKeptBody}
-                    </p>
-                  </li>
-                  <li>
-                    <p className="results-feedback-noteTitle">
-                      <UndoIcon />
-                      <span>{copy.withdrawTitle}</span>
-                    </p>
-                    <p className="results-feedback-noteBody">
-                      {copy.withdrawBody}
-                    </p>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
+          </>
         )}
       </div>
     </section>

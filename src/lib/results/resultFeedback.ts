@@ -111,6 +111,21 @@ export type SheetPhase = "form" | "sending" | "thanks" | "already";
 
 export type PrimaryLabel = "send" | "sending" | "retry";
 
+/**
+ * Does Escape close the sheet? Not while an input method is composing (that
+ * Escape belongs to the IME), and not while the form holds a typed comment
+ * (it would throw the words away silently; the X still closes it).
+ */
+export function escapeCloses(input: {
+  phase: SheetPhase;
+  composing: boolean;
+  comment: string;
+}): boolean {
+  if (input.composing) return false;
+  if (input.phase === "form" && input.comment.trim() !== "") return false;
+  return true;
+}
+
 /** The submit button is not drawn until a star is chosen. */
 export function showSubmit(stars: number | null): boolean {
   return stars !== null;

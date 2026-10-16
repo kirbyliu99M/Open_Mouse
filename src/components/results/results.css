@@ -1744,10 +1744,10 @@
   white-space: nowrap;
   border: 0;
 }
-/* Room under the page, the sheet's own height (set by the component), so the
-   last block can be scrolled above it. */
-.results-feedback-spacer {
-  height: var(--feedback-h, 0);
+/* Room at the very bottom of the page, after the footer: the sheet's height
+   and its gap to the window edge, set by the component while it shows. */
+body {
+  padding-bottom: var(--feedback-room, 0px);
 }
 .results-feedback {
   --feedback-sheet-bg: #121316;
@@ -1837,7 +1837,10 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 2.75rem 1.25rem calc(1rem + env(safe-area-inset-bottom));
+  padding: 2.75rem 1.25rem 0.5rem;
+}
+.results-feedback-scroll[data-finished="true"] {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
 }
 .results-feedback-scroll > * {
   width: 100%;
@@ -2006,13 +2009,16 @@
   margin-top: 0.125rem;
 }
 /* The link on its own in A; the link and the pill on one row in B. */
+/* The bottom row is outside the scrolling part, so the pill is always in view. */
 .results-feedback-actions {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 0 0.75rem;
-  margin-top: 0.5rem;
+  box-sizing: border-box;
+  padding: 0.25rem 1.25rem calc(0.75rem + env(safe-area-inset-bottom));
 }
 .results-feedback-actions[data-has-primary="true"] {
   justify-content: space-between;
@@ -2140,10 +2146,12 @@
   }
   .results-feedback-scroll {
     padding-top: 2.5rem;
+  }
+  .results-feedback-scroll[data-finished="true"] {
     padding-bottom: 1.25rem;
   }
-  .results-feedback-spacer {
-    height: calc(var(--feedback-h, 0px) + 1.5rem);
+  .results-feedback-actions {
+    padding-bottom: 1rem;
   }
 }
 
@@ -2183,9 +2191,35 @@
   }
 }
 
+/* Windows high contrast: author colours are replaced, so the focus of the
+   comment box (a border colour and a shadow) needs a real outline, and the
+   pill and the X need a border to be seen as controls. The stars differ in
+   shape (an outline against a solid fill), not only in colour. */
+@media (forced-colors: active) {
+  .results-feedback-field textarea:focus {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+  .results-feedback-link:focus-visible,
+  .results-feedback-primary:focus-visible,
+  .results-feedback-close:focus-visible,
+  .results-feedback-star input:focus-visible + label {
+    outline: 2px solid Highlight;
+  }
+  .results-feedback-primary,
+  .results-feedback-close {
+    border: 1px solid ButtonText;
+  }
+  .results-feedback-sheet {
+    border: 1px solid CanvasText;
+  }
+}
+
 @media print {
-  .results-feedback,
-  .results-feedback-spacer {
+  .results-feedback {
     display: none;
+  }
+  body {
+    padding-bottom: 0;
   }
 }

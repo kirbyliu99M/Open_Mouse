@@ -81,6 +81,9 @@ async function stubScan(
   return stub;
 }
 
+/** The accessible name of one star: both numbers come from the page, not the words. */
+const star = (n: number) => en.starName(n, 5);
+
 const sheet = (page: Page) => page.locator(".results-feedback-sheet");
 
 async function scrollToEnd(page: Page) {
@@ -109,8 +112,21 @@ test.describe("feedback sheet v2", () => {
     await stubScan(page);
     await openSheet(page);
 
+    // A non-modal dialog named by its title.
+    await expect(page.getByRole("dialog", { name: en.title })).toBeVisible();
+    expect(
+      await page.locator(".results-feedback").getAttribute("aria-modal"),
+    ).toBeNull();
+
     // A: the title, five unchecked stars, the data link; no box, no pill.
     await expect(sheet(page).getByText(en.title)).toBeVisible();
+    // 1 and 5 are described for a screen reader, since the end labels are for the eye.
+    await expect(sheet(page).getByLabel(star(1))).toHaveAccessibleDescription(
+      en.lowHint(1),
+    );
+    await expect(sheet(page).getByLabel(star(5))).toHaveAccessibleDescription(
+      en.highHint(5),
+    );
     const radios = sheet(page).getByRole("radio");
     await expect(radios).toHaveCount(5);
     await expect(sheet(page).getByRole("radio", { checked: true })).toHaveCount(
@@ -124,8 +140,8 @@ test.describe("feedback sheet v2", () => {
     await expect(link).toHaveAttribute("aria-expanded", "false");
 
     // B: a star opens the comment box and the pill; the focus is not moved.
-    await sheet(page).getByLabel(en.starName(4)).check({ force: true });
-    await expect(sheet(page).getByLabel(en.starName(4))).toBeChecked();
+    await sheet(page).getByLabel(star(4)).check({ force: true });
+    await expect(sheet(page).getByLabel(star(4))).toBeChecked();
     await expect(sheet(page).locator("textarea")).toBeVisible();
     await expect(sheet(page).locator("textarea")).not.toBeFocused();
     await expect(sheet(page).locator(".results-feedback-count")).toHaveText(
@@ -137,7 +153,7 @@ test.describe("feedback sheet v2", () => {
       4,
     );
     // A tap on another star changes the count.
-    await sheet(page).getByLabel(en.starName(2)).check({ force: true });
+    await sheet(page).getByLabel(star(2)).check({ force: true });
     await expect(sheet(page).locator('label[data-filled="true"]')).toHaveCount(
       2,
     );
@@ -162,12 +178,12 @@ test.describe("feedback sheet v2", () => {
   }) => {
     await stubScan(page);
     await openSheet(page);
-    await sheet(page).getByLabel(en.starName(3)).focus();
+    await sheet(page).getByLabel(star(3)).focus();
     await page.keyboard.press("ArrowRight");
-    await expect(sheet(page).getByLabel(en.starName(4))).toBeChecked();
+    await expect(sheet(page).getByLabel(star(4))).toBeChecked();
     await page.keyboard.press("ArrowLeft");
     await page.keyboard.press("ArrowLeft");
-    await expect(sheet(page).getByLabel(en.starName(2))).toBeChecked();
+    await expect(sheet(page).getByLabel(star(2))).toBeChecked();
     await expect(
       sheet(page).getByRole("group", { name: en.starsGroup }),
     ).toBeVisible();
@@ -178,7 +194,7 @@ test.describe("feedback sheet v2", () => {
   }) => {
     const stub = await stubScan(page);
     await openSheet(page);
-    await sheet(page).getByLabel(en.starName(5)).check({ force: true });
+    await sheet(page).getByLabel(star(5)).check({ force: true });
     await sheet(page).locator("textarea").fill("  G305 too low  ");
     await sheet(page).getByRole("button", { name: en.send }).click();
 
@@ -208,7 +224,7 @@ test.describe("feedback sheet v2", () => {
   }) => {
     const stub = await stubScan(page, { postStatuses: [500] });
     await openSheet(page);
-    await sheet(page).getByLabel(en.starName(2)).check({ force: true });
+    await sheet(page).getByLabel(star(2)).check({ force: true });
     const pill = sheet(page).getByRole("button", { name: en.send });
     const before = await pill.boundingBox();
     await pill.click();
@@ -232,7 +248,7 @@ test.describe("feedback sheet v2", () => {
   }) => {
     const stub = await stubScan(page);
     await openSheet(page);
-    await sheet(page).getByLabel(en.starName(3)).focus();
+    await sheet(page).getByLabel(star(3)).focus();
     await page.keyboard.press("Escape");
     await expect(sheet(page)).toHaveCount(0);
     expect(stub.posts).toHaveLength(0);
@@ -267,22 +283,46 @@ test.describe("feedback sheet v2", () => {
     await expect(sheet(page)).toHaveCount(0);
   });
 
-  test("it does not cover the page: no backdrop, and the page scrolls past it", async ({
+  test("it does not cover the page: no backdrop, and the footer and share button scroll above it", async ({
     page,
   }) => {
     await stubScan(page);
     await openSheet(page);
-    await sheet(page).getByLabel(en.starName(3)).check({ force: true });
-    const sheetBox = await sheet(page).boundingBox();
-    const spacer = await page.locator(".results-feedback-spacer").boundingBox();
-    expect(spacer?.height ?? 0).toBeGreaterThanOrEqual(
-      Math.floor((sheetBox?.height ?? 0) - 1),
-    );
+    await sheet(page).getByLabel(star(3)).check({ force: true });
     // Nothing in the page is blocked behind a scrim.
     expect(await page.locator("dialog[open]").count()).toBe(0);
     // The sheet never grows past 60 % of the window height.
     const viewport = page.viewportSize()!;
-    expect(sheetBox!.height).toBeLessThanOrEqual(viewport.height * 0.6 + 1);
+    const sheetBox = (await sheet(page).boundingBox())!;
+    expect(sheetBox.height).toBeLessThanOrEqual(viewport.height * 0.6 + 1);
+
+    // At the very bottom of the page, the whole footer is above the sheet.
+    // (The page grows by the sheet's height, so keep scrolling until it is settled.)
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          window.scrollTo(0, document.documentElement.scrollHeight);
+          // The comment box opens over 200 ms: wait until nothing is moving.
+          if (document.getAnimations().length > 0) return false;
+          return (
+            Math.abs(
+              window.scrollY +
+                window.innerHeight -
+                document.documentElement.scrollHeight,
+            ) < 2
+          );
+        }),
+      )
+      .toBe(true);
+    const footer = (await page.locator(".siteFooter").boundingBox())!;
+    const top = (await sheet(page).boundingBox())!.y;
+    expect(footer.y + footer.height).toBeLessThanOrEqual(top + 1);
+    // And the share button too.
+    const share = page
+      .locator('[data-testid="share-card-button"]:visible')
+      .last();
+    const shareBox = (await share.boundingBox())!;
+    expect(shareBox.y + shareBox.height).toBeLessThanOrEqual(top + 1);
   });
 
   test("the timer alone does not show it on a page that can scroll", async ({
@@ -300,6 +340,157 @@ test.describe("feedback sheet v2", () => {
     await page.clock.runFor(2_000);
     await expect(sheet(page)).toBeVisible();
   });
+
+  test("Escape is ignored while an input method is composing, and keeps a typed comment", async ({
+    page,
+  }) => {
+    await stubScan(page);
+    await openSheet(page);
+    await sheet(page).getByLabel(star(3)).check({ force: true });
+    await sheet(page).locator("textarea").focus();
+    // The Escape of an IME candidate window.
+    await page.evaluate(() => {
+      document.activeElement!.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Escape",
+          isComposing: true,
+          bubbles: true,
+        }),
+      );
+    });
+    await expect(sheet(page)).toBeVisible();
+    // A typed comment is not thrown away by Escape; the X still closes.
+    await sheet(page).locator("textarea").fill("G305 too low");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(300);
+    await expect(sheet(page)).toBeVisible();
+    // Once it is empty, Escape closes.
+    await sheet(page).locator("textarea").fill("");
+    await page.keyboard.press("Escape");
+    await expect(sheet(page)).toHaveCount(0);
+  });
+
+  test("a 409 (already sent) keeps the focus in the sheet, Escape closes it, and it is remembered", async ({
+    page,
+  }) => {
+    const stub = await stubScan(page, { postStatuses: [409] });
+    await openSheet(page);
+    await sheet(page).getByLabel(star(3)).check({ force: true });
+    await sheet(page).getByRole("button", { name: en.send }).click();
+    await expect(sheet(page).getByText(en.already)).toBeVisible();
+    expect(stub.posts).toHaveLength(1);
+    const inside = () =>
+      page.evaluate(
+        () => !!document.activeElement?.closest(".results-feedback"),
+      );
+    await expect.poll(inside).toBe(true);
+    await expect(
+      sheet(page).getByRole("button", { name: en.ok }),
+    ).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(sheet(page)).toHaveCount(0);
+
+    await page.reload();
+    await scrollToEnd(page);
+    await page.waitForTimeout(800);
+    await expect(sheet(page)).toHaveCount(0);
+  });
+
+  test("only the time the tab is visible counts toward the 45 s", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      let state = "visible";
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        get: () => state,
+      });
+      (
+        window as unknown as { __setVisibility: (value: string) => void }
+      ).__setVisibility = (value) => {
+        state = value;
+      };
+    });
+    const setVisibility = (value: "visible" | "hidden") =>
+      page.evaluate(
+        (v) =>
+          (
+            window as unknown as { __setVisibility: (x: string) => void }
+          ).__setVisibility(v),
+        value,
+      );
+    await page.clock.install();
+    await stubScan(page);
+    await page.goto(MAIN);
+    await expect(page.locator(".results-score-rank")).toBeVisible();
+    await page.mouse.wheel(0, 200); // a real scroll, so only the timer is left
+    await setVisibility("hidden");
+    await page.clock.runFor(120_000);
+    await expect(sheet(page)).toHaveCount(0);
+    await setVisibility("visible");
+    await page.clock.runFor(30_000);
+    await expect(sheet(page)).toHaveCount(0);
+    await page.clock.runFor(20_000);
+    await expect(sheet(page)).toBeVisible();
+  });
+});
+
+test.describe("feedback sheet v2: forced colors", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("the comment box keeps a visible focus outline in Windows high contrast", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ forcedColors: "active" });
+    await stubScan(page);
+    await openSheet(page);
+    await sheet(page).getByLabel(star(3)).check({ force: true });
+    await sheet(page).locator("textarea").focus();
+    const outline = await sheet(page)
+      .locator("textarea")
+      .evaluate((el) => {
+        const css = getComputedStyle(el);
+        return { style: css.outlineStyle, width: parseFloat(css.outlineWidth) };
+      });
+    expect(outline.style).toBe("solid");
+    expect(outline.width).toBeGreaterThanOrEqual(2);
+  });
+});
+
+test.describe("feedback sheet v2: small phones", () => {
+  for (const size of [
+    { width: 320, height: 568 },
+    { width: 390, height: 844 },
+  ]) {
+    test(`${size.width}x${size.height}: the submit pill and the data link stay in view at the bottom of the sheet`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(size);
+      await stubScan(page);
+      await openSheet(page);
+      await sheet(page).getByLabel(star(3)).check({ force: true });
+      const check = async () => {
+        const box = (await sheet(page).boundingBox())!;
+        const pill = (await sheet(page)
+          .getByRole("button", { name: en.send })
+          .boundingBox())!;
+        const link = (await sheet(page)
+          .getByRole("button", { name: en.dataLink })
+          .boundingBox())!;
+        expect(pill.y).toBeGreaterThanOrEqual(box.y);
+        expect(pill.y + pill.height).toBeLessThanOrEqual(
+          box.y + box.height + 1,
+        );
+        expect(pill.y + pill.height).toBeLessThanOrEqual(size.height);
+        expect(link.y + link.height).toBeLessThanOrEqual(size.height);
+      };
+      await check();
+      // With the data note open, the row is still the bottom row of the sheet.
+      await sheet(page).getByRole("button", { name: en.dataLink }).click();
+      await page.waitForTimeout(400);
+      await check();
+    });
+  }
 });
 
 test.describe("feedback sheet v2: a phone", () => {
@@ -402,7 +593,7 @@ test.describe("feedback sheet v2: a small phone", () => {
       window.scrollTo(0, document.documentElement.scrollHeight),
     );
     await expect(sheet(page)).toBeVisible();
-    await sheet(page).getByLabel(en.starName(3)).check({ force: true });
+    await sheet(page).getByLabel(star(3)).check({ force: true });
     const link = await sheet(page)
       .getByRole("button", { name: en.dataLink })
       .boundingBox();
@@ -436,7 +627,7 @@ test.describe("feedback sheet v2: axe", () => {
       ).toEqual([]);
     };
     await scan("A");
-    await sheet(page).getByLabel(en.starName(4)).check({ force: true });
+    await sheet(page).getByLabel(star(4)).check({ force: true });
     await scan("B");
     await sheet(page).getByRole("button", { name: en.dataLink }).click();
     await scan("C");

@@ -49,11 +49,22 @@ function render(overrides: Partial<ResultFeedbackPanelProps> = {}): string {
 describe("frame A: only the stars", () => {
   const html = render();
   it("names the sheet and the group, and has five radios", () => {
-    expect(html).toContain(`aria-label="${zhTW.title}"`);
+    // A dialog that does not block the page: named by its title, not modal.
+    expect(html).toMatch(/<section[^>]*role="dialog"/);
+    const labelled = html.match(/<section[^>]*aria-labelledby="([^"]+)"/)?.[1];
+    expect(labelled).toBeTruthy();
+    expect(html).toMatch(
+      new RegExp(
+        `id="${labelled}" class="results-feedback-title"[^>]*>${zhTW.title}<`,
+      ),
+    );
+    expect(html).not.toContain("aria-modal");
     expect(html).toContain(zhTW.starsGroup);
     expect(html.match(/type="radio"/g)).toHaveLength(RESULT_FEEDBACK_MAX_STARS);
     for (let n = 1; n <= RESULT_FEEDBACK_MAX_STARS; n += 1) {
-      expect(html).toContain(`aria-label="${zhTW.starName(n)}"`);
+      expect(html).toContain(
+        `aria-label="${zhTW.starName(n, RESULT_FEEDBACK_MAX_STARS)}"`,
+      );
     }
     expect(html).not.toContain("checked");
   });
@@ -72,13 +83,28 @@ describe("frame A: only the stars", () => {
   });
   it("has the X with the 'we will not ask again' name", () => {
     expect(html).toContain(`aria-label="${zhTW.closeLabel}"`);
-    expect(zhTW.closeLabel).toBe("關閉（這次結果不再詢問）");
-    expect(en.closeLabel).toBe("Close (we won't ask again for this result)");
+    expect(zhTW.closeLabel).toBe("關閉（這台裝置上這次結果不再詢問）");
+    expect(en.closeLabel).toBe(
+      "Close (we won't ask again for this result on this device)",
+    );
   });
   it("no longer carries the old long notice or 'not now'", () => {
     expect(html).not.toContain("稍後再說");
     expect(Object.keys(zhTW)).not.toContain("notice");
     expect(Object.keys(zhTW)).not.toContain("dismiss");
+  });
+  it("says what 1 and 5 stand for, from the numbers it is given", () => {
+    expect(html).toContain(zhTW.lowHint(1));
+    expect(html).toContain(zhTW.highHint(RESULT_FEEDBACK_MAX_STARS));
+    const ids = [...html.matchAll(/id="([^"]+-(?:low|high))"/g)].map(
+      (m) => m[1],
+    );
+    expect(ids).toHaveLength(2);
+    for (const id of ids) {
+      expect(html).toContain(`aria-describedby="${id}"`);
+    }
+    // The end labels themselves stay hidden from a screen reader.
+    expect(html).toMatch(/results-feedback-ends" aria-hidden="true"/);
   });
   it("draws the stars as svg, never as a text glyph", () => {
     expect(html).not.toContain("★");
@@ -212,7 +238,9 @@ describe("English", () => {
     expect(html).not.toContain(">Send<");
     expect(html).toContain(en.commentLabel);
     expect(html).toContain(en.dataLink);
-    expect(html).toContain(`aria-label="${en.starName(3)}"`);
+    expect(html).toContain(
+      `aria-label="${en.starName(3, RESULT_FEEDBACK_MAX_STARS)}"`,
+    );
   });
 });
 
@@ -231,7 +259,7 @@ describe("the copy tables", () => {
         expect(value, key).not.toMatch(/\d/);
       }
     }
-    expect(zhTW.starName(4)).toContain("4");
+    expect(zhTW.starName(4, 5)).toContain("4");
     expect(en.count(7, 500)).toBe("7 / 500");
   });
   it("carry the agreed candidate words", () => {

@@ -25,8 +25,14 @@ export interface ResultFeedbackCopy {
   /** The label under the first star, and under the last. */
   lowLabel: string;
   highLabel: string;
-  /** The accessible name of one star. */
-  starName: (n: number) => string;
+  /** The accessible name of one star; both numbers are passed in. */
+  starName: (n: number, total: number) => string;
+  /**
+   * Said with the first star and with the last one, because the two end
+   * labels are drawn for the eye only: what 1 and 5 stand for.
+   */
+  lowHint: (n: number) => string;
+  highHint: (n: number) => string;
   /** The accessible name of the group of stars. */
   starsGroup: string;
   /** The link that opens the data note. */
@@ -58,11 +64,18 @@ export interface ResultFeedbackCopy {
   withdrawBody: string;
 }
 
+const ZH_LOW = "完全不符合";
+const ZH_HIGH = "非常符合";
+const EN_LOW = "Not at all";
+const EN_HIGH = "Spot on";
+
 export const zhTW: ResultFeedbackCopy = {
   title: "這次的推薦符合你的感覺嗎？",
-  lowLabel: "完全不符合",
-  highLabel: "非常符合",
-  starName: (n) => `${n} 星，共 5 星`,
+  lowLabel: ZH_LOW,
+  highLabel: ZH_HIGH,
+  starName: (n, total) => `${n} 星，共 ${total} 星`,
+  lowHint: (n) => `${n} 星代表「${ZH_LOW}」`,
+  highHint: (n) => `${n} 星代表「${ZH_HIGH}」`,
   starsGroup: "給這次推薦的星等",
   dataLink: "資料如何使用",
   commentLabel: "想多說一點（選填）",
@@ -74,7 +87,7 @@ export const zhTW: ResultFeedbackCopy = {
   sendFailed: "送出失敗，請確認網路後再試一次。",
   done: "謝謝你的回饋",
   ok: "完成",
-  closeLabel: "關閉（這次結果不再詢問）",
+  closeLabel: "關閉（這台裝置上這次結果不再詢問）",
   already: "這次的結果已經送出過回饋。",
   commentChars: "意見裡有無法送出的字元，請刪掉後再試一次。",
   keptTitle: "會保存",
@@ -89,9 +102,11 @@ export const zhTW: ResultFeedbackCopy = {
 
 export const en: ResultFeedbackCopy = {
   title: "Do these picks feel right for your hand?",
-  lowLabel: "Not at all",
-  highLabel: "Spot on",
-  starName: (n) => `${n} of 5 stars`,
+  lowLabel: EN_LOW,
+  highLabel: EN_HIGH,
+  starName: (n, total) => `${n} of ${total} stars`,
+  lowHint: (n) => `${n} ${n === 1 ? "star" : "stars"} means "${EN_LOW}"`,
+  highHint: (n) => `${n} ${n === 1 ? "star" : "stars"} means "${EN_HIGH}"`,
   starsGroup: "Stars for this recommendation",
   dataLink: "How your data is used",
   commentLabel: "Tell us more (optional)",
@@ -104,7 +119,7 @@ export const en: ResultFeedbackCopy = {
   sendFailed: "Couldn't send. Check your connection and try again.",
   done: "Thanks for your feedback",
   ok: "Done",
-  closeLabel: "Close (we won't ask again for this result)",
+  closeLabel: "Close (we won't ask again for this result on this device)",
   already: "You've already sent feedback on this result.",
   commentChars:
     "The comment has characters that can't be sent. Please remove them and try again.",

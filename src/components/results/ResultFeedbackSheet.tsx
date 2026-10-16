@@ -5,7 +5,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type CSSProperties,
   type HTMLAttributes,
   type PointerEvent as ReactPointerEvent,
 } from "react";
@@ -20,6 +19,7 @@ import {
   canPageScroll,
   dismissedEventDue,
   dragClosesSheet,
+  escapeCloses,
   fetchAnswered,
   markFeedbackDone,
   reachedEnd,
@@ -71,7 +71,6 @@ export function ResultFeedbackSheet({
   // Until it is measured the page is assumed to scroll, so the timer waits.
   const [canScroll, setCanScroll] = useState(true);
   const [visibleMs, setVisibleMs] = useState(0);
-  const [spacerHeight, setSpacerHeight] = useState(0);
   const [opened, setOpened] = useState(false);
   const [phase, setPhase] = useState<SheetPhase>("form");
   const [stars, setStars] = useState<number | null>(null);
@@ -164,19 +163,34 @@ export function ResultFeedbackSheet({
 
   const visible = opened && !localDone;
 
-  // Room under the page for the sheet, so the last block can be scrolled past it.
+  // Room at the very bottom of the page (after the footer), as tall as the
+  // sheet and its gap to the window edge, so the footer and the share button
+  // can be scrolled above the sheet. `results.css` turns the variable into the
+  // body's bottom padding.
   useEffect(() => {
     const sheet = sheetRef.current;
-    if (!visible || !sheet) {
-      setSpacerHeight(0);
-      return;
-    }
-    const measure = () => setSpacerHeight(sheet.offsetHeight);
+    const section = sectionRef.current;
+    if (!visible || !sheet || !section) return;
+    const root = document.documentElement;
+    const measure = () => {
+      const gap = parseFloat(getComputedStyle(section).bottom) || 0;
+      root.style.setProperty(
+        "--feedback-room",
+        `${sheet.offsetHeight + gap}px`,
+      );
+    };
     measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(sheet);
-    return () => observer.disconnect();
+    window.addEventListener("resize", measure);
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(measure);
+    observer?.observe(sheet);
+    return () => {
+      window.removeEventListener("resize", measure);
+      observer?.disconnect();
+      root.style.removeProperty("--feedback-room");
+    };
   }, [visible]);
 
   // The data note opens in place: bring it into view in the scrolling panel.
@@ -248,17 +262,23 @@ export function ResultFeedbackSheet({
     setPhase("form");
   };
 
-  // Thanks closes itself. If the focus was in the form that just went away,
-  // keep it inside the sheet (on the X) rather than dropping it to the body.
+  // Thanks closes itself. After "thanks" or "already sent" the submit button
+  // is gone: if the focus was on it (now the body), keep it inside the sheet,
+  // on the X after thanks and on the done button after "already", so Escape
+  // and the keyboard keep working.
   useEffect(() => {
-    if (phase !== "thanks") return;
+    if (phase !== "thanks" && phase !== "already") return;
     const section = sectionRef.current;
     if (section && document.activeElement === document.body) {
-      // The submit button was removed with the form.
       section
-        .querySelector<HTMLElement>(".results-feedback-close")
+        .querySelector<HTMLElement>(
+          phase === "already"
+            ? ".results-feedback-primary"
+            : ".results-feedback-close",
+        )
         ?.focus({ preventScroll: true });
     }
+    if (phase !== "thanks") return;
     const timer = window.setTimeout(close, RESULT_FEEDBACK_AUTOCLOSE_MS);
     return () => window.clearTimeout(timer);
   }, [phase, close]);
@@ -326,13 +346,6 @@ export function ResultFeedbackSheet({
       <p className="results-srOnly" role="status" aria-live="polite">
         {announcement}
       </p>
-      {visible && (
-        <div
-          aria-hidden="true"
-          className="results-feedback-spacer"
-          style={{ "--feedback-h": `${spacerHeight}px` } as CSSProperties}
-        />
-      )}
       {/* In the body, not in the page: the results view isolates its own
           stacking context, and the site footer (later in the page) would paint
           over a sheet that lives inside it. */}
@@ -357,7 +370,10 @@ export function ResultFeedbackSheet({
             onToggleNotes={() => setNotesOpen((open) => !open)}
             onSubmit={() => void submit()}
             onClose={dismiss}
-            onEscape={dismiss}
+            onEscape={(composing) => {
+              if (!escapeCloses({ phase, composing, comment })) return;
+              dismiss();
+            }}
           />,
           document.body,
         )}

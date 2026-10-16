@@ -11,6 +11,7 @@ import {
   commentVisible,
   dismissedEventDue,
   dragClosesSheet,
+  escapeCloses,
   failureFromStatus,
   fetchAnswered,
   markFeedbackDone,
@@ -167,6 +168,29 @@ describe("dragClosesSheet", () => {
     expect(dragClosesSheet(65)).toBe(true);
     expect(dragClosesSheet(0)).toBe(false);
     expect(dragClosesSheet(-200)).toBe(false);
+  });
+});
+
+describe("escapeCloses", () => {
+  const form = { phase: "form", composing: false, comment: "" } as const;
+  it("closes an empty form", () => {
+    expect(escapeCloses(form)).toBe(true);
+    expect(escapeCloses({ ...form, comment: "   " })).toBe(true);
+  });
+  it("ignores an Escape that belongs to the input method", () => {
+    expect(escapeCloses({ ...form, composing: true })).toBe(false);
+    expect(escapeCloses({ ...form, phase: "thanks", composing: true })).toBe(
+      false,
+    );
+  });
+  it("does not throw away a typed comment", () => {
+    expect(escapeCloses({ ...form, comment: "G305 too low" })).toBe(false);
+  });
+  it("closes after thanks or 'already sent' even if the text is still there", () => {
+    expect(escapeCloses({ ...form, phase: "thanks", comment: "x" })).toBe(true);
+    expect(escapeCloses({ ...form, phase: "already", comment: "x" })).toBe(
+      true,
+    );
   });
 });
 
