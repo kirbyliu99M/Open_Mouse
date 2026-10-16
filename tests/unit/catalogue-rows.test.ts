@@ -88,14 +88,25 @@ describe("buildSeedRows on the checked-in files", () => {
     expect(new Set(all.map((r) => `${r.brand}/${r.model}`)).size).toBe(N.rows);
   });
 
-  it("hides exactly the Logitech rows that are neither G nor MX", () => {
+  it("hides the other Logitech rows and every vertical or trackball mouse", () => {
     const hidden = all.filter((r) => !r.listed);
     expect(hidden).toHaveLength(N.unlisted);
-    for (const r of hidden) {
-      expect(r.brand).toBe("Logitech");
-      expect(isGSeries(r.model) || isMxSeries(r.model)).toBe(false);
-      expect(r.category).toBe("office");
-    }
+    expect(
+      hidden
+        .filter((r) => r.formFactor !== "standard")
+        .map((r) => r.slug)
+        .sort(),
+    ).toEqual([
+      "keychron-m5",
+      "logitech-ergo-m575",
+      "logitech-ergo-m575s",
+      "logitech-lift-vertical",
+      "logitech-mx-ergo-s",
+      "logitech-mx-vertical",
+    ]);
+    expect(all.filter((r) => r.listed && r.formFactor !== "standard")).toEqual(
+      [],
+    );
     expect(all.filter((r) => r.listed)).toHaveLength(N.listed);
   });
 

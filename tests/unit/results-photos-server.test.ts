@@ -99,7 +99,7 @@ describe("loadOwnedFit runs withPhotos", () => {
   // all read "no photo" and prove nothing. Give its two mice real slugs, one
   // with a photo and one without.
   const REAL = "logitech-g502-hero";
-  const NO_PHOTO = "fantech-yari-e";
+  const NO_PHOTO = "g-wolves-vuk-medium";
   const catalogue = [
     { ...sampleCatalogue[0]!, slug: REAL },
     { ...sampleCatalogue[1]!, slug: NO_PHOTO },

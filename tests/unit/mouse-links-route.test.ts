@@ -91,6 +91,46 @@ describe("the route /api/mice/[slug]/links", () => {
     expect(LINKS_NOT_FOUND_CACHE_CONTROL).toBe("public, s-maxage=3600");
   });
 
+  it.each([
+    ["fantech-yari-e", "https://fantechworld.com/products/yari-pro-wg14p"],
+    [
+      "g-wolves-vuk-medium",
+      "https://shop.g-wolves.com/products/g-wolves-vuk-medium",
+    ],
+    [
+      "logitech-g903-hero",
+      "https://www.logitechg.com/en-us/shop/p/g903-hero-wireless-gaming-mouse",
+    ],
+    [
+      "logitech-mx-master-4",
+      "https://www.logitech.com/en-us/shop/p/mx-master-4",
+    ],
+    [
+      "logitech-mx-master-3s",
+      "https://www.logitech.com/en-us/shop/p/mx-master-3s",
+    ],
+    [
+      "logitech-mx-anywhere-3s",
+      "https://www.logitech.com/en-us/shop/p/mx-anywhere-3s",
+    ],
+    [
+      "logitech-mx-vertical",
+      "https://www.logitech.com/en-us/shop/p/mx-vertical-ergonomic-mouse",
+    ],
+    [
+      "logitech-mx-ergo-s",
+      "https://www.logitech.com/en-us/shop/p/mx-ergo-s-wireless-trackball-mouse",
+    ],
+  ])("serves the verified official product link for %s", async (slug, url) => {
+    const res = await GET(new Request("http://x/api/mice/x/links"), {
+      params: Promise.resolve({ slug }),
+    });
+    expect(res.status).toBe(200);
+    const links = mouseLinksSchema.parse(await res.json());
+    expect(links.officialUrl).toBe(url);
+    expect(links.officialKind).toBe("product");
+  });
+
   it("answers every slug of the media file with a body that passes mouseLinksSchema and is that mouse's own, and tells the CDN to keep it", async () => {
     const purchase = parsePurchaseLinks(purchaseLinksFile);
     for (const slug of slugs) {

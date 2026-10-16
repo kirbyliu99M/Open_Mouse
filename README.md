@@ -11,20 +11,6 @@ hands, buy a large mouse"?
 It gives a fit estimate to help a buying decision. It is not a medical or health
 tool and does not diagnose, treat or prevent anything.
 
-## Status
-
-**Early preview, not public.** The site is deployed but marked `noindex` (search
-engines are told not to list it) and has not been announced. Do not treat its
-output as validated:
-
-- The hand measurement is still being validated.
-- The fit weights are provisional, and some mice have shape descriptors that are
-  still unclassified, so their ranking leans on dimensions.
-
-The live project board is [`docs/STATUS.md`](docs/STATUS.md); the design is
-[`docs/PLAN.md`](docs/PLAN.md). If you are an agent working on this repository,
-read [`AGENTS.md`](AGENTS.md) first.
-
 ## How it works
 
 **Main flow: blank paper, live camera** (`/scan/easy`). Lay your hand flat on a
