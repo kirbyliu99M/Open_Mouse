@@ -181,7 +181,8 @@ describe("scan_quality carries conditions, never the hand or the phone", () => {
   it("accepts the full shape and refuses a missing field", () => {
     expect(schema.safeParse(base).success).toBe(true);
     for (const key of Object.keys(base)) {
-      const { [key as keyof typeof base]: _dropped, ...rest } = base;
+      const rest: Record<string, unknown> = { ...base };
+      delete rest[key];
       expect(schema.safeParse(rest).success, key).toBe(false);
     }
   });
