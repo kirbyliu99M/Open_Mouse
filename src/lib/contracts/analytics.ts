@@ -41,6 +41,43 @@ export const SUBMIT_FAILURE_KINDS = [
   "server",
 ] as const;
 
+/**
+ * Where the parallax correction's focal length came from. Mirrors
+ * `FocalDiagnostics["source"]` in src/client/photo/diagnostics.ts. `none` is
+ * the one that matters: no focal length, so no parallax correction and a hand
+ * length that reads about 6 mm long (a simulation, 2026-10-16; the real share
+ * of `none` is what `scan_quality` is for).
+ */
+export const FOCAL_SOURCES = ["exif", "homography", "none"] as const;
+
+/**
+ * The scan-quality buckets. They describe the PHOTO'S CONDITIONS, never the
+ * hand: a bucket is a range of a number the pipeline already computes about
+ * the picture or the sheet, with the cut-offs written here. All the cut-offs
+ * are candidates (未拍板) and may be moved in a PR that touches only this file
+ * and the client's mapping.
+ *
+ * - sharpness: Laplacian variance of the analysed photo against the LOW_SHARPNESS
+ *   gate (50, warning only): below it, up to twice it, above that.
+ * - resolution: the long edge in px of the decoded photo.
+ * - edge fit: the worst side's mean edge-fit distance of the sheet in mm; the
+ *   PAPER_CURLED gate is 1.5.
+ *
+ * Never sent: the focal length in px (it narrows down the phone model), the
+ * user agent, the device model, the exact variance, any hand measurement.
+ */
+export const SHARPNESS_BUCKETS = ["below_gate", "near_gate", "clear"] as const;
+export const RESOLUTION_BUCKETS = [
+  "under_1280",
+  "from_1280_to_1919",
+  "from_1920",
+] as const;
+export const EDGE_FIT_BUCKETS = [
+  "under_0_5_mm",
+  "from_0_5_to_1_mm",
+  "from_1_mm",
+] as const;
+
 /** The results page's non-ready states plus `ready`. */
 export const RESULTS_STATES = [
   "ready",
@@ -218,6 +255,24 @@ export const analyticsEventSchemas = {
     flow: z.enum(SCAN_FLOWS),
     attempt,
     paper: z.enum(["detected", "manual", "none"]),
+  }),
+
+  /** The conditions of a photo that was measured (2026-10-16, candidate), sent
+   * with `scan_measured`. It answers how often the focal length is missing and
+   * what the photos look like, without saying anything about the hand.
+   * `edgeFit` is a bucket of the sheet's edge-fit distance; the sheet was found,
+   * since the photo was measured. `parallaxCorrected` is false exactly when
+   * `focalSource` is `none` today, but is its own field so a later change to
+   * the correction cannot hide behind it. */
+  scan_quality: z.strictObject({
+    flow: z.enum(SCAN_FLOWS),
+    attempt,
+    method: z.enum(CAPTURE_METHODS),
+    focalSource: z.enum(FOCAL_SOURCES),
+    parallaxCorrected: z.boolean(),
+    sharpness: z.enum(SHARPNESS_BUCKETS),
+    resolution: z.enum(RESOLUTION_BUCKETS),
+    edgeFit: z.enum(EDGE_FIT_BUCKETS),
   }),
 
   /** The submission was stored (201). */

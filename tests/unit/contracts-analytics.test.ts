@@ -30,6 +30,16 @@ describe("analyticsEventSchemas", () => {
         codes: ["HAND_NOT_DETECTED", "LOW_SHARPNESS"],
       },
       scan_measured: { flow: "sheet", attempt: 3, paper: "manual" },
+      scan_quality: {
+        flow: "easy",
+        attempt: 2,
+        method: "canvas",
+        focalSource: "none",
+        parallaxCorrected: false,
+        sharpness: "near_gate",
+        resolution: "from_1920",
+        edgeFit: "under_0_5_mm",
+      },
       scan_submitted: { flow: "easy" },
       scan_submit_failed: { flow: "easy", kind: "rateLimited" },
       analysis_shown: { outcome: "fallback" },
@@ -152,5 +162,49 @@ describe("redactAnalyticsPath", () => {
     for (const [input, expected] of cases) {
       expect(redactAnalyticsPath(input), input).toBe(expected);
     }
+  });
+});
+
+describe("scan_quality carries conditions, never the hand or the phone", () => {
+  const base = {
+    flow: "easy",
+    attempt: 1,
+    method: "canvas",
+    focalSource: "homography",
+    parallaxCorrected: true,
+    sharpness: "clear",
+    resolution: "from_1280_to_1919",
+    edgeFit: "from_0_5_to_1_mm",
+  } as const;
+  const schema = analyticsEventSchemas.scan_quality;
+
+  it("accepts the full shape and refuses a missing field", () => {
+    expect(schema.safeParse(base).success).toBe(true);
+    for (const key of Object.keys(base)) {
+      const { [key as keyof typeof base]: _dropped, ...rest } = base;
+      expect(schema.safeParse(rest).success, key).toBe(false);
+    }
+  });
+
+  it("refuses a number where a bucket belongs, and any property it does not list", () => {
+    expect(schema.safeParse({ ...base, sharpness: 61.2 }).success).toBe(false);
+    expect(schema.safeParse({ ...base, resolution: 1920 }).success).toBe(false);
+    for (const extra of [
+      { focalPx: 1082 },
+      { focalMm: 26 },
+      { userAgent: "Mozilla/5.0" },
+      { deviceModel: "SM-S931B" },
+      { handLengthMm: 188 },
+      { laplacianVariance: 61.2 },
+      { scanId: "00000000-0000-4000-8000-000000000000" },
+    ]) {
+      expect(schema.safeParse({ ...base, ...extra }).success).toBe(false);
+    }
+  });
+
+  it("refuses an unknown focal source", () => {
+    expect(schema.safeParse({ ...base, focalSource: "gps" }).success).toBe(
+      false,
+    );
   });
 });
