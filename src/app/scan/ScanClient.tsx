@@ -25,6 +25,8 @@ import {
 } from "@/client/photo/landmarks";
 import { track } from "@/client/analytics/track";
 import { clampAttempt, issueCodes } from "@/client/analytics/props";
+import { buildScanQuality } from "@/client/analytics/scanQuality";
+import type { AttemptMethod } from "@/client/camera/attemptLog";
 import { detectDeviceFit } from "@/client/camera/deviceFit";
 import ScanSubmitPanel from "./ScanSubmitPanel";
 import { TopBar } from "@/components/nav/TopBar";
@@ -515,6 +517,8 @@ export default function ScanClient({
     outcomeSentRef.current = true;
     send();
   }, []);
+  // How the current photo was captured, for analytics only.
+  const captureMethodRef = useRef<AttemptMethod | null>(null);
   const fileRef = useRef<File | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragIndexRef = useRef<number | null>(null);
@@ -591,15 +595,25 @@ export default function ScanClient({
         if (runId !== runIdRef.current) return;
         const attempt = clampAttempt(attemptCountRef.current);
         if (result.status === "ok") {
-          reportOutcomeOnce(() =>
+          reportOutcomeOnce(() => {
             track("scan_measured", {
               flow: "sheet",
               attempt,
               // "manual": the sheet's corners were placed by hand. "none": a
               // typed length (not offered in this flow). Otherwise found.
               paper: cardSource === "manual" ? "manual" : "detected",
-            }),
-          );
+            });
+            // The photo's conditions, as buckets; nothing is sent where a
+            // value is missing (the printed-sheet pipeline records no focal
+            // length or edge fit).
+            const quality = buildScanQuality({
+              flow: "sheet",
+              attempt,
+              method: captureMethodRef.current,
+              diagnostics: result.diagnostics,
+            });
+            if (quality) track("scan_quality", quality);
+          });
           // Not chosen: show the hand the scan was submitted as.
           if (!handExplicit) setHand(result.submission.hand);
           setState({
@@ -671,6 +685,7 @@ export default function ScanClient({
     (file: File, method: "canvas" | "upload" = "upload") => {
       attemptCountRef.current += 1;
       outcomeSentRef.current = false;
+      captureMethodRef.current = method;
       track("scan_capture_attempted", {
         flow: "sheet",
         method,
