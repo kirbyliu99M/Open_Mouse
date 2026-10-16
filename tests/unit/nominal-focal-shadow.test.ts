@@ -72,6 +72,22 @@ describe("nominalFocalPx", () => {
     expect(nominalFocalPx(FRAME)).toBeCloseTo((26 / 43.27) * 1800, 9);
     expect(nominalFocalPx(FRAME)).toBeCloseTo(1081.58, 1);
   });
+  it("is taken on the long edge of a 4:3 sensor, so a frame cut on its short side keeps the lens", () => {
+    // The live video frame: 1080 x 1920 from the stream, and the 887 x 1920 part
+    // of it that is on screen. One lens, one long edge, one focal length.
+    const stream = nominalFocalPx({ width: 1080, height: 1920 })!;
+    const onScreen = nominalFocalPx({ width: 887, height: 1920 })!;
+    expect(stream).toBeCloseTo((26 / 43.27) * 1.25 * 1920, 9);
+    expect(stream).toBeCloseTo(1442.1, 1);
+    expect(onScreen).toBe(stream);
+    // Landscape or portrait does not matter.
+    expect(nominalFocalPx({ width: 1920, height: 1080 })).toBe(stream);
+    // A 4:3 photo is as the EXIF rule has it: the photo's own diagonal.
+    expect(nominalFocalPx({ width: 3000, height: 4000 })).toBeCloseTo(
+      (26 / 43.27) * 5000,
+      9,
+    );
+  });
   it("is not the detector's 70 degree assumption (771 px on a 1080 px wide frame)", () => {
     expect(nominalFocalPx(FRAME)).toBeGreaterThan(1000);
   });

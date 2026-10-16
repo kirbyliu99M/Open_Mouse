@@ -274,6 +274,35 @@ describe("buildScanQuality", () => {
     }
   });
 
+  describe("a shadow that could not be worked out is its own step, not a lost event", () => {
+    const cases: [string, Partial<PipelineDiagnostics>][] = [
+      ["no shadow record", { shadowPrior: null }],
+      [
+        "shadow delta null (could not be worked out)",
+        { shadowPrior: { handLengthDeltaMm: null } },
+      ],
+      ["shadow delta NaN", { shadowPrior: { handLengthDeltaMm: Number.NaN } }],
+      [
+        "shadow delta Infinity",
+        { shadowPrior: { handLengthDeltaMm: Infinity } },
+      ],
+    ];
+    it.each(cases)("%s", (_name, over) => {
+      const out = buildScanQuality({ ...base, diagnostics: diag(over) });
+      expect(out).not.toBeNull();
+      expect(out!.priorEffect).toBe("unavailable");
+      // Everything else the event says is still there and still true.
+      const whole = buildScanQuality({ ...base, diagnostics: diag() })!;
+      expect({ ...out, priorEffect: "x" }).toEqual({
+        ...whole,
+        priorEffect: "x",
+      });
+      expect(analyticsEventSchemas.scan_quality.safeParse(out).success).toBe(
+        true,
+      );
+    });
+  });
+
   describe("returns null rather than guess", () => {
     const cases: [string, Partial<PipelineDiagnostics>][] = [
       ["no focal record", { focal: null }],
@@ -285,12 +314,6 @@ describe("buildScanQuality", () => {
       ["no decoded size", { decoded: null }],
       ["decoded size NaN", { decoded: { width: Number.NaN, height: 100 } }],
       ["no paper record", { paper: null }],
-      ["no shadow record", { shadowPrior: null }],
-      [
-        "shadow delta null (could not be worked out)",
-        { shadowPrior: { handLengthDeltaMm: null } },
-      ],
-      ["shadow delta NaN", { shadowPrior: { handLengthDeltaMm: Number.NaN } }],
       [
         "skew null (no four corners)",
         { paper: { ...diag().paper!, maxAngleDeviationDeg: null } },

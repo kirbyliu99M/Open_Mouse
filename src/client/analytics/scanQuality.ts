@@ -156,10 +156,13 @@ export function buildScanQuality(
   const resolution = resolutionBucket(diagnostics.decoded);
   const edgeFit = edgeFitBucket(diagnostics.paper?.edgeFitResidualMm);
   const paperSkew = paperSkewBucket(diagnostics.paper?.maxAngleDeviationDeg);
-  const priorEffect = priorEffectBucket(
-    diagnostics.shadowPrior?.handLengthDeltaMm,
-  );
-  if (!sharpness || !resolution || !edgeFit || !paperSkew || !priorEffect) {
+  // A shadow that could not be worked out is a step of its own, not a reason
+  // to drop the whole event (the focal source, the buckets and the skew are
+  // still true), and it is where the shadow is most worth watching.
+  const priorEffect =
+    priorEffectBucket(diagnostics.shadowPrior?.handLengthDeltaMm) ??
+    "unavailable";
+  if (!sharpness || !resolution || !edgeFit || !paperSkew) {
     return null;
   }
   return {

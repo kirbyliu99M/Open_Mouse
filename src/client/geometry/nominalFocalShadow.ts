@@ -39,11 +39,21 @@ export const NOMINAL_FOCAL_EQUIV_MM = 26;
 export const FULL_FRAME_DIAGONAL_MM = 43.27;
 
 /**
+ * The sensor shape the equivalent is taken on: 4 : 3, whose diagonal is 5/4 of
+ * its long edge. A candidate assumption of the same prior.
+ */
+export const SENSOR_DIAGONAL_OVER_LONG_EDGE = 5 / 4;
+
+/**
  * The prior's focal length in px for a photo of this size: the 35 mm equivalent
- * scaled to the photo's diagonal. `null` for a size that is not positive and
- * finite. `frame` is the whole picture the lens made, as for the EXIF focal
- * length (`analysisFrames().focalFrame`): a crop narrows the picture, not the
- * lens.
+ * over the 35 mm diagonal, scaled to the diagonal of a 4 : 3 sensor whose long
+ * edge is the photo's long edge. For a 4 : 3 photo that is the photo's own
+ * diagonal (the same as the EXIF rule). It is taken on the LONG edge, not on
+ * the diagonal of the picture, because the live video frame is the sensor cut
+ * on its short side: a 1080 x 1920 stream, and the 887 x 1920 part of it that
+ * is on screen, share one long edge and one lens, and a diagonal would read
+ * 8 to 12 % low on them (independent review, 2026-10-16). `null` for a size
+ * that is not positive and finite.
  */
 export function nominalFocalPx(frame: {
   readonly width: number;
@@ -60,7 +70,8 @@ export function nominalFocalPx(frame: {
   }
   const fPx =
     (NOMINAL_FOCAL_EQUIV_MM / FULL_FRAME_DIAGONAL_MM) *
-    Math.hypot(width, height);
+    SENSOR_DIAGONAL_OVER_LONG_EDGE *
+    Math.max(width, height);
   return Number.isFinite(fPx) && fPx > 0 ? fPx : null;
 }
 

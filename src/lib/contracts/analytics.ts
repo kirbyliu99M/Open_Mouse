@@ -120,12 +120,17 @@ export const PAPER_SKEW_BUCKETS = [
  * agree. A difference between two ways of correcting the same photo, not a
  * length: it moves by about 3 % of the hand length at most, and the steps are
  * wide enough that the hand length cannot be read back from it.
+ * `unavailable`: the shadow could not be worked out (no convergence, a
+ * degenerate pose, a value that is not a number). It is its own step so that
+ * such a scan still reports everything else, and so that the share of
+ * `unavailable` can be read by focal source and capture method.
  */
 export const PRIOR_EFFECT_BUCKETS = [
   "lower_5_plus",
   "lower_2_to_5",
   "within_2",
   "higher_2_plus",
+  "unavailable",
 ] as const;
 
 /** The results page's non-ready states plus `ready`. */
