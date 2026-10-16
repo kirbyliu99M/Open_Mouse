@@ -134,10 +134,11 @@ export function paperAspectBucket(
   ) {
     return null;
   }
-  // The corners are in image order, so a sheet lying across the frame (or
-  // turned past 45 degrees) has its top edge along the LONG side and reads
-  // about 1.41 rather than 0.71 (orientation.ts says the same of TL to TR).
-  // Short over long does not depend on which way the sheet lies.
+  // The detector already turns the corners so that TL to TR is the short side
+  // (detect.ts, before it returns them), so this is a precaution: a value
+  // above 1 would be a sheet read across the frame, and short over long does
+  // not depend on which way it lies. The nearest of A4 and Letter is used, so
+  // a strongly tilted A4 can fall one step short of the worst bucket.
   const shortOverLong =
     observedAspect > 1 ? 1 / observedAspect : observedAspect;
   const deviation = Math.min(
