@@ -95,6 +95,17 @@ thumb 0.10, weight 0.05), with:
    `scoreFitV1` takes an optional `{ allowTrackball }` argument, default false); 3. vertical: `formFactor = vertical` **or**
    height/length > 0.55, unless `includeVertical`.
 
+**Catalogue rows with a vertical or trackball form factor are not listed (2026-10-16).** The seed
+sets `listed = false` for every row whose `formFactor` is not `standard` (`fitVisibility` in
+`src/server/catalogue/catalogue-rows.ts`), and the fit service filters to listed rows before it
+scores, so those rows reach neither the ranking nor the excluded list. The engine still honours
+`includeVertical` and `allowTrackball` on the rows it is given (the unit tests pass such rows
+directly), but with the real catalogue the preference no longer brings anything back: a vertical
+mouse or a trackball would need `listed = true` again. Six rows are affected: MX Vertical, MX Ergo S
+and Keychron M5 (newly unlisted; 411 to 408 listed in production after the reseed of 2026-10-16),
+and Lift Vertical, ERGO M575 and ERGO M575S (already unlisted by the Logitech G/MX rule). Reason:
+the fit model cannot score these forms competently (Kirby, 2026-10-15; the engine has no trackball score, and for a vertical mouse it would apply the ordinary formula, which is not trustworthy). Candidate (未拍板).
+
 ## 6. Total, ties, bands
 
 - `total = round(Σ_g w_g · Σ_sub weight·score / Σ weight)`.
