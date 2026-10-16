@@ -2,7 +2,7 @@ import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import type { Locale } from "@/lib/contracts/locale";
 
 /**
- * "Same modeling: <models>" on a card whose shell other catalogue entries share
+ * "Same shell: <models>" on a card whose shell other catalogue entries share
  * (SHELL-1). Renders nothing when there are no variants. The models are plain
  * text: a variant has no score, no rank and no page of its own. While the
  * results are filtered, the caller passes only the members that match

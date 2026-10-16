@@ -57,7 +57,7 @@ describe("the loader pattern itself", () => {
 
 // `ResultsView` is under a client component, so anything it imports ships to
 // the browser. The two data files are read only on the server: the photo path by
-// `withPhotos` (`src/server/fit/core.ts`) and the links by the static route
+// `withPhotos` (`src/server/fit/core.ts`) and the links by the cached route
 // `src/app/api/mice/[slug]/links/route.ts`, which the page reaches by fetch.
 describe("the page code does not import the data files", () => {
   const client = [
@@ -137,7 +137,7 @@ describe("the product photos match the size the <img> declares", () => {
   }
 
   it("has the committed photos", () => {
-    expect(photos.length).toBe(404);
+    expect(photos.length).toBe(411);
   });
 
   it("every file is MOUSE_PHOTO_WIDTH x MOUSE_PHOTO_HEIGHT", () => {

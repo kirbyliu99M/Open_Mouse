@@ -158,7 +158,7 @@ test.describe("desktop sidebar", () => {
     // Same shell: the matching member.
     await expect(
       page.locator(".results-score-name .results-variants"),
-    ).toHaveText("相同構型：Viper V4 Pro");
+    ).toHaveText("同款殼：Viper V4 Pro");
     // The analysis shrinks to one line about the overall #1 and opens in place.
     const line = page.locator(".results-analysisLine");
     await expect(line).toContainText("AI 分析是針對總排名第 1 的 Zowie EC2-DW");

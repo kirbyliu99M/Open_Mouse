@@ -282,10 +282,10 @@ test.describe("/results/[scanId] — real results page", () => {
 
     await expect(
       page.locator(".results-score-name .results-variants"),
-    ).toHaveText("Same modeling: Superlight 2 SE");
+    ).toHaveText("Same shell: Superlight 2 SE");
     const card = page.locator(".results-card", { hasText: "DeathAdder V3" });
     await expect(card.locator(".results-variants")).toHaveText(
-      "Same modeling: DeathAdder V3 X, DeathAdder V3 Y",
+      "Same shell: DeathAdder V3 X, DeathAdder V3 Y",
     );
     // Only the cards that have variants show the line; variants are not links.
     await expect(
@@ -301,11 +301,11 @@ test.describe("/results/[scanId] — real results page", () => {
     );
     await expect(
       page.locator(".results-score-name .results-variants"),
-    ).toHaveText("Same modeling: DeathAdder V3 X, DeathAdder V3 Y");
+    ).toHaveText("Same shell: DeathAdder V3 X, DeathAdder V3 Y");
     // The top pick is now a card on this page, with its own line.
     await expect(
       page.locator(".results-others-grid .results-variants"),
-    ).toHaveText(["Same modeling: Superlight 2 SE"]);
+    ).toHaveText(["Same shell: Superlight 2 SE"]);
   });
 
   test("the 3D viewer is hidden: opening Details shows no viewer and makes no measurements or model request", async ({

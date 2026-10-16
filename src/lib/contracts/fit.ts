@@ -145,14 +145,20 @@ export const fitEntrySchema = z.strictObject({
   ),
   /**
    * 2026-10-09 (Kirby, candidate): other catalogue entries with the same
-   * shell as this one, shown on its card ("相同構型：Wireless、4K…", Kirby 2026-10-10).
+   * shell as this one, shown on its card ("同款殼：Wireless、4K…", Kirby 2026-10-14).
    *
    * Same shell, compared with strict equality (`===`, no case folding, no
    * trimming, no rounding): `brand`, `lengthMm`, `widthMm`, `heightMm`, and
    * every shape descriptor of the catalogue row: `shape`,
    * `handCompatibility`, `humpPlacement`, `frontFlare`, `sideCurvature`,
-   * `thumbRest` and `ringFingerRest` (a null matches only a null). Weight,
-   * connectivity and everything else may differ.
+   * `thumbRest` and `ringFingerRest` (a null matches only a null), and the
+   * model family: the lower-cased `model` with its version words removed
+   * (`shellFamily`, src/server/fit/shell-family.ts: connection, polling rate,
+   * trim and finish words, a leading "x <partner>" tag; numbers, versions and
+   * size words stay). Equal numbers alone are not enough, because different
+   * mice can share them (Kirby 2026-10-14, candidate / 未拍板: 卡片不要亂併);
+   * a doubtful pair stays two cards. Weight, connectivity and the version
+   * words may differ.
    *
    * Which rows: only the ranked results. Grouping runs after the unlisted
    * filter, after exclusion and after scoring, so neither an unlisted row nor

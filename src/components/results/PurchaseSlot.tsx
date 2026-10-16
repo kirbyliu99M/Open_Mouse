@@ -10,8 +10,8 @@ import { ExternalLinkIcon } from "./ExternalLinkIcon";
  * Where to buy, for one mouse: a plain list of rows under the heading 「購買」
  * ("Buy"), shop name on the left and the external-link icon on the right. The
  * links come from the caller: `ResultsView` passes `useMouseLinks(slug)`'s
- * `purchaseLinks`, which the browser fetches from the static route
- * `/api/mice/<slug>/links` (built from `src/data/purchase-links.json`, which
+ * `purchaseLinks`, which the browser fetches from
+ * `/api/mice/<slug>/links` (served from `src/data/purchase-links.json`, which
  * another team maintains). This component never reads the file, so the file
  * stays out of the client bundle. With no links, or before they arrive, it
  * renders nothing: no box, no placeholder text. There is no

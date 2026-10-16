@@ -27,7 +27,7 @@ function parsedMedia(media: unknown): MouseMedia {
  * promote any mouse to the top, and the small cards show a photo too. The
  * official link and the purchase links are NOT here: they would add about
  * 36 to 110 KB to every (uncacheable) fit response, so the page fetches the
- * links of the one mouse in its big header from the static route
+ * links of the one mouse in its big header from the cached route
  * `GET /api/mice/<slug>/links` instead (`src/app/api/mice/[slug]/links`).
  *
  * Facts only. No score, rank or order changes, and the photo path is not
