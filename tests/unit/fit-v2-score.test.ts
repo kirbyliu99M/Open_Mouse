@@ -12,6 +12,7 @@ import {
   ENGINE_VERSION_V2,
   SIGMA_INPUT_B_WITH_EXIF,
   SIGMA_INPUT_FRAME_B,
+  SIGMA_INPUT_FRAME_B_UNCORRECTED,
   V1_EQUIVALENT_PARAMS_V2,
   type Matrix2,
 } from "../../src/server/fit/coefficients-v2";
@@ -70,13 +71,14 @@ describe("fit-v2 scaffolding", () => {
     expect(engineSource).not.toMatch(/score-v2|coefficients-v2/);
   });
 
-  it("defaults to the simulated frame (no EXIF) covariance and bias, not the EXIF comparison", () => {
-    expect(DEFAULT_PARAMS_V2.sigmaInput).toEqual([
-      [18.77, 4.82],
-      [4.82, 6.09],
-    ]);
+  it("defaults to the simulated frame (no EXIF) covariance with the bias folded in, and subtracts no bias", () => {
+    expect(DEFAULT_PARAMS_V2.sigmaInput).toEqual(
+      SIGMA_INPUT_FRAME_B_UNCORRECTED,
+    );
+    expect(DEFAULT_PARAMS_V2.sigmaInput).not.toEqual(SIGMA_INPUT_FRAME_B);
     expect(DEFAULT_PARAMS_V2.sigmaInput).not.toEqual(SIGMA_INPUT_B_WITH_EXIF);
-    expect(DEFAULT_PARAMS_V2.biasInput).toEqual([3.85, 1.32]);
+    // Kirby, 2026-10-16: no bias correction until real data.
+    expect(DEFAULT_PARAMS_V2.biasInput).toEqual([0, 0]);
     expect(V1_EQUIVALENT_PARAMS_V2.biasInput).toEqual([0, 0]);
     expect(DEFAULT_PARAMS_V2.asymmetry).toEqual({
       length: 1,
@@ -178,8 +180,8 @@ describe("2. tolerance and measurement noise are kept and reported apart", () =>
 
 describe("correlation cannot change the marginal total, only joint quantities", () => {
   const diagonalOnly: Matrix2 = [
-    [SIGMA_INPUT_FRAME_B[0][0], 0],
-    [0, SIGMA_INPUT_FRAME_B[1][1]],
+    [DEFAULT_PARAMS_V2.sigmaInput[0][0], 0],
+    [0, DEFAULT_PARAMS_V2.sigmaInput[1][1]],
   ];
 
   it("totals are identical with and without Cov(handLength, palmWidth)", () => {
@@ -471,14 +473,18 @@ describe("bias is subtracted before the targets, the covariance is propagated ar
     expect(a.uncertainty).toEqual(b.uncertainty);
   });
 
-  it("the default bias really moves the scores (it is not a no-op)", () => {
+  it("the default subtracts nothing, and the simulated bias, when turned on, moves the scores", () => {
     const withDefault = run();
-    const off = run(measured, seedCatalogue, prefs, {
-      params: { biasInput: [0, 0] },
+    const on = run(measured, seedCatalogue, prefs, {
+      params: {
+        biasInput: BIAS_INPUT_FRAME_B,
+        sigmaInput: SIGMA_INPUT_FRAME_B,
+      },
     });
-    expect(withDefault.params.biasInput).toEqual(BIAS_INPUT_FRAME_B);
+    expect(withDefault.params.biasInput).toEqual([0, 0]);
+    expect(on.params.biasInput).toEqual(BIAS_INPUT_FRAME_B);
     expect(withDefault.results.map((e) => e.totalRaw)).not.toEqual(
-      off.results.map((e) => e.totalRaw),
+      on.results.map((e) => e.totalRaw),
     );
   });
 

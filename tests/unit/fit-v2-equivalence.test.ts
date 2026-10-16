@@ -6,7 +6,7 @@ import {
 } from "../../src/lib/contracts/fit";
 import type { HandMeasurements } from "../../src/lib/contracts/measurement";
 import {
-  DEFAULT_PARAMS_V2,
+  BIAS_INPUT_FRAME_B,
   V1_EQUIVALENT_PARAMS_V2,
 } from "../../src/server/fit/coefficients-v2";
 import { excludeReasonV1 } from "../../src/server/fit/exclusions-v1";
@@ -148,7 +148,7 @@ describe("fit-v2 is v1 under the v1-equivalent setting", () => {
       {
         params: {
           ...V1_EQUIVALENT_PARAMS_V2,
-          biasInput: DEFAULT_PARAMS_V2.biasInput,
+          biasInput: BIAS_INPUT_FRAME_B,
         },
       },
     );

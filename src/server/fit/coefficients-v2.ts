@@ -192,15 +192,20 @@ export interface FitV2Params {
 }
 
 /**
- * The v2 defaults. Σ_input and the bias vector are the SIMULATED frame,
- * no-EXIF values (see above): the pipeline the product actually runs. Σ_input
- * is tighter than v1's diag(36, 16) (SD 4.3 and 2.5 mm against 6 and 4), and
- * the bias correction moves every target (hand length -3.85 mm, palm width
- * -1.32 mm). 候選，無實測依據.
+ * The v2 defaults (Kirby, 2026-10-16: no bias correction until real data).
+ * Σ_input is the SIMULATED frame, no-EXIF value WITH the uncorrected bias
+ * folded in (`SIGMA_INPUT_FRAME_B_UNCORRECTED`, about [[33.6, 9.9], [9.9,
+ * 7.8]]), and `biasInput` is [0, 0]: nothing is subtracted from a
+ * measurement. The simulation predicts that a frame scan without a usable
+ * focal estimate reads about +3.85 mm long, but Kirby's own five S25 scans
+ * read -0.8 mm against his tape, so subtracting the simulated bias could add
+ * about 4 mm of error. Turn it on (`BIAS_INPUT_FRAME_B`, with
+ * `SIGMA_INPUT_FRAME_B`) only after the live `focal` source shares
+ * (`scan_quality`) or tape-checked scans say the bias is real. 候選，無實測依據.
  */
 export const DEFAULT_PARAMS_V2: FitV2Params = {
-  sigmaInput: SIGMA_INPUT_FRAME_B,
-  biasInput: BIAS_INPUT_FRAME_B,
+  sigmaInput: SIGMA_INPUT_FRAME_B_UNCORRECTED,
+  biasInput: [0, 0],
   tolerance: TOLERANCE_MM,
   asymmetry: ASYMMETRY,
   rangeThresholdScore: RANGE_THRESHOLD_SCORE,

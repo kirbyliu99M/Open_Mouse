@@ -18,8 +18,9 @@ describe("v1 vs v2 comparison report", () => {
   it("states the frame scenario and lists what differs between the v2 default and the v1-equivalent setting", () => {
     expect(report).toContain("frame capture = no EXIF");
     expect(report).toContain("## v2 default vs v1-equivalent: what differs");
+    // Kirby, 2026-10-16: the default subtracts no bias, so this row reads "no".
     expect(report).toMatch(
-      /\| biasInput \(mm, subtracted first\) \|.*\*\*yes\*\*/,
+      /\| biasInput \(mm, subtracted first\) \|.*\| no \|/,
     );
     expect(report).toMatch(/\| sigmaInput \(mm\^2\) \|.*\*\*yes\*\*/);
     expect(report).toMatch(/\| tolerance \(mm\) \|.*\| no \|/);
