@@ -204,6 +204,7 @@ import { scanAnswersCopy } from "../../lib/copy/scan-answers";
 import { HandIcon, CheckIcon, HelpCircleIcon } from "./icons";
 import { track } from "../analytics/track";
 import { clampAttempt, issueCodes } from "../analytics/props";
+import { buildScanQuality } from "../analytics/scanQuality";
 import { detectDeviceFit, type DeviceFit } from "./deviceFit";
 import { DeviceEntry } from "./DeviceEntry";
 import {
@@ -1215,6 +1216,15 @@ export default function EasyScanCamera({
             // means no paper was used. This flow has no manual corners.
             paper: paperUsed,
           });
+          // The photo's conditions, as buckets; nothing is sent where a value
+          // is missing (a typed length has no sheet to fit).
+          const quality = buildScanQuality({
+            flow: "easy",
+            attempt,
+            method: info?.method,
+            diagnostics: pipelineResult.diagnostics,
+          });
+          if (quality) track("scan_quality", quality);
           setHandChip((prev) =>
             applyDetectedHandedness(prev, pipelineResult.overlay.handedness),
           );
