@@ -137,7 +137,7 @@ describe("the product photos match the size the <img> declares", () => {
   }
 
   it("has the committed photos", () => {
-    expect(photos.length).toBe(404);
+    expect(photos.length).toBe(411);
   });
 
   it("every file is MOUSE_PHOTO_WIDTH x MOUSE_PHOTO_HEIGHT", () => {
