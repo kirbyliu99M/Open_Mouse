@@ -268,11 +268,18 @@ export const userLengthEvidenceSchema = z.strictObject({
  * palmWidthMm is a joint-centre distance (landmarks 5 to 17), which the notes
  * above put 10-20 mm under a skin-to-skin width, and a ruler hand length runs
  * 7-11 mm longer than the landmark distance. The typed values are skin
- * measurements stored as typed, with no correction (Kirby: not corrected for
- * now), so a manual-entry hand scores on a slightly wider and longer scale than
- * a scanned one, and typed scans stay out of the similar-hand pool. A versioned
- * typed-to-landmark mapping fitted on paired ruler and scan data (M2) is the
- * way to align them; until then the results page discloses the estimate.
+ * measurements stored as typed. Kirby's own pair (2026-10-17) put the gap at
+ * 19 mm, not "slightly": a ruler breadth of 85 mm against a scan's 65.7 mm
+ * (ratio 0.77), and typed 85 sent the fit to wide mice (Scimitar Elite first,
+ * G903 Hero 319th) that a scan of the same hand does not pick. So (Kirby: OK,
+ * 2026-10-17) the typed WIDTH is converted to the scan's scale, by
+ * `MANUAL_ENTRY.widthToLandmarkScale`, for scoring only: the stored value, the
+ * typed value the page shows and the contract's own checks stay as typed. The
+ * factor is a candidate from that one pair; a versioned typed-to-landmark
+ * mapping fitted on paired ruler and scan data replaces it (the small
+ * collection of 2026-10-17). The length is not converted: a typed ruler length
+ * and a scan's length agreed within 1 mm on that hand. Typed scans stay out of
+ * the similar-hand pool, and the results page still discloses the estimate.
  */
 export const manualEntryEvidenceSchema = z.strictObject({
   method: z.literal("manual-entry"),
@@ -298,6 +305,13 @@ export const MANUAL_ENTRY = {
   widthOverLengthBand: { min: 0.38, max: 0.56 },
   /** Midpoint of the claw-grip band of fit v1 (0.54-0.58). Placeholder. */
   palmLengthRatio: 0.56,
+  /**
+   * A typed (ruler, skin-to-skin) hand width times this is the width on the
+   * scan's scale (landmarks 5 to 17), the scale fit v1's grip-width target
+   * (x 0.88) was made for. Candidate, from ONE pair: 65.7 mm scanned against
+   * 85 mm ruler (Kirby, 2026-10-17). Applied for scoring only.
+   */
+  widthToLandmarkScale: 0.77,
 } as const;
 
 /** Estimated palm length for a typed hand length, to 0.1 mm. */
