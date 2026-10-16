@@ -7,6 +7,9 @@
  * What may never be in an event, by hard rule 5 and the promise the UI makes:
  *   - anything derived from the hand: no millimetres, no size band, no grip,
  *     no handedness, no measurement version;
+ *     (The one place a millimetre difference appears is
+ *     `scan_quality.priorEffect`: how two ways of correcting the same photo
+ *     differ, in four wide steps, never a length. See its comment.)
  *   - an identifier that leads back to a scan or a person: no scan ID, no
  *     session ID, no learning-kit token, no user ID or email. Mouse slugs are
  *     catalogue identifiers and are allowed;
@@ -87,6 +90,47 @@ export const EDGE_FIT_BUCKETS = [
   "under_0_5_mm",
   "from_0_5_to_1_mm",
   "from_1_mm",
+] as const;
+
+/**
+ * How far the sheet's corners are from right angles in the photo (the largest
+ * deviation from 90 degrees, in degrees; `computeQuadSkew`), which is how
+ * "straight on" the shot was. The auto-shutter lets a photo through up to 12
+ * (`maxAngleDeviationDeg`); the audit's simulation puts that at about 15
+ * degrees of tilt (not measured on a phone).
+ * A candidate (未拍板), 2026-10-16: the focal estimate that has no EXIF to lean
+ * on is least reliable exactly in this range, and this bucket is how the real
+ * spread of shots is found out.
+ */
+export const PAPER_SKEW_BUCKETS = [
+  "under_3",
+  "from_3_to_6",
+  "from_6_to_9",
+  "from_9",
+] as const;
+
+/**
+ * SHADOW MODE (2026-10-16, candidate): the client works out what the hand
+ * length WOULD have been if the parallax correction had used a nominal focal
+ * length (a 26 mm-equivalent main camera) instead of its own estimate or no
+ * correction, and reports only how that differs from the number the person
+ * was shown, in four coarse steps. The number the person sees is not changed
+ * by it. `lower_5_plus` is the case the simulation predicts for a frame with
+ * no usable focal estimate (about 6 mm shorter); `within_2` means the two
+ * agree. A difference between two ways of correcting the same photo, not a
+ * length: it moves by about 3 % of the hand length at most, and the steps are
+ * wide enough that the hand length cannot be read back from it.
+ * `unavailable`: the shadow could not be worked out (no convergence, a
+ * degenerate pose, a value that is not a number). It is its own step so that
+ * such a scan still reports everything else, and so that the share of
+ * `unavailable` can be read by focal source and capture method.
+ */
+export const PRIOR_EFFECT_BUCKETS = [
+  "lower_5_plus",
+  "lower_2_to_5",
+  "within_2",
+  "higher_2_plus",
+  "unavailable",
 ] as const;
 
 /** The results page's non-ready states plus `ready`. */
@@ -259,6 +303,9 @@ export const analyticsEventSchemas = {
       .array(issueCode)
       .max(8)
       .refine((c) => new Set(c).size === c.length, "codes repeat"),
+    /** How straight on the shot was, when the sheet's four corners were found
+     * (2026-10-16, candidate); absent otherwise. */
+    paperSkew: z.enum(PAPER_SKEW_BUCKETS).optional(),
   }),
 
   /** The pipeline produced measurements (the numbers themselves stay out). */
@@ -284,6 +331,9 @@ export const analyticsEventSchemas = {
     sharpness: z.enum(SHARPNESS_BUCKETS),
     resolution: z.enum(RESOLUTION_BUCKETS),
     edgeFit: z.enum(EDGE_FIT_BUCKETS),
+    paperSkew: z.enum(PAPER_SKEW_BUCKETS),
+    /** What a nominal focal length would have changed, shadow mode only. */
+    priorEffect: z.enum(PRIOR_EFFECT_BUCKETS),
   }),
 
   /** The submission was stored (201). */

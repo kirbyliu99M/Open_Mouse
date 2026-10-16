@@ -69,11 +69,13 @@ import {
 import { finishPaperEdge } from "./paperEdgeFinish";
 import type { IssueDetail } from "./issue-detail";
 import {
+  paperMaxAngleDeviationDeg,
   paperSizeFractions,
   type FocalDiagnostics,
   type HandDiagnostics,
   type PaperDiagnostics,
   type PipelineDiagnostics,
+  type ShadowPriorDiagnostics,
   type ViewDiagnostics,
 } from "./diagnostics";
 
@@ -200,6 +202,7 @@ interface PipelineTrace {
   hand: HandDiagnostics;
   parallaxCorrected: boolean | null;
   focal: FocalDiagnostics | null;
+  shadowPrior: ShadowPriorDiagnostics | null;
 }
 
 function newTrace(): PipelineTrace {
@@ -216,6 +219,7 @@ function newTrace(): PipelineTrace {
     hand: { detected: null, confidence: null, handedness: null },
     parallaxCorrected: null,
     focal: null,
+    shadowPrior: null,
   };
 }
 
@@ -309,6 +313,7 @@ export async function runPhotoPipeline(
           }
         : { handLengthMm: null, palmWidthMm: null },
     focal: trace.focal,
+    shadowPrior: trace.shadowPrior,
   };
   return { ...result, diagnostics };
 }
@@ -600,6 +605,9 @@ async function runPaperEdgePipeline(
     widthFraction: quadSize?.widthFraction ?? null,
     heightFraction: quadSize?.heightFraction ?? null,
     edgeFitResidualMm: null,
+    maxAngleDeviationDeg: quad.corners
+      ? paperMaxAngleDeviationDeg(quad.corners)
+      : null,
     minSideCoverage: quad.minSideCoverage,
     gateFailures: [],
   };
@@ -685,6 +693,7 @@ async function runPaperEdgePipeline(
   });
   trace.parallaxCorrected = finish.parallaxCorrected;
   trace.focal = finish.focal;
+  trace.shadowPrior = finish.shadowPrior;
   return finish.result;
 }
 

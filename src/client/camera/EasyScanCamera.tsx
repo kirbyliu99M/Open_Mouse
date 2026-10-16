@@ -204,7 +204,7 @@ import { scanAnswersCopy } from "../../lib/copy/scan-answers";
 import { HandIcon, CheckIcon, HelpCircleIcon } from "./icons";
 import { track } from "../analytics/track";
 import { clampAttempt, issueCodes } from "../analytics/props";
-import { buildScanQuality } from "../analytics/scanQuality";
+import { buildScanQuality, rejectedPaperSkew } from "../analytics/scanQuality";
 import { detectDeviceFit, type DeviceFit } from "./deviceFit";
 import { DeviceEntry } from "./DeviceEntry";
 import {
@@ -1238,10 +1238,14 @@ export default function EasyScanCamera({
             imageHeight: pipelineResult.overlay.imageHeight,
           });
         } else if (pipelineResult.status === "error") {
+          // How straight on the shot was, only where the sheet's four corners
+          // were found (shadow mode, candidate).
+          const paperSkew = rejectedPaperSkew(pipelineResult.diagnostics);
           track("scan_rejected", {
             flow: "easy",
             attempt,
             codes: issueCodes(pipelineResult.errors.map((e) => e.code)),
+            ...(paperSkew ? { paperSkew } : {}),
           });
           setHandChip((prev) =>
             applyDetectedHandedness(prev, pipelineResult.overlay.handedness),

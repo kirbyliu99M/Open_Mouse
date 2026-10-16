@@ -3,6 +3,8 @@ import {
   CAPTURE_METHODS,
   EDGE_FIT_BUCKETS,
   FOCAL_SOURCES,
+  PAPER_SKEW_BUCKETS,
+  PRIOR_EFFECT_BUCKETS,
   RESOLUTION_BUCKETS,
   SHARPNESS_BUCKETS,
   analyticsEventSchemas,
@@ -10,6 +12,9 @@ import {
 import {
   buildScanQuality,
   edgeFitBucket,
+  paperSkewBucket,
+  priorEffectBucket,
+  rejectedPaperSkew,
   resolutionBucket,
   sharpnessBucket,
 } from "../../src/client/analytics/scanQuality";
@@ -32,6 +37,7 @@ function diag(over: Partial<PipelineDiagnostics> = {}): PipelineDiagnostics {
       widthFraction: 0.7,
       heightFraction: 0.8,
       edgeFitResidualMm: 0.3,
+      maxAngleDeviationDeg: 1.5,
       minSideCoverage: 0.9,
       gateFailures: [],
     },
@@ -40,6 +46,7 @@ function diag(over: Partial<PipelineDiagnostics> = {}): PipelineDiagnostics {
     parallaxCorrected: true,
     measured: { handLengthMm: 180, palmWidthMm: 85 },
     focal: { source: "exif", px: 2900 },
+    shadowPrior: { handLengthDeltaMm: -0.4 },
     ...over,
   };
 }
@@ -121,6 +128,86 @@ describe("edgeFitBucket", () => {
   });
 });
 
+describe("paperSkewBucket (largest corner-angle deviation, degrees)", () => {
+  it.each([
+    [0, "under_3"],
+    [2.9999, "under_3"],
+    [3, "from_3_to_6"],
+    [5.9999, "from_3_to_6"],
+    [6, "from_6_to_9"],
+    [8.9999, "from_6_to_9"],
+    [9, "from_9"],
+    [12, "from_9"],
+    [40, "from_9"],
+  ] as const)("%s -> %s", (v, bucket) => {
+    expect(paperSkewBucket(v)).toBe(bucket);
+  });
+  it.each([-0.0001, -1, Number.NaN, Infinity, -Infinity, null, undefined])(
+    "%s -> null",
+    (v) => {
+      expect(paperSkewBucket(v)).toBeNull();
+    },
+  );
+});
+
+describe("priorEffectBucket (shadow hand length minus the shown one, mm)", () => {
+  it.each([
+    [-30, "lower_5_plus"],
+    [-5.0001, "lower_5_plus"],
+    [-5, "lower_5_plus"],
+    [-4.9999, "lower_2_to_5"],
+    [-3, "lower_2_to_5"],
+    [-2.0001, "lower_2_to_5"],
+    [-2, "lower_2_to_5"],
+    [-1.9999, "within_2"],
+    [0, "within_2"],
+    [1.9999, "within_2"],
+    [2, "higher_2_plus"],
+    [2.0001, "higher_2_plus"],
+    [30, "higher_2_plus"],
+  ] as const)("%s -> %s", (v, bucket) => {
+    expect(priorEffectBucket(v)).toBe(bucket);
+  });
+  it.each([Number.NaN, Infinity, -Infinity, null, undefined])(
+    "%s -> null",
+    (v) => {
+      expect(priorEffectBucket(v)).toBeNull();
+    },
+  );
+});
+
+describe("rejectedPaperSkew (a refused scan's skew bucket)", () => {
+  it("is the bucket when the four corners were found", () => {
+    expect(rejectedPaperSkew(diag())).toBe("under_3");
+    expect(
+      rejectedPaperSkew(
+        diag({ paper: { ...diag().paper!, maxAngleDeviationDeg: 10 } }),
+      ),
+    ).toBe("from_9");
+  });
+  it("is undefined (property left out) without it", () => {
+    expect(
+      rejectedPaperSkew(
+        diag({ paper: { ...diag().paper!, maxAngleDeviationDeg: null } }),
+      ),
+    ).toBeUndefined();
+    expect(rejectedPaperSkew(diag({ paper: null }))).toBeUndefined();
+    expect(rejectedPaperSkew(null)).toBeUndefined();
+    expect(rejectedPaperSkew(undefined)).toBeUndefined();
+  });
+  it("passes the contract's scan_rejected schema either way", () => {
+    const skew = rejectedPaperSkew(diag());
+    const base = { flow: "easy", attempt: 1, codes: ["PAPER_CURLED"] };
+    expect(() =>
+      analyticsEventSchemas.scan_rejected.parse({
+        ...base,
+        ...(skew ? { paperSkew: skew } : {}),
+      }),
+    ).not.toThrow();
+    expect(() => analyticsEventSchemas.scan_rejected.parse(base)).not.toThrow();
+  });
+});
+
 describe("buildScanQuality", () => {
   const base = { flow: "easy", attempt: 2, method: "canvas" } as const;
 
@@ -134,6 +221,22 @@ describe("buildScanQuality", () => {
       sharpness: "clear",
       resolution: "from_1920",
       edgeFit: "under_0_5_mm",
+      paperSkew: "under_3",
+      priorEffect: "within_2",
+    });
+  });
+
+  it("takes paperSkew from the paper's angle and priorEffect from the shadow delta", () => {
+    const out = buildScanQuality({
+      ...base,
+      diagnostics: diag({
+        paper: { ...diag().paper!, maxAngleDeviationDeg: 7.4 },
+        shadowPrior: { handLengthDeltaMm: -5.837 },
+      }),
+    });
+    expect(out).toMatchObject({
+      paperSkew: "from_6_to_9",
+      priorEffect: "lower_5_plus",
     });
   });
 
@@ -171,6 +274,35 @@ describe("buildScanQuality", () => {
     }
   });
 
+  describe("a shadow that could not be worked out is its own step, not a lost event", () => {
+    const cases: [string, Partial<PipelineDiagnostics>][] = [
+      ["no shadow record", { shadowPrior: null }],
+      [
+        "shadow delta null (could not be worked out)",
+        { shadowPrior: { handLengthDeltaMm: null } },
+      ],
+      ["shadow delta NaN", { shadowPrior: { handLengthDeltaMm: Number.NaN } }],
+      [
+        "shadow delta Infinity",
+        { shadowPrior: { handLengthDeltaMm: Infinity } },
+      ],
+    ];
+    it.each(cases)("%s", (_name, over) => {
+      const out = buildScanQuality({ ...base, diagnostics: diag(over) });
+      expect(out).not.toBeNull();
+      expect(out!.priorEffect).toBe("unavailable");
+      // Everything else the event says is still there and still true.
+      const whole = buildScanQuality({ ...base, diagnostics: diag() })!;
+      expect({ ...out, priorEffect: "x" }).toEqual({
+        ...whole,
+        priorEffect: "x",
+      });
+      expect(analyticsEventSchemas.scan_quality.safeParse(out).success).toBe(
+        true,
+      );
+    });
+  });
+
   describe("returns null rather than guess", () => {
     const cases: [string, Partial<PipelineDiagnostics>][] = [
       ["no focal record", { focal: null }],
@@ -183,6 +315,14 @@ describe("buildScanQuality", () => {
       ["decoded size NaN", { decoded: { width: Number.NaN, height: 100 } }],
       ["no paper record", { paper: null }],
       [
+        "skew null (no four corners)",
+        { paper: { ...diag().paper!, maxAngleDeviationDeg: null } },
+      ],
+      [
+        "skew negative",
+        { paper: { ...diag().paper!, maxAngleDeviationDeg: -2 } },
+      ],
+      [
         "edge fit null (no four corners)",
         {
           paper: {
@@ -191,6 +331,7 @@ describe("buildScanQuality", () => {
             widthFraction: null,
             heightFraction: null,
             edgeFitResidualMm: null,
+            maxAngleDeviationDeg: null,
             minSideCoverage: 0.5,
             gateFailures: [],
           },
@@ -227,6 +368,8 @@ describe("privacy: the output is the contract's shape and nothing more", () => {
     ...SHARPNESS_BUCKETS,
     ...RESOLUTION_BUCKETS,
     ...EDGE_FIT_BUCKETS,
+    ...PAPER_SKEW_BUCKETS,
+    ...PRIOR_EFFECT_BUCKETS,
   ]);
 
   // Distinctive raw values that must never appear in what is sent.
@@ -240,10 +383,12 @@ describe("privacy: the output is the contract's shape and nothing more", () => {
       widthFraction: 0.6123,
       heightFraction: 0.7123,
       edgeFitResidualMm: 0.777,
+      maxAngleDeviationDeg: 7.4321,
       minSideCoverage: 0.91,
       gateFailures: ["PAPER_CURLED"],
     },
     measured: { handLengthMm: 183.7, palmWidthMm: 86.2 },
+    shadowPrior: { handLengthDeltaMm: -5.837 },
   });
 
   const outputs = [
@@ -303,6 +448,8 @@ describe("privacy: the output is the contract's shape and nothing more", () => {
         "0.777",
         "183.7",
         "86.2",
+        "5.837",
+        "7.43",
       ]) {
         expect(text).not.toContain(needle);
       }

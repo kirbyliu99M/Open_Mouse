@@ -39,6 +39,8 @@ describe("analyticsEventSchemas", () => {
         sharpness: "near_gate",
         resolution: "from_1920",
         edgeFit: "under_0_5_mm",
+        paperSkew: "from_3_to_6",
+        priorEffect: "lower_5_plus",
       },
       scan_submitted: { flow: "easy" },
       scan_submit_failed: { flow: "easy", kind: "rateLimited" },
@@ -175,6 +177,8 @@ describe("scan_quality carries conditions, never the hand or the phone", () => {
     sharpness: "clear",
     resolution: "from_1280_to_1919",
     edgeFit: "from_0_5_to_1_mm",
+    paperSkew: "under_3",
+    priorEffect: "within_2",
   } as const;
   const schema = analyticsEventSchemas.scan_quality;
 
@@ -207,5 +211,49 @@ describe("scan_quality carries conditions, never the hand or the phone", () => {
     expect(schema.safeParse({ ...base, focalSource: "gps" }).success).toBe(
       false,
     );
+  });
+});
+
+describe("paperSkew and priorEffect are buckets, and paperSkew is optional only on a rejection", () => {
+  it("scan_rejected takes a paperSkew bucket or none, and nothing else new", () => {
+    const rejected = analyticsEventSchemas.scan_rejected;
+    const base = { flow: "easy", attempt: 1, codes: ["PAPER_NOT_FOUND"] };
+    expect(rejected.safeParse(base).success).toBe(true);
+    expect(rejected.safeParse({ ...base, paperSkew: "from_9" }).success).toBe(
+      true,
+    );
+    expect(rejected.safeParse({ ...base, paperSkew: 11.4 }).success).toBe(
+      false,
+    );
+    expect(rejected.safeParse({ ...base, paperSkew: "over_12" }).success).toBe(
+      false,
+    );
+    expect(rejected.safeParse({ ...base, tiltDeg: 11 }).success).toBe(false);
+  });
+
+  it("scan_quality refuses a millimetre or a degree where a bucket belongs", () => {
+    const q = analyticsEventSchemas.scan_quality;
+    const ok = {
+      flow: "easy",
+      attempt: 1,
+      method: "canvas",
+      focalSource: "none",
+      parallaxCorrected: false,
+      sharpness: "clear",
+      resolution: "from_1920",
+      edgeFit: "under_0_5_mm",
+      paperSkew: "under_3",
+      priorEffect: "lower_5_plus",
+    };
+    expect(q.safeParse(ok).success).toBe(true);
+    expect(q.safeParse({ ...ok, priorEffect: -5.8 }).success).toBe(false);
+    expect(q.safeParse({ ...ok, priorEffect: "lower_6_mm" }).success).toBe(
+      false,
+    );
+    expect(q.safeParse({ ...ok, paperSkew: 7.5 }).success).toBe(false);
+    const { priorEffect: _p, ...without } = ok;
+    void _p;
+    expect(q.safeParse(without).success).toBe(false);
+    expect(q.safeParse({ ...ok, shadowHandLengthMm: 183 }).success).toBe(false);
   });
 });

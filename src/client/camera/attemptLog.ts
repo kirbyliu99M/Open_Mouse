@@ -89,6 +89,8 @@ export interface AttemptRecord {
     readonly widthFraction: number | null;
     readonly heightFraction: number | null;
     readonly edgeFitResidualMm: number | null;
+    /** The sheet's largest corner-angle deviation in degrees (how straight on the shot was), to 0.1; `null` without four corners. */
+    readonly maxAngleDeviationDeg: number | null;
     readonly minSideCoverage: number;
     /** The paper gates that failed, whether or not the result reported them first. */
     readonly gateFailures: readonly string[];
@@ -153,6 +155,13 @@ export interface AttemptRecord {
     readonly source: "exif" | "homography" | "none" | null;
     readonly px: number | null;
   };
+  /**
+   * Shadow mode (candidate, 2026-10-16): the hand length a nominal focal length
+   * would have given minus the one shown, to 0.1 mm; `null` where it was not
+   * worked out. Local only, like the rest: it is what Copy JSON shows, and only
+   * its coarse bucket is ever sent (`scan_quality.priorEffect`).
+   */
+  readonly shadowPrior: { readonly handLengthDeltaMm: number | null };
   readonly timingMs: {
     readonly decode: number | null;
     readonly paper: number | null;
@@ -226,6 +235,7 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
   const timing = asObject(raw.timingMs);
   const measured = asObject(raw.measured);
   const focal = asObject(raw.focal);
+  const shadowPrior = asObject(raw.shadowPrior);
   const handedness = hand?.handedness;
   const method = raw.method;
 
@@ -273,6 +283,7 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
           widthFraction: cleanNumber(paper.widthFraction, 4),
           heightFraction: cleanNumber(paper.heightFraction, 4),
           edgeFitResidualMm: cleanNumber(paper.edgeFitResidualMm, 3),
+          maxAngleDeviationDeg: cleanNumber(paper.maxAngleDeviationDeg, 1),
           minSideCoverage: cleanNumber(paper.minSideCoverage, 3) ?? 0,
           gateFailures: cleanList(paper.gateFailures, MAX_CODES, (item) =>
             cleanString(item, MAX_CODE_LENGTH),
@@ -331,6 +342,10 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
           ? focal.source
           : null,
       px: cleanNumber(focal?.px, 1),
+    },
+    // Records stored before shadow mode have none: null, not an error.
+    shadowPrior: {
+      handLengthDeltaMm: cleanNumber(shadowPrior?.handLengthDeltaMm, 1),
     },
     timingMs: {
       decode: cleanNumber(timing?.decode, 0),
@@ -587,6 +602,7 @@ export function buildAttemptRecord(input: {
     parallaxCorrected: diagnostics?.parallaxCorrected ?? null,
     measured: result === "ok" ? (diagnostics?.measured ?? null) : null,
     focal: diagnostics?.focal ?? null,
+    shadowPrior: diagnostics?.shadowPrior ?? null,
     timingMs: {
       decode: diagnostics?.decodeMs ?? null,
       paper: diagnostics?.paperMs ?? null,
@@ -622,6 +638,7 @@ export function buildAttemptRecord(input: {
       parallaxCorrected: null,
       measured: { handLengthMm: null, palmWidthMm: null },
       focal: { source: null, px: null },
+      shadowPrior: { handLengthDeltaMm: null },
       timingMs: { decode: null, paper: null, hand: null, total: null },
       userAgent: "",
     }
