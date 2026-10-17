@@ -9,6 +9,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  GRIP_STYLES,
   fitCoverageSchema,
   type FitPreferences,
   type FitResponse,
@@ -17,9 +18,11 @@ import { LENGTH_FACTOR } from "../../src/server/fit/coefficients";
 import { excludeReasonV1 } from "../../src/server/fit/exclusions-v1";
 import { computePriors } from "../../src/server/fit/priors";
 import {
+  compareRankKeys,
   gripChoiceV1,
   scoreFitV1,
   scoreMouseV1,
+  type GripContext,
 } from "../../src/server/fit/score-v1";
 import {
   planV2,
@@ -27,8 +30,14 @@ import {
   scoreFitV2,
   type FitV2Options,
 } from "../../src/server/fit/score-v2-candidate";
-import { scoreLengthV1 } from "../../src/server/fit/subscores-v1";
-import { computeTargets } from "../../src/server/fit/targets";
+import {
+  scoreGripWidthV1,
+  scoreLengthV1,
+} from "../../src/server/fit/subscores-v1";
+import {
+  computeTargets,
+  computeTargetsByGrip,
+} from "../../src/server/fit/targets";
 import type { CatalogueMouse } from "../../src/server/fit/types";
 import { hand, mouseRow, seedCatalogue, seedPriors } from "./fit-v2c-fixtures";
 
@@ -429,4 +438,128 @@ describe("T11: out of range, the ranking sub-scores are v1's at h' = Lmax / k fo
       }
     },
   );
+});
+
+describe("T11b: only the length is clamped, also when width and height are out of the catalogue's range too", () => {
+  // An oracle that shares nothing with v2's planning: the range from its own
+  // filter, its own length-only clamp, and v1's `scoreMouseV1` on that context.
+  const rankableOf = (side: "left" | "right", prefs: FitPreferences) =>
+    seedCatalogue.filter((m) => excludeReasonV1(m, side, prefs) === null);
+  const effectiveWidth = (m: CatalogueMouse) =>
+    scoreGripWidthV1(m, 0).reason.params.effectiveWidthMm!;
+
+  it.each([
+    ["280 x 110 mm, palm, thick", hand(280, 110), "palm", "thick", "above"],
+    // Thick: fingertip's height target (280 x 0.18 = 50.4) needs the +1.5 mm
+    // shift to be above the tallest mouse too.
+    [
+      "280 x 110 mm, no grip stated, thick",
+      hand(280, 110),
+      undefined,
+      "thick",
+      "above",
+    ],
+    ["265 x 112 mm, claw", hand(265, 112), "claw", undefined, "above"],
+    ["100 x 50 mm, fingertip", hand(100, 50), "fingertip", undefined, "below"],
+    ["100 x 50 mm, no grip stated", hand(100, 50), undefined, "thin", "below"],
+  ] as const)("%s", (_n, m, grip, palmThickness, side) => {
+    const prefs: FitPreferences = {
+      includeVertical: false,
+      ...(grip ? { gripStyle: grip } : {}),
+      ...(palmThickness ? { palmThickness } : {}),
+    };
+    const rankable = rankableOf("right", prefs);
+    const lengths = rankable.map((x) => x.lengthMm);
+    const lMin = Math.min(...lengths);
+    const lMax = Math.max(...lengths);
+    const trueTargets = computeTargetsByGrip(
+      m.handLengthMm,
+      m.palmWidthMm,
+      palmThickness,
+    );
+    const grips = grip ? [grip] : GRIP_STYLES;
+
+    // The precondition: every in-play target is out of range on all three
+    // dimensions (width against both the listed and the effective width).
+    const widths = rankable.map((x) => x.widthMm);
+    const effective = rankable.map(effectiveWidth);
+    const heights = rankable.map((x) => x.heightMm);
+    for (const g of grips) {
+      const t = trueTargets[g];
+      if (side === "above") {
+        expect(t.lengthMm).toBeGreaterThan(lMax);
+        expect(t.gripWidthMm).toBeGreaterThan(
+          Math.max(...widths, ...effective),
+        );
+        expect(t.heightMm).toBeGreaterThan(Math.max(...heights));
+      } else {
+        expect(t.lengthMm).toBeLessThan(lMin);
+        expect(t.gripWidthMm).toBeLessThan(Math.min(...widths, ...effective));
+        expect(t.heightMm).toBeLessThan(Math.min(...heights));
+      }
+    }
+
+    const oracleTargets = { ...trueTargets };
+    for (const g of grips) {
+      oracleTargets[g] = {
+        ...trueTargets[g],
+        lengthMm: Math.min(lMax, Math.max(lMin, trueTargets[g].lengthMm)),
+      };
+    }
+    const used = grip ?? gripChoiceV1(m, prefs).used;
+    const oracle: GripContext = {
+      used,
+      weights: grip
+        ? { palm: 0, claw: 0, fingertip: 0, [grip]: 1 }
+        : { palm: 1 / 3, claw: 1 / 3, fingertip: 1 / 3 },
+      gripsInPlay: grips,
+      targetsByGrip: oracleTargets,
+    };
+
+    const plan = planV2(seedCatalogue, "right", prefs);
+    const { ranked, state } = rankV2(plan, m, prefs, seedPriors);
+    for (const g of grips) {
+      const t = state.ranking.targetsByGrip[g];
+      expect(t.lengthMm).toBe(side === "above" ? lMax : lMin);
+      expect(t.gripWidthMm).toBe(trueTargets[g].gripWidthMm);
+      expect(t.heightMm).toBe(trueTargets[g].heightMm);
+    }
+    expect(ranked.map((x) => x.mouse.slug).sort()).toEqual(
+      rankable.map((x) => x.slug).sort(),
+    );
+    const want = new Map(
+      rankable.map((x) => [x.slug, scoreMouseV1(x, oracle, seedPriors, prefs)]),
+    );
+    for (const { mouse, score } of ranked) {
+      const o = want.get(mouse.slug)!;
+      expect(score.totalRaw).toBe(o.totalRaw);
+      expect(score.confidence).toBe(o.confidence);
+      expect(score.lengthAbsDelta).toBe(o.lengthAbsDelta);
+      expect(score.subscores).toEqual(o.subscores);
+    }
+    const oracleOrder = rankable
+      .map((x) => ({ slug: x.slug, model: x.model, s: want.get(x.slug)! }))
+      .sort((a, b) =>
+        compareRankKeys(
+          {
+            totalRaw: a.s.totalRaw,
+            confidence: a.s.confidence,
+            lengthAbsDelta: a.s.lengthAbsDelta,
+            model: a.model,
+          },
+          {
+            totalRaw: b.s.totalRaw,
+            confidence: b.s.confidence,
+            lengthAbsDelta: b.s.lengthAbsDelta,
+            model: b.model,
+          },
+        ),
+      )
+      .map((x) => x.slug);
+    const response = scoreFitV2(m, seedCatalogue, prefs, "right", seedPriors);
+    expect(response.results.map((e) => e.mouse.slug)).toEqual(oracleOrder);
+    expect(response.results.map((e) => e.total)).toEqual(
+      oracleOrder.map((slug) => want.get(slug)!.total),
+    );
+  });
 });

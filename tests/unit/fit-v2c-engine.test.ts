@@ -109,8 +109,12 @@ describe("T8: the default engine", () => {
         "5. Neither coverage nor rankStability may enter the analysis input, the share card input or the numeral allow-list.",
         "6. src/server/recommend/service.ts fitExcludes(): `DEFAULT_ENGINE === 'v1'` sends any other id to v0's excludeReason; make it handle 'v2'.",
         "7. core.ts: decide whether attachRankStability runs, after scoreFitDefault and before groupShells (never group twice).",
-        "8. The banner and stability copy (V2-COPY-DRAFTS-2026-10-18.md) approved; the contract deployed before the engine.",
-        "9. Kirby's decision recorded (v2 is a candidate, 未拍板).",
+        "8. src/server/result-feedback/snapshot.ts runs scoreFitDefault -> groupShells -> bandOf(entry.total) and stores the band in the feedback snapshot: no band while coverage.lengthOutOfRange is true.",
+        "9. core.ts writes fit_results.totalScore from results[].total: out of range that is the ranking value, not a fit score; decide what is stored.",
+        "10. The analysis route runs loadOwnedFit again: once rank stability is wired into it, its cost (about 0.5-0.8 s per call today) is paid twice; decide where it runs.",
+        "11. The results page's brand / shape filters change which cards are 'the top 5'; rankStability is computed on the unfiltered list.",
+        "12. The banner and stability copy (V2-COPY-DRAFTS-2026-10-18.md) approved; the contract deployed before the engine.",
+        "13. Kirby's decision recorded (v2 is a candidate, 未拍板).",
       ].join("\n"),
     ).toBe("v1");
   });

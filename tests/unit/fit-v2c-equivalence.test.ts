@@ -30,6 +30,13 @@ import {
 
 const SIDES = ["right", "left"] as const;
 
+/**
+ * Several of these run hundreds of full engine calls in one `it` (about 0.5 to
+ * 2 s alone): an explicit timeout, so a loaded or battery-throttled run of the
+ * whole suite does not trip vitest's 5 s default.
+ */
+const SLOW = 30_000;
+
 // 44 hands, 140 to about 204 mm: inside the length range of every grip for
 // both hands on the seed catalogue (palm, the tightest, needs <= 209.7 mm).
 // Most are off the 0.1 mm grid (…0.0371, widths with …0.0123).
@@ -75,23 +82,27 @@ describe("T1: v2 equals v1 in range, with a stated grip", () => {
     expect(offGrid.length).toBeGreaterThan(20);
   });
 
-  it.each(SIDES)("%s hand: 44 hands x 3 grips, every field equal", (side) => {
-    let wrongHandTotals = 0;
-    for (const m of T1_HANDS) {
-      for (const g of GRIP_STYLES) {
-        const { v1 } = expectSameAsV1(
-          m,
-          { includeVertical: false, gripStyle: g },
-          side,
-        );
-        wrongHandTotals += v1.excluded.filter(
-          (e) => e.total !== undefined,
-        ).length;
+  it.each(SIDES)(
+    "%s hand: 44 hands x 3 grips, every field equal",
+    (side) => {
+      let wrongHandTotals = 0;
+      for (const m of T1_HANDS) {
+        for (const g of GRIP_STYLES) {
+          const { v1 } = expectSameAsV1(
+            m,
+            { includeVertical: false, gripStyle: g },
+            side,
+          );
+          wrongHandTotals += v1.excluded.filter(
+            (e) => e.total !== undefined,
+          ).length;
+        }
       }
-    }
-    // The wrong-hand totals were really compared, not absent on both sides.
-    expect(wrongHandTotals).toBeGreaterThan(0);
-  });
+      // The wrong-hand totals were really compared, not absent on both sides.
+      expect(wrongHandTotals).toBeGreaterThan(0);
+    },
+    SLOW,
+  );
 
   it.each(SIDES)(
     "%s hand: thickness thin / medium / unanswered, with and without a weight preference",
@@ -121,6 +132,7 @@ describe("T1: v2 equals v1 in range, with a stated grip", () => {
         }
       }
     },
+    SLOW,
   );
 
   it("includeVertical on: still equal", () => {
@@ -144,23 +156,34 @@ describe("T1b: both options off is v1, for every hand", () => {
   ];
   const grips: (GripStyle | undefined)[] = [undefined, ...GRIP_STYLES];
 
-  it.each(SIDES)("%s hand: the whole response but the version", (side) => {
-    for (const m of hands) {
-      for (const g of grips) {
-        for (const palmThickness of [undefined, "thick"] as const) {
-          const prefs: FitPreferences = {
-            includeVertical: false,
-            ...(g ? { gripStyle: g } : {}),
-            ...(palmThickness ? { palmThickness } : {}),
-          };
-          const v1 = scoreFitV1(m, seedCatalogue, prefs, side, seedPriors);
-          const v2 = scoreFitV2(m, seedCatalogue, prefs, side, seedPriors, OFF);
-          expect(v2).not.toHaveProperty("coverage");
-          expect(withoutVersion(v2)).toEqual(withoutVersion(v1));
+  it.each(SIDES)(
+    "%s hand: the whole response but the version",
+    (side) => {
+      for (const m of hands) {
+        for (const g of grips) {
+          for (const palmThickness of [undefined, "thick"] as const) {
+            const prefs: FitPreferences = {
+              includeVertical: false,
+              ...(g ? { gripStyle: g } : {}),
+              ...(palmThickness ? { palmThickness } : {}),
+            };
+            const v1 = scoreFitV1(m, seedCatalogue, prefs, side, seedPriors);
+            const v2 = scoreFitV2(
+              m,
+              seedCatalogue,
+              prefs,
+              side,
+              seedPriors,
+              OFF,
+            );
+            expect(v2).not.toHaveProperty("coverage");
+            expect(withoutVersion(v2)).toEqual(withoutVersion(v1));
+          }
         }
       }
-    }
-  });
+    },
+    SLOW,
+  );
 
   it("allowTrackball is passed through like v1's exclusion options", () => {
     const m = hand(250, 87.5);

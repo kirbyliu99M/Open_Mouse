@@ -32,6 +32,9 @@ const WIDTHS: [string, (h: number) => number][] = [
 
 type Top = (h: number, w: number, g: GripStyle) => FitEntry;
 
+/** 1,110 engine calls in one `it` (about 1 to 2 s): an explicit timeout. */
+const SLOW = 30_000;
+
 function fallbacks(top: Top) {
   let count = 0;
   let maxDropMm = 0;
@@ -53,27 +56,34 @@ function fallbacks(top: Top) {
 }
 
 describe("T2: the top mouse's length falls back no more under v2 than v1", () => {
-  it("on the seed catalogue, right hand, 190-280 mm, 3 grips x 5 widths", () => {
-    const prefs = (g: GripStyle) => ({ includeVertical: false, gripStyle: g });
-    const v1 = fallbacks(
-      (h, w, g) =>
-        scoreFitV1(hand(h, w), seedCatalogue, prefs(g), "right", seedPriors)
-          .results[0]!,
-    );
-    const v2 = fallbacks(
-      (h, w, g) =>
-        scoreFitV2(hand(h, w), seedCatalogue, prefs(g), "right", seedPriors, {
-          clampLength: true,
-          equalWeightsWhenUnknown: false,
-        }).results[0]!,
-    );
-    // For the PR description; not asserted.
-    console.log(
-      `[T2] v1: ${v1.count} fall-backs, largest ${v1.maxDropMm.toFixed(2)} mm; ` +
-        `v2 length clamp: ${v2.count} fall-backs, largest ${v2.maxDropMm.toFixed(2)} mm`,
-    );
-    expect(v1.count).toBeGreaterThan(0);
-    expect(v2.count).toBeLessThanOrEqual(v1.count);
-    expect(v2.maxDropMm).toBeLessThanOrEqual(v1.maxDropMm);
-  });
+  it(
+    "on the seed catalogue, right hand, 190-280 mm, 3 grips x 5 widths",
+    () => {
+      const prefs = (g: GripStyle) => ({
+        includeVertical: false,
+        gripStyle: g,
+      });
+      const v1 = fallbacks(
+        (h, w, g) =>
+          scoreFitV1(hand(h, w), seedCatalogue, prefs(g), "right", seedPriors)
+            .results[0]!,
+      );
+      const v2 = fallbacks(
+        (h, w, g) =>
+          scoreFitV2(hand(h, w), seedCatalogue, prefs(g), "right", seedPriors, {
+            clampLength: true,
+            equalWeightsWhenUnknown: false,
+          }).results[0]!,
+      );
+      // For the PR description; not asserted.
+      console.log(
+        `[T2] v1: ${v1.count} fall-backs, largest ${v1.maxDropMm.toFixed(2)} mm; ` +
+          `v2 length clamp: ${v2.count} fall-backs, largest ${v2.maxDropMm.toFixed(2)} mm`,
+      );
+      expect(v1.count).toBeGreaterThan(0);
+      expect(v2.count).toBeLessThanOrEqual(v1.count);
+      expect(v2.maxDropMm).toBeLessThanOrEqual(v1.maxDropMm);
+    },
+    SLOW,
+  );
 });

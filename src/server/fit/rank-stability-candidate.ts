@@ -17,6 +17,7 @@ import { toFitEntryV1 } from "./score-v1";
 import {
   planV2,
   rankV2,
+  scoreFitV2,
   type FitV2Options,
   type PlanV2,
 } from "./score-v2-candidate";
@@ -38,9 +39,24 @@ import type { CatalogueMouse } from "./types";
  * normal errors of `SIGMA_MEAS_MM` (6 mm and 4 mm, unvalidated; σ_eff already
  * contains them, so this re-runs the same scoring on a nearby hand). Palm
  * length and everything else stay as measured. The distribution is not
- * truncated to the API's valid range, and no input is rounded. It says how
- * much the ranking would move if the measurement moved; it is not a
- * probability that a mouse fits.
+ * truncated to the API's valid range, and no input is rounded
+ * (`resampledMeasurements`). It says how much the ranking would move if the
+ * measurement moved; it is not a probability that a mouse fits.
+ *
+ * Cost, and a known deviation from build spec rev2 §2.3 (2026-10-18): the
+ * exclusions and the length range (`planV2`) and the priors are computed once
+ * per call, but every resample still scores every rankable mouse on every grip
+ * in play in full, including frontFlare, thumb and weight, which do not
+ * change between resamples. The spec asks for those three to be shared;
+ * doing so would change `scoreMouseV1`'s signature, which the allowed v1
+ * refactor (§2.5, move or export only) does not cover, so it is not done.
+ * Each resample also builds a full `FitEntry` (displayed sub-scores included)
+ * for every rankable mouse, because `groupShells` takes entries, and groups
+ * the whole list, so the projection is exactly the one the baseline gets. What
+ * a resample skips is the rest of the response: excluded entries, handType,
+ * coverage and the display re-scoring. Measured on the seed catalogue with no
+ * grip stated, a call takes roughly 0.5 to 0.8 s; that is not a budget for a
+ * request path.
  */
 
 /** mulberry32: a 32-bit seeded PRNG, uniform on [0, 1). */
@@ -77,6 +93,39 @@ export function createStandardNormal(seed: number): () => number {
   };
 }
 
+/**
+ * The `RANK_STABILITY_DRAWS` resampled hands, in draw order: draw d takes the
+ * next two normals, z1 for the hand length and z2 for the palm width, from the
+ * fixed seed. Nothing is rounded or truncated (a draw above the API's 280 mm
+ * stays above it), and every other measurement, palm length included, is the
+ * input's. A non-finite draw is a bug and throws. Pure.
+ */
+export function resampledMeasurements(
+  measurements: HandMeasurements,
+): HandMeasurements[] {
+  const normal = createStandardNormal(RANK_STABILITY_SEED);
+  const { handLengthMm, palmWidthMm } = measurements;
+  const draws: HandMeasurements[] = [];
+  for (let d = 0; d < RANK_STABILITY_DRAWS; d++) {
+    // Fixed order: hand length first, then palm width.
+    const z1 = normal();
+    const z2 = normal();
+    const draw: HandMeasurements = {
+      ...measurements,
+      handLengthMm: handLengthMm + SIGMA_MEAS_MM.handLength * z1,
+      palmWidthMm: palmWidthMm + SIGMA_MEAS_MM.palmWidth * z2,
+    };
+    if (
+      !Number.isFinite(draw.handLengthMm) ||
+      !Number.isFinite(draw.palmWidthMm)
+    ) {
+      throw new Error("Rank stability drew a non-finite measurement.");
+    }
+    draws.push(draw);
+  }
+  return draws;
+}
+
 /** Everything `scoreFitV2` was called with. */
 export interface RankStabilityInput {
   measurements: HandMeasurements;
@@ -87,7 +136,11 @@ export interface RankStabilityInput {
   options?: FitV2Options;
 }
 
-/** The ranked entries of one set of measurements, before grouping. */
+/**
+ * The ranked entries of one set of measurements, before grouping. Full
+ * entries (with displayed sub-scores of the ranking context, never shown),
+ * because `groupShells` takes `FitEntry`s.
+ */
 function rankedEntries(
   plan: PlanV2,
   measurements: HandMeasurements,
@@ -109,15 +162,78 @@ function memberSlugs(card: FitEntry): string[] {
 }
 
 /**
+ * The path of the first difference between two JSON-like values, or null when
+ * they are equal. A key whose value is undefined counts as absent; numbers are
+ * compared with `===` (NaN equals NaN).
+ */
+function firstDifference(a: unknown, b: unknown, path: string): string | null {
+  if (a === b) return null;
+  if (typeof a === "number" && typeof b === "number") {
+    return Number.isNaN(a) && Number.isNaN(b) ? null : path;
+  }
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+      return path;
+    }
+    for (let i = 0; i < a.length; i++) {
+      const d = firstDifference(a[i], b[i], `${path}[${i}]`);
+      if (d !== null) return d;
+    }
+    return null;
+  }
+  if (
+    a !== null &&
+    b !== null &&
+    typeof a === "object" &&
+    typeof b === "object"
+  ) {
+    const x = a as Record<string, unknown>;
+    const y = b as Record<string, unknown>;
+    for (const key of new Set([...Object.keys(x), ...Object.keys(y)])) {
+      const d = firstDifference(x[key], y[key], `${path}.${key}`);
+      if (d !== null) return d;
+    }
+    return null;
+  }
+  return path;
+}
+
+/** The response as the engine makes it: no `scanId`, no `rankStability`. */
+function engineView(
+  response: Omit<FitResponse, "scanId"> & { scanId?: string },
+): unknown {
+  const { scanId: _scanId, ...rest } = response;
+  void _scanId;
+  return {
+    ...rest,
+    results: rest.results.map((entry) => {
+      const { rankStability: _share, ...plain } = entry;
+      void _share;
+      return plain;
+    }),
+  };
+}
+
+/**
  * `response` with `rankStability` on the entries that are shown on the first
  * `RANK_STABILITY_TRACKED_CARDS` cards. The response stays ungrouped, as the
  * engine returns it, so `groupShells` downstream makes the same cards and
  * carries the value on each card; an entry that becomes a variant, and every
  * entry past those cards, gets none.
  *
- * `response` must be `scoreFitV2`'s output for exactly `input`; anything else
- * (another engine, other inputs) throws instead of attaching numbers that do
- * not belong to it. Pure: changes neither argument.
+ * The pairing is checked, not trusted: `scoreFitV2` is run once more on
+ * `input`, and unless `response` (without `scanId` and any `rankStability`)
+ * deep-equals that output, field for field (engine version, hand, gripStyle
+ * and its weights, handType, targets, coverage, excluded, and every entry's
+ * rank, mouse, total, confidence and sub-scores), this throws and names the
+ * first field that differs. A response with the same order but another hand
+ * length, a re-ranked or edited response, another hand, grip or preference,
+ * and the grouped (card) list all fail it. What the check cannot see is an
+ * input difference that leaves the whole response unchanged (for example two
+ * palm lengths that give the same `predicted` grip under equal weights); the
+ * resamples would then be centred on the input given here, so the caller
+ * must still pass the input the response came from. Pure: changes neither
+ * argument.
  */
 export function attachRankStability(
   response: Omit<FitResponse, "scanId">,
@@ -128,17 +244,26 @@ export function attachRankStability(
       `Rank stability needs a ${ENGINE_VERSION_V2} response, got ${response.engineVersion}.`,
     );
   }
-  const plan = planV2(input.catalogue, input.hand, input.prefs, input.options);
-  const center = rankedEntries(plan, input.measurements, input);
-  if (
-    center.length !== response.results.length ||
-    center.some((e, i) => e.mouse.slug !== response.results[i]!.mouse.slug)
-  ) {
+  const expected = scoreFitV2(
+    input.measurements,
+    input.catalogue,
+    input.prefs,
+    input.hand,
+    input.priors,
+    input.options,
+  );
+  const difference = firstDifference(
+    engineView(response),
+    engineView(expected),
+    "response",
+  );
+  if (difference !== null) {
     throw new Error(
-      "The response is not scoreFitV2's ranking for these inputs; rank stability refuses to attach to it.",
+      `The response is not scoreFitV2's output for this input (first difference at ${difference}); rank stability refuses to attach to it.`,
     );
   }
 
+  const plan = planV2(input.catalogue, input.hand, input.prefs, input.options);
   const cards = groupShells(response.results, input.catalogue).slice(
     0,
     RANK_STABILITY_TRACKED_CARDS,
@@ -150,23 +275,7 @@ export function attachRankStability(
   });
 
   const hits = cards.map(() => 0);
-  const normal = createStandardNormal(RANK_STABILITY_SEED);
-  const { handLengthMm, palmWidthMm } = input.measurements;
-  for (let d = 0; d < RANK_STABILITY_DRAWS; d++) {
-    // Fixed order: hand length first, then palm width.
-    const z1 = normal();
-    const z2 = normal();
-    const draw: HandMeasurements = {
-      ...input.measurements,
-      handLengthMm: handLengthMm + SIGMA_MEAS_MM.handLength * z1,
-      palmWidthMm: palmWidthMm + SIGMA_MEAS_MM.palmWidth * z2,
-    };
-    if (
-      !Number.isFinite(draw.handLengthMm) ||
-      !Number.isFinite(draw.palmWidthMm)
-    ) {
-      throw new Error("Rank stability drew a non-finite measurement.");
-    }
+  for (const draw of resampledMeasurements(input.measurements)) {
     const top = groupShells(
       rankedEntries(plan, draw, input),
       input.catalogue,
