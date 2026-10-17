@@ -219,7 +219,8 @@ function engineView(
  * `RANK_STABILITY_TRACKED_CARDS` cards. The response stays ungrouped, as the
  * engine returns it, so `groupShells` downstream makes the same cards and
  * carries the value on each card; an entry that becomes a variant, and every
- * entry past those cards, gets none.
+ * entry past those cards, gets none, even if the response passed in carried
+ * one (every old value is dropped before the new ones are written).
  *
  * The pairing is checked, not trusted: `scoreFitV2` is run once more on
  * `input`, and unless `response` (without `scanId` and any `rankStability`)
@@ -268,7 +269,7 @@ export function attachRankStability(
     0,
     RANK_STABILITY_TRACKED_CARDS,
   );
-  if (cards.length === 0) return { ...response };
+  if (cards.length === 0) return { ...response, results: [] };
   const cardOfMember = new Map<string, number>();
   cards.forEach((card, i) => {
     for (const slug of memberSlugs(card)) cardOfMember.set(slug, i);
@@ -293,11 +294,15 @@ export function attachRankStability(
   const shareByShown = new Map(
     cards.map((card, i) => [card.mouse.slug, hits[i]! / RANK_STABILITY_DRAWS]),
   );
+  // Any value the response already carried is dropped from every row first,
+  // so only the shown rows of this call's first cards carry one.
   return {
     ...response,
     results: response.results.map((entry) => {
+      const { rankStability: _old, ...plain } = entry;
+      void _old;
       const share = shareByShown.get(entry.mouse.slug);
-      return share === undefined ? entry : { ...entry, rankStability: share };
+      return share === undefined ? plain : { ...plain, rankStability: share };
     }),
   };
 }

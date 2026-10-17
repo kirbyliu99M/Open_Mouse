@@ -591,6 +591,65 @@ describe("the pairing check: rank stability refuses a response that is not this 
     expect(attachRankStability(run(), input)).toEqual(run());
   });
 
+  it("old values on every row are dropped: variants and cards past 10 carry none, the first 10 get this call's", () => {
+    const clean = run();
+    const polluted = {
+      ...base,
+      results: base.results.map((e) => ({ ...e, rankStability: 0.123 })),
+    };
+    expect(
+      fitResponseSchema.safeParse({
+        scanId: "5f0c6f7e-1c2d-4b8a-9d3e-2a1b0c9d8e7f",
+        ...polluted,
+      }).success,
+    ).toBe(true);
+    const out = attachRankStability(polluted, input);
+    expect(out).toEqual(clean);
+    expect(
+      out.results.find((e) => e.mouse.slug === "twin-wireless"),
+    ).not.toHaveProperty("rankStability");
+    const cards = groupShells(out.results, catalogue);
+    expect(cards[10]).not.toHaveProperty("rankStability");
+    expect(cards.slice(0, 10).map((c) => c.rankStability)).toEqual(
+      groupShells(clean.results, catalogue)
+        .slice(0, 10)
+        .map((c) => c.rankStability),
+    );
+    expect(out.results.filter((e) => "rankStability" in e)).toHaveLength(10);
+    // An already attached response attaches again to the same output.
+    expect(attachRankStability(out, input)).toEqual(clean);
+  });
+
+  it("a response that differs from this input's only in `excluded`", () => {
+    // Two catalogues that differ only in the excluded left-handed row's name:
+    // everything ranked, the priors, handType and coverage stay the same.
+    const renamed = catalogue.map((m) =>
+      m.slug === "lefty" ? { ...m, model: "Lefty Pro" } : m,
+    );
+    const other = scoreFitV2(measurements, renamed, prefs, "right", priors);
+    expect({ ...other, excluded: [] }).toEqual({ ...base, excluded: [] });
+    expect(other.excluded).not.toEqual(base.excluded);
+    expect(() => attachRankStability(other, input)).toThrow(
+      /response\.excluded\[0\]\.model/,
+    );
+    expect(() =>
+      attachRankStability(other, { ...input, catalogue: renamed }),
+    ).not.toThrow();
+
+    // Edited excluded rows: another total, another reason, a row removed.
+    const lefty = base.excluded[0]!;
+    expect(lefty.total).toBeDefined();
+    for (const excluded of [
+      [{ ...lefty, total: lefty.total! - 1 }],
+      [{ ...lefty, reason: "vertical_form_factor" as const, total: undefined }],
+      [],
+    ]) {
+      expect(() => attachRankStability({ ...base, excluded }, input)).toThrow(
+        /response\.excluded/,
+      );
+    }
+  });
+
   it("nothing ranked: returns the response unchanged", () => {
     const empty = scoreFitV2(measurements, [], prefs, "right", priors);
     expect(attachRankStability(empty, { ...input, catalogue: [] })).toEqual(
