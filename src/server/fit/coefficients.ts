@@ -165,8 +165,13 @@ export const VERTICAL_FORM_FACTOR_RATIO = 0.55;
  * Which engine the fit route uses. Kirby switched the default to v1 on
  * 2026-10-10, after the v0-vs-v1 comparison on the real catalogue. v1 is still
  * a candidate (未拍板): only the default changed, not the label or any number.
+ *
+ * "v2" (2026-10-18) is an internal candidate for tests and explicit opt-in
+ * only. It must not become the default before every consumer handles
+ * `coverage` (src/lib/contracts/fit.ts); tests/unit/fit-v2c-engine.test.ts pins
+ * the default and lists what has to happen first.
  */
-export type EngineId = "v0" | "v1";
+export type EngineId = "v0" | "v1" | "v2";
 export const DEFAULT_ENGINE: EngineId = "v1";
 
 /** `fit_results` is unique on (scan, mouse, engineVersion), so a new version needs no migration. */
@@ -219,3 +224,38 @@ export const THICKNESS_HEIGHT_SHIFT_MM: Record<PalmThicknessLevel, number> = {
   medium: 0,
   thick: 1.5,
 };
+
+// ── fit-v2.0 (candidate) ───────────────────────────────────────────────────
+// The v2 candidate engine (score-v2-candidate.ts) and its rank stability
+// (rank-stability-candidate.ts). v2 reuses every v1 coefficient above
+// unchanged; only the numbers below are new. 未拍板: all candidates, and v2
+// is not the default engine (see `DEFAULT_ENGINE`).
+
+/**
+ * v2 ranks against a length target clamped to the ranked mice's length range,
+ * and blends an unstated grip with equal weights, so a ranking can change for
+ * the same input: a version of its own.
+ */
+export const ENGINE_VERSION_V2 = "fit-v2.0-candidate.0";
+
+/**
+ * Rank stability: how many resampled inputs are drawn. 200 gives a step of
+ * 0.005 and, at worst (a share near 0.5), a Monte Carlo standard error of
+ * about 0.035.
+ */
+export const RANK_STABILITY_DRAWS = 200;
+
+/** A card "stays" when its shell is among this many cards in a resample. */
+export const RANK_STABILITY_TOP_CARDS = 5;
+
+/** Only this many baseline cards carry a `rankStability`. */
+export const RANK_STABILITY_TRACKED_CARDS = 10;
+
+/**
+ * Fixed global seed of the resampling (mulberry32). Never derived from the
+ * input: every input sees the same draws (common random numbers), so two
+ * neighbouring hands differ only by the hand, not by sampling noise. The
+ * perturbation sizes are `SIGMA_MEAS_MM` (hand length, palm width), which
+ * nobody has validated.
+ */
+export const RANK_STABILITY_SEED = 20261018;
