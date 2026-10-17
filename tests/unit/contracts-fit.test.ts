@@ -338,3 +338,85 @@ describe("fitPreferencesSchema", () => {
     expect(fitPreferencesSchema.safeParse(bad).success).toBe(false);
   });
 });
+
+// fit-v2.0 (candidate, 2026-10-18): two optional fields only a v2 engine fills.
+describe("fitResponseSchema: v2 coverage and rankStability", () => {
+  const coverage = {
+    lengthOutOfRange: true,
+    direction: "above",
+    usedGripLengthTargetMm: 150.2,
+    catalogueLengthRangeMm: [70.4, 138.4],
+  };
+
+  it("still accepts a v0/v1 response that carries neither field", () => {
+    expect(fitResponseSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it("accepts a coverage block and a rankStability on an entry", () => {
+    const r = fitResponseSchema.safeParse({
+      ...valid,
+      coverage,
+      results: [{ ...entry, rankStability: 0.42 }],
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts an unclamped coverage block with no direction", () => {
+    const r = fitResponseSchema.safeParse({
+      ...valid,
+      coverage: { ...coverage, lengthOutOfRange: false, direction: null },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts lengthOutOfRange with a null direction (an unstated grip blend)", () => {
+    const r = fitResponseSchema.safeParse({
+      ...valid,
+      coverage: { ...coverage, direction: null },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("refuses a direction without lengthOutOfRange", () => {
+    const r = fitResponseSchema.safeParse({
+      ...valid,
+      coverage: { ...coverage, lengthOutOfRange: false },
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("refuses a reversed range, a missing field and an extra key", () => {
+    for (const bad of [
+      { ...coverage, catalogueLengthRangeMm: [138.4, 70.4] },
+      { ...coverage, catalogueLengthRangeMm: [70.4] },
+      { ...coverage, usedGripLengthTargetMm: Number.NaN },
+      { ...coverage, probability: 0.9 },
+    ]) {
+      expect(
+        fitResponseSchema.safeParse({ ...valid, coverage: bad }).success,
+      ).toBe(false);
+    }
+    const missing: Record<string, unknown> = { ...coverage };
+    delete missing.usedGripLengthTargetMm;
+    expect(
+      fitResponseSchema.safeParse({ ...valid, coverage: missing }).success,
+    ).toBe(false);
+  });
+
+  it("keeps rankStability inside 0 to 1", () => {
+    for (const v of [-0.01, 1.01, Number.NaN]) {
+      const r = fitResponseSchema.safeParse({
+        ...valid,
+        results: [{ ...entry, rankStability: v }],
+      });
+      expect(r.success).toBe(false);
+    }
+    for (const v of [0, 1]) {
+      const r = fitResponseSchema.safeParse({
+        ...valid,
+        results: [{ ...entry, rankStability: v }],
+      });
+      expect(r.success).toBe(true);
+    }
+  });
+});
