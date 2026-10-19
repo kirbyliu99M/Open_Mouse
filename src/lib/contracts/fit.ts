@@ -420,7 +420,9 @@ export const fitFeelSchema = z
  * - `slug` is a catalogue slug; an unknown or unlisted slug is ignored.
  * - `grips` are the grips the person uses on this mouse (any of three; empty
  *   means "the grip used for this hand").
- * - `feel` answers per dimension, each -1 / 0 / 1 or null (not answered).
+ * - `feel` answers per dimension, each -1 / 0 / 1 or null (not answered); a
+ *   dimension left out is read as null, so a client that only asks about
+ *   length still sends a valid reference.
  * - `specialUse` marks a mouse chosen for a feature rather than for fit (it
  *   works on glass, it travels): it never calibrates.
  *
@@ -436,9 +438,9 @@ export const fitReferenceSchema = z
     slug: z.string().min(1).max(160),
     grips: z.array(z.enum(GRIP_STYLES)).max(3),
     feel: z.strictObject({
-      length: fitFeelSchema,
-      width: fitFeelSchema,
-      height: fitFeelSchema,
+      length: fitFeelSchema.default(null),
+      width: fitFeelSchema.default(null),
+      height: fitFeelSchema.default(null),
     }),
     specialUse: z.boolean().default(false),
   })

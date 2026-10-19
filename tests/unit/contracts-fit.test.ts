@@ -488,6 +488,18 @@ describe("fit-v3 candidate: references and calibration", () => {
     expect(r.success && r.data.references?.[0].specialUse).toBe(false);
   });
 
+  it("reads a feel dimension left out as not answered", () => {
+    const r = fitPreferencesSchema.safeParse({
+      references: [{ ...ref, feel: { length: -1 } }],
+    });
+    expect(r.success).toBe(true);
+    expect(r.success && r.data.references?.[0].feel).toEqual({
+      length: -1,
+      width: null,
+      height: null,
+    });
+  });
+
   it("refuses a feel outside -1, 0, 1, a repeated grip, a repeated mouse and more than 8", () => {
     for (const references of [
       [{ ...ref, feel: { ...ref.feel, length: 2 } }],
