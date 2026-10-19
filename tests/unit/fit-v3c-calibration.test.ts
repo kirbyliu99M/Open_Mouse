@@ -12,6 +12,7 @@ import {
   type GripStyle,
 } from "../../src/lib/contracts/fit";
 import {
+  CALIBRATION_GRID_MM,
   calibrateV3,
   feelProbability,
   posteriorShift,
@@ -185,6 +186,83 @@ describe("posteriorShift", () => {
       SIGMA_MM.length,
     );
     expect(Math.abs(p.shiftMm)).toBeLessThanOrEqual(30);
+  });
+});
+
+describe("the offset grid", () => {
+  it("is 601 points from -30 to +30 mm in steps of 0.1, symmetric around 0", () => {
+    expect(CALIBRATION_GRID_MM).toHaveLength(601);
+    expect(CALIBRATION_GRID_MM[0]).toBe(-30);
+    expect(CALIBRATION_GRID_MM[600]).toBe(30);
+    expect(CALIBRATION_GRID_MM[300]).toBe(0);
+    for (let i = 1; i < CALIBRATION_GRID_MM.length; i++) {
+      expect(CALIBRATION_GRID_MM[i]! - CALIBRATION_GRID_MM[i - 1]!).toBeCloseTo(
+        0.1,
+        9,
+      );
+    }
+    for (let i = 0; i <= 600; i++) {
+      expect(CALIBRATION_GRID_MM[i]! + CALIBRATION_GRID_MM[600 - i]!).toBe(0);
+    }
+  });
+});
+
+describe("conflict threshold and minimum answers", () => {
+  const long110 = { feel: 1, xMm: 110, targetsMm: [120] } as const;
+  const shortAt = (xMm: number) =>
+    ({ feel: -1, xMm, targetsMm: [120] }) as const;
+
+  it("a single answer has a fit of exactly 1 and is never a conflict", () => {
+    for (const feel of [-1, 0, 1] as const) {
+      const p = posteriorShift(
+        [{ feel, xMm: 60, targetsMm: [120] }],
+        SIGMA_MM.length,
+      );
+      expect(p.fit).toBe(1);
+      expect(p.conflict).toBe(false);
+    }
+  });
+
+  it("two answers just above the 0.3 boundary are not a conflict (fit about 0.32)", () => {
+    // "long" at 110 mm and "short" at 97 mm: the two ideals they allow
+    // (below 104, above 103) barely overlap.
+    const p = posteriorShift([long110, shortAt(97)], SIGMA_MM.length);
+    expect(p.fit).toBeGreaterThanOrEqual(0.3);
+    expect(p.fit).toBeLessThan(0.35);
+    expect(p.conflict).toBe(false);
+    expect(p.shiftMm).not.toBe(0);
+  });
+
+  it("two answers just below the 0.3 boundary are a conflict (fit about 0.29)", () => {
+    const p = posteriorShift([long110, shortAt(97.5)], SIGMA_MM.length);
+    expect(p.fit).toBeLessThan(0.3);
+    expect(p.fit).toBeGreaterThan(0.25);
+    expect(p.conflict).toBe(true);
+    expect(Object.is(p.shiftMm, 0)).toBe(true);
+  });
+
+  it("three answers where two contradict: conflict, frozen at 0, counted as 3", () => {
+    const p = posteriorShift(
+      [long110, shortAt(140), { feel: 0, xMm: 125, targetsMm: [120] }],
+      SIGMA_MM.length,
+    );
+    expect(p.answers).toBe(3);
+    expect(p.conflict).toBe(true);
+    expect(p.fit).toBeLessThan(0.3);
+    expect(Object.is(p.shiftMm, 0)).toBe(true);
+  });
+
+  it("three consistent answers are not a conflict", () => {
+    const p = posteriorShift(
+      [
+        { feel: 0, xMm: 118, targetsMm: [120] },
+        { feel: 0, xMm: 122, targetsMm: [120] },
+        { feel: 0, xMm: 120, targetsMm: [120] },
+      ],
+      SIGMA_MM.length,
+    );
+    expect(p.conflict).toBe(false);
+    expect(p.fit).toBeGreaterThan(0.9);
   });
 });
 

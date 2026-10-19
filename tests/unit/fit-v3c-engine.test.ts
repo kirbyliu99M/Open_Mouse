@@ -27,9 +27,11 @@ import {
   storedNullScore,
 } from "../../src/server/fit/engine";
 import { computePriors } from "../../src/server/fit/priors";
-import { scoreFitV2 } from "../../src/server/fit/score-v2-candidate";
+import { calibrateV3 } from "../../src/server/fit/calibration-v3-candidate";
+import { planV2, scoreFitV2 } from "../../src/server/fit/score-v2-candidate";
 import {
   baseTargetsV3,
+  gripStateV3,
   scoreFitV3,
 } from "../../src/server/fit/score-v3-candidate";
 import { groupShells } from "../../src/server/fit/shell-groups";
@@ -254,7 +256,13 @@ describe("with references", () => {
     }
   });
 
-  it("cross-check numbers (workbench): hand 190 / 65.7, no grip, G903 + G Pro 2 'just right'", () => {
+  // CATALOGUE-DEPENDENT GOLDEN. The three shifts depend on the two mice's sizes
+  // and the hand; the ranks below also depend on the whole checked-in seed
+  // catalogue (src/db/seed/*) and its descriptors. When the seed changes
+  // (a mouse added, a size or descriptor corrected), the ranks are expected to
+  // move: re-run the cross-check against the workbench, then update the
+  // numbers here. The shifts only move if those two mice or the hand change.
+  it("catalogue-dependent golden (workbench cross-check): hand 190 / 65.7, no grip, G903 + G Pro 2 'just right'", () => {
     const d = out.calibration!.dims;
     expect(d.length.shiftMm).toBeCloseTo(4.7118, 3);
     expect(d.gripWidth.shiftMm).toBeCloseTo(-1.2557, 3);
@@ -336,5 +344,271 @@ describe("with references", () => {
 
   it("is deterministic", () => {
     expect(v3(m, prefs)).toEqual(out);
+  });
+});
+
+describe("calibrate, then clamp (references with a hand outside the catalogue range)", () => {
+  const RANGE = planV2(seedCatalogue, "right", NO_REFS).lengthRangeMm!;
+  const lengthOnly = (feel: -1 | 0 | 1): FitReference[] =>
+    ["logitech-g903-hero", "logitech-g-pro-2-lightspeed"].map((slug) =>
+      ref(slug, { length: feel }, { grips: ["claw"] }),
+    );
+  const claw = (references?: FitReference[]): FitPreferences => ({
+    includeVertical: false,
+    gripStyle: "claw",
+    ...(references ? { references } : {}),
+  });
+
+  it("the catalogue range is what the tests below assume", () => {
+    expect(RANGE[0]).toBeCloseTo(70.4, 9);
+    expect(RANGE[1]).toBeCloseTo(138.4, 9);
+  });
+
+  it("a hand far above the range: targets = base + shift (unclamped), ranking on the top edge", () => {
+    const m = hand(250, 87.5); // claw target 155 mm, above 138.4
+    const refs = lengthOnly(-1); // "too short" pushes the target up again
+    const base = v3(m, claw());
+    const out = v3(m, claw(refs));
+    const shift = out.calibration!.dims.length.shiftMm;
+    expect(shift).not.toBe(0);
+    expect(out.targets.lengthMm).toBeCloseTo(base.targets.lengthMm + shift, 9);
+    expect(out.targets.lengthMm).toBeGreaterThan(RANGE[1]);
+    expect(out.coverage).toMatchObject({
+      lengthOutOfRange: true,
+      direction: "above",
+      usedGripLengthTargetMm: out.targets.lengthMm,
+    });
+    expect(out.coverage!.usedGripLengthTargetMm).toBe(out.targets.lengthMm);
+    // The ranking used the clamped length: the state says so, and a run that
+    // differs only in an (also out-of-range) length shift ranks identically.
+    const plan = planV2(seedCatalogue, "right", claw(refs));
+    const state = gripStateV3(m, seedCatalogue, claw(refs), plan);
+    expect(state.ranking.targetsByGrip.claw.lengthMm).toBe(RANGE[1]);
+    expect(state.trueTargets.claw.lengthMm).toBeCloseTo(
+      base.targets.lengthMm + shift,
+      9,
+    );
+    const rankingOf = (r: typeof out) =>
+      r.results.map((e) => [e.mouse.slug, e.total, e.confidence]);
+    expect(rankingOf(out)).toEqual(rankingOf(base));
+  });
+
+  it("a hand far below the range: ranking on the bottom edge, direction below", () => {
+    const m = hand(100, 50); // claw target 62 mm, below 70.4
+    const refs = lengthOnly(1); // "too long" pulls the target further down
+    const base = v3(m, claw());
+    const out = v3(m, claw(refs));
+    const shift = out.calibration!.dims.length.shiftMm;
+    expect(shift).toBeLessThan(0);
+    expect(out.targets.lengthMm).toBeCloseTo(base.targets.lengthMm + shift, 9);
+    expect(out.coverage).toMatchObject({
+      lengthOutOfRange: true,
+      direction: "below",
+      usedGripLengthTargetMm: out.targets.lengthMm,
+    });
+    const state = gripStateV3(
+      m,
+      seedCatalogue,
+      claw(refs),
+      planV2(seedCatalogue, "right", claw(refs)),
+    );
+    expect(state.ranking.targetsByGrip.claw.lengthMm).toBe(RANGE[0]);
+    const rankingOf = (r: typeof out) =>
+      r.results.map((e) => [e.mouse.slug, e.total]);
+    expect(rankingOf(out)).toEqual(rankingOf(base));
+  });
+
+  it("the shift can carry an in-range target out of range: clamp comes after calibration", () => {
+    const m = hand(215, 75); // claw target 133.3 mm, inside [70.4, 138.4]
+    const base = v3(m, claw());
+    expect(base.coverage?.lengthOutOfRange).toBe(false);
+    // Both mice are shorter than the ideal and called "short"
+    // (G903 130 mm, G Pro 2 125 mm): the target goes up.
+    const out = v3(m, claw(lengthOnly(-1)));
+    const shift = out.calibration!.dims.length.shiftMm;
+    expect(base.targets.lengthMm + shift).toBeGreaterThan(RANGE[1]);
+    expect(out.targets.lengthMm).toBeCloseTo(base.targets.lengthMm + shift, 9);
+    expect(out.coverage).toMatchObject({
+      lengthOutOfRange: true,
+      direction: "above",
+      usedGripLengthTargetMm: out.targets.lengthMm,
+    });
+  });
+
+  it("a shift that brings an out-of-range hand back in range removes the coverage flag", () => {
+    const inRange = v3(hand(222, 78), claw()); // claw target 137.6
+    expect(inRange.coverage?.lengthOutOfRange).toBe(false);
+    const m2 = hand(224, 78); // claw 138.9: just above 138.4
+    expect(v3(m2, claw()).coverage?.lengthOutOfRange).toBe(true);
+    // "too long" mice lower the target back below the top edge.
+    const back = v3(m2, claw(lengthOnly(1)));
+    expect(back.calibration!.dims.length.shiftMm).toBeLessThan(0);
+    expect(back.coverage?.lengthOutOfRange).toBe(false);
+    expect(back.coverage?.direction).toBeNull();
+  });
+});
+
+describe("palm thickness together with references", () => {
+  const m = hand(190, 65.7);
+  // G903 is 40 mm high; the claw height target is a little under it.
+  const heightRef = ref(
+    "logitech-g903-hero",
+    { height: 0 },
+    { grips: ["claw"] },
+  );
+  const prefs = (thickness?: PalmThicknessLevel): FitPreferences => ({
+    includeVertical: false,
+    gripStyle: "claw",
+    references: [heightRef],
+    ...(thickness ? { palmThickness: thickness } : {}),
+  });
+  const stateOf = (thickness?: PalmThicknessLevel) =>
+    gripStateV3(
+      m,
+      seedCatalogue,
+      prefs(thickness),
+      planV2(seedCatalogue, "right", prefs(thickness)),
+    );
+
+  it("the calibration baseline already carries the reversed thickness shift", () => {
+    const none = v3(m, prefs());
+    const thick = v3(m, prefs("thick"));
+    // thick: base height 1.5 mm lower, before any offset
+    expect(stateOf("thick").baseTargets.claw.heightMm).toBeCloseTo(
+      stateOf().baseTargets.claw.heightMm - 1.5,
+      9,
+    );
+    // the offset is computed against that lowered baseline...
+    const expected = calibrateV3(
+      [heightRef],
+      seedCatalogue,
+      baseTargetsV3(m, "thick"),
+      "claw",
+    ).shiftsMm.height;
+    expect(thick.calibration!.dims.height.shiftMm).toBe(expected);
+    // ...so it differs from the offset against the un-shifted baseline
+    // (a mouse above a lower target pulls it up further)...
+    expect(thick.calibration!.dims.height.shiftMm).toBeGreaterThan(
+      none.calibration!.dims.height.shiftMm,
+    );
+    // ...and the final height target is baseline + offset.
+    expect(thick.targets.heightMm).toBeCloseTo(
+      baseTargetsV3(m, "thick").claw.heightMm + expected,
+      9,
+    );
+  });
+
+  it("thin works the other way: baseline 1.5 mm higher", () => {
+    expect(stateOf("thin").baseTargets.claw.heightMm).toBeCloseTo(
+      stateOf().baseTargets.claw.heightMm + 1.5,
+      9,
+    );
+  });
+});
+
+describe("gripStateV3", () => {
+  const m = hand(190, 65.7, 0.56);
+  const stateOf = (
+    prefs: FitPreferences,
+    measurements = m,
+    catalogue = seedCatalogue,
+  ) =>
+    gripStateV3(
+      measurements,
+      catalogue,
+      prefs,
+      planV2(catalogue, "right", prefs),
+    );
+
+  it("a stated grip has weight 1, and `predicted` is still the soft arg-max", () => {
+    const s = stateOf({ includeVertical: false, gripStyle: "fingertip" });
+    expect(s.stated).toBe("fingertip");
+    expect(s.used).toBe("fingertip");
+    expect(s.weights).toEqual({ palm: 0, claw: 0, fingertip: 1 });
+    expect(s.ranking.gripsInPlay).toEqual(["fingertip"]);
+    expect(s.predicted).toBe("claw"); // r = 0.56
+  });
+
+  it("no stated grip: equal weights, all three in play, used = predicted", () => {
+    const s = stateOf(NO_REFS);
+    expect(s.stated).toBeNull();
+    expect(s.used).toBe(s.predicted);
+    for (const g of GRIP_STYLES) expect(s.weights[g]).toBeCloseTo(1 / 3, 12);
+    expect(s.ranking.gripsInPlay).toEqual([...GRIP_STYLES]);
+  });
+
+  it("equalWeightsWhenUnknown: false falls back to v1's soft weights", () => {
+    const s = gripStateV3(
+      m,
+      seedCatalogue,
+      NO_REFS,
+      planV2(seedCatalogue, "right", NO_REFS),
+      { equalWeightsWhenUnknown: false },
+    );
+    expect(s.weights.claw).toBeGreaterThan(s.weights.palm);
+    expect(s.weights.palm + s.weights.claw + s.weights.fingertip).toBeCloseTo(
+      1,
+      12,
+    );
+  });
+
+  it("without references: no calibration and true targets are the base targets", () => {
+    const s = stateOf({ includeVertical: false, palmThickness: "thick" });
+    expect(s.calibration).toBeNull();
+    expect(s.trueTargets).toEqual(s.baseTargets);
+    expect(s.baseTargets).toEqual(baseTargetsV3(m, "thick"));
+    expect(s.clampApplied).toBe(true);
+    expect(s.clamped).toEqual({ palm: null, claw: null, fingertip: null });
+  });
+
+  it("with references: every grip's three targets get the same offsets; in range, ranking = true targets", () => {
+    const refs = [
+      ref("logitech-g903-hero", { length: 0, width: 0, height: 0 }),
+    ];
+    const s = stateOf({ includeVertical: false, references: refs });
+    const dims = s.calibration!.dims;
+    for (const g of GRIP_STYLES) {
+      expect(s.trueTargets[g].lengthMm).toBeCloseTo(
+        s.baseTargets[g].lengthMm + dims.length.shiftMm,
+        9,
+      );
+      expect(s.trueTargets[g].gripWidthMm).toBeCloseTo(
+        s.baseTargets[g].gripWidthMm + dims.gripWidth.shiftMm,
+        9,
+      );
+      expect(s.trueTargets[g].heightMm).toBeCloseTo(
+        s.baseTargets[g].heightMm + dims.height.shiftMm,
+        9,
+      );
+    }
+    expect(s.ranking.targetsByGrip).toEqual(s.trueTargets);
+  });
+
+  it("an out-of-range hand clamps the ranking length per grip in play, not the true target", () => {
+    const [min, max] = planV2(seedCatalogue, "right", NO_REFS).lengthRangeMm!;
+    const big = stateOf(NO_REFS, hand(250, 87.5));
+    expect(big.clamped).toEqual({
+      palm: "above",
+      claw: "above",
+      fingertip: "above",
+    });
+    for (const g of GRIP_STYLES) {
+      expect(big.ranking.targetsByGrip[g].lengthMm).toBe(max);
+      expect(big.trueTargets[g].lengthMm).toBeGreaterThan(max);
+    }
+    const small = stateOf(
+      { includeVertical: false, gripStyle: "fingertip" },
+      hand(100, 50),
+    );
+    expect(small.clamped.fingertip).toBe("below");
+    expect(small.clamped.palm).toBeNull(); // not in play: left alone
+    expect(small.ranking.targetsByGrip.fingertip.lengthMm).toBe(min);
+  });
+
+  it("nothing rankable: no range, no clamp", () => {
+    const s = stateOf(NO_REFS, hand(250, 87.5), []);
+    expect(s.clampApplied).toBe(false);
+    expect(s.clamped).toEqual({ palm: null, claw: null, fingertip: null });
+    expect(s.ranking.targetsByGrip).toEqual(s.trueTargets);
   });
 });

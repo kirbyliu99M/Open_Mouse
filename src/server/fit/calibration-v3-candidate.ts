@@ -61,7 +61,7 @@ const BAND_MM: Record<CalibrationDim, number> = {
 };
 
 /** The offset grid, built from integer steps so no float drift accumulates. */
-const GRID_MM: readonly number[] = (() => {
+export const CALIBRATION_GRID_MM: readonly number[] = (() => {
   const steps = Math.round(
     CALIBRATION_GRID_HALF_RANGE_MM / CALIBRATION_GRID_STEP_MM,
   );
@@ -120,11 +120,11 @@ export function posteriorShift(
     return { shiftMm: 0, answers: 0, conflict: false, fit: 1 };
   }
   const tau = CALIBRATION_PRIOR_SCALE * bandMm;
-  const joint = GRID_MM.map(() => 1);
+  const joint = CALIBRATION_GRID_MM.map(() => 1);
   let productOfMaxima = 1;
   for (const answer of answers) {
     let maximum = 0;
-    GRID_MM.forEach((delta, i) => {
+    CALIBRATION_GRID_MM.forEach((delta, i) => {
       let p = 0;
       for (const t of answer.targetsMm) {
         p += feelProbability(answer.feel, answer.xMm, t + delta, bandMm);
@@ -144,7 +144,7 @@ export function posteriorShift(
 
   let z = 0;
   let weighted = 0;
-  GRID_MM.forEach((delta, i) => {
+  CALIBRATION_GRID_MM.forEach((delta, i) => {
     const posterior = Math.exp(-0.5 * (delta / tau) ** 2) * joint[i]!;
     z += posterior;
     weighted += posterior * delta;

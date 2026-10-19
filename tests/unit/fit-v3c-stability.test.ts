@@ -48,7 +48,7 @@ describe("attachRankStabilityV3", () => {
     for (const c of withShare) {
       expect(c.rankStability).toBeGreaterThanOrEqual(0);
       expect(c.rankStability).toBeLessThanOrEqual(1);
-      // a multiple of 1/200
+      // a whole number of the 200 draws
       expect(
         Math.abs(c.rankStability! * 200 - Math.round(c.rankStability! * 200)),
       ).toBeLessThan(1e-9);
@@ -64,6 +64,40 @@ describe("attachRankStabilityV3", () => {
         results: cards,
       }).success,
     ).toBe(true);
+  });
+
+  it("the baseline top card stays near the top in some resamples, and shares are not all equal", () => {
+    const cards = groupShells(rich.results, seedCatalogue).filter(
+      (c) => c.rankStability !== undefined,
+    );
+    expect(cards[0]!.rankStability).toBeGreaterThan(0);
+    expect(new Set(cards.map((c) => c.rankStability)).size).toBeGreaterThan(1);
+  });
+
+  it("references change the shares: same hand with and without them differ on at least one top card", () => {
+    const plainPrefs: FitPreferences = { includeVertical: false };
+    const plain = attachRankStabilityV3(
+      scoreFitV3(m, seedCatalogue, plainPrefs, "right", seedPriors),
+      input(plainPrefs),
+    );
+    const sharesOf = (r: typeof rich) =>
+      new Map(
+        groupShells(r.results, seedCatalogue)
+          .filter((c) => c.rankStability !== undefined)
+          .map((c) => [c.mouse.slug, c.rankStability!]),
+      );
+    const withRefs = sharesOf(rich);
+    const without = sharesOf(plain);
+    const slugs = new Set([...withRefs.keys(), ...without.keys()]);
+    const differing = [...slugs].filter(
+      (slug) => withRefs.get(slug) !== without.get(slug),
+    );
+    expect(differing.length).toBeGreaterThan(0);
+    // and the calibration is really inside the resampling: the two baselines
+    // are different rankings to begin with
+    expect(rich.results.map((e) => e.mouse.slug)).not.toEqual(
+      plain.results.map((e) => e.mouse.slug),
+    );
   });
 
   it("is deterministic (fixed seed)", () => {
