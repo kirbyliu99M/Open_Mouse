@@ -262,11 +262,46 @@ describe("detectPaperQuad: minCoverageSideIndex (diagnostic only)", () => {
       seed: 3,
       occluder: true,
     });
-    const { minCoverageSideIndex, ...rest } = withBlob;
+    const { minCoverageSideIndex, sideCoverages, ...rest } = withBlob;
     void minCoverageSideIndex;
+    void sideCoverages;
     // The photo chain on the diagnostic-free copy gives the same verdict.
     expect(evaluatePaperEdgeCalibration(withBlob, "a4", false)).toEqual(
       evaluatePaperEdgeCalibration(rest, "a4", false),
     );
+  });
+});
+
+describe("detectPaperQuad: sideCoverages (diagnostic only, scan S3)", () => {
+  it("is the four per-side coverages, whose smallest is minSideCoverage and whose lowest is the side minCoverageSideIndex names", () => {
+    for (const seed of [1, 3, 6, 9]) {
+      const quad = detectFromSynthetic({
+        width: 640,
+        height: 480,
+        seed,
+        occluder: true,
+      });
+      const sides = quad.sideCoverages!;
+      expect(sides, `seed ${seed}`).toHaveLength(4);
+      for (const v of sides) {
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThanOrEqual(1);
+      }
+      expect(Math.min(...sides), `seed ${seed}`).toBe(quad.minSideCoverage);
+      expect(sides.indexOf(Math.min(...sides)), `seed ${seed}`).toBe(
+        quad.minCoverageSideIndex,
+      );
+      expect(sides[2]).toBeLessThan(1);
+    }
+  });
+
+  it("is all ones when nothing is hidden", () => {
+    const quad = detectFromSynthetic({
+      width: 640,
+      height: 480,
+      seed: 1,
+      occluder: false,
+    });
+    expect(quad.sideCoverages).toEqual([1, 1, 1, 1]);
   });
 });

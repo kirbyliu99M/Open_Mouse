@@ -25,6 +25,7 @@ import type { AnalyticsEventProps, ScanFlow } from "@/lib/contracts/analytics";
 import type { AttemptMethod } from "../camera/attemptLog";
 import { GATE_THRESHOLDS } from "../photo/gates";
 import type { PipelineDiagnostics } from "../photo/diagnostics";
+import { issueCodes } from "./props";
 
 type ScanQualityProps = AnalyticsEventProps<"scan_quality">;
 
@@ -292,6 +293,26 @@ export function rejectedShadowProps(
     ...(paperSkew ? { paperSkew } : {}),
     ...(paperCoverage ? { paperCoverage } : {}),
     ...(handPose ? { handPose } : {}),
+  };
+}
+
+/**
+ * The whole `scan_rejected` payload for a photo the pipeline refused: the flow,
+ * the attempt, the issue codes and the shadow grades (`rejectedShadowProps`).
+ * Both call sites (the easy scan and the printed-sheet page) build the event
+ * here, so a grade cannot be dropped from one of them without a test failing.
+ */
+export function buildScanRejected(input: {
+  readonly flow: ScanFlow;
+  readonly attempt: number;
+  readonly errors: readonly { readonly code: string }[];
+  readonly diagnostics: PipelineDiagnostics | null | undefined;
+}): AnalyticsEventProps<"scan_rejected"> {
+  return {
+    flow: input.flow,
+    attempt: input.attempt,
+    codes: issueCodes(input.errors.map((e) => e.code)),
+    ...rejectedShadowProps(input.diagnostics),
   };
 }
 

@@ -73,6 +73,7 @@ import {
   paperMaxAngleDeviationDeg,
   paperObservedAspect,
   paperSizeFractions,
+  paperWorstSide,
   type FocalDiagnostics,
   type HandDiagnostics,
   type PaperDiagnostics,
@@ -625,6 +626,8 @@ async function runPaperEdgePipeline(
       : null,
     observedAspect: quad.corners ? paperObservedAspect(quad.corners) : null,
     minSideCoverage: quad.minSideCoverage,
+    sideCoverages: quad.sideCoverages ?? null,
+    worstSide: paperWorstSide(quad.corners, quad.sideCoverages),
     gateFailures: [],
   };
   // The overlay is always in the whole decoded photo's pixels.

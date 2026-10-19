@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   CAPTURE_METHODS,
@@ -15,6 +16,7 @@ import {
 } from "../../src/lib/contracts/analytics";
 import {
   buildScanQuality,
+  buildScanRejected,
   edgeFitBucket,
   handPoseBucket,
   liveWaitBucket,
@@ -51,6 +53,8 @@ function diag(over: Partial<PipelineDiagnostics> = {}): PipelineDiagnostics {
       maxAngleDeviationDeg: 1.5,
       observedAspect: 0.7066,
       minSideCoverage: 0.9,
+      sideCoverages: [0.9, 1, 1, 0.95],
+      worstSide: "top",
       gateFailures: [],
     },
     laplacianVariance: 150,
@@ -368,6 +372,8 @@ describe("the shadow buckets of a refused scan", () => {
         maxAngleDeviationDeg: null,
         observedAspect: null,
         minSideCoverage: 0.3,
+        sideCoverages: [0.3, 1, 1, 1],
+        worstSide: null,
       },
       hand: {
         detected: false,
@@ -640,6 +646,8 @@ describe("buildScanQuality", () => {
             maxAngleDeviationDeg: null,
             observedAspect: null,
             minSideCoverage: 0.5,
+            sideCoverages: null,
+            worstSide: null,
             gateFailures: [],
           },
         },
@@ -696,6 +704,8 @@ describe("privacy: the output is the contract's shape and nothing more", () => {
       maxAngleDeviationDeg: 7.4321,
       observedAspect: 0.6627,
       minSideCoverage: 0.91,
+      sideCoverages: [0.91, 1, 1, 1],
+      worstSide: "top",
       gateFailures: ["PAPER_CURLED"],
     },
     measured: { handLengthMm: 183.7, palmWidthMm: 86.2 },
@@ -788,4 +798,103 @@ describe("privacy: the output is the contract's shape and nothing more", () => {
       expect(() => analyticsEventSchemas.scan_quality.parse(out)).not.toThrow();
     }
   });
+});
+
+describe("buildScanRejected: the whole scan_rejected payload", () => {
+  const errors = [
+    { code: "PAPER_EDGE_HIDDEN" },
+    { code: "PAPER_CURLED" },
+    { code: "PAPER_EDGE_HIDDEN" },
+    { code: "not a code!" },
+  ];
+
+  it.each(["easy", "sheet"] as const)(
+    "%s: the flow, the attempt, the codes and all three shadow grades",
+    (flow) => {
+      const out = buildScanRejected({
+        flow,
+        attempt: 3,
+        errors,
+        diagnostics: diag(),
+      });
+      expect(out).toEqual({
+        flow,
+        attempt: 3,
+        codes: ["PAPER_EDGE_HIDDEN", "PAPER_CURLED"],
+        paperSkew: "under_3",
+        paperCoverage: "from_0_8",
+        handPose: "flat_like",
+      });
+      expect(() =>
+        analyticsEventSchemas.scan_rejected.parse(out),
+      ).not.toThrow();
+    },
+  );
+
+  it("takes the grades from the diagnostics it is given, and leaves out what cannot be worked out", () => {
+    const hidden = buildScanRejected({
+      flow: "easy",
+      attempt: 1,
+      errors,
+      diagnostics: diag({
+        paper: { ...diag().paper!, minSideCoverage: 0.3 },
+        hand: {
+          detected: true,
+          confidence: 0.9,
+          handedness: "left",
+          flatness: { pose: "extreme", reachMean: 0.4, fingerStraightMin: 0.9 },
+        },
+      }),
+    });
+    expect(hidden.paperCoverage).toBe("under_0_6");
+    expect(hidden.handPose).toBe("extreme");
+    const none = buildScanRejected({
+      flow: "easy",
+      attempt: 1,
+      errors,
+      diagnostics: undefined,
+    });
+    expect(none).toEqual({
+      flow: "easy",
+      attempt: 1,
+      codes: ["PAPER_EDGE_HIDDEN", "PAPER_CURLED"],
+    });
+  });
+});
+
+describe("the two call sites send that payload for a refused photo", () => {
+  // The call sites are components that cannot run here, so this reads their
+  // source: each must build its scan_rejected for a pipeline result through
+  // buildScanRejected (which carries the grades), and neither may build one by
+  // hand from the result's errors again, which would drop them.
+  const read = (rel: string) =>
+    readFileSync(new URL(rel, import.meta.url), "utf8");
+  const sites = [
+    [
+      "EasyScanCamera.tsx",
+      "../../src/client/camera/EasyScanCamera.tsx",
+      "easy",
+    ],
+    ["ScanClient.tsx", "../../src/app/scan/ScanClient.tsx", "sheet"],
+  ] as const;
+
+  it.each(sites)("%s builds it with buildScanRejected", (_name, rel, flow) => {
+    const source = read(rel);
+    expect(source).toMatch(
+      new RegExp(
+        `track\\(\\s*"scan_rejected",\\s*buildScanRejected\\(\\{\\s*flow: "${flow}",\\s*attempt,\\s*errors: (pipelineResult|result)\\.errors,\\s*diagnostics: (pipelineResult|result)\\.diagnostics,`,
+      ),
+    );
+  });
+
+  it.each(sites)(
+    "%s has no hand-built payload from a result's errors",
+    (_name, rel) => {
+      const source = read(rel);
+      expect(source).not.toMatch(
+        /codes: issueCodes\(\s*(pipelineResult|result)\.errors/,
+      );
+      expect(source).not.toContain("rejectedShadowProps");
+    },
+  );
 });

@@ -239,41 +239,88 @@ describe("assessHandFlatness at the reach limits (exact geometry)", () => {
   });
 });
 
-describe("a finger bent sideways inside the picture", () => {
-  /** Index finger as a zigzag of the given amplitude (px, palm 1000, finger 600 long). */
-  function withZigzag(amplitude: number): Point2[] {
+describe("a finger bent sideways inside the picture (each of the four fingers)", () => {
+  const FINGERS = [
+    [0, "index"],
+    [1, "middle"],
+    [2, "ring"],
+    [3, "little"],
+  ] as const;
+  /** Finger `finger` (0 index .. 3 little) as a zigzag of the given amplitude (px, palm 1000, finger 600 long); the other three stay straight. */
+  function withZigzag(amplitude: number, finger: number): Point2[] {
     const hand = parallelHand(0.6);
-    const x = -200;
-    hand[5] = { x, y: -1000 };
-    hand[6] = { x: x + amplitude, y: -1200 };
-    hand[7] = { x: x - amplitude, y: -1400 };
-    hand[8] = { x, y: -1600 };
+    const x = [-200, 0, 200, 400][finger];
+    const mcp = 5 + 4 * finger;
+    hand[mcp] = { x, y: -1000 };
+    hand[mcp + 1] = { x: x + amplitude, y: -1200 };
+    hand[mcp + 2] = { x: x - amplitude, y: -1400 };
+    hand[mcp + 3] = { x, y: -1600 };
     return hand;
   }
-  it("a straight finger reads 1", () => {
-    expect(assessHandFlatness(withZigzag(0)).fingerStraightMin).toBeCloseTo(
-      1,
-      9,
-    );
+  it.each(FINGERS)("finger %s (%s): a straight finger reads 1", (finger) => {
+    expect(
+      assessHandFlatness(withZigzag(0, finger)).fingerStraightMin,
+    ).toBeCloseTo(1, 9);
   });
-  it("a small zigzag is borderline", () => {
+  it.each(FINGERS)("finger %s (%s): a small zigzag is borderline", (finger) => {
     // pieces 202.54, 209.99 and 202.54 px: 600 / 615.07 = 0.9755.
-    const out = assessHandFlatness(withZigzag(32));
+    const out = assessHandFlatness(withZigzag(32, finger));
     expect(out.fingerStraightMin).toBeCloseTo(0.9755, 3);
     expect(out.pose).toBe("borderline");
   });
-  it("a large zigzag is extreme", () => {
-    const out = assessHandFlatness(withZigzag(150));
+  it.each(FINGERS)("finger %s (%s): a large zigzag is extreme", (finger) => {
+    const out = assessHandFlatness(withZigzag(150, finger));
     expect(out.fingerStraightMin!).toBeLessThan(T.extremeStraightBelow);
     expect(out.pose).toBe("extreme");
   });
-  it("only the bent finger lowers the minimum", () => {
-    const flatOnes = assessHandFlatness(parallelHand(0.6));
-    expect(flatOnes.pose).toBe("flat_like");
-    expect(assessHandFlatness(withZigzag(150)).reachMean).toBeCloseTo(
-      flatOnes.reachMean!,
+  it.each(FINGERS)(
+    "finger %s (%s): only the bent finger lowers the minimum, and the reach does not move",
+    (finger) => {
+      const flatOnes = assessHandFlatness(parallelHand(0.6));
+      expect(flatOnes.pose).toBe("flat_like");
+      expect(flatOnes.fingerStraightMin).toBeGreaterThan(0.999999);
+      expect(assessHandFlatness(withZigzag(150, finger)).reachMean).toBeCloseTo(
+        flatOnes.reachMean!,
+        9,
+      );
+    },
+  );
+  it("the worst finger decides: two bent fingers read the more bent one", () => {
+    const hand = withZigzag(32, 0);
+    const worse = withZigzag(150, 3);
+    for (let i = 17; i <= 20; i++) hand[i] = worse[i];
+    const out = assessHandFlatness(hand);
+    expect(out.fingerStraightMin).toBeCloseTo(
+      assessHandFlatness(withZigzag(150, 3)).fingerStraightMin!,
       9,
     );
+    expect(out.pose).toBe("extreme");
+  });
+});
+
+describe("every one of the four fingers counts toward the reach", () => {
+  /** All four fingers 0.6 of the palm, except finger `finger`, which is `reach` of it. */
+  function oneFingerAt(finger: number, reach: number): Point2[] {
+    const hand = parallelHand(0.6);
+    const x = [-200, 0, 200, 400][finger];
+    const mcp = 5 + 4 * finger;
+    const length = Math.round(reach * 1000);
+    hand[mcp + 1] = { x, y: -1000 - length / 3 };
+    hand[mcp + 2] = { x, y: -1000 - (2 * length) / 3 };
+    hand[mcp + 3] = { x, y: -1000 - length };
+    return hand;
+  }
+  it.each([0, 1, 2, 3])("finger %s curled to 0.1 of the palm: extreme", (f) => {
+    const out = assessHandFlatness(oneFingerAt(f, 0.1));
+    // (3 x 0.6 + 0.1) / 4
+    expect(out.reachMean).toBeCloseTo(0.475, 9);
+    expect(out.pose).toBe("extreme");
+  });
+  it.each([0, 1, 2, 3])("finger %s raised to 3 palms: extreme", (f) => {
+    const out = assessHandFlatness(oneFingerAt(f, 3));
+    // (3 x 0.6 + 3) / 4
+    expect(out.reachMean).toBeCloseTo(1.2, 9);
+    expect(out.pose).toBe("extreme");
   });
 });
 

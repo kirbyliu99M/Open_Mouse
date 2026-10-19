@@ -24,10 +24,10 @@ import {
   HandLandmarkerLoadError,
 } from "@/client/photo/landmarks";
 import { track } from "@/client/analytics/track";
-import { clampAttempt, issueCodes } from "@/client/analytics/props";
+import { clampAttempt } from "@/client/analytics/props";
 import {
   buildScanQuality,
-  rejectedShadowProps,
+  buildScanRejected,
 } from "@/client/analytics/scanQuality";
 import type { AttemptMethod } from "@/client/camera/attemptLog";
 import { detectDeviceFit } from "@/client/camera/deviceFit";
@@ -635,12 +635,15 @@ export default function ScanClient({
           // skew and coverage need its four corners (paper-edge mode), the hand
           // pose needs a hand that was read.
           reportOutcomeOnce(() =>
-            track("scan_rejected", {
-              flow: "sheet",
-              attempt,
-              codes: issueCodes(result.errors.map((e) => e.code)),
-              ...rejectedShadowProps(result.diagnostics),
-            }),
+            track(
+              "scan_rejected",
+              buildScanRejected({
+                flow: "sheet",
+                attempt,
+                errors: result.errors,
+                diagnostics: result.diagnostics,
+              }),
+            ),
           );
           setState({
             kind: "error",

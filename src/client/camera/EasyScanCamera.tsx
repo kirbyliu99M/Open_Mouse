@@ -209,11 +209,11 @@ import { useScanSubmit } from "../scan/useScanSubmit";
 import { scanAnswersCopy } from "../../lib/copy/scan-answers";
 import { HandIcon, CheckIcon, HelpCircleIcon } from "./icons";
 import { track } from "../analytics/track";
-import { clampAttempt, issueCodes } from "../analytics/props";
+import { clampAttempt } from "../analytics/props";
 import {
   buildScanQuality,
+  buildScanRejected,
   liveWaitBucket,
-  rejectedShadowProps,
 } from "../analytics/scanQuality";
 import { detectDeviceFit, type DeviceFit } from "./deviceFit";
 import { DeviceEntry } from "./DeviceEntry";
@@ -1259,12 +1259,15 @@ export default function EasyScanCamera({
           // side was seen (only where its four corners were found), and how
           // flat the fingers look (only where a hand was read): grades only
           // (shadow mode, candidate).
-          track("scan_rejected", {
-            flow: "easy",
-            attempt,
-            codes: issueCodes(pipelineResult.errors.map((e) => e.code)),
-            ...rejectedShadowProps(pipelineResult.diagnostics),
-          });
+          track(
+            "scan_rejected",
+            buildScanRejected({
+              flow: "easy",
+              attempt,
+              errors: pipelineResult.errors,
+              diagnostics: pipelineResult.diagnostics,
+            }),
+          );
           setHandChip((prev) =>
             applyDetectedHandedness(prev, pipelineResult.overlay.handedness),
           );

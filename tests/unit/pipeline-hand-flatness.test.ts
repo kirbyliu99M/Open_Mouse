@@ -333,3 +333,81 @@ describe("the fixture's acceptance and millimetres are those the pipeline always
     });
   });
 });
+
+describe("the paper block carries the four side coverages and the worst side (blank paper)", () => {
+  const paper = { method: "paper-edge", paperSize: "a4" } as const;
+  const corners = [
+    { x: 0, y: 0 },
+    { x: WIDTH, y: 0 },
+    { x: WIDTH, y: HEIGHT },
+    { x: 0, y: HEIGHT },
+  ] as const;
+  function withSides(
+    sideCoverages: readonly [number, number, number, number] | undefined,
+    minSideCoverage: number,
+  ) {
+    arrange("right");
+    vi.mocked(detectPaperQuad).mockReturnValue({
+      corners,
+      cornersSeen: 4,
+      cornersFound: [true, true, true, true],
+      partialCorners: corners,
+      minSideCoverage,
+      edgeFitResidualPx: 0.3,
+      worstSideIndex: 0,
+      paperRegionFound: true,
+      ...(sideCoverages ? { sideCoverages } : {}),
+    });
+  }
+
+  it("a photo refused for a hidden edge says which edge", async () => {
+    withSides([1, 1, 1, 0.225], 0.225);
+    const result = await run(paper, { handExplicit: true });
+    expect(result.status).toBe("error");
+    if (result.status !== "error") return;
+    expect(result.errors.map((e) => e.code)).toContain("PAPER_EDGE_HIDDEN");
+    expect(result.diagnostics?.paper?.sideCoverages).toEqual([1, 1, 1, 0.225]);
+    expect(result.diagnostics?.paper?.worstSide).toBe("left");
+  });
+
+  it("a measured photo carries them too", async () => {
+    withSides([1, 0.9, 1, 1], 0.9);
+    const result = await run(paper, { handExplicit: true });
+    expect(result.status).toBe("ok");
+    expect(result.diagnostics?.paper?.sideCoverages).toEqual([1, 0.9, 1, 1]);
+    expect(result.diagnostics?.paper?.worstSide).toBe("right");
+  });
+
+  it("a detection without them (or with nothing hidden) leaves null, and nothing else changes", async () => {
+    withSides(undefined, 1);
+    const plain = await run(paper, { handExplicit: true });
+    expect(plain.diagnostics?.paper?.sideCoverages).toBeNull();
+    expect(plain.diagnostics?.paper?.worstSide).toBeNull();
+    withSides([1, 1, 1, 1], 1);
+    const full = await run(paper, { handExplicit: true });
+    expect(full.diagnostics?.paper?.worstSide).toBeNull();
+    expect({ ...full, diagnostics: undefined }).toEqual({
+      ...plain,
+      diagnostics: undefined,
+    });
+  });
+
+  it("is there when the sheet's corners were not all found (no name without them)", async () => {
+    arrange("right");
+    vi.mocked(detectPaperQuad).mockReturnValue({
+      corners: null,
+      cornersSeen: 3,
+      cornersFound: [true, true, true, false],
+      partialCorners: [corners[0], corners[1], corners[2], null],
+      minSideCoverage: 0,
+      edgeFitResidualPx: 0.3,
+      worstSideIndex: 0,
+      paperRegionFound: true,
+      sideCoverages: [1, 1, 1, 0],
+    });
+    const result = await run(paper, { handExplicit: true });
+    expect(result.status).toBe("error");
+    expect(result.diagnostics?.paper?.sideCoverages).toEqual([1, 1, 1, 0]);
+    expect(result.diagnostics?.paper?.worstSide).toBeNull();
+  });
+});

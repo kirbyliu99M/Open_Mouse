@@ -98,6 +98,15 @@ export interface AttemptRecord {
     /** The sheet's observed short side over long side (about 0.7071 for A4 seen flat), to 0.0001; `null` without four corners or in a record from before it was kept. */
     readonly observedAspect: number | null;
     readonly minSideCoverage: number;
+    /**
+     * The four per-side coverages to 0.001, in the detector's side order (0 =
+     * the short side from the top-left to the top-right corner, then
+     * clockwise); `null` where they were not measured and in a record from
+     * before they were kept. Paper geometry only: which edge was hidden.
+     */
+    readonly sideCoverages: readonly [number, number, number, number] | null;
+    /** The side with the lowest coverage as the person sees it on screen; `null` without four corners, on a tie, or in an older record. */
+    readonly worstSide: "top" | "bottom" | "left" | "right" | null;
     /** The paper gates that failed, whether or not the result reported them first. */
     readonly gateFailures: readonly string[];
   } | null;
@@ -211,6 +220,20 @@ function cleanNumber(value: unknown, digits: number): number | null {
   return Number(value.toFixed(digits));
 }
 
+/** Exactly four finite shares in 0-1, to 0.001; anything else (a wrong length, a stray value) is `null`, never a partial list. */
+function cleanSideCoverages(
+  value: unknown,
+): readonly [number, number, number, number] | null {
+  if (!Array.isArray(value) || value.length !== 4) return null;
+  const out: number[] = [];
+  for (const item of value) {
+    const n = cleanNumber(item, 3);
+    if (n === null || n < 0 || n > 1) return null;
+    out.push(n);
+  }
+  return [out[0], out[1], out[2], out[3]];
+}
+
 const cleanBool = (value: unknown): boolean | null =>
   typeof value === "boolean" ? value : null;
 
@@ -311,6 +334,14 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
           maxAngleDeviationDeg: cleanNumber(paper.maxAngleDeviationDeg, 1),
           observedAspect: cleanNumber(paper.observedAspect, 4),
           minSideCoverage: cleanNumber(paper.minSideCoverage, 3) ?? 0,
+          sideCoverages: cleanSideCoverages(paper.sideCoverages),
+          worstSide:
+            paper.worstSide === "top" ||
+            paper.worstSide === "bottom" ||
+            paper.worstSide === "left" ||
+            paper.worstSide === "right"
+              ? paper.worstSide
+              : null,
           gateFailures: cleanList(paper.gateFailures, MAX_CODES, (item) =>
             cleanString(item, MAX_CODE_LENGTH),
           ),
@@ -734,6 +765,10 @@ export function describeAttempt(record: AttemptRecord): string {
     parts.push(
       `paper ${pct(record.paper.widthFraction)}×${pct(record.paper.heightFraction)}`,
       `resid ${record.paper.edgeFitResidualMm ?? "?"} mm`,
+    );
+  if (record.paper?.sideCoverages)
+    parts.push(
+      `edge ${record.paper.worstSide ?? "?"} worst · cov ${record.paper.sideCoverages.join("/")}`,
     );
   if (record.hand.handPose !== null)
     parts.push(

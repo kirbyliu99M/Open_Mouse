@@ -52,6 +52,8 @@ const DIAGNOSTICS: PipelineDiagnostics = {
     maxAngleDeviationDeg: 7.4321,
     observedAspect: 0.662712345,
     minSideCoverage: 0.71234,
+    sideCoverages: [0.2251234, 0.9, 1, 0.71234],
+    worstSide: "top",
     gateFailures: ["PAPER_CURLED"],
   },
   laplacianVariance: 142.3456,
@@ -151,6 +153,8 @@ describe("buildAttemptRecord", () => {
       maxAngleDeviationDeg: 7.4,
       observedAspect: 0.6627,
       minSideCoverage: 0.712,
+      sideCoverages: [0.225, 0.9, 1, 0.712],
+      worstSide: "top",
       gateFailures: ["PAPER_CURLED"],
     });
     expect(r.sharpness).toBe(142.35);
@@ -1189,7 +1193,7 @@ describe("what the person saw (view) in a record", () => {
 describe("describeAttempt", () => {
   it("is one line: the time, how, the size, what happened, the sheet's share and the residual", () => {
     expect(describeAttempt(record())).toBe(
-      "10:20:30Z · takePhoto · 3000×4000 · PAPER_CURLED+LOW_LANDMARK_CONFIDENCE · paper 81%×77% · resid 1.623 mm · pose borderline (reach 0.551) · FOV mismatch · cropped",
+      "10:20:30Z · takePhoto · 3000×4000 · PAPER_CURLED+LOW_LANDMARK_CONFIDENCE · paper 81%×77% · resid 1.623 mm · edge top worst · cov 0.225/0.9/1/0.712 · pose borderline (reach 0.551) · FOV mismatch · cropped",
     );
   });
 
@@ -1462,5 +1466,140 @@ describe("shadowPrior and the sheet's skew: local numbers for Copy JSON, never s
       expect(r.paper?.observedAspect).toBeNull();
       expect(JSON.stringify(r)).not.toMatch(/data:|base64/i);
     }
+  });
+});
+
+describe("which edge was hidden: the paper block's sideCoverages and worstSide (scan S3)", () => {
+  it("are kept for a rejected photo, rounded to 0.001, in the detector's side order", () => {
+    const r = record();
+    expect(r.paper?.sideCoverages).toEqual([0.225, 0.9, 1, 0.712]);
+    expect(r.paper?.worstSide).toBe("top");
+  });
+
+  it("and for a measured photo", () => {
+    const ok = buildAttemptRecord({
+      at: "2026-10-19T10:00:00.000Z",
+      userAgent: "x",
+      capture: CAPTURE,
+      outcome: {
+        kind: "result",
+        result: {
+          status: "ok",
+          measurements: {} as never,
+          submission: {} as never,
+          warnings: [],
+          overlay: ERROR_RESULT.overlay,
+          diagnostics: {
+            ...DIAGNOSTICS,
+            paper: {
+              ...DIAGNOSTICS.paper!,
+              sideCoverages: [1, 0.8764, 1, 0.9999],
+              worstSide: "right",
+            },
+          },
+        },
+      },
+    });
+    expect(ok.result).toBe("ok");
+    expect(ok.paper?.sideCoverages).toEqual([1, 0.876, 1, 1]);
+    expect(ok.paper?.worstSide).toBe("right");
+  });
+
+  it.each(["top", "bottom", "left", "right"] as const)(
+    "keeps the side name %s",
+    (side) => {
+      expect(
+        record({ paper: { cornersSeen: 4, worstSide: side } }).paper?.worstSide,
+      ).toBe(side);
+    },
+  );
+
+  it("survives a write and a read", () => {
+    const { storage } = fakeStorage();
+    const list = recordAttempt(storage, record(), []);
+    const back = readAttempts(storage)!;
+    expect(back).toEqual(list);
+    expect(back[0].paper?.sideCoverages).toEqual([0.225, 0.9, 1, 0.712]);
+    expect(back[0].paper?.worstSide).toBe("top");
+  });
+
+  it("a record from before they were kept reads with both null", () => {
+    const old = {
+      v: 1,
+      at: "2026-10-06T10:00:00.000Z",
+      result: "error",
+      paper: {
+        cornersSeen: 4,
+        widthFraction: 0.8,
+        heightFraction: 0.7,
+        edgeFitResidualMm: 0.3,
+        minSideCoverage: 0.3,
+        gateFailures: ["PAPER_EDGE_HIDDEN"],
+      },
+    };
+    const parsed = parseAttempts(JSON.stringify([old]));
+    expect(parsed[0].paper?.minSideCoverage).toBe(0.3);
+    expect(parsed[0].paper?.sideCoverages).toBeNull();
+    expect(parsed[0].paper?.worstSide).toBeNull();
+  });
+
+  it.each([
+    ["three values", [0.1, 0.2, 0.3]],
+    ["five values", [0.1, 0.2, 0.3, 0.4, 0.5]],
+    ["a string among them", [0.1, "0.2", 0.3, 0.4]],
+    ["a NaN among them", [0.1, Number.NaN, 0.3, 0.4]],
+    ["an infinity", [0.1, Infinity, 0.3, 0.4]],
+    ["a value over 1", [0.1, 1.2, 0.3, 0.4]],
+    ["a negative value", [0.1, -0.2, 0.3, 0.4]],
+    ["not a list", { 0: 0.1, 1: 0.2, 2: 0.3, 3: 0.4 }],
+    ["a string", "0.1,0.2,0.3,0.4"],
+    ["null", null],
+  ])("%s is null, never a partial list", (_name, bad) => {
+    expect(
+      record({ paper: { cornersSeen: 4, sideCoverages: bad } }).paper
+        ?.sideCoverages,
+    ).toBeNull();
+  });
+
+  it("an unknown side name is null", () => {
+    for (const bad of ["middle", "TOP", 2, null, undefined, {}]) {
+      expect(
+        record({ paper: { cornersSeen: 4, worstSide: bad } }).paper?.worstSide,
+      ).toBeNull();
+    }
+  });
+
+  it("holds paper geometry only: four shares and a side name, no landmark or hand number", () => {
+    const text = JSON.stringify(record().paper);
+    expect(text).not.toMatch(/landmark|world|"z"/i);
+    expect(Object.keys(record().paper!).sort()).toEqual([
+      "cornersSeen",
+      "edgeFitResidualMm",
+      "gateFailures",
+      "heightFraction",
+      "maxAngleDeviationDeg",
+      "minSideCoverage",
+      "observedAspect",
+      "sideCoverages",
+      "widthFraction",
+      "worstSide",
+    ]);
+  });
+
+  it("the panel line says the worst side and the four coverages, and leaves them out when not kept", () => {
+    expect(describeAttempt(record())).toContain(
+      "edge top worst · cov 0.225/0.9/1/0.712",
+    );
+    const unnamed = describeAttempt(
+      record({
+        paper: { cornersSeen: 4, sideCoverages: [0.3, 0.3, 1, 1] },
+      }),
+    );
+    expect(unnamed).toContain("edge ? worst · cov 0.3/0.3/1/1");
+    const old = describeAttempt(
+      record({ paper: { cornersSeen: 4, minSideCoverage: 0.3 } }),
+    );
+    expect(old).not.toContain("worst");
+    expect(describeAttempt(record({ paper: null }))).not.toContain("worst");
   });
 });
