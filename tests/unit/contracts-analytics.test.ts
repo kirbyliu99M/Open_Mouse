@@ -262,3 +262,99 @@ describe("paperSkew and priorEffect are buckets, and paperSkew is optional only 
     expect(q.safeParse({ ...ok, shadowHandLengthMm: 183 }).success).toBe(false);
   });
 });
+
+describe("2026-10-19 shadow buckets: paperCoverage, handPose, liveWait", () => {
+  const quality = {
+    flow: "easy",
+    attempt: 1,
+    method: "canvas",
+    focalSource: "none",
+    parallaxCorrected: false,
+    sharpness: "clear",
+    resolution: "from_1920",
+    edgeFit: "under_0_5_mm",
+    paperSkew: "under_3",
+    paperAspect: "under_2_pct",
+    priorEffect: "within_2",
+  } as const;
+  const q = analyticsEventSchemas.scan_quality;
+  const rejected = analyticsEventSchemas.scan_rejected;
+  const attempted = analyticsEventSchemas.scan_capture_attempted;
+
+  it("are optional, so a client that does not send them stays valid", () => {
+    expect(q.safeParse(quality).success).toBe(true);
+    expect(
+      rejected.safeParse({
+        flow: "easy",
+        attempt: 1,
+        codes: ["PAPER_EDGE_HIDDEN"],
+      }).success,
+    ).toBe(true);
+    expect(
+      attempted.safeParse({ flow: "easy", method: "canvas", attempt: 1 })
+        .success,
+    ).toBe(true);
+  });
+
+  it("accept their buckets on the events that carry them", () => {
+    expect(
+      q.safeParse({
+        ...quality,
+        paperCoverage: "from_0_6_to_0_8",
+        handPose: "borderline",
+      }).success,
+    ).toBe(true);
+    expect(
+      rejected.safeParse({
+        flow: "easy",
+        attempt: 2,
+        codes: ["PAPER_EDGE_HIDDEN"],
+        paperCoverage: "under_0_6",
+        handPose: "unknown",
+      }).success,
+    ).toBe(true);
+    for (const liveWait of ["under_3_s", "from_30_s", "unknown"]) {
+      expect(
+        attempted.safeParse({
+          flow: "easy",
+          method: "canvas",
+          attempt: 1,
+          liveWait,
+        }).success,
+      ).toBe(true);
+    }
+  });
+
+  it("refuse a raw number, a ratio or a size where a bucket belongs", () => {
+    for (const bad of [
+      { paperCoverage: 0.52 },
+      { paperCoverage: "52pct" },
+      { handPose: 0.71 },
+      { handPose: "curled" },
+      { reachRatio: 0.71 },
+      { palmRatio: 0.344 },
+      { fingerStraightness: 0.98 },
+    ]) {
+      expect(
+        q.safeParse({ ...quality, ...bad }).success,
+        JSON.stringify(bad),
+      ).toBe(false);
+    }
+    expect(
+      attempted.safeParse({
+        flow: "easy",
+        method: "canvas",
+        attempt: 1,
+        liveWait: 12.4,
+      }).success,
+    ).toBe(false);
+    expect(
+      attempted.safeParse({
+        flow: "easy",
+        method: "canvas",
+        attempt: 1,
+        waitMs: 12400,
+      }).success,
+    ).toBe(false);
+  });
+});

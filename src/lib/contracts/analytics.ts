@@ -9,7 +9,10 @@
  *     no handedness, no measurement version;
  *     (The one place a millimetre difference appears is
  *     `scan_quality.priorEffect`: how two ways of correcting the same photo
- *     differ, in four wide steps, never a length. See its comment.)
+ *     differ, in four wide steps, never a length. See its comment.
+ *     The one place the hand's POSTURE appears is `handPose`: whether the
+ *     fingers in the photo look laid flat, in three coarse steps, never a
+ *     size or a proportion of the hand. See `HAND_POSE_BUCKETS`.)
  *   - an identifier that leads back to a scan or a person: no scan ID, no
  *     session ID, no learning-kit token, no user ID or email. Mouse slugs are
  *     catalogue identifiers and are allowed;
@@ -147,6 +150,58 @@ export const PRIOR_EFFECT_BUCKETS = [
   "within_2",
   "higher_2_plus",
   "unavailable",
+] as const;
+
+/**
+ * How much of the sheet's worst-seen side was visible (2026-10-19, candidate):
+ * the smallest per-side edge coverage of the sheet, 0 to 1. The photo gate
+ * refuses a side under 0.4, so a measured photo reads at least that. It
+ * describes the SHEET, not the hand: how close the hand, a sleeve or a shadow
+ * came to covering an edge, which is the most common reason a photo is sent
+ * back (R1, 2026-10-19).
+ */
+export const PAPER_COVERAGE_BUCKETS = [
+  "under_0_6",
+  "from_0_6_to_0_8",
+  "from_0_8",
+] as const;
+
+/**
+ * SHADOW MODE (2026-10-19, candidate, Kirby: anonymous summaries are fine, the
+ * photo is what must never be kept): whether the fingers in the photo look laid
+ * flat, worked out from the 2D landmarks of the four fingers (thumb excluded)
+ * by `assessHandFlatness`, and reported in three coarse steps. Nothing is
+ * refused because of it yet; it is how the real spread is found before any
+ * threshold blocks a photo. The thresholds behind the steps are simulation
+ * candidates (R3, 2026-10-19) and move in a PR that touches this file and the
+ * client's mapping. A posture, never a size or a proportion: a hand length,
+ * a width or their ratio cannot be read back from it.
+ *
+ * - `flat_like`: inside the candidate flat range.
+ * - `borderline`: in the "would only remind" band.
+ * - `extreme`: in the "would refuse" band.
+ * - `unknown`: not computable (not 21 points, a non-finite value).
+ */
+export const HAND_POSE_BUCKETS = [
+  "flat_like",
+  "borderline",
+  "extreme",
+  "unknown",
+] as const;
+
+/**
+ * How long the live preview had a sheet in view before this photo was taken
+ * (2026-10-19, candidate): from the first live sample that found the sheet to
+ * the capture, in seconds. A long wait means the preview was stuck on a gate,
+ * which no other event shows. `unknown`: the sheet was never found live (an
+ * upload, a manual shot without a detected sheet).
+ */
+export const LIVE_WAIT_BUCKETS = [
+  "under_3_s",
+  "from_3_to_10_s",
+  "from_10_to_30_s",
+  "from_30_s",
+  "unknown",
 ] as const;
 
 /** The results page's non-ready states plus `ready`. */
@@ -308,6 +363,8 @@ export const analyticsEventSchemas = {
     flow: z.enum(SCAN_FLOWS),
     method: z.enum(CAPTURE_METHODS),
     attempt,
+    /** 2026-10-19, candidate: see `LIVE_WAIT_BUCKETS`. Optional until the client sends it. */
+    liveWait: z.enum(LIVE_WAIT_BUCKETS).optional(),
   }),
 
   /** The pipeline refused the photo. `codes` are its issue codes, at most 8,
@@ -322,6 +379,10 @@ export const analyticsEventSchemas = {
     /** How straight on the shot was, when the sheet's four corners were found
      * (2026-10-16, candidate); absent otherwise. */
     paperSkew: z.enum(PAPER_SKEW_BUCKETS).optional(),
+    /** 2026-10-19, candidate: see `PAPER_COVERAGE_BUCKETS`; absent without four corners. */
+    paperCoverage: z.enum(PAPER_COVERAGE_BUCKETS).optional(),
+    /** 2026-10-19, candidate, shadow mode: see `HAND_POSE_BUCKETS`; absent without a hand. */
+    handPose: z.enum(HAND_POSE_BUCKETS).optional(),
   }),
 
   /** The pipeline produced measurements (the numbers themselves stay out). */
@@ -352,6 +413,10 @@ export const analyticsEventSchemas = {
     paperAspect: z.enum(PAPER_ASPECT_BUCKETS),
     /** What a nominal focal length would have changed, shadow mode only. */
     priorEffect: z.enum(PRIOR_EFFECT_BUCKETS),
+    /** 2026-10-19, candidate: see `PAPER_COVERAGE_BUCKETS`. Optional until the client sends it. */
+    paperCoverage: z.enum(PAPER_COVERAGE_BUCKETS).optional(),
+    /** 2026-10-19, candidate, shadow mode: see `HAND_POSE_BUCKETS`. Optional until the client sends it. */
+    handPose: z.enum(HAND_POSE_BUCKETS).optional(),
   }),
 
   /** The submission was stored (201). */
