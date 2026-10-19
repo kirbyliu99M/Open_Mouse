@@ -467,9 +467,12 @@ describe("buildScanQuality", () => {
 });
 
 describe("privacy: the output is the contract's shape and nothing more", () => {
-  const CONTRACT_KEYS = Object.keys(
-    analyticsEventSchemas.scan_quality.shape,
-  ).sort();
+  // The 2026-10-19 shadow buckets are optional in the contract and are not
+  // sent yet; the client PR that fills them (scan S3) drops this exclusion.
+  const NOT_YET_SENT = new Set(["paperCoverage", "handPose"]);
+  const CONTRACT_KEYS = Object.keys(analyticsEventSchemas.scan_quality.shape)
+    .filter((k) => !NOT_YET_SENT.has(k))
+    .sort();
   const ENUM_VALUES = new Set<string>([
     "easy",
     "sheet",
