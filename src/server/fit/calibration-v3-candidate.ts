@@ -1,0 +1,298 @@
+import {
+  type FitCalibration,
+  type FitFeel,
+  type FitReference,
+  type GripStyle,
+} from "../../lib/contracts/fit";
+import {
+  CALIBRATION_CONFLICT_FIT_BELOW,
+  CALIBRATION_CONFLICT_MIN_ANSWERS,
+  CALIBRATION_FEEL_SOFTNESS,
+  CALIBRATION_FINE_FLOOR,
+  CALIBRATION_GRID_HALF_RANGE_MM,
+  CALIBRATION_GRID_STEP_MM,
+  CALIBRATION_PRIOR_SCALE,
+  SIGMA_MM,
+} from "./coefficients";
+import { scoreGripWidthV1 } from "./subscores-v1";
+import type { FitTargets } from "./targets";
+import type { CatalogueMouse } from "./types";
+
+/**
+ * Personal calibration of the fit-v3.0 candidate (未拍板). Pure functions: the
+ * person says, for mice they own, whether each felt too short / just right /
+ * too long (and the same for width and height), and each of the three targets
+ * (length, grip width, height) gets its own offset from a Bayesian update.
+ *
+ * Per dimension d the offset delta lives on a grid of -30 to +30 mm in steps
+ * of 0.1 mm, with the prior N(0, (1.5 x band_d)^2), band_d = `SIGMA_MM[d]`.
+ * A reference mouse of size x, judged against the target t = target_g + delta
+ * (w = band_d, s = 0.3 w), gives
+ *
+ *   P(long)  = sigmoid((x - t - w) / s)
+ *   P(short) = sigmoid((t - w - x) / s)
+ *   P(right) = max(1e-6, 1 - P(long) - P(short))
+ *
+ * A reference with several grips averages P over them. The offset is the
+ * posterior mean. The fit of a dimension is the maximum of the joint
+ * likelihood over the grid divided by the product of each reference's own
+ * maximum; with two or more answers and a fit below 0.3 the answers cannot
+ * all hold, and the dimension is frozen at a shift of 0.
+ *
+ * Ported from the browser workbench (v2-debate-2026-10-17/artifact-build),
+ * which verified the maths; here it is strictly typed and tested. Candidate
+ * numbers, none validated against data.
+ */
+
+export type CalibrationDim = "length" | "gripWidth" | "height";
+export const CALIBRATION_DIMS: readonly CalibrationDim[] = [
+  "length",
+  "gripWidth",
+  "height",
+];
+
+/** "short / right / long" as -1 / 0 / 1. */
+export type Feel = -1 | 0 | 1;
+
+const BAND_MM: Record<CalibrationDim, number> = {
+  length: SIGMA_MM.length,
+  gripWidth: SIGMA_MM.gripWidth,
+  height: SIGMA_MM.height,
+};
+
+/** The offset grid, built from integer steps so no float drift accumulates. */
+const GRID_MM: readonly number[] = (() => {
+  const steps = Math.round(
+    CALIBRATION_GRID_HALF_RANGE_MM / CALIBRATION_GRID_STEP_MM,
+  );
+  const grid: number[] = [];
+  for (let i = -steps; i <= steps; i++) {
+    grid.push(Math.round(i * CALIBRATION_GRID_STEP_MM * 10) / 10);
+  }
+  return grid;
+})();
+
+const sigmoid = (z: number): number => 1 / (1 + Math.exp(-z));
+
+/**
+ * P(the person gives `feel` | the mouse measures `xMm` in this dimension and
+ * their ideal is `targetMm`), for a band of `bandMm`.
+ */
+export function feelProbability(
+  feel: Feel,
+  xMm: number,
+  targetMm: number,
+  bandMm: number,
+): number {
+  const s = CALIBRATION_FEEL_SOFTNESS * bandMm;
+  const pLong = sigmoid((xMm - targetMm - bandMm) / s);
+  const pShort = sigmoid((targetMm - bandMm - xMm) / s);
+  const pFine = Math.max(CALIBRATION_FINE_FLOOR, 1 - pLong - pShort);
+  return feel === 1 ? pLong : feel === -1 ? pShort : pFine;
+}
+
+/** One answer: how the mouse (size `xMm`) felt, judged against these grip targets (before any offset). */
+export interface CalibrationAnswer {
+  feel: Feel;
+  xMm: number;
+  /** One target per grip the person uses this mouse in; P is averaged over them. */
+  targetsMm: readonly number[];
+}
+
+export interface ShiftPosterior {
+  /** Posterior mean of the offset; exactly 0 when frozen or unanswered. */
+  shiftMm: number;
+  answers: number;
+  conflict: boolean;
+  /** Joint max / product of single maxima; 1 with fewer than one answer. */
+  fit: number;
+}
+
+/**
+ * The posterior of one dimension's offset given its answers. Pure.
+ * `bandMm` is the dimension's band (it sets the prior and the likelihood).
+ */
+export function posteriorShift(
+  answers: readonly CalibrationAnswer[],
+  bandMm: number,
+): ShiftPosterior {
+  if (answers.length === 0) {
+    return { shiftMm: 0, answers: 0, conflict: false, fit: 1 };
+  }
+  const tau = CALIBRATION_PRIOR_SCALE * bandMm;
+  const joint = GRID_MM.map(() => 1);
+  let productOfMaxima = 1;
+  for (const answer of answers) {
+    let maximum = 0;
+    GRID_MM.forEach((delta, i) => {
+      let p = 0;
+      for (const t of answer.targetsMm) {
+        p += feelProbability(answer.feel, answer.xMm, t + delta, bandMm);
+      }
+      const likelihood = p / answer.targetsMm.length;
+      joint[i] = joint[i]! * likelihood;
+      if (likelihood > maximum) maximum = likelihood;
+    });
+    productOfMaxima *= maximum;
+  }
+  const jointMax = Math.max(...joint);
+  const fit = productOfMaxima > 0 ? jointMax / productOfMaxima : 1;
+  const conflict =
+    answers.length >= CALIBRATION_CONFLICT_MIN_ANSWERS &&
+    fit < CALIBRATION_CONFLICT_FIT_BELOW;
+  if (conflict) return { shiftMm: 0, answers: answers.length, conflict, fit };
+
+  let z = 0;
+  let weighted = 0;
+  GRID_MM.forEach((delta, i) => {
+    const posterior = Math.exp(-0.5 * (delta / tau) ** 2) * joint[i]!;
+    z += posterior;
+    weighted += posterior * delta;
+  });
+  // z is positive for any real input (the prior and the "right" floor are
+  // positive); the guard keeps a degenerate input from producing NaN.
+  const shiftMm = z > 0 ? weighted / z : 0;
+  return {
+    shiftMm: shiftMm + 0, // never -0
+    answers: answers.length,
+    conflict: false,
+    fit,
+  };
+}
+
+/** The size of `mouse` in a calibration dimension: effective width for grip width. */
+function sizeMm(mouse: CatalogueMouse, dim: CalibrationDim): number {
+  switch (dim) {
+    case "length":
+      return mouse.lengthMm;
+    case "height":
+      return mouse.heightMm;
+    case "gripWidth":
+      // The same effective width the grip-width score compares to its target
+      // (side curvature and an ergonomic thumb rest included).
+      return (
+        scoreGripWidthV1(mouse, 0).reason.params.effectiveWidthMm ??
+        mouse.widthMm
+      );
+  }
+}
+
+/** The feel a reference gave for a dimension (the contract calls grip width "width"). */
+function feelOf(reference: FitReference, dim: CalibrationDim): FitFeel {
+  switch (dim) {
+    case "length":
+      return reference.feel.length;
+    case "gripWidth":
+      return reference.feel.width;
+    case "height":
+      return reference.feel.height;
+  }
+}
+
+/**
+ * Whether `reference` may calibrate `dim`: answered, and for height not an
+ * ergonomic shell (its catalogue height is the top of the shell, not where
+ * the palm rests).
+ */
+function takesPart(
+  reference: FitReference,
+  mouse: CatalogueMouse,
+  dim: CalibrationDim,
+): boolean {
+  if (feelOf(reference, dim) === null) return false;
+  if (dim === "height" && mouse.shape === "ergonomic") return false;
+  return true;
+}
+
+export interface CalibrationResult {
+  /** The contract block for the response. */
+  calibration: FitCalibration;
+  /** The offsets added to every grip's target (0 for a frozen or unanswered dimension). */
+  shiftsMm: Record<CalibrationDim, number>;
+}
+
+/**
+ * Calibrates the three targets from `references`. `baseTargetsByGrip` are the
+ * targets before any offset (the thickness answer already in the height);
+ * `used` is the grip a reference without grips is judged in.
+ *
+ * A reference takes part in a dimension when its slug is in `catalogue` and
+ * listed, it is not `specialUse`, and it answered that dimension; ergonomic
+ * mice never take part in height. A slug that is unknown or unlisted is
+ * ignored. `referencesUsed` counts the references that took part in at least
+ * one dimension. Pure: reads its arguments only.
+ */
+export function calibrateV3(
+  references: readonly FitReference[],
+  catalogue: readonly CatalogueMouse[],
+  baseTargetsByGrip: Record<GripStyle, FitTargets>,
+  used: GripStyle,
+): CalibrationResult {
+  const bySlug = new Map<string, CatalogueMouse>();
+  for (const mouse of catalogue) {
+    if (mouse.listed !== false && !bySlug.has(mouse.slug)) {
+      bySlug.set(mouse.slug, mouse);
+    }
+  }
+  const targetKey: Record<CalibrationDim, keyof FitTargets> = {
+    length: "lengthMm",
+    gripWidth: "gripWidthMm",
+    height: "heightMm",
+  };
+
+  const participated = new Set<number>();
+  const eligible = references
+    .map((reference, index) => ({
+      reference,
+      index,
+      mouse: bySlug.get(reference.slug),
+    }))
+    .filter(
+      (
+        r,
+      ): r is {
+        reference: FitReference;
+        index: number;
+        mouse: CatalogueMouse;
+      } => r.mouse !== undefined && !r.reference.specialUse,
+    );
+
+  const dims = {} as Record<CalibrationDim, ShiftPosterior>;
+  for (const dim of CALIBRATION_DIMS) {
+    const answers: CalibrationAnswer[] = [];
+    for (const { reference, index, mouse } of eligible) {
+      const feel = feelOf(reference, dim);
+      if (feel === null || !takesPart(reference, mouse, dim)) continue;
+      const grips: readonly GripStyle[] =
+        reference.grips.length > 0 ? reference.grips : [used];
+      answers.push({
+        feel,
+        xMm: sizeMm(mouse, dim),
+        targetsMm: grips.map((g) => baseTargetsByGrip[g][targetKey[dim]]),
+      });
+      participated.add(index);
+    }
+    dims[dim] = posteriorShift(answers, BAND_MM[dim]);
+  }
+
+  const dimBlock = (d: ShiftPosterior) => ({
+    shiftMm: d.shiftMm,
+    answers: d.answers,
+    conflict: d.conflict,
+  });
+  return {
+    calibration: {
+      referencesUsed: participated.size,
+      dims: {
+        length: dimBlock(dims.length),
+        gripWidth: dimBlock(dims.gripWidth),
+        height: dimBlock(dims.height),
+      },
+    },
+    shiftsMm: {
+      length: dims.length.shiftMm,
+      gripWidth: dims.gripWidth.shiftMm,
+      height: dims.height.shiftMm,
+    },
+  };
+}

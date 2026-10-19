@@ -157,7 +157,7 @@ function rankedEntries(
 }
 
 /** A card's members: the shown entry and its variants. */
-function memberSlugs(card: FitEntry): string[] {
+export function memberSlugs(card: FitEntry): string[] {
   return [card.mouse.slug, ...(card.variants ?? []).map((v) => v.slug)];
 }
 
@@ -166,7 +166,11 @@ function memberSlugs(card: FitEntry): string[] {
  * they are equal. A key whose value is undefined counts as absent; numbers are
  * compared with `===` (NaN equals NaN).
  */
-function firstDifference(a: unknown, b: unknown, path: string): string | null {
+export function firstDifference(
+  a: unknown,
+  b: unknown,
+  path: string,
+): string | null {
   if (a === b) return null;
   if (typeof a === "number" && typeof b === "number") {
     return Number.isNaN(a) && Number.isNaN(b) ? null : path;
@@ -199,7 +203,7 @@ function firstDifference(a: unknown, b: unknown, path: string): string | null {
 }
 
 /** The response as the engine makes it: no `scanId`, no `rankStability`. */
-function engineView(
+export function engineView(
   response: Omit<FitResponse, "scanId"> & { scanId?: string },
 ): unknown {
   const { scanId: _scanId, ...rest } = response;
