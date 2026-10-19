@@ -97,6 +97,11 @@ export const CAMERA_CONSTANTS = {
     leavePerfectSamples: 2,
     /** The cue text changes no more often than this, except into "perfect". */
     minTextChangeMs: 500,
+    /**
+     * Consecutive samples with the SAME paper-gate cue (same reason, same
+     * side name) before that cue is put on screen (candidate, 未拍板).
+     */
+    confirmSamples: 2,
   },
   /** The easy scan's corner dots (scan v2, candidates). */
   corners: {

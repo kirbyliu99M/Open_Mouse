@@ -83,6 +83,12 @@ const CODES: CueCode[] = [
   "no-corners",
   "some-corners",
   "tilted",
+  "edge-covered",
+  "edge-covered-top",
+  "edge-covered-bottom",
+  "edge-covered-left",
+  "edge-covered-right",
+  "paper-curled",
   "too-far",
   "too-close",
   "dark",
@@ -227,6 +233,43 @@ describe("cues in zh-TW", () => {
       expect(
         cueMessage(code, "paper-edge", "zh-TW").length,
       ).toBeLessThanOrEqual(20);
+  });
+  it("the paper-gate cues (S1) read as the draft words, zh-TW and English, side by side", () => {
+    const sides = ["top", "bottom", "left", "right"] as const;
+    const zhSide = { top: "上", bottom: "下", left: "左", right: "右" };
+    const enSide = {
+      top: "top",
+      bottom: "bottom",
+      left: "left",
+      right: "right",
+    };
+    for (const side of sides) {
+      const code = `edge-covered-${side}` as const;
+      expect(cueMessage(code, "paper-edge", "zh-TW")).toBe(
+        `紙的${zhSide[side]}邊被擋住了，請把手往內移一點`,
+      );
+      expect(cueMessage(code, "paper-edge", "en")).toBe(
+        `The ${enSide[side]} edge of the paper is covered. Move your hand in a little.`,
+      );
+    }
+    expect(cueMessage("edge-covered", "paper-edge", "zh-TW")).toBe(
+      "紙的邊緣被擋住了，請把手往內移一點",
+    );
+    expect(cueMessage("edge-covered", "paper-edge", "en")).toBe(
+      "An edge of the paper is covered. Move your hand in a little.",
+    );
+    expect(cueMessage("paper-curled", "paper-edge", "zh-TW")).toBe(
+      "紙張不平，請壓平再拍",
+    );
+    expect(cueMessage("paper-curled", "paper-edge", "en")).toBe(
+      "The paper isn't flat. Smooth it down, then try again.",
+    );
+  });
+  it("the paper-gate cues exist in both tables with the same keys", () => {
+    const keys = (t: typeof cuesEn.paper) => Object.keys(t).sort();
+    expect(keys(cuesZh.paper)).toEqual(keys(cuesEn.paper));
+    expect(Object.keys(cuesZh.sheet).sort()).toEqual(keys(cuesEn.paper));
+    expect(Object.keys(cuesEn.sheet).sort()).toEqual(keys(cuesEn.paper));
   });
   it("pickCue and cueFromCode carry the locale", () => {
     const cue = pickCue({ ...GOOD, cornersSeen: 0 }, "paper-edge", "zh-TW");

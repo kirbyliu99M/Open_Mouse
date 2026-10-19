@@ -150,6 +150,16 @@ export interface SheetQuadDetection {
    * `src/client/photo/gates.ts`.
    */
   readonly paperRegionFound: boolean;
+  /**
+   * Which side (same numbering as `worstSideIndex`) has the LOWEST coverage
+   * — the side a hand or sleeve covers most. Diagnostic only: it feeds the
+   * live "an edge of the paper is covered" cue its side name and changes no
+   * gate. Not the same as `worstSideIndex` (largest residual). `null` when
+   * every side ties for the lowest coverage (nothing to point at), or no
+   * side was measured. Optional so that hand-built detections (tests, the
+   * marker adapter) need not state it; absent means unknown.
+   */
+  readonly minCoverageSideIndex?: 0 | 1 | 2 | 3 | null;
 }
 
 const NONE: SheetQuadDetection = {
@@ -832,12 +842,16 @@ function detectPaperQuadImpl(
   let coverageMin = 1;
   let residualMax = 0;
   let worstSideIndex: 0 | 1 | 2 | 3 | null = null;
+  // Diagnostic only (see `minCoverageSideIndex`): the side with the lowest
+  // coverage, `null` while nothing is below 1 yet and on an exact tie.
+  const sideCoverages: number[] = [1, 1, 1, 1];
   for (let i = 0; i < 4; i++) {
     const fit = fits[i];
     const segStart = workingCorners[i];
     const segEnd = workingCorners[(i + 1) % 4];
     if (!fit) {
       coverageMin = 0;
+      sideCoverages[i] = 0;
       continue;
     }
     const reporting = computeReportingStats(
@@ -852,6 +866,7 @@ function detectPaperQuadImpl(
       COVERAGE_BINS,
     );
     coverageMin = Math.min(coverageMin, coverage);
+    sideCoverages[i] = coverage;
     // The WORST side, not the average: a single curled side must not be
     // diluted by the other three (typically near-flat) sides — see this
     // function's header comment.
@@ -873,5 +888,30 @@ function detectPaperQuadImpl(
     edgeFitResidualPx: residualMax,
     worstSideIndex,
     paperRegionFound: true,
+    minCoverageSideIndex: lowestCoverageSide(sideCoverages),
   };
+}
+
+/**
+ * The index of the one side with the lowest coverage; `null` when two or
+ * more sides tie for the lowest (a name would be a guess) or when every
+ * side is fully covered by evidence (nothing is hidden).
+ */
+export function lowestCoverageSide(
+  sideCoverages: readonly number[],
+): 0 | 1 | 2 | 3 | null {
+  let lowest = Infinity;
+  let index = -1;
+  let ties = 0;
+  sideCoverages.forEach((value, i) => {
+    if (value < lowest) {
+      lowest = value;
+      index = i;
+      ties = 1;
+    } else if (value === lowest) {
+      ties += 1;
+    }
+  });
+  if (index < 0 || ties !== 1 || lowest >= 1) return null;
+  return index as 0 | 1 | 2 | 3;
 }

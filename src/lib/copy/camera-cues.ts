@@ -20,6 +20,12 @@ export interface CameraCuesCopy {
     noCorners: string;
     someCorners: string;
     tilted: string;
+    edgeCovered: string;
+    edgeCoveredTop: string;
+    edgeCoveredBottom: string;
+    edgeCoveredLeft: string;
+    edgeCoveredRight: string;
+    paperCurled: string;
     tooFar: string;
     tooClose: string;
     dark: string;
@@ -34,6 +40,12 @@ export interface CameraCuesCopy {
     noCorners: string;
     someCorners: string;
     tilted: string;
+    edgeCovered: string;
+    edgeCoveredTop: string;
+    edgeCoveredBottom: string;
+    edgeCoveredLeft: string;
+    edgeCoveredRight: string;
+    paperCurled: string;
     tooFar: string;
     tooClose: string;
     dark: string;
@@ -66,6 +78,12 @@ export const zhTW: CameraCuesCopy = {
     noCorners: "請把相機對準紙張",
     someCorners: "再退後一點，讓紙張四角都入鏡",
     tilted: "請讓手機與紙張平行",
+    edgeCovered: "紙的邊緣被擋住了，請把手往內移一點",
+    edgeCoveredTop: "紙的上邊被擋住了，請把手往內移一點",
+    edgeCoveredBottom: "紙的下邊被擋住了，請把手往內移一點",
+    edgeCoveredLeft: "紙的左邊被擋住了，請把手往內移一點",
+    edgeCoveredRight: "紙的右邊被擋住了，請把手往內移一點",
+    paperCurled: "紙張不平，請壓平再拍",
     tooFar: "再靠近一點",
     tooClose: "再退後一點",
     dark: "光線不足，請補光",
@@ -79,6 +97,12 @@ export const zhTW: CameraCuesCopy = {
     noCorners: "請把相機對準校正表",
     someCorners: "再退後一點，讓校正表四角都入鏡",
     tilted: "請讓手機與校正表平行",
+    edgeCovered: "校正表的邊緣被擋住了，請把手往內移一點",
+    edgeCoveredTop: "校正表的上邊被擋住了，請把手往內移一點",
+    edgeCoveredBottom: "校正表的下邊被擋住了，請把手往內移一點",
+    edgeCoveredLeft: "校正表的左邊被擋住了，請把手往內移一點",
+    edgeCoveredRight: "校正表的右邊被擋住了，請把手往內移一點",
+    paperCurled: "校正表不平，請壓平再拍",
     tooFar: "再靠近一點",
     tooClose: "再退後一點",
     dark: "光線不足，請補光",
@@ -105,6 +129,16 @@ export const en: CameraCuesCopy = {
     noCorners: "Point the camera at the paper",
     someCorners: "Move back so all four paper corners are in view",
     tilted: "Hold the phone flat above the paper",
+    edgeCovered: "An edge of the paper is covered. Move your hand in a little.",
+    edgeCoveredTop:
+      "The top edge of the paper is covered. Move your hand in a little.",
+    edgeCoveredBottom:
+      "The bottom edge of the paper is covered. Move your hand in a little.",
+    edgeCoveredLeft:
+      "The left edge of the paper is covered. Move your hand in a little.",
+    edgeCoveredRight:
+      "The right edge of the paper is covered. Move your hand in a little.",
+    paperCurled: "The paper isn't flat. Smooth it down, then try again.",
     tooFar: "Move closer",
     tooClose: "Move back a little",
     dark: "More light, please",
@@ -118,6 +152,16 @@ export const en: CameraCuesCopy = {
     noCorners: "Point the camera at the sheet",
     someCorners: "Move back so all four sheet corners are in view",
     tilted: "Hold the phone flat above the sheet",
+    edgeCovered: "An edge of the sheet is covered. Move your hand in a little.",
+    edgeCoveredTop:
+      "The top edge of the sheet is covered. Move your hand in a little.",
+    edgeCoveredBottom:
+      "The bottom edge of the sheet is covered. Move your hand in a little.",
+    edgeCoveredLeft:
+      "The left edge of the sheet is covered. Move your hand in a little.",
+    edgeCoveredRight:
+      "The right edge of the sheet is covered. Move your hand in a little.",
+    paperCurled: "The sheet isn't flat. Smooth it down, then try again.",
     tooFar: "Move closer",
     tooClose: "Move back a little",
     dark: "More light, please",

@@ -37,6 +37,7 @@ describe("advanceCueDebounce", () => {
     expect(CAMERA_CONSTANTS.cueDebounce).toEqual({
       leavePerfectSamples: 2,
       minTextChangeMs: 500,
+      confirmSamples: 2,
     });
   });
 
@@ -150,5 +151,148 @@ describe("advanceCueDebounce", () => {
     expect(state.shown).toBe("dark");
     state = advanceCueDebounce(state, "perfect", 1750);
     expect(state.shown).toBe("perfect");
+  });
+});
+
+describe("advanceCueDebounce: paper-gate cues need the same reason twice in a row (S1)", () => {
+  // 1000 ms apart, so the 500 ms lockout never decides these tests.
+  const SLOW = 1000;
+  function feed(
+    codes: readonly CueCode[],
+    from: CueDebounceState = INITIAL_CUE_DEBOUNCE_STATE,
+  ): CueDebounceState[] {
+    const out: CueDebounceState[] = [];
+    let state = from;
+    codes.forEach((code, i) => {
+      state = advanceCueDebounce(state, code, 10_000 + i * SLOW);
+      out.push(state);
+    });
+    return out;
+  }
+  const shown = (codes: readonly CueCode[], from?: CueDebounceState) =>
+    feed(codes, from).map((s) => s.shown);
+
+  it("one sample of a covered edge does not replace the cue on screen; the second identical one does", () => {
+    expect(
+      shown(["hold-still", "edge-covered-left", "edge-covered-left"]),
+    ).toEqual(["hold-still", "hold-still", "edge-covered-left"]);
+  });
+
+  it("the same reason with another side name starts the count again", () => {
+    expect(
+      shown([
+        "hold-still",
+        "edge-covered-left",
+        "edge-covered-right",
+        "edge-covered-right",
+      ]),
+    ).toEqual(["hold-still", "hold-still", "hold-still", "edge-covered-right"]);
+  });
+
+  it("the plain 'an edge' cue and a named side are different reasons", () => {
+    expect(
+      shown([
+        "hold-still",
+        "edge-covered",
+        "edge-covered-top",
+        "edge-covered-top",
+      ]),
+    ).toEqual(["hold-still", "hold-still", "hold-still", "edge-covered-top"]);
+  });
+
+  it("a different cue in between breaks the run", () => {
+    expect(
+      shown([
+        "hold-still",
+        "paper-curled",
+        "out-of-focus",
+        "paper-curled",
+        "paper-curled",
+      ]),
+    ).toEqual([
+      "hold-still",
+      "hold-still",
+      "out-of-focus",
+      "out-of-focus",
+      "paper-curled",
+    ]);
+  });
+
+  it("an interleaved sample of the cue already on screen also breaks the run", () => {
+    // right, shown(left), right: the two 'right' are not consecutive.
+    const base = feed(["edge-covered-left", "edge-covered-left"])[1];
+    expect(base.shown).toBe("edge-covered-left");
+    const states = feed(
+      ["edge-covered-right", "edge-covered-left", "edge-covered-right"],
+      base,
+    );
+    expect(states.map((s) => s.shown)).toEqual([
+      "edge-covered-left",
+      "edge-covered-left",
+      "edge-covered-left",
+    ]);
+    // One more 'right' now IS the second in a row (the count restarted at the
+    // 'right' after the interleaved 'left').
+    expect(
+      advanceCueDebounce(states[2], "edge-covered-right", 50_000).shown,
+    ).toBe("edge-covered-right");
+  });
+
+  it("leaving 'perfect' for a paper-gate cue takes both rules: two samples, the same one", () => {
+    const perfect = feed(["perfect"])[0];
+    // Two different non-perfect samples are enough for the old rule, not for this one.
+    expect(shown(["dark", "edge-covered-left"], perfect)).toEqual([
+      "perfect",
+      "perfect",
+    ]);
+    expect(shown(["edge-covered-left", "edge-covered-left"], perfect)).toEqual([
+      "perfect",
+      "edge-covered-left",
+    ]);
+  });
+
+  it("the very first sample is held the same way when nothing is on screen yet", () => {
+    const states = feed(["paper-curled", "paper-curled"]);
+    expect(states.map((s) => s.shown)).toEqual([null, "paper-curled"]);
+  });
+
+  it("ordinary cues are unchanged: they still show at once and follow the old rules", () => {
+    expect(shown(["no-corners", "tilted"])).toEqual(["no-corners", "tilted"]);
+  });
+
+  it("the lockout still applies after the second sample", () => {
+    let state = advanceCueDebounce(INITIAL_CUE_DEBOUNCE_STATE, "tilted", 1000);
+    state = advanceCueDebounce(state, "paper-curled", 1100);
+    state = advanceCueDebounce(state, "paper-curled", 1200);
+    expect(state.shown).toBe("tilted"); // confirmed, but only 200 ms after the last change
+    state = advanceCueDebounce(state, "paper-curled", 1500);
+    expect(state.shown).toBe("paper-curled");
+  });
+
+  it("confirmSamples is an option: 1 shows at once, 3 needs three", () => {
+    const base = feed(["hold-still"])[0];
+    expect(
+      advanceCueDebounce(base, "paper-curled", 20_000, {
+        leavePerfectSamples: 2,
+        minTextChangeMs: 0,
+        confirmSamples: 1,
+      }).shown,
+    ).toBe("paper-curled");
+    let state = base;
+    const three = {
+      leavePerfectSamples: 2,
+      minTextChangeMs: 0,
+      confirmSamples: 3,
+    };
+    for (let i = 0; i < 2; i++)
+      state = advanceCueDebounce(state, "paper-curled", 20_000 + i, three);
+    expect(state.shown).toBe("hold-still");
+    state = advanceCueDebounce(state, "paper-curled", 20_003, three);
+    expect(state.shown).toBe("paper-curled");
+  });
+
+  it("the cue on screen repeating itself changes nothing (same state back)", () => {
+    const on = feed(["edge-covered-left", "edge-covered-left"])[1];
+    expect(advanceCueDebounce(on, "edge-covered-left", 99_000)).toBe(on);
   });
 });

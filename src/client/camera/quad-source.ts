@@ -22,30 +22,24 @@
  */
 import type { Point2 } from "../geometry/homography";
 import { detectMarkers, type DetectedMarker } from "../photo/markers";
-import { detectPaperQuad, type DetectPaperQuadOptions } from "../paper/detect";
+import {
+  detectPaperQuad,
+  type DetectPaperQuadOptions,
+  type SheetQuadDetection,
+} from "../paper/detect";
 import { SHEET, type PaperSize } from "../../lib/contracts/measurement";
 import { buildTrackedQuad, centroid } from "./quad";
 
 export type { PaperSize };
 
-export interface SheetQuadDetection {
-  /** The paper's 4 corners (TL, TR, BR, BL), or `null` unless all 4 were found. */
-  readonly corners: readonly [Point2, Point2, Point2, Point2] | null;
-  readonly cornersSeen: 0 | 1 | 2 | 3 | 4;
-  /** Per-corner (TL, TR, BR, BL) lock-on: whether *that specific* corner was found this sample, so the UI can lock brackets on individually rather than all-or-nothing. */
-  readonly cornersFound: readonly [boolean, boolean, boolean, boolean];
-  /** Per-corner (TL, TR, BR, BL) position when found, `null` when not — same order as `cornersFound`. */
-  readonly partialCorners: readonly [
-    Point2 | null,
-    Point2 | null,
-    Point2 | null,
-    Point2 | null,
-  ];
-  /** Smallest fraction of any side's length actually seen, 0-1 (1 when not applicable, as for this temporary adapter). */
-  readonly minSideCoverage: number;
-  /** Mean distance of detected edge points from their fitted side, in frame px (0 when not applicable). */
-  readonly edgeFitResidualPx: number;
-}
+/**
+ * The ONE detection shape, `src/client/paper/detect.ts`'s: the live loop and
+ * the photo analysis read the same object (the live paper gate runs
+ * `evaluatePaperEdgeCalibration` on it), so there is no second interface to
+ * drift from the first. `paperRegionFound` and `worstSideIndex` are part of
+ * it; the marker adapter fills them (`false`/`null` where it has no notion).
+ */
+export type { SheetQuadDetection };
 
 export type SheetQuadSource = (
   frame: ImageData,
@@ -62,13 +56,17 @@ const NO_CORNERS: readonly [boolean, boolean, boolean, boolean] = [
 ];
 const NO_PARTIAL: readonly [null, null, null, null] = [null, null, null, null];
 
-const NONE: SheetQuadDetection = {
+/** "Nothing found", for a failed or thrown detection. */
+export const NO_QUAD_DETECTION: SheetQuadDetection = {
   corners: null,
   cornersSeen: 0,
   cornersFound: NO_CORNERS,
   partialCorners: NO_PARTIAL,
   minSideCoverage: 0,
   edgeFitResidualPx: 0,
+  worstSideIndex: null,
+  paperRegionFound: false,
+  minCoverageSideIndex: null,
 };
 
 /**
@@ -119,10 +117,21 @@ export function createMarkerBasedQuadSource(
       0 | 1 | 2 | 3 | 4;
 
     if (cornersSeen < 4) {
-      return { ...NONE, cornersSeen, cornersFound, partialCorners };
+      return {
+        ...NO_QUAD_DETECTION,
+        cornersSeen,
+        cornersFound,
+        partialCorners,
+      };
     }
     const quad = buildTrackedQuad([...byId.values()]);
-    if (!quad) return { ...NONE, cornersSeen, cornersFound, partialCorners };
+    if (!quad)
+      return {
+        ...NO_QUAD_DETECTION,
+        cornersSeen,
+        cornersFound,
+        partialCorners,
+      };
     return {
       corners: [quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft],
       cornersSeen,
@@ -130,6 +139,11 @@ export function createMarkerBasedQuadSource(
       partialCorners,
       minSideCoverage: 1,
       edgeFitResidualPx: 0,
+      worstSideIndex: null,
+      // Four markers found: the sheet is located (no paper gate reads this
+      // for a printed sheet; it is there so the shape is complete).
+      paperRegionFound: true,
+      minCoverageSideIndex: null,
     };
   };
 }
@@ -138,9 +152,8 @@ export function createMarkerBasedQuadSource(
  * The real `SheetQuadSource` for paper-edge mode: `detectPaperQuad`
  * (src/client/paper/detect.ts) finds a blank A4/Letter sheet's own 4
  * corners from its edges — no markers, no card. Its own
- * `SheetQuadDetection` shape already matches this module's field-for-field
- * (corners/cornersSeen/cornersFound/partialCorners/minSideCoverage/
- * edgeFitResidualPx), so no conversion is needed, only a safety net: the
+ * `SheetQuadDetection` is this module's own type (re-exported above), so no
+ * conversion is needed, only a safety net: the
  * detector is still being hardened by its own author (orientation,
  * aspect-ratio strictness) and can throw on degenerate input (documented in
  * its own source as a deliberate bail-out, not a bug) — the live loop calls
@@ -158,7 +171,7 @@ export function createPaperEdgeQuadSource(
     try {
       return detectPaperQuadImpl(frame, paperSize, options);
     } catch {
-      return NONE;
+      return NO_QUAD_DETECTION;
     }
   };
 }

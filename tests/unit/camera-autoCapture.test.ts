@@ -5,6 +5,8 @@ import {
   autoCaptureRingFraction,
   resetAutoCapture,
 } from "../../src/client/camera/autoCapture";
+import { pickCue, type CueInput } from "../../src/client/camera/cues";
+import type { LivePaperGate } from "../../src/client/camera/paperGate";
 
 describe("advanceAutoCapture", () => {
   it("starts at zero elapsed, no failures and not fired", () => {
@@ -131,5 +133,62 @@ describe("autoCaptureRingFraction", () => {
   it("is capped at 1", () => {
     const state = advanceAutoCapture(INITIAL_AUTO_CAPTURE_STATE, true, 800);
     expect(autoCaptureRingFraction(state)).toBe(1);
+  });
+});
+
+describe("the shutter reads the raw paper gate (S1)", () => {
+  const input = (paperGate?: LivePaperGate): CueInput => ({
+    cornersSeen: 4,
+    quad: {
+      topLeft: { x: 100, y: 100 },
+      topRight: { x: 500, y: 100 },
+      bottomRight: { x: 500, y: 500 },
+      bottomLeft: { x: 100, y: 500 },
+    },
+    frameWidth: 640,
+    meanLuma: 120,
+    clippedFraction: 0,
+    steady: true,
+    sharpEnough: true,
+    paperGate,
+    msSinceLastDetection: 0,
+  });
+  /** What the live loop does per sample: the cue's own verdict feeds the ring. */
+  function ring(gates: readonly (LivePaperGate | undefined)[], dtMs = 125) {
+    let state = INITIAL_AUTO_CAPTURE_STATE;
+    for (const gate of gates) {
+      const cue = pickCue(input(gate), "paper-edge", "en");
+      state = advanceAutoCapture(state, cue.allPass, dtMs);
+    }
+    return state;
+  }
+  const PASS: LivePaperGate = { kind: "pass" };
+
+  it("does not fire while the gate keeps failing, however long the preview waits", () => {
+    const failing: LivePaperGate[] = [
+      { kind: "edge-covered", side: "left" },
+      { kind: "edge-covered", side: null },
+      { kind: "curled" },
+    ];
+    for (const bad of failing) {
+      const state = ring(Array.from({ length: 80 }, () => bad)); // 10 s of samples
+      expect(state.fired, bad.kind).toBe(false);
+      expect(state.elapsedMs).toBe(0);
+    }
+  });
+
+  it("fires on a passing gate, and on a flow without the field", () => {
+    expect(ring(Array.from({ length: 8 }, () => PASS)).fired).toBe(true);
+    expect(ring(Array.from({ length: 8 }, () => undefined)).fired).toBe(true);
+  });
+
+  it("a gate that fails on the way to the fill pauses it, and three failures in a row empty it", () => {
+    const bad: LivePaperGate = { kind: "edge-covered", side: "top" };
+    // 4 passes (500 ms), 2 failures (paused), 3 passes: 875 ms of passing time.
+    const paused = ring([PASS, PASS, PASS, PASS, bad, bad, PASS, PASS, PASS]);
+    expect(paused.fired).toBe(true);
+    // 4 passes, then 3 failures in a row: back to empty, not fired.
+    const emptied = ring([PASS, PASS, PASS, PASS, bad, bad, bad]);
+    expect(emptied).toEqual(INITIAL_AUTO_CAPTURE_STATE);
   });
 });

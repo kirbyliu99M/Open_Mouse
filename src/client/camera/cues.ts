@@ -22,12 +22,19 @@ import {
   type Quad,
 } from "./quad";
 import { computeLightStatus, type LightStatus } from "./light";
+import type { LivePaperGate, PaperSide } from "./paperGate";
 
 export type CueCode =
   | "place-paper"
   | "no-corners"
   | "some-corners"
   | "tilted"
+  | "edge-covered"
+  | "edge-covered-top"
+  | "edge-covered-bottom"
+  | "edge-covered-left"
+  | "edge-covered-right"
+  | "paper-curled"
   | "too-far"
   | "too-close"
   | "dark"
@@ -48,6 +55,12 @@ const CUE_KEYS: Record<CueCode, keyof CameraCuesCopy["paper"]> = {
   "no-corners": "noCorners",
   "some-corners": "someCorners",
   tilted: "tilted",
+  "edge-covered": "edgeCovered",
+  "edge-covered-top": "edgeCoveredTop",
+  "edge-covered-bottom": "edgeCoveredBottom",
+  "edge-covered-left": "edgeCoveredLeft",
+  "edge-covered-right": "edgeCoveredRight",
+  "paper-curled": "paperCurled",
   "too-far": "tooFar",
   "too-close": "tooClose",
   dark: "dark",
@@ -56,6 +69,49 @@ const CUE_KEYS: Record<CueCode, keyof CameraCuesCopy["paper"]> = {
   "out-of-focus": "outOfFocus",
   perfect: "perfect",
 };
+
+/**
+ * The cue codes that name a paper-gate reason. Each (reason, side) is its own
+ * code, so the debounce (cueDebounce.ts) can ask for the SAME reason and side
+ * twice in a row before the words change.
+ */
+export const PAPER_GATE_CUE_CODES: readonly CueCode[] = [
+  "edge-covered",
+  "edge-covered-top",
+  "edge-covered-bottom",
+  "edge-covered-left",
+  "edge-covered-right",
+  "paper-curled",
+];
+
+const EDGE_COVERED_BY_SIDE: Record<PaperSide, CueCode> = {
+  top: "edge-covered-top",
+  bottom: "edge-covered-bottom",
+  left: "edge-covered-left",
+  right: "edge-covered-right",
+};
+
+/**
+ * The cue a failed live paper gate calls for, or `null` when it calls for
+ * none (a pass, or nothing evaluated yet). A refusal this module has no
+ * words for reads as the corners cue: the paper is not usable as it lies.
+ */
+export function cueCodeForPaperGate(
+  gate: LivePaperGate | undefined,
+): CueCode | null {
+  if (!gate) return null;
+  switch (gate.kind) {
+    case "pass":
+    case "not-evaluated":
+      return null;
+    case "edge-covered":
+      return gate.side ? EDGE_COVERED_BY_SIDE[gate.side] : "edge-covered";
+    case "curled":
+      return "paper-curled";
+    case "blocked":
+      return "some-corners";
+  }
+}
 
 export type CueCalibrationMode = "printed-sheet" | "paper-edge";
 
@@ -138,6 +194,12 @@ export interface CueInput {
   readonly steady: boolean;
   readonly sharpEnough: boolean;
   /**
+   * The photo's own paper gate, run on this sample's detection
+   * (paperGate.ts). Omit where the flow has no such gate (the printed sheet):
+   * the cue is then exactly what it was before.
+   */
+  readonly paperGate?: LivePaperGate;
+  /**
    * Milliseconds since a paper quad was last found at all (0 corners seen
    * continuously). Only consulted when `cornersSeen === 0`, to escalate
    * from the generic "point the camera" cue to a more specific one.
@@ -175,6 +237,11 @@ export function pickCue(
   const sizeStatus = computeQuadSizeStatus(widthFraction);
   if (sizeStatus === "too-far") return cue("too-far", mode, locale);
   if (sizeStatus === "too-close") return cue("too-close", mode, locale);
+
+  // The same gate the photo is judged by: a covered edge or a paper that is
+  // not flat would be refused after the shutter, so the shutter must not fire.
+  const gateCode = cueCodeForPaperGate(input.paperGate);
+  if (gateCode) return cue(gateCode, mode, locale);
 
   const light: LightStatus = computeLightStatus(
     input.meanLuma,
