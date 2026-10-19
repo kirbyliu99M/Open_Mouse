@@ -341,6 +341,37 @@ async function runPhotoPipelineTraced(
     };
   }
 
+  // The decoded bitmap holds a full-size picture in memory until it is closed:
+  // every way out of the run below closes it, exactly once.
+  const releaseDecoded = closeOnce(decoded.bitmap);
+  try {
+    return await runDecodedPipeline(decoded, input, trace, releaseDecoded);
+  } finally {
+    releaseDecoded();
+  }
+}
+
+/** A function that closes `bitmap` the first time it is called and never again. */
+function closeOnce(bitmap: ImageBitmap): () => void {
+  let closed = false;
+  return () => {
+    if (closed) return;
+    closed = true;
+    bitmap.close();
+  };
+}
+
+/**
+ * Everything after decoding. It never closes the decoded bitmap on its own
+ * account except through `releaseDecoded` (a paper-edge crop frees the
+ * full-size picture early); `runPhotoPipelineTraced` closes it in a `finally`.
+ */
+async function runDecodedPipeline(
+  decoded: DecodedPhoto,
+  input: RunPhotoPipelineInput,
+  trace: PipelineTrace,
+  releaseDecoded: () => void,
+): Promise<PipelineResult> {
   const calibration = input.calibration ?? { method: "printed-sheet" };
   if (calibration.method === "user-length") {
     return runUserLengthPipeline(
@@ -351,7 +382,13 @@ async function runPhotoPipelineTraced(
     );
   }
   if (calibration.method === "paper-edge") {
-    return runPaperEdgePipeline(decoded, input, calibration.paperSize, trace);
+    return runPaperEdgePipeline(
+      decoded,
+      input,
+      calibration.paperSize,
+      trace,
+      releaseDecoded,
+    );
   }
 
   const { bitmap, width, height } = decoded;
@@ -533,6 +570,7 @@ async function runPaperEdgePipeline(
   input: RunPhotoPipelineInput,
   paperSize: PaperSize,
   trace: PipelineTrace,
+  releaseDecoded: () => void,
 ): Promise<PipelineResult> {
   const fullWidth = decoded.width;
   const fullHeight = decoded.height;
@@ -565,7 +603,7 @@ async function runPaperEdgePipeline(
         crop.width,
         crop.height,
       );
-      decoded.bitmap.close();
+      releaseDecoded();
       width = crop.width;
       height = crop.height;
     } catch {
@@ -573,130 +611,139 @@ async function runPaperEdgePipeline(
       crop = null;
     }
   }
-  trace.fovCrop = crop;
-  trace.analysed = { width, height };
-  const frames = analysisFrames({ width: fullWidth, height: fullHeight }, crop);
-  const imageData = getImageData(bitmap, width, height);
-  // The sharpness is worked out first, so a photo that is turned back before
-  // it reaches the hand gates (no sheet, no hand) still has one in its record
-  // (diagnostics.ts). If it cannot be worked out here it is tried again below,
-  // exactly as before.
-  const gray = rgbaToGrayscale(imageData.data, width * height);
+  // The cropped bitmap is this function's own: closed on every way out of the
+  // analysis below. (The decoded one is the caller's, or `releaseDecoded`'s.)
   try {
-    trace.laplacianVariance = computeLaplacianVariance(gray, width, height);
-  } catch {
-    trace.laplacianVariance = null;
-  }
+    trace.fovCrop = crop;
+    trace.analysed = { width, height };
+    const frames = analysisFrames(
+      { width: fullWidth, height: fullHeight },
+      crop,
+    );
+    const imageData = getImageData(bitmap, width, height);
+    // The sharpness is worked out first, so a photo that is turned back before
+    // it reaches the hand gates (no sheet, no hand) still has one in its record
+    // (diagnostics.ts). If it cannot be worked out here it is tried again below,
+    // exactly as before.
+    const gray = rgbaToGrayscale(imageData.data, width * height);
+    try {
+      trace.laplacianVariance = computeLaplacianVariance(gray, width, height);
+    } catch {
+      trace.laplacianVariance = null;
+    }
 
-  const paperStartedAt = performance.now();
-  // The assumed focal length is the whole photo's, not the crop's: a crop
-  // narrows the picture, not the lens (visibleView.ts). Without a crop it is
-  // what the detector would have assumed anyway. A frame that was cut before
-  // it got here says how wide the picture it was cut from was.
-  const quad = detectPaperQuad(imageData, paperSize, {
-    focalPxHint: assumedDetectionFocalPx(frames, input.focalReferenceWidthPx),
-  });
-  trace.paperMs = performance.now() - paperStartedAt;
-  const quadSize = quad.corners
-    ? paperSizeFractions(quad.corners, width, height)
-    : null;
-  trace.paper = {
-    cornersSeen: quad.cornersSeen,
-    paperRegionFound: quad.paperRegionFound,
-    widthFraction: quadSize?.widthFraction ?? null,
-    heightFraction: quadSize?.heightFraction ?? null,
-    edgeFitResidualMm: null,
-    maxAngleDeviationDeg: quad.corners
-      ? paperMaxAngleDeviationDeg(quad.corners)
-      : null,
-    observedAspect: quad.corners ? paperObservedAspect(quad.corners) : null,
-    minSideCoverage: quad.minSideCoverage,
-    gateFailures: [],
-  };
-  // The overlay is always in the whole decoded photo's pixels.
-  const overlayBase = {
-    imageWidth: fullWidth,
-    imageHeight: fullHeight,
-    markers: [] as DetectedMarker[],
-    card: null,
-  };
-
-  if (!quad.corners) {
-    const failure = checkPaperFound(quad.paperRegionFound) ??
-      checkPaperCornersSeen(quad.cornersSeen) ?? {
-        code: "PAPER_NOT_FOUND" as const,
-        message:
-          "We couldn't find a sheet of paper in this photo — place a blank A4 (or Letter) sheet flat on a plain, contrasting surface and retake.",
-      };
-    trace.paper = { ...trace.paper, gateFailures: [failure.code] };
-    return {
-      status: "error",
-      errors: [failure],
-      overlay: { ...overlayBase, landmarksPx: null },
+    const paperStartedAt = performance.now();
+    // The assumed focal length is the whole photo's, not the crop's: a crop
+    // narrows the picture, not the lens (visibleView.ts). Without a crop it is
+    // what the detector would have assumed anyway. A frame that was cut before
+    // it got here says how wide the picture it was cut from was.
+    const quad = detectPaperQuad(imageData, paperSize, {
+      focalPxHint: assumedDetectionFocalPx(frames, input.focalReferenceWidthPx),
+    });
+    trace.paperMs = performance.now() - paperStartedAt;
+    const quadSize = quad.corners
+      ? paperSizeFractions(quad.corners, width, height)
+      : null;
+    trace.paper = {
+      cornersSeen: quad.cornersSeen,
+      paperRegionFound: quad.paperRegionFound,
+      widthFraction: quadSize?.widthFraction ?? null,
+      heightFraction: quadSize?.heightFraction ?? null,
+      edgeFitResidualMm: null,
+      maxAngleDeviationDeg: quad.corners
+        ? paperMaxAngleDeviationDeg(quad.corners)
+        : null,
+      observedAspect: quad.corners ? paperObservedAspect(quad.corners) : null,
+      minSideCoverage: quad.minSideCoverage,
+      gateFailures: [],
     };
-  }
-
-  // homography + the worst side's residual in mm (via its own normal
-  // direction, not a generic centroid average) — this is
-  // `computePaperEdgeGeometry` (src/client/paper/calibration.ts), the
-  // pure, directly-tested slice of this function (2026-09-25 PR #59
-  // review: hard rule 3).
-  // The shipped path goes through the same pure chain the tests exercise
-  // (evaluatePaperEdgeCalibration): geometry, the paper gates and the
-  // calibration fields all come from this one call. parallaxCorrected is
-  // only known after EXIF is read (finishPaperEdge), so it is set on the
-  // submission from the real flag there; the placeholder here never reaches it.
-  const paperEval = evaluatePaperEdgeCalibration(quad, paperSize, false);
-  // Which paper gates failed, even where the result below goes on to report
-  // another error first (a photo with no hand reports only that).
-  trace.paper = {
-    ...trace.paper,
-    edgeFitResidualMm: paperEval.geometry?.edgeFitResidualMm ?? null,
-    gateFailures: paperEval.errors.map((error) => error.code),
-  };
-  if (!paperEval.geometry) {
-    return {
-      status: "error",
-      errors: paperEval.errors,
-      overlay: { ...overlayBase, landmarksPx: null },
+    // The overlay is always in the whole decoded photo's pixels.
+    const overlayBase = {
+      imageWidth: fullWidth,
+      imageHeight: fullHeight,
+      markers: [] as DetectedMarker[],
+      card: null,
     };
-  }
 
-  const hand = await detectHandTraced(bitmap, trace);
-  if (!hand) {
-    return {
-      status: "error",
-      errors: [
-        {
-          code: "HAND_NOT_DETECTED",
+    if (!quad.corners) {
+      const failure = checkPaperFound(quad.paperRegionFound) ??
+        checkPaperCornersSeen(quad.cornersSeen) ?? {
+          code: "PAPER_NOT_FOUND" as const,
           message:
-            "We couldn't find a hand in this photo — lay your hand flat on the sheet, fingers together, and retake.",
-          detail: { kind: "handNotDetected", on: "paper" },
-        },
-      ],
-      overlay: { ...overlayBase, landmarksPx: null },
+            "We couldn't find a sheet of paper in this photo — place a blank A4 (or Letter) sheet flat on a plain, contrasting surface and retake.",
+        };
+      trace.paper = { ...trace.paper, gateFailures: [failure.code] };
+      return {
+        status: "error",
+        errors: [failure],
+        overlay: { ...overlayBase, landmarksPx: null },
+      };
+    }
+
+    // homography + the worst side's residual in mm (via its own normal
+    // direction, not a generic centroid average) — this is
+    // `computePaperEdgeGeometry` (src/client/paper/calibration.ts), the
+    // pure, directly-tested slice of this function (2026-09-25 PR #59
+    // review: hard rule 3).
+    // The shipped path goes through the same pure chain the tests exercise
+    // (evaluatePaperEdgeCalibration): geometry, the paper gates and the
+    // calibration fields all come from this one call. parallaxCorrected is
+    // only known after EXIF is read (finishPaperEdge), so it is set on the
+    // submission from the real flag there; the placeholder here never reaches it.
+    const paperEval = evaluatePaperEdgeCalibration(quad, paperSize, false);
+    // Which paper gates failed, even where the result below goes on to report
+    // another error first (a photo with no hand reports only that).
+    trace.paper = {
+      ...trace.paper,
+      edgeFitResidualMm: paperEval.geometry?.edgeFitResidualMm ?? null,
+      gateFailures: paperEval.errors.map((error) => error.code),
     };
+    if (!paperEval.geometry) {
+      return {
+        status: "error",
+        errors: paperEval.errors,
+        overlay: { ...overlayBase, landmarksPx: null },
+      };
+    }
+
+    const hand = await detectHandTraced(bitmap, trace);
+    if (!hand) {
+      return {
+        status: "error",
+        errors: [
+          {
+            code: "HAND_NOT_DETECTED",
+            message:
+              "We couldn't find a hand in this photo — lay your hand flat on the sheet, fingers together, and retake.",
+            detail: { kind: "handNotDetected", on: "paper" },
+          },
+        ],
+        overlay: { ...overlayBase, landmarksPx: null },
+      };
+    }
+
+    const laplacianVariance =
+      trace.laplacianVariance ?? computeLaplacianVariance(gray, width, height);
+    trace.laplacianVariance = laplacianVariance;
+
+    const finish = await finishPaperEdge({
+      quad,
+      paperEval,
+      paperSize,
+      hand,
+      request: input,
+      laplacianVariance,
+      decoded: { width: fullWidth, height: fullHeight },
+      crop,
+      readJpegBytes: async () => new Uint8Array(await input.file.arrayBuffer()),
+    });
+    trace.parallaxCorrected = finish.parallaxCorrected;
+    trace.focal = finish.focal;
+    trace.shadowPrior = finish.shadowPrior;
+    return finish.result;
+  } finally {
+    if (bitmap !== decoded.bitmap) bitmap.close();
   }
-
-  const laplacianVariance =
-    trace.laplacianVariance ?? computeLaplacianVariance(gray, width, height);
-  trace.laplacianVariance = laplacianVariance;
-
-  const finish = await finishPaperEdge({
-    quad,
-    paperEval,
-    paperSize,
-    hand,
-    request: input,
-    laplacianVariance,
-    decoded: { width: fullWidth, height: fullHeight },
-    crop,
-    readJpegBytes: async () => new Uint8Array(await input.file.arrayBuffer()),
-  });
-  trace.parallaxCorrected = finish.parallaxCorrected;
-  trace.focal = finish.focal;
-  trace.shadowPrior = finish.shadowPrior;
-  return finish.result;
 }
 
 async function runUserLengthPipeline(
