@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { UNKNOWN_IP_KEY } from "../../src/server/analysis/ip";
 import {
   HEALTH_DB_TIMEOUT_MS,
   HEALTH_RATE_LIMIT_MAX,
@@ -237,11 +238,17 @@ describe("abuse protection", () => {
     expect(checkDb).toHaveBeenCalledTimes(1);
   });
 
-  it("does not limit a request with no usable client IP (local development)", async () => {
-    const createLimiter = vi.fn(() => ({ allow: () => false }));
+  it("limits a request with no usable client IP on the shared unknown bucket", async () => {
+    const seen: string[] = [];
+    const createLimiter = vi.fn(() => ({
+      allow: (key: string) => {
+        seen.push(key);
+        return false;
+      },
+    }));
     const res = await handleHealth(request(), deps({ createLimiter }));
-    expect(res.status).toBe(200);
-    expect(createLimiter).not.toHaveBeenCalled();
+    expect(res.status).toBe(429);
+    expect(seen).toEqual([UNKNOWN_IP_KEY]);
   });
 
   it("fails open when the limiter throws, because it lives in the database being checked", async () => {

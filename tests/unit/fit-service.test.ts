@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { UNKNOWN_IP_KEY } from "../../src/server/analysis/ip";
 import { fitResponseSchema } from "../../src/lib/contracts/fit";
 import { computeFitForScan } from "../../src/server/fit/service";
 import {
@@ -280,7 +281,8 @@ describe("POST /api/scans/{scanId}/fit — per-IP rate limit (M2 hardening)", ()
     expect(saveFitResultsCalls).toHaveLength(0);
   });
 
-  it("does not limit when the request carries no usable client IP (local dev)", async () => {
+  it("limits a request with no usable client IP on the shared unknown bucket", async () => {
+    const seen: string[] = [];
     const scanRepo = createFakeScanRepo(vi.fn(async () => sampleOwnedScan));
     const { repo: fitRepo } = createFakeFitRepo();
 
@@ -288,10 +290,16 @@ describe("POST /api/scans/{scanId}/fit — per-IP rate limit (M2 hardening)", ()
       scanRepo,
       fitRepo,
       getUserId: async () => null,
-      limiter: { allow: () => false },
+      limiter: {
+        allow: (key) => {
+          seen.push(key);
+          return false;
+        },
+      },
     });
 
-    expect(res.status).toBe(200);
+    expect(seen).toEqual([UNKNOWN_IP_KEY]);
+    expect(res.status).toBe(429);
   });
 
   it("keys the limiter on the caller's IP (x-vercel-forwarded-for)", async () => {
