@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
+import { UPSTREAM_TIMEOUT_MS } from "@/server/analytics/proxy";
 import {
   MAX_ENVELOPE_BYTES,
   envelopeDsn,
@@ -151,6 +152,27 @@ describe("proxyEnvelope", () => {
     );
     expect(streamed.status).toBe(413);
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("passes a deadline signal and is a 504 when Sentry does not answer in time", async () => {
+    expect(UPSTREAM_TIMEOUT_MS).toBe(8000);
+    const seen: (AbortSignal | null | undefined)[] = [];
+    const hanging = vi.fn<typeof fetch>(
+      (_url, init) =>
+        new Promise<Response>((_, reject) => {
+          seen.push(init?.signal);
+          init?.signal?.addEventListener("abort", () =>
+            reject(init.signal!.reason),
+          );
+        }),
+    );
+    const res = await proxyEnvelope(post(envelope()), {
+      dsn: DSN,
+      fetchImpl: hanging,
+      timeoutMs: 20,
+    });
+    expect(res.status).toBe(504);
+    expect(seen[0]).toBeInstanceOf(AbortSignal);
   });
 
   it("is a 502 when Sentry cannot be reached", async () => {
