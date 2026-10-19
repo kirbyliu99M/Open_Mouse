@@ -10,12 +10,13 @@ import type { AnalysisSource } from "../../lib/contracts/analysis";
 import type { Locale } from "../../lib/contracts/locale";
 import type { ExclusionReason } from "../fit/exclusions";
 import { LOG_ROUTES, log } from "../log";
-import type { TextModel } from "./client";
+import type { TextModel, TextModelArgs } from "./client";
 import type { AnalysisInput, AnalysisInputEntry } from "./input";
 import { analysisOutputSchema, type AnalysisOutput } from "./schema";
 import { collectNumbers, findUnknownNumeral, stringTokens } from "./numerals";
 import { findMedicalClaimTerm } from "./medicalClaims";
 import { mentionsProvisional } from "./provisional";
+import { ANALYSIS_MODEL_TIMEOUT_MS } from "./model-config";
 import { NEGATIVE_REASON_CODES, POSITIVE_REASON_CODES } from "./reasonText";
 
 /** `analyse()`'s result: the prose plus who actually wrote it. */
@@ -38,6 +39,39 @@ export interface AnalyseOptions {
    * calls the model at all. Omit it to never gate a call.
    */
   beforeModelCall?: () => boolean | Promise<boolean>;
+  /**
+   * The deadline for all model calls of this request together, in
+   * milliseconds (default `ANALYSIS_MODEL_TIMEOUT_MS`). When it passes, the
+   * call in flight is abandoned and the deterministic fallback is served.
+   */
+  modelTimeoutMs?: number;
+}
+
+/**
+ * Runs one model call against the request's deadline. The signal goes to the
+ * client (so the SDK drops the connection), and the race makes the deadline
+ * hold even for a client that ignores it.
+ */
+function generateBeforeDeadline(
+  client: TextModel,
+  args: Omit<TextModelArgs, "signal">,
+  signal: AbortSignal,
+): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const onAbort = () => reject(new Error("model call timed out"));
+    if (signal.aborted) return onAbort();
+    signal.addEventListener("abort", onAbort, { once: true });
+    client.generate({ ...args, signal }).then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
 }
 
 /** Plain words for each exclusion, close to what the results page says
@@ -463,8 +497,16 @@ export async function analyse(
   const exemptTokens = collectExemptTokens(input);
   const basePrompt = buildPrompt(input);
   let prompt = basePrompt;
+  // One deadline for the whole request: a retry does not get a fresh 20 s.
+  const deadline = AbortSignal.timeout(
+    options.modelTimeoutMs ?? ANALYSIS_MODEL_TIMEOUT_MS,
+  );
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    // The deadline passed while the first answer was being checked: no retry.
+    if (deadline.aborted) {
+      return { output: buildFallbackOutput(input), source: "fallback" };
+    }
     if (options.beforeModelCall) {
       // M2: charge THIS attempt against the shared budget before making the
       // call it gates. A `false` here (budget exhausted, whether before the
@@ -482,11 +524,15 @@ export async function analyse(
     let raw: string;
     const callStartedAt = Date.now();
     try {
-      raw = await client.generate({
-        prompt,
-        schema: ANALYSIS_RESPONSE_SCHEMA,
-        maxOutputTokens: MAX_OUTPUT_TOKENS,
-      });
+      raw = await generateBeforeDeadline(
+        client,
+        {
+          prompt,
+          schema: ANALYSIS_RESPONSE_SCHEMA,
+          maxOutputTokens: MAX_OUTPUT_TOKENS,
+        },
+        deadline,
+      );
     } catch (error) {
       // The call itself failed — an API error, a timeout, the network. The
       // retry loop below exists for a response that came back unusable; a
@@ -496,8 +542,9 @@ export async function analyse(
       // Log the status only. The SDK puts the whole API response body in
       // `error.message`, and a response that echoes the request could carry
       // hand measurements into logs that outlive the 24-hour promise.
-      const status =
-        typeof error === "object" && error !== null && "status" in error
+      const status = deadline.aborted
+        ? "timeout"
+        : typeof error === "object" && error !== null && "status" in error
           ? String((error as { status: unknown }).status)
           : "none";
       log.error("analysis.model_call_failed", {
