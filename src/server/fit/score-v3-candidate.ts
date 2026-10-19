@@ -141,6 +141,11 @@ export function gripStateV3(
 
   const baseTargets = baseTargetsV3(measurements, prefs.palmThickness);
 
+  // Design choice (documented, not a bug): a reference the person gave no
+  // grips for is judged only in `used`, the grip this hand is predicted (or
+  // stated) to use, and the offset it yields is then applied to the targets of
+  // all three grips alike. It does not say which grip the person holds that
+  // mouse in, and the prediction is the best guess there is.
   const references = prefs.references ?? [];
   const result =
     references.length > 0

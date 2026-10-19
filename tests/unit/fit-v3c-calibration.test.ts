@@ -8,6 +8,7 @@
 import { describe, expect, it } from "vitest";
 import {
   fitCalibrationSchema,
+  fitPreferencesSchema,
   type FitReference,
   type GripStyle,
 } from "../../src/lib/contracts/fit";
@@ -18,8 +19,10 @@ import {
   posteriorShift,
 } from "../../src/server/fit/calibration-v3-candidate";
 import { SIGMA_MM } from "../../src/server/fit/coefficients";
+import { scoreFitV3 } from "../../src/server/fit/score-v3-candidate";
+import { shellKey } from "../../src/server/fit/shell-groups";
 import type { FitTargets } from "../../src/server/fit/targets";
-import { mouseRow } from "./fit-v2c-fixtures";
+import { hand, mouseRow, seedCatalogue, seedPriors } from "./fit-v2c-fixtures";
 
 const TARGET: FitTargets = { lengthMm: 120, gripWidthMm: 64, heightMm: 38 };
 const BASE: Record<GripStyle, FitTargets> = {
@@ -491,5 +494,223 @@ describe("calibrateV3", () => {
     const b = calibrateV3(refs, [onTarget], BASE, "palm");
     expect(a).toEqual(b);
     expect(JSON.stringify([refs, [onTarget], BASE])).toBe(frozen);
+  });
+});
+
+describe("review round 2026-10-20: who calibrates", () => {
+  it("a reference the model does not apply to is ignored like an unlisted one", () => {
+    // Height over length 0.62 > the vertical ratio: no length/width meaning.
+    const tall = mouseRow({
+      slug: "acme-tall",
+      model: "Tall",
+      lengthMm: 100,
+      heightMm: 62,
+    });
+    const clean = calibrateV3(
+      [ref("acme-on-target", { length: 1 })],
+      [onTarget, tall],
+      BASE,
+      "claw",
+    );
+    const noisy = calibrateV3(
+      [
+        ref("acme-on-target", { length: 1 }),
+        ref("acme-tall", { length: -1, width: -1, height: -1 }),
+      ],
+      [onTarget, tall],
+      BASE,
+      "claw",
+    );
+    expect(noisy).toEqual(clean);
+    expect(noisy.calibration.referencesUsed).toBe(1);
+    expect(noisy.calibration.dims.length.answers).toBe(1);
+  });
+
+  it("only a tall reference: nothing moves, nothing is used", () => {
+    const tall = mouseRow({ slug: "acme-tall", lengthMm: 100, heightMm: 62 });
+    const out = calibrateV3(
+      [ref("acme-tall", { length: 1, width: 1, height: 1 })],
+      [tall],
+      BASE,
+      "claw",
+    );
+    expect(out.calibration.referencesUsed).toBe(0);
+    expect(out.shiftsMm).toEqual({ length: 0, gripWidth: 0, height: 0 });
+    for (const d of Object.values(out.calibration.dims)) {
+      expect(d).toEqual({ shiftMm: 0, answers: 0, conflict: false });
+    }
+  });
+
+  it("vertical and trackball devices do not calibrate either", () => {
+    const vertical = mouseRow({
+      slug: "acme-vert",
+      model: "Vert",
+      formFactor: "vertical",
+    });
+    const ball = mouseRow({
+      slug: "acme-ball",
+      model: "Ball",
+      formFactor: "trackball",
+    });
+    const out = calibrateV3(
+      [ref("acme-vert", { length: 1 }), ref("acme-ball", { length: 1 })],
+      [vertical, ball],
+      BASE,
+      "claw",
+    );
+    expect(out.calibration.referencesUsed).toBe(0);
+    expect(out.shiftsMm.length).toBe(0);
+  });
+});
+
+describe("review round 2026-10-20: an empty target list", () => {
+  it("an answer with no targets gives shift 0, not NaN", () => {
+    const out = posteriorShift(
+      [{ feel: 1, xMm: 130, targetsMm: [] }],
+      SIGMA_MM.length,
+    );
+    expect(out.shiftMm).toBe(0);
+    expect(Number.isNaN(out.fit)).toBe(false);
+    expect(out).toEqual({ shiftMm: 0, answers: 0, conflict: false, fit: 1 });
+  });
+
+  it("it is left out, the other answers still calibrate", () => {
+    const real = { feel: 1 as const, xMm: 130, targetsMm: [120] };
+    const alone = posteriorShift([real], SIGMA_MM.length);
+    const mixed = posteriorShift(
+      [{ feel: -1, xMm: 100, targetsMm: [] }, real],
+      SIGMA_MM.length,
+    );
+    expect(mixed).toEqual(alone);
+    expect(Number.isNaN(mixed.shiftMm)).toBe(false);
+  });
+});
+
+describe("review round 2026-10-20: models of one shell are one voice", () => {
+  // Same brand, dimensions, descriptors and model family: one shell.
+  const wired = mouseRow({ slug: "acme-m1", model: "M1", lengthMm: 130 });
+  const wireless = mouseRow({
+    slug: "acme-m1-wireless",
+    model: "M1 Wireless",
+    lengthMm: 130,
+    weightG: 70,
+  });
+  const other = mouseRow({ slug: "acme-other", model: "Other", lengthMm: 112 });
+
+  it("the fixture really is one shell", () => {
+    expect(shellKey(wired)).toBe(shellKey(wireless));
+    expect(shellKey(wired)).not.toBe(shellKey(other));
+  });
+
+  it("the same answer on two models of a shell counts once", () => {
+    const one = calibrateV3(
+      [ref("acme-m1", { length: 1 })],
+      [wired, wireless],
+      BASE,
+      "claw",
+    );
+    const two = calibrateV3(
+      [ref("acme-m1", { length: 1 }), ref("acme-m1-wireless", { length: 1 })],
+      [wired, wireless],
+      BASE,
+      "claw",
+    );
+    expect(two.shiftsMm).toEqual(one.shiftsMm);
+    expect(two.calibration.dims).toEqual(one.calibration.dims);
+    expect(two.calibration.dims.length.answers).toBe(1);
+    // Both references took part (as one shell answer).
+    expect(two.calibration.referencesUsed).toBe(2);
+  });
+
+  it("two different shells of the same size are two voices and pull further", () => {
+    const single = calibrateV3(
+      [ref("acme-m1", { length: 1 })],
+      [wired, wireless],
+      BASE,
+      "claw",
+    );
+    const twin = mouseRow({ slug: "acme-twin", model: "Twin", lengthMm: 130 });
+    const doubled = calibrateV3(
+      [ref("acme-m1", { length: 1 }), ref("acme-twin", { length: 1 })],
+      [wired, twin],
+      BASE,
+      "claw",
+    );
+    expect(doubled.shiftsMm.length).toBeLessThan(single.shiftsMm.length);
+    expect(doubled.calibration.dims.length.answers).toBe(2);
+  });
+
+  it("different answers on one shell are a conflict in that dimension", () => {
+    const out = calibrateV3(
+      [
+        ref("acme-m1", { length: 1, width: 0 }),
+        ref("acme-m1-wireless", { length: 0, width: 0 }),
+      ],
+      [wired, wireless],
+      BASE,
+      "claw",
+    );
+    expect(out.calibration.dims.length.conflict).toBe(true);
+    expect(out.shiftsMm.length).toBe(0);
+    // The agreeing width answer is one voice and still calibrates.
+    expect(out.calibration.dims.gripWidth.conflict).toBe(false);
+    expect(out.calibration.dims.gripWidth.answers).toBe(1);
+    expect(fitCalibrationSchema.safeParse(out.calibration).success).toBe(true);
+  });
+
+  it("the grips of merged answers are pooled; reference order does not matter", () => {
+    const a = calibrateV3(
+      [
+        ref("acme-m1", { length: 1 }, { grips: ["palm"] }),
+        ref("acme-m1-wireless", { length: 1 }, { grips: ["claw"] }),
+      ],
+      [wired, wireless],
+      BASE,
+      "fingertip",
+    );
+    const b = calibrateV3(
+      [
+        ref("acme-m1-wireless", { length: 1 }, { grips: ["claw"] }),
+        ref("acme-m1", { length: 1 }, { grips: ["palm"] }),
+      ],
+      [wired, wireless],
+      BASE,
+      "fingertip",
+    );
+    expect(a).toEqual(b);
+    expect(a.calibration.dims.length.answers).toBe(1);
+  });
+
+  it("models of different shells still count separately", () => {
+    const out = calibrateV3(
+      [ref("acme-m1", { length: 1 }), ref("acme-other", { length: 1 })],
+      [wired, other],
+      BASE,
+      "claw",
+    );
+    expect(out.calibration.dims.length.answers).toBe(2);
+  });
+});
+
+describe("review round 2026-10-20: a dimension left out reads as null", () => {
+  it("omitting a feel and sending null calibrate identically, end to end", () => {
+    const base = { slug: "logitech-g903-hero", grips: [] };
+    const omitted = fitPreferencesSchema.parse({
+      includeVertical: false,
+      references: [{ ...base, feel: { length: 1 } }],
+    });
+    const explicit = fitPreferencesSchema.parse({
+      includeVertical: false,
+      references: [{ ...base, feel: { length: 1, width: null, height: null } }],
+    });
+    expect(omitted).toEqual(explicit);
+    const m = hand(190, 65.7);
+    const run = (prefs: typeof omitted) =>
+      scoreFitV3(m, seedCatalogue, prefs, "right", seedPriors);
+    const a = run(omitted);
+    expect(a).toEqual(run(explicit));
+    expect(a.calibration?.referencesUsed).toBe(1);
+    expect(a.calibration?.dims.gripWidth.answers).toBe(0);
+    expect(a.calibration?.dims.height.answers).toBe(0);
   });
 });

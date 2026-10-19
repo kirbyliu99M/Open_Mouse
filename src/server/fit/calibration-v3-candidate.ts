@@ -1,4 +1,5 @@
 import {
+  GRIP_STYLES,
   type FitCalibration,
   type FitFeel,
   type FitReference,
@@ -14,6 +15,8 @@ import {
   CALIBRATION_PRIOR_SCALE,
   SIGMA_MM,
 } from "./coefficients";
+import { totalApplies } from "./exclusions";
+import { shellKey } from "./shell-groups";
 import { scoreGripWidthV1 } from "./subscores-v1";
 import type { FitTargets } from "./targets";
 import type { CatalogueMouse } from "./types";
@@ -38,6 +41,12 @@ import type { CatalogueMouse } from "./types";
  * likelihood over the grid divided by the product of each reference's own
  * maximum; with two or more answers and a fit below 0.3 the answers cannot
  * all hold, and the dimension is frozen at a shift of 0.
+ *
+ * Two rules decide whose answer counts (review round of 2026-10-20):
+ * a model the length/width model does not apply to (`totalApplies`: vertical,
+ * trackball, height over length above the vertical ratio) never calibrates,
+ * and the models of one shell (`shellKey`) are one voice per dimension; see
+ * `calibrateV3`.
  *
  * Ported from the browser workbench (v2-debate-2026-10-17/artifact-build),
  * which verified the maths; here it is strictly typed and tested. Candidate
@@ -113,9 +122,14 @@ export interface ShiftPosterior {
  * `bandMm` is the dimension's band (it sets the prior and the likelihood).
  */
 export function posteriorShift(
-  answers: readonly CalibrationAnswer[],
+  allAnswers: readonly CalibrationAnswer[],
   bandMm: number,
+  /** The caller already knows the answers contradict (see `calibrateV3`): freeze at 0 whatever the fit. */
+  forcedConflict = false,
 ): ShiftPosterior {
+  // An answer with no target to be judged against has no likelihood (its
+  // average would divide by zero); it says nothing, so it is left out.
+  const answers = allAnswers.filter((a) => a.targetsMm.length > 0);
   if (answers.length === 0) {
     return { shiftMm: 0, answers: 0, conflict: false, fit: 1 };
   }
@@ -138,8 +152,9 @@ export function posteriorShift(
   const jointMax = Math.max(...joint);
   const fit = productOfMaxima > 0 ? jointMax / productOfMaxima : 1;
   const conflict =
-    answers.length >= CALIBRATION_CONFLICT_MIN_ANSWERS &&
-    fit < CALIBRATION_CONFLICT_FIT_BELOW;
+    forcedConflict ||
+    (answers.length >= CALIBRATION_CONFLICT_MIN_ANSWERS &&
+      fit < CALIBRATION_CONFLICT_FIT_BELOW);
   if (conflict) return { shiftMm: 0, answers: answers.length, conflict, fit };
 
   let z = 0;
@@ -217,10 +232,21 @@ export interface CalibrationResult {
  * `used` is the grip a reference without grips is judged in.
  *
  * A reference takes part in a dimension when its slug is in `catalogue` and
- * listed, it is not `specialUse`, and it answered that dimension; ergonomic
- * mice never take part in height. A slug that is unknown or unlisted is
- * ignored. `referencesUsed` counts the references that took part in at least
- * one dimension. Pure: reads its arguments only.
+ * listed, it is not `specialUse`, the length/width model applies to its mouse
+ * (`totalApplies`: a vertical device, a trackball or a mouse above the
+ * vertical height ratio is ignored like an unlisted one), and it answered
+ * that dimension; ergonomic mice never take part in height. A slug that is
+ * unknown or unlisted is ignored.
+ *
+ * Models of the same shell (`shellKey`, the SHELL-1 grouping) are one voice
+ * per dimension, since they feel the same in the hand: the same feel from
+ * several of them counts once (judged in the union of their grips), and
+ * different feels from one shell contradict each other, so the dimension is
+ * reported as a conflict and frozen at 0, like any other conflict.
+ *
+ * `referencesUsed` counts the references that took part in at least one
+ * dimension (a reference merged into its shell's answer still took part).
+ * Pure: reads its arguments only.
  */
 export function calibrateV3(
   references: readonly FitReference[],
@@ -254,25 +280,51 @@ export function calibrateV3(
         reference: FitReference;
         index: number;
         mouse: CatalogueMouse;
-      } => r.mouse !== undefined && !r.reference.specialUse,
+      } =>
+        r.mouse !== undefined &&
+        !r.reference.specialUse &&
+        totalApplies(r.mouse),
     );
 
   const dims = {} as Record<CalibrationDim, ShiftPosterior>;
   for (const dim of CALIBRATION_DIMS) {
-    const answers: CalibrationAnswer[] = [];
+    // One entry per (shell, feel): the grips are the union over the
+    // references that gave that feel for a model of the shell.
+    const byShell = new Map<
+      string,
+      Map<Feel, { xMm: number; grips: Set<GripStyle> }>
+    >();
     for (const { reference, index, mouse } of eligible) {
       const feel = feelOf(reference, dim);
       if (feel === null || !takesPart(reference, mouse, dim)) continue;
       const grips: readonly GripStyle[] =
         reference.grips.length > 0 ? reference.grips : [used];
-      answers.push({
-        feel,
+      const key = shellKey(mouse);
+      const feels = byShell.get(key) ?? new Map();
+      const entry = feels.get(feel) ?? {
         xMm: sizeMm(mouse, dim),
-        targetsMm: grips.map((g) => baseTargetsByGrip[g][targetKey[dim]]),
-      });
+        grips: new Set<GripStyle>(),
+      };
+      for (const g of grips) entry.grips.add(g);
+      feels.set(feel, entry);
+      byShell.set(key, feels);
       participated.add(index);
     }
-    dims[dim] = posteriorShift(answers, BAND_MM[dim]);
+    const answers: CalibrationAnswer[] = [];
+    let shellConflict = false;
+    for (const feels of byShell.values()) {
+      if (feels.size > 1) shellConflict = true;
+      for (const [feel, { xMm, grips }] of feels) {
+        answers.push({
+          feel,
+          xMm,
+          targetsMm: GRIP_STYLES.filter((g) => grips.has(g)).map(
+            (g) => baseTargetsByGrip[g][targetKey[dim]],
+          ),
+        });
+      }
+    }
+    dims[dim] = posteriorShift(answers, BAND_MM[dim], shellConflict);
   }
 
   const dimBlock = (d: ShiftPosterior) => ({

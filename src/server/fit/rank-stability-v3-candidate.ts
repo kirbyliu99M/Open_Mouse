@@ -34,6 +34,18 @@ import type { CatalogueMouse } from "./types";
  *
  * The resampling, the card projection and the pairing check are v2's own
  * helpers (exported from rank-stability-candidate.ts).
+ *
+ * Design choice, and why its number does not mean what v2's does: the
+ * calibration offsets are re-derived inside every resample, from the same
+ * answers about the same mice, against the nearby hand's targets. The
+ * personal offsets therefore partly absorb the resampled measurement error
+ * (a hand drawn 3 mm longer gets an offset that pulls back toward what the
+ * person's own mice said), so v3's share tends to come out higher, that is
+ * more optimistic, than v2's for the same movement of the hand. The number
+ * reads "how stable is the ranking given what the person told us", not "how
+ * stable is it against the measurement alone". Holding the offsets fixed at
+ * the unresampled values would be the more conservative alternative; it is
+ * not what is built.
  */
 export interface RankStabilityV3Input {
   measurements: HandMeasurements;
