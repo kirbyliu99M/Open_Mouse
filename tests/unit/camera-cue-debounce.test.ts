@@ -178,7 +178,7 @@ describe("advanceCueDebounce: paper-gate cues need the same reason twice in a ro
     ).toEqual(["hold-still", "hold-still", "edge-covered-left"]);
   });
 
-  it("the same reason with another side name starts the count again", () => {
+  it("confirms by REASON: two samples of a covered edge with different sides put up the plain text, not a side", () => {
     expect(
       shown([
         "hold-still",
@@ -186,10 +186,27 @@ describe("advanceCueDebounce: paper-gate cues need the same reason twice in a ro
         "edge-covered-right",
         "edge-covered-right",
       ]),
-    ).toEqual(["hold-still", "hold-still", "hold-still", "edge-covered-right"]);
+    ).toEqual([
+      "hold-still",
+      "hold-still",
+      "edge-covered",
+      "edge-covered", // the one 'right' after it is not yet a second in a row
+    ]);
   });
 
-  it("the plain 'an edge' cue and a named side are different reasons", () => {
+  it("a side that then holds still is named after two more samples", () => {
+    expect(
+      shown([
+        "hold-still",
+        "edge-covered-left",
+        "edge-covered-right",
+        "edge-covered-right",
+        "edge-covered-right",
+      ]).at(-1),
+    ).toBe("edge-covered-right");
+  });
+
+  it("the plain 'an edge' sample and a named side count as the same reason; the plain text wins", () => {
     expect(
       shown([
         "hold-still",
@@ -197,7 +214,18 @@ describe("advanceCueDebounce: paper-gate cues need the same reason twice in a ro
         "edge-covered-top",
         "edge-covered-top",
       ]),
-    ).toEqual(["hold-still", "hold-still", "hold-still", "edge-covered-top"]);
+    ).toEqual(["hold-still", "hold-still", "edge-covered", "edge-covered"]);
+  });
+
+  it("a covered edge and a curled paper are different reasons: each starts its own count", () => {
+    expect(
+      shown([
+        "hold-still",
+        "edge-covered-left",
+        "paper-curled",
+        "paper-curled",
+      ]),
+    ).toEqual(["hold-still", "hold-still", "hold-still", "paper-curled"]);
   });
 
   it("a different cue in between breaks the run", () => {
@@ -218,24 +246,68 @@ describe("advanceCueDebounce: paper-gate cues need the same reason twice in a ro
     ]);
   });
 
-  it("an interleaved sample of the cue already on screen also breaks the run", () => {
-    // right, shown(left), right: the two 'right' are not consecutive.
+  it("a side that flips while one side is on screen settles on the plain text", () => {
     const base = feed(["edge-covered-left", "edge-covered-left"])[1];
     expect(base.shown).toBe("edge-covered-left");
-    const states = feed(
-      ["edge-covered-right", "edge-covered-left", "edge-covered-right"],
-      base,
-    );
-    expect(states.map((s) => s.shown)).toEqual([
+    let state = base;
+    const shownAfter: (CueCode | null)[] = [];
+    (
+      ["edge-covered-right", "edge-covered-left", "edge-covered-right"] as const
+    ).forEach((code, i) => {
+      state = advanceCueDebounce(state, code, 20_000 + i * SLOW);
+      shownAfter.push(state.shown);
+    });
+    expect(shownAfter).toEqual([
       "edge-covered-left",
-      "edge-covered-left",
-      "edge-covered-left",
+      "edge-covered",
+      "edge-covered",
     ]);
-    // One more 'right' now IS the second in a row (the count restarted at the
-    // 'right' after the interleaved 'left').
-    expect(
-      advanceCueDebounce(states[2], "edge-covered-right", 50_000).shown,
-    ).toBe("edge-covered-right");
+  });
+
+  describe("an alternating gate never leaves the screen on 'perfect' while the shutter is blocked", () => {
+    const alternating = (a: CueCode, b: CueCode, n: number): CueCode[] =>
+      Array.from({ length: n }, (_, i) => (i % 2 === 0 ? a : b));
+
+    it("left / bottom x8, from perfect: gone within 2 samples (1 s apart)", () => {
+      const perfect = feed(["perfect"])[0];
+      const states = feed(
+        alternating("edge-covered-left", "edge-covered-bottom", 8),
+        perfect,
+      );
+      expect(states[1].shown).toBe("edge-covered");
+      for (const s of states.slice(1)) expect(s.shown).not.toBe("perfect");
+    });
+
+    it("left / plain x6, from perfect: gone within 2 samples (1 s apart)", () => {
+      const perfect = feed(["perfect"])[0];
+      const states = feed(
+        alternating("edge-covered-left", "edge-covered", 6),
+        perfect,
+      );
+      expect(states[1].shown).toBe("edge-covered");
+      for (const s of states.slice(1)) expect(s.shown).not.toBe("perfect");
+    });
+
+    it("at the live 8 samples a second it is off 'perfect' as soon as the 500 ms lockout allows", () => {
+      for (const pair of [
+        ["edge-covered-left", "edge-covered-bottom"],
+        ["edge-covered-left", "edge-covered"],
+      ] as const) {
+        let state = advanceCueDebounce(
+          INITIAL_CUE_DEBOUNCE_STATE,
+          "perfect",
+          1000,
+        );
+        let leftAt: number | null = null;
+        for (let i = 0; i < 8; i++) {
+          const now = 1000 + (i + 1) * STEP;
+          state = advanceCueDebounce(state, pair[i % 2], now);
+          if (leftAt === null && state.shown !== "perfect") leftAt = now;
+        }
+        expect(leftAt).toBe(1500);
+        expect(state.shown).toBe("edge-covered");
+      }
+    });
   });
 
   it("leaving 'perfect' for a paper-gate cue takes both rules: two samples, the same one", () => {

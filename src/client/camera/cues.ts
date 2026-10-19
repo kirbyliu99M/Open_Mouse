@@ -84,6 +84,14 @@ export const PAPER_GATE_CUE_CODES: readonly CueCode[] = [
   "paper-curled",
 ];
 
+/** The REASON behind a paper-gate cue code (the side name is not part of it), `null` for any other cue. */
+export type PaperGateReason = "edge-covered" | "paper-curled";
+
+export function paperGateReason(code: CueCode): PaperGateReason | null {
+  if (code === "paper-curled") return "paper-curled";
+  return PAPER_GATE_CUE_CODES.includes(code) ? "edge-covered" : null;
+}
+
 const EDGE_COVERED_BY_SIDE: Record<PaperSide, CueCode> = {
   top: "edge-covered-top",
   bottom: "edge-covered-bottom",
@@ -238,17 +246,19 @@ export function pickCue(
   if (sizeStatus === "too-far") return cue("too-far", mode, locale);
   if (sizeStatus === "too-close") return cue("too-close", mode, locale);
 
-  // The same gate the photo is judged by: a covered edge or a paper that is
-  // not flat would be refused after the shutter, so the shutter must not fire.
-  const gateCode = cueCodeForPaperGate(input.paperGate);
-  if (gateCode) return cue(gateCode, mode, locale);
-
   const light: LightStatus = computeLightStatus(
     input.meanLuma,
     input.clippedFraction,
   );
   if (light === "dark") return cue("dark", mode, locale);
   if (light === "bright") return cue("bright", mode, locale);
+
+  // The same gate the photo is judged by: a covered edge or a paper that is
+  // not flat would be refused after the shutter, so the shutter must not fire.
+  // After the light cues: poor light can itself cause the edge failure, so it
+  // is fixed first.
+  const gateCode = cueCodeForPaperGate(input.paperGate);
+  if (gateCode) return cue(gateCode, mode, locale);
 
   // Shake and focus are different problems with different fixes: holding
   // still cannot bring a soft picture into focus, so they are told apart.

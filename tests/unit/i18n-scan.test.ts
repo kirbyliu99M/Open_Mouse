@@ -246,23 +246,23 @@ describe("cues in zh-TW", () => {
     for (const side of sides) {
       const code = `edge-covered-${side}` as const;
       expect(cueMessage(code, "paper-edge", "zh-TW")).toBe(
-        `紙的${zhSide[side]}邊被擋住了，請把手往內移一點`,
+        `紙的${zhSide[side]}緣被擋住，手往內移`,
       );
       expect(cueMessage(code, "paper-edge", "en")).toBe(
-        `The ${enSide[side]} edge of the paper is covered. Move your hand in a little.`,
+        `The ${enSide[side]} edge is covered. Move your hand in.`,
       );
     }
     expect(cueMessage("edge-covered", "paper-edge", "zh-TW")).toBe(
-      "紙的邊緣被擋住了，請把手往內移一點",
+      "紙邊被擋住，手往內移",
     );
     expect(cueMessage("edge-covered", "paper-edge", "en")).toBe(
-      "An edge of the paper is covered. Move your hand in a little.",
+      "An edge is covered. Move your hand in.",
     );
     expect(cueMessage("paper-curled", "paper-edge", "zh-TW")).toBe(
-      "紙張不平，請壓平再拍",
+      "請把紙壓平",
     );
     expect(cueMessage("paper-curled", "paper-edge", "en")).toBe(
-      "The paper isn't flat. Smooth it down, then try again.",
+      "Smooth the paper down.",
     );
   });
   it("the paper-gate cues exist in both tables with the same keys", () => {
@@ -270,6 +270,34 @@ describe("cues in zh-TW", () => {
     expect(keys(cuesZh.paper)).toEqual(keys(cuesEn.paper));
     expect(Object.keys(cuesZh.sheet).sort()).toEqual(keys(cuesEn.paper));
     expect(Object.keys(cuesEn.sheet).sort()).toEqual(keys(cuesEn.paper));
+  });
+  it("the paper-gate cues stay short: zh-TW at most 14 characters, English at most 48", () => {
+    const gateCodes: CueCode[] = [
+      "edge-covered",
+      "edge-covered-top",
+      "edge-covered-bottom",
+      "edge-covered-left",
+      "edge-covered-right",
+      "paper-curled",
+    ];
+    for (const code of gateCodes) {
+      expect(
+        cueMessage(code, "paper-edge", "zh-TW").length,
+        code,
+      ).toBeLessThanOrEqual(14);
+      expect(
+        cueMessage(code, "paper-edge", "en").length,
+        code,
+      ).toBeLessThanOrEqual(48);
+    }
+  });
+  it("every English cue line fits 48 characters, for the paper and for the printed sheet", () => {
+    for (const code of CODES)
+      for (const mode of ["paper-edge", "printed-sheet"] as const)
+        expect(
+          cueMessage(code, mode, "en").length,
+          `${code}/${mode}`,
+        ).toBeLessThanOrEqual(48);
   });
   it("pickCue and cueFromCode carry the locale", () => {
     const cue = pickCue({ ...GOOD, cornersSeen: 0 }, "paper-edge", "zh-TW");
