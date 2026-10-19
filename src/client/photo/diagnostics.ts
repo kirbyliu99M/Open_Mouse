@@ -8,6 +8,7 @@
  */
 import { computeQuadSkew } from "../camera/quad";
 import type { FrameSize, PixelRect } from "../camera/visibleView";
+import type { HandFlatness } from "./handFlatness";
 
 export interface PaperDiagnostics {
   /** Corners whose two sides were both fitted, 0-4. */
@@ -58,6 +59,15 @@ export interface HandDiagnostics {
   readonly detected: boolean | null;
   readonly confidence: number | null;
   readonly handedness: "left" | "right" | null;
+  /**
+   * SHADOW MODE (2026-10-19, 未拍板 candidate): how flat the four fingers look
+   * (`assessHandFlatness`), a grade and two ratios of distances in the same
+   * picture. Worked out from the landmarks the one detection already returned;
+   * no gate, measurement or submission reads it. `null` when no hand was
+   * detected. Stays on the device (the attempt log); only the grade leaves, as
+   * the `handPose` bucket of the scan events.
+   */
+  readonly flatness: HandFlatness | null;
 }
 
 /** What the person saw, and how it was carried over to the photo (visibleView.ts). */

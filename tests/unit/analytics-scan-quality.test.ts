@@ -3,7 +3,10 @@ import {
   CAPTURE_METHODS,
   EDGE_FIT_BUCKETS,
   FOCAL_SOURCES,
+  HAND_POSE_BUCKETS,
+  LIVE_WAIT_BUCKETS,
   PAPER_ASPECT_BUCKETS,
+  PAPER_COVERAGE_BUCKETS,
   PAPER_SKEW_BUCKETS,
   PRIOR_EFFECT_BUCKETS,
   RESOLUTION_BUCKETS,
@@ -13,10 +16,16 @@ import {
 import {
   buildScanQuality,
   edgeFitBucket,
+  handPoseBucket,
+  liveWaitBucket,
   paperAspectBucket,
+  paperCoverageBucket,
   paperSkewBucket,
   priorEffectBucket,
+  rejectedHandPose,
+  rejectedPaperCoverage,
   rejectedPaperSkew,
+  rejectedShadowProps,
   resolutionBucket,
   sharpnessBucket,
 } from "../../src/client/analytics/scanQuality";
@@ -45,7 +54,16 @@ function diag(over: Partial<PipelineDiagnostics> = {}): PipelineDiagnostics {
       gateFailures: [],
     },
     laplacianVariance: 150,
-    hand: { detected: true, confidence: 0.9, handedness: "right" },
+    hand: {
+      detected: true,
+      confidence: 0.9,
+      handedness: "right",
+      flatness: {
+        pose: "flat_like",
+        reachMean: 0.745,
+        fingerStraightMin: 0.999,
+      },
+    },
     parallaxCorrected: true,
     measured: { handLengthMm: 180, palmWidthMm: 85 },
     focal: { source: "exif", px: 2900 },
@@ -257,6 +275,183 @@ describe("priorEffectBucket (shadow hand length minus the shown one, mm)", () =>
   );
 });
 
+describe("paperCoverageBucket (the sheet's least-seen side)", () => {
+  it.each([
+    [0, "under_0_6"],
+    [0.4, "under_0_6"],
+    [0.5999, "under_0_6"],
+    [0.6, "from_0_6_to_0_8"],
+    [0.7999, "from_0_6_to_0_8"],
+    [0.8, "from_0_8"],
+    [1, "from_0_8"],
+  ] as const)("%s -> %s", (v, bucket) => {
+    expect(paperCoverageBucket(v)).toBe(bucket);
+  });
+  it.each([Number.NaN, -0.01, 1.01, Infinity, -Infinity, null, undefined])(
+    "%s -> null",
+    (v) => {
+      expect(paperCoverageBucket(v)).toBeNull();
+    },
+  );
+  it("uses every step of the contract's list", () => {
+    expect(
+      new Set([0, 0.7, 0.9].map((v) => paperCoverageBucket(v) as string)),
+    ).toEqual(new Set(PAPER_COVERAGE_BUCKETS));
+  });
+});
+
+describe("handPoseBucket (only the grade is passed on)", () => {
+  it.each(["flat_like", "borderline", "extreme", "unknown"] as const)(
+    "%s",
+    (pose) => {
+      const hand = {
+        ...diag().hand,
+        flatness: { pose, reachMean: null, fingerStraightMin: null },
+      };
+      expect(handPoseBucket(hand)).toBe(pose);
+      expect(HAND_POSE_BUCKETS).toContain(pose);
+    },
+  );
+  it("is null without a hand or a reading", () => {
+    expect(handPoseBucket(null)).toBeNull();
+    expect(handPoseBucket(undefined)).toBeNull();
+    expect(handPoseBucket({ ...diag().hand, flatness: null })).toBeNull();
+  });
+});
+
+describe("liveWaitBucket (milliseconds to four steps and unknown)", () => {
+  it.each([
+    [0, "under_3_s"],
+    [2999, "under_3_s"],
+    [3000, "from_3_to_10_s"],
+    [9999, "from_3_to_10_s"],
+    [10000, "from_10_to_30_s"],
+    [29999, "from_10_to_30_s"],
+    [30000, "from_30_s"],
+    [600000, "from_30_s"],
+  ] as const)("%s ms -> %s", (v, bucket) => {
+    expect(liveWaitBucket(v)).toBe(bucket);
+  });
+  it.each([Number.NaN, -1, Infinity, -Infinity, null, undefined])(
+    "%s -> unknown",
+    (v) => {
+      expect(liveWaitBucket(v)).toBe("unknown");
+    },
+  );
+  it("only returns the contract's steps", () => {
+    for (const v of [0, 3000, 10000, 30000, null]) {
+      expect(LIVE_WAIT_BUCKETS).toContain(liveWaitBucket(v));
+    }
+  });
+  it("passes the contract's scan_capture_attempted schema", () => {
+    expect(() =>
+      analyticsEventSchemas.scan_capture_attempted.parse({
+        flow: "easy",
+        method: "canvas",
+        attempt: 1,
+        liveWait: liveWaitBucket(4200),
+      }),
+    ).not.toThrow();
+  });
+});
+
+describe("the shadow buckets of a refused scan", () => {
+  it("coverage needs the four corners, the pose needs a read hand", () => {
+    expect(rejectedPaperCoverage(diag())).toBe("from_0_8");
+    expect(rejectedHandPose(diag())).toBe("flat_like");
+    const noCorners = diag({
+      paper: {
+        ...diag().paper!,
+        widthFraction: null,
+        heightFraction: null,
+        edgeFitResidualMm: null,
+        maxAngleDeviationDeg: null,
+        observedAspect: null,
+        minSideCoverage: 0.3,
+      },
+      hand: {
+        detected: false,
+        confidence: null,
+        handedness: null,
+        flatness: null,
+      },
+    });
+    expect(rejectedPaperCoverage(noCorners)).toBeUndefined();
+    expect(rejectedHandPose(noCorners)).toBeUndefined();
+    expect(rejectedShadowProps(noCorners)).toEqual({});
+    expect(rejectedShadowProps(null)).toEqual({});
+    expect(rejectedShadowProps(undefined)).toEqual({});
+  });
+  it("rejectedShadowProps carries the three grades and passes the schema", () => {
+    const props = rejectedShadowProps(diag());
+    expect(props).toEqual({
+      paperSkew: "under_3",
+      paperCoverage: "from_0_8",
+      handPose: "flat_like",
+    });
+    expect(() =>
+      analyticsEventSchemas.scan_rejected.parse({
+        flow: "easy",
+        attempt: 1,
+        codes: ["PAPER_CURLED"],
+        ...props,
+      }),
+    ).not.toThrow();
+  });
+  it("no number or raw ratio rides along", () => {
+    const out = rejectedShadowProps(
+      diag({
+        hand: {
+          detected: true,
+          confidence: 0.9234,
+          handedness: "left",
+          flatness: {
+            pose: "extreme",
+            reachMean: 0.48123,
+            fingerStraightMin: 0.94321,
+          },
+        },
+      }),
+    );
+    expect(Object.values(out).every((v) => typeof v === "string")).toBe(true);
+    const text = JSON.stringify(out);
+    for (const needle of ["0.481", "0.943", "0.9234"]) {
+      expect(text).not.toContain(needle);
+    }
+  });
+});
+
+describe("buildScanQuality carries the shadow grades", () => {
+  const base = {
+    flow: "easy",
+    attempt: 1,
+    method: "canvas",
+  } as const;
+  it("adds paperCoverage and handPose", () => {
+    const out = buildScanQuality({ ...base, diagnostics: diag() });
+    expect(out?.paperCoverage).toBe("from_0_8");
+    expect(out?.handPose).toBe("flat_like");
+  });
+  it("leaves them out, and keeps the event, where they cannot be worked out", () => {
+    const out = buildScanQuality({
+      ...base,
+      diagnostics: diag({
+        paper: { ...diag().paper!, minSideCoverage: Number.NaN },
+        hand: {
+          detected: true,
+          confidence: 0.9,
+          handedness: "left",
+          flatness: null,
+        },
+      }),
+    });
+    expect(out).not.toBeNull();
+    expect(out).not.toHaveProperty("paperCoverage");
+    expect(out).not.toHaveProperty("handPose");
+    expect(() => analyticsEventSchemas.scan_quality.parse(out)).not.toThrow();
+  });
+});
+
 describe("rejectedPaperSkew (a refused scan's skew bucket)", () => {
   it("is the bucket when the four corners were found", () => {
     expect(rejectedPaperSkew(diag())).toBe("under_3");
@@ -305,6 +500,8 @@ describe("buildScanQuality", () => {
       paperSkew: "under_3",
       paperAspect: "under_2_pct",
       priorEffect: "within_2",
+      paperCoverage: "from_0_8",
+      handPose: "flat_like",
     });
   });
 
@@ -467,12 +664,9 @@ describe("buildScanQuality", () => {
 });
 
 describe("privacy: the output is the contract's shape and nothing more", () => {
-  // The 2026-10-19 shadow buckets are optional in the contract and are not
-  // sent yet; the client PR that fills them (scan S3) drops this exclusion.
-  const NOT_YET_SENT = new Set(["paperCoverage", "handPose"]);
-  const CONTRACT_KEYS = Object.keys(analyticsEventSchemas.scan_quality.shape)
-    .filter((k) => !NOT_YET_SENT.has(k))
-    .sort();
+  const CONTRACT_KEYS = Object.keys(
+    analyticsEventSchemas.scan_quality.shape,
+  ).sort();
   const ENUM_VALUES = new Set<string>([
     "easy",
     "sheet",
@@ -484,6 +678,8 @@ describe("privacy: the output is the contract's shape and nothing more", () => {
     ...PAPER_SKEW_BUCKETS,
     ...PAPER_ASPECT_BUCKETS,
     ...PRIOR_EFFECT_BUCKETS,
+    ...PAPER_COVERAGE_BUCKETS,
+    ...HAND_POSE_BUCKETS,
   ]);
 
   // Distinctive raw values that must never appear in what is sent.
@@ -504,6 +700,16 @@ describe("privacy: the output is the contract's shape and nothing more", () => {
     },
     measured: { handLengthMm: 183.7, palmWidthMm: 86.2 },
     shadowPrior: { handLengthDeltaMm: -5.837 },
+    hand: {
+      detected: true,
+      confidence: 0.9234,
+      handedness: "left",
+      flatness: {
+        pose: "borderline",
+        reachMean: 0.55123,
+        fingerStraightMin: 0.97654,
+      },
+    },
   });
 
   const outputs = [
@@ -568,6 +774,9 @@ describe("privacy: the output is the contract's shape and nothing more", () => {
         "0.6627",
         "0.663",
         "0.063",
+        "0.551",
+        "0.976",
+        "0.9234",
       ]) {
         expect(text).not.toContain(needle);
       }

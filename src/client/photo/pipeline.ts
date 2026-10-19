@@ -28,6 +28,7 @@ import {
 } from "./markers";
 import { detectCardCorners } from "./card";
 import { detectHandLandmarks } from "./landmarks";
+import { assessHandFlatness } from "./handFlatness";
 import { rgbaToGrayscale, computeLaplacianVariance } from "./sharpness";
 import {
   runPhotoGates,
@@ -217,7 +218,12 @@ function newTrace(): PipelineTrace {
     view: null,
     paper: null,
     laplacianVariance: null,
-    hand: { detected: null, confidence: null, handedness: null },
+    hand: {
+      detected: null,
+      confidence: null,
+      handedness: null,
+      flatness: null,
+    },
     parallaxCorrected: null,
     focal: null,
     shadowPrior: null,
@@ -237,8 +243,16 @@ async function detectHandTraced(
           detected: true,
           confidence: hand.confidence,
           handedness: hand.handedness,
+          // Shadow mode: read off the landmarks this one detection returned.
+          // It cannot throw, and nothing below reads it.
+          flatness: assessHandFlatness(hand.landmarksPx),
         }
-      : { detected: false, confidence: null, handedness: null };
+      : {
+          detected: false,
+          confidence: null,
+          handedness: null,
+          flatness: null,
+        };
     return hand;
   } finally {
     trace.handMs = performance.now() - startedAt;

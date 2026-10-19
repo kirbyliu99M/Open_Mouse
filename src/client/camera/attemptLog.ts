@@ -21,6 +21,8 @@
  * browsing, a blocked or full store) works the same, it just remembers nothing
  * between reloads.
  */
+import { HAND_POSE_BUCKETS } from "@/lib/contracts/analytics";
+import type { HandPoseGrade } from "../photo/handFlatness";
 import type { PipelineResult } from "../photo/pipeline";
 import { ATTEMPT_LOG_KEY, type StorageLike } from "./easyScanPreferences";
 import { aspectOfSize, compareFov } from "./previewConstraints";
@@ -44,6 +46,8 @@ export type AttemptMethod = "takePhoto" | "canvas" | "upload";
  * ("takePhoto", off by default), or a file the person chose ("upload").
  */
 export type AttemptCaptureSource = "frame" | "takePhoto" | "upload";
+
+const HAND_POSES: readonly string[] = HAND_POSE_BUCKETS;
 
 export interface AttemptError {
   readonly code: string;
@@ -103,7 +107,25 @@ export interface AttemptRecord {
     readonly detected: boolean | null;
     readonly confidence: number | null;
     readonly handedness: "left" | "right" | null;
+    /**
+     * SHADOW MODE (2026-10-19, 未拍板 candidate): how flat the four fingers
+     * looked (`assessHandFlatness`), as a grade; `null` in a record from before
+     * it was kept or where no hand was detected. Nothing acted on it.
+     */
+    readonly handPose: HandPoseGrade | null;
+    /** Mean finger reach over the palm length, to 0.001; `null` as `handPose` is, or when it is `unknown`. A ratio of distances, never a size. */
+    readonly reachMean: number | null;
+    /** The least straight finger's straightness (knuckle-to-tip over its joint chain), to 0.001; `null` as `reachMean` is. */
+    readonly fingerStraightMin: number | null;
   };
+  /**
+   * How long the live preview had the sheet in view before this photo was
+   * taken, in ms: from the first live sample that found the sheet's four
+   * corners to the shutter. `null` for an upload, a typed hand length (the
+   * loop looks for no sheet) or a sheet never found live, and in a record from
+   * before it was kept. A long wait means the preview was stuck on a gate.
+   */
+  readonly liveWaitMs: number | null;
   /**
    * What the person saw and how it was carried over to the photo
    * (visibleView.ts): the stream's size, the part of it that was on screen, the
@@ -239,6 +261,7 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
   const focal = asObject(raw.focal);
   const shadowPrior = asObject(raw.shadowPrior);
   const handedness = hand?.handedness;
+  const handPose = hand?.handPose;
   const method = raw.method;
 
   return {
@@ -299,7 +322,15 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
       confidence: cleanNumber(hand?.confidence, 3),
       handedness:
         handedness === "left" || handedness === "right" ? handedness : null,
+      // Records stored before shadow mode have none: null, not an error.
+      handPose:
+        typeof handPose === "string" && HAND_POSES.includes(handPose)
+          ? (handPose as HandPoseGrade)
+          : null,
+      reachMean: cleanNumber(hand?.reachMean, 3),
+      fingerStraightMin: cleanNumber(hand?.fingerStraightMin, 3),
     },
+    liveWaitMs: cleanNumber(raw.liveWaitMs, 0),
     view: view
       ? {
           stream: {
@@ -495,6 +526,8 @@ export interface AttemptCapture {
   readonly photoKb: number | null;
   /** The preview settle wait ran out (see `AttemptRecord.settleTimedOut`); `null`/absent for an upload. */
   readonly settleTimedOut?: boolean | null;
+  /** From the live preview first finding the sheet to the shutter, in ms (see `AttemptRecord.liveWaitMs`); `null`/absent when it never did. */
+  readonly liveWaitMs?: number | null;
   /** The live preview's frame at the moment of capture; `null` for an upload. */
   readonly previewWidth: number | null;
   readonly previewHeight: number | null;
@@ -581,11 +614,27 @@ export function buildAttemptRecord(input: {
     warnings,
     paper: diagnostics?.paper ?? null,
     sharpness: diagnostics?.laplacianVariance ?? null,
-    hand: diagnostics?.hand ?? {
-      detected: null,
-      confidence: null,
-      handedness: null,
-    },
+    // The flatness is flattened into the three summary fields; the sanitizer
+    // below keeps nothing but those (no landmark, no depth, no millimetre).
+    hand: diagnostics?.hand
+      ? {
+          detected: diagnostics.hand.detected,
+          confidence: diagnostics.hand.confidence,
+          handedness: diagnostics.hand.handedness,
+          handPose: diagnostics.hand.flatness?.pose ?? null,
+          reachMean: diagnostics.hand.flatness?.reachMean ?? null,
+          fingerStraightMin:
+            diagnostics.hand.flatness?.fingerStraightMin ?? null,
+        }
+      : {
+          detected: null,
+          confidence: null,
+          handedness: null,
+          handPose: null,
+          reachMean: null,
+          fingerStraightMin: null,
+        },
+    liveWaitMs: capture.liveWaitMs ?? null,
     view:
       diagnostics?.view ??
       (capture.frame
@@ -635,7 +684,15 @@ export function buildAttemptRecord(input: {
       warnings: [],
       paper: null,
       sharpness: null,
-      hand: { detected: null, confidence: null, handedness: null },
+      hand: {
+        detected: null,
+        confidence: null,
+        handedness: null,
+        handPose: null,
+        reachMean: null,
+        fingerStraightMin: null,
+      },
+      liveWaitMs: null,
       view: null,
       analysed: { width: null, height: null, crop: null },
       parallaxCorrected: null,
@@ -678,6 +735,16 @@ export function describeAttempt(record: AttemptRecord): string {
       `paper ${pct(record.paper.widthFraction)}×${pct(record.paper.heightFraction)}`,
       `resid ${record.paper.edgeFitResidualMm ?? "?"} mm`,
     );
+  if (record.hand.handPose !== null)
+    parts.push(
+      `pose ${record.hand.handPose}${
+        record.hand.reachMean !== null
+          ? ` (reach ${record.hand.reachMean})`
+          : ""
+      }`,
+    );
+  if (record.liveWaitMs !== null)
+    parts.push(`live ${(record.liveWaitMs / 1000).toFixed(1)} s`);
   if (record.preview.fovMismatch) parts.push("FOV mismatch");
   if (record.view && record.view.modelApplies === false)
     parts.push("view model n/a");

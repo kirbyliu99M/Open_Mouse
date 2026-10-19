@@ -210,7 +210,11 @@ import { scanAnswersCopy } from "../../lib/copy/scan-answers";
 import { HandIcon, CheckIcon, HelpCircleIcon } from "./icons";
 import { track } from "../analytics/track";
 import { clampAttempt, issueCodes } from "../analytics/props";
-import { buildScanQuality, rejectedPaperSkew } from "../analytics/scanQuality";
+import {
+  buildScanQuality,
+  liveWaitBucket,
+  rejectedShadowProps,
+} from "../analytics/scanQuality";
 import { detectDeviceFit, type DeviceFit } from "./deviceFit";
 import { DeviceEntry } from "./DeviceEntry";
 import {
@@ -665,6 +669,10 @@ export default function EasyScanCamera({
   // This page's analysis count, for analytics only (1-based once incremented).
   const attemptCountRef = useRef(0);
   const captureInfoRef = useRef<CaptureInfo | null>(null);
+  // When the live loop first found the sheet's four corners (performance.now()),
+  // for the `liveWait` shadow bucket and the attempt log's `liveWaitMs`; `null`
+  // until it does, and again whenever the loop starts over (resetLoopState).
+  const firstSheetSeenAtRef = useRef<number | null>(null);
   const runIdRef = useRef(0);
   const mountedRef = useRef(false);
   const requestIdRef = useRef(0);
@@ -931,6 +939,7 @@ export default function EasyScanCamera({
     cornerStatesRef.current = INITIAL_CORNER_STATES;
     cueDebounceRef.current = INITIAL_CUE_DEBOUNCE_STATE;
     lastCueCodeRef.current = null;
+    firstSheetSeenAtRef.current = null;
     setCornerStates(INITIAL_CORNER_STATES);
     setRingFraction(0);
     setCue(null);
@@ -1127,6 +1136,7 @@ export default function EasyScanCamera({
           captureSource: info?.captureSource ?? null,
           frame: info?.frame,
           settleTimedOut: info?.settleTimedOut ?? null,
+          liveWaitMs: info?.liveWaitMs ?? null,
           photoWidth: size?.width ?? info?.photoWidth ?? null,
           photoHeight: size?.height ?? info?.photoHeight ?? null,
           photoKb: info?.photoKb ?? null,
@@ -1167,6 +1177,7 @@ export default function EasyScanCamera({
         flow: "easy",
         method: captureInfoRef.current?.method ?? "upload",
         attempt,
+        liveWait: liveWaitBucket(captureInfoRef.current?.liveWaitMs),
       });
       setResult({ kind: "processing", previewUrl });
       // Answers belong to the photo they followed.
@@ -1244,14 +1255,15 @@ export default function EasyScanCamera({
             imageHeight: pipelineResult.overlay.imageHeight,
           });
         } else if (pipelineResult.status === "error") {
-          // How straight on the shot was, only where the sheet's four corners
-          // were found (shadow mode, candidate).
-          const paperSkew = rejectedPaperSkew(pipelineResult.diagnostics);
+          // How straight on the shot was and how much of the sheet's worst
+          // side was seen (only where its four corners were found), and how
+          // flat the fingers look (only where a hand was read): grades only
+          // (shadow mode, candidate).
           track("scan_rejected", {
             flow: "easy",
             attempt,
             codes: issueCodes(pipelineResult.errors.map((e) => e.code)),
-            ...(paperSkew ? { paperSkew } : {}),
+            ...rejectedShadowProps(pipelineResult.diagnostics),
           });
           setHandChip((prev) =>
             applyDetectedHandedness(prev, pipelineResult.overlay.handedness),
@@ -1483,6 +1495,10 @@ export default function EasyScanCamera({
       captureInfoRef.current = {
         method,
         captureSource: source,
+        liveWaitMs:
+          firstSheetSeenAtRef.current !== null
+            ? firedAt - firstSheetSeenAtRef.current
+            : null,
         frame:
           source === "frame" && streamSize && region
             ? { stream: streamSize, visibleInStream: region.visible }
@@ -1806,6 +1822,8 @@ export default function EasyScanCamera({
         laplacianVariance >=
         CAMERA_CONSTANTS.steadiness.minLiveLaplacianVariance;
 
+      if (sampleQuad && firstSheetSeenAtRef.current === null)
+        firstSheetSeenAtRef.current = now;
       if (detection.cornersSeen > 0) lastDetectionAtRef.current = now;
       const msSinceLastDetection =
         detection.cornersSeen > 0 ? 0 : now - lastDetectionAtRef.current;
