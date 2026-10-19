@@ -1,5 +1,5 @@
 import { fitPreferencesSchema } from "../../lib/contracts/fit";
-import { resolveClientIp } from "../analysis/ip";
+import { UNKNOWN_IP_KEY, resolveClientIp } from "../analysis/ip";
 import { BodyTooLargeError, readLimitedBody } from "../scans/body-limit";
 import { readSessionCookie } from "../scans/cookies";
 import type { RateLimiter } from "../scans/rate-limit-config";
@@ -86,13 +86,15 @@ export async function computeFitForScan(
     });
   }
 
-  // Per-IP rate limit (M2 hardening). A request with no usable IP is not
-  // exempt: `resolveClientIp` returns the shared `UNKNOWN_IP_KEY`, so every
-  // such request counts against one bucket (see `../analysis/ip.ts`).
-  const limiter = deps.limiter ?? ALWAYS_ALLOW_LIMITER;
-  const allowed = await limiter.allow(resolveClientIp(request.headers));
-  if (!allowed) {
-    return json(429, { error: "Too many fit requests. Try again shortly." });
+  // Per-IP rate limit (M2 hardening). No usable IP (local dev) is never
+  // limited — same carve-out as the scan-submission route.
+  const clientIp = resolveClientIp(request.headers);
+  if (clientIp !== UNKNOWN_IP_KEY) {
+    const limiter = deps.limiter ?? ALWAYS_ALLOW_LIMITER;
+    const allowed = await limiter.allow(clientIp);
+    if (!allowed) {
+      return json(429, { error: "Too many fit requests. Try again shortly." });
+    }
   }
 
   const userId = await deps.getUserId();

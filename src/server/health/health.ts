@@ -34,7 +34,7 @@
  *  - A request with no usable client IP (local development) is not limited,
  *    the same carve-out as `POST /api/scans`.
  */
-import { resolveClientIp } from "../analysis/ip";
+import { resolveClientIp, UNKNOWN_IP_KEY } from "../analysis/ip";
 import { LOG_ROUTES, log } from "../log";
 
 export const HEALTH_DB_TIMEOUT_MS = 2000;
@@ -124,8 +124,7 @@ export async function handleHealth(
   const limiterTimeoutMs = deps.limiterTimeoutMs ?? HEALTH_LIMITER_TIMEOUT_MS;
 
   const clientIp = resolveClientIp(request.headers);
-  // No usable IP is not exempt: it is the shared `UNKNOWN_IP_KEY` bucket.
-  if (deps.createLimiter) {
+  if (deps.createLimiter && clientIp !== UNKNOWN_IP_KEY) {
     try {
       const limiter = deps.createLimiter();
       const allowed = await withTimeout(

@@ -9,7 +9,6 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GripStyle } from "../../src/lib/contracts/fit";
-import { UNKNOWN_IP_KEY } from "../../src/server/analysis/ip";
 import {
   MAX_SIMILAR_MICE,
   similarResponseSchema,
@@ -633,13 +632,12 @@ describe("GET /api/scans/{scanId}/similar", () => {
       expect(loadContributions).not.toHaveBeenCalled();
     });
 
-    it("limits a malformed id too, and a request with no usable IP on the shared unknown bucket", async () => {
+    it("limits a malformed id too, and never limits a request with no usable IP", async () => {
       allow.mockResolvedValue(false);
       expect((await get("nope")).status).toBe(429);
       const scan = addScan();
-      expect((await getOwn(scan, { ip: null })).status).toBe(429);
-      expect(allow).toHaveBeenCalledTimes(2);
-      expect(allow).toHaveBeenLastCalledWith(UNKNOWN_IP_KEY);
+      expect((await getOwn(scan, { ip: null })).status).toBe(200);
+      expect(allow).toHaveBeenCalledTimes(1);
     });
   });
 

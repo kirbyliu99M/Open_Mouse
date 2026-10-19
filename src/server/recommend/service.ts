@@ -1,7 +1,7 @@
 import { fitPreferencesSchema } from "../../lib/contracts/fit";
 import { similarResponseSchema } from "../../lib/contracts/recommend";
 import { scanSubmitResponseSchema } from "../../lib/contracts/routes";
-import { resolveClientIp } from "../analysis/ip";
+import { UNKNOWN_IP_KEY, resolveClientIp } from "../analysis/ip";
 import { DEFAULT_ENGINE } from "../fit/coefficients";
 import { excludeReason } from "../fit/exclusions";
 import { excludeReasonV1 } from "../fit/exclusions-v1";
@@ -104,10 +104,10 @@ export async function handleSimilar(
   deps: SimilarDeps,
 ): Promise<Response> {
   try {
-    // No usable IP is not exempt: `resolveClientIp` returns the shared
-    // `UNKNOWN_IP_KEY`, so those requests count against one bucket.
+    // No usable IP (local dev) is never limited: the carve-out every scan
+    // route makes.
     const clientIp = resolveClientIp(request.headers);
-    if (!(await deps.limiter.allow(clientIp))) {
+    if (clientIp !== UNKNOWN_IP_KEY && !(await deps.limiter.allow(clientIp))) {
       return json(429, { error: "Too many requests. Try again shortly." });
     }
 
