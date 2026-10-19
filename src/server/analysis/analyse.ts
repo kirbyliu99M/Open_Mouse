@@ -103,6 +103,48 @@ function exclusionText(locale: Locale): Record<ExclusionReason, string> {
 
 export const MAX_OUTPUT_TOKENS = 400;
 
+/**
+ * How many excluded mice the prompt names. A left-handed user can have a
+ * hundred of them, which would swell the prompt (cost and latency) for a line
+ * the model uses at most twice. Candidate value (未拍板).
+ */
+export const MAX_EXCLUDED_IN_PROMPT = 12;
+
+/**
+ * The excluded mice the prompt carries: the first `MAX_EXCLUDED_IN_PROMPT`,
+ * in the engine's order. The name whitelist (`collectExemptTokens`) is built
+ * from this same list, so the model may name exactly the mice it was shown.
+ */
+function promptExcluded(input: AnalysisInput): AnalysisInput["excluded"] {
+  return input.excluded.slice(0, MAX_EXCLUDED_IN_PROMPT);
+}
+
+/**
+ * How many mice were left out for each reason, written only when the list
+ * above was cut short (a short list already says everything). Keyed by the
+ * plain words the prompt uses for the reason. These counts are numbers the
+ * model sees, so they are also numbers it may write (`allowedPromptNumbers`).
+ */
+function excludedCounts(
+  input: AnalysisInput,
+  locale: Locale,
+): Record<string, number> | undefined {
+  if (input.excluded.length <= MAX_EXCLUDED_IN_PROMPT) return undefined;
+  const counts: Record<string, number> = {};
+  for (const { reason } of input.excluded) {
+    const key = exclusionText(locale)[reason];
+    counts[key] = (counts[key] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/** Every number the prompt shows: the input's own, plus the exclusion counts. */
+function allowedPromptNumbers(input: AnalysisInput): Set<number> {
+  const out = collectNumbers(input);
+  collectNumbers(excludedCounts(input, input.locale), out);
+  return out;
+}
+
 const MAX_ATTEMPTS = 2;
 
 /** `@google/genai` structured-output schema mirroring `analysisOutputSchema`. */
@@ -140,7 +182,7 @@ function collectExemptTokens(input: AnalysisInput): Set<string> {
     for (const token of stringTokens(entry.model)) out.add(token);
   };
   for (const entry of input.topPicks) addNameTokens(entry);
-  for (const entry of input.excluded) addNameTokens(entry);
+  for (const entry of promptExcluded(input)) addNameTokens(entry);
   return out;
 }
 
@@ -176,11 +218,12 @@ function promptData(input: AnalysisInput, locale: Locale) {
     gripStyle: input.gripStyle,
     targets: input.targets,
     hand: input.hand,
-    excluded: input.excluded.map(({ brand, model, reason }) => ({
+    excluded: promptExcluded(input).map(({ brand, model, reason }) => ({
       brand,
       model,
       reason: exclusionText(locale)[reason],
     })),
+    excludedCounts: excludedCounts(input, locale),
     topPicks: input.topPicks.map((entry) => ({
       rank: entry.rank,
       brand: entry.brand,
@@ -493,7 +536,7 @@ export async function analyse(
     return { output: buildFallbackOutput(input), source: "fallback" };
   }
 
-  const allowedNumbers = collectNumbers(input);
+  const allowedNumbers = allowedPromptNumbers(input);
   const exemptTokens = collectExemptTokens(input);
   const basePrompt = buildPrompt(input);
   let prompt = basePrompt;
