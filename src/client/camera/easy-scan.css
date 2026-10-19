@@ -164,6 +164,15 @@
 .easyDimExtensionHalo {
   stroke-width: 3;
 }
+/* A dot on each measured point (6 CSS px across, set in dimensionLayout.ts):
+   white like the main line, with the same dark halo as a 1.5 px ring so it
+   reads on white paper and on skin. */
+.easyDimDot {
+  fill: #ffffff;
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
 .easyDimLabelBg {
   fill: rgba(0, 0, 0, 0.72);
 }

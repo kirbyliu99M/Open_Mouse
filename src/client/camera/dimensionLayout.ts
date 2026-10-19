@@ -15,6 +15,9 @@ import {
 import { clampInto } from "./photoLayout";
 import type { Point, Rect } from "./quad";
 
+/** The dot on each measured point (a, b), in on-screen CSS pixels across. */
+export const ENDPOINT_DOT_DIAMETER_PX = 6;
+
 export interface DimensionSpec {
   readonly a: Point;
   readonly b: Point;
@@ -27,6 +30,8 @@ export interface DimensionLayout {
   /** One centred label pill per spec. */
   readonly boxes: readonly Box[];
   readonly fontSize: number;
+  /** Radius of the dot on each measured point, in overlay units (6 CSS px across). */
+  readonly dotRadius: number;
 }
 
 /**
@@ -63,7 +68,12 @@ export function layoutDimensions(
     width: specs[i].label.length * fontSize * 0.62 + paddingX * 2,
     height: labelHeight,
   }));
-  return { geometries, boxes: placeLabels(rawBoxes, visible), fontSize };
+  return {
+    geometries,
+    boxes: placeLabels(rawBoxes, visible),
+    fontSize,
+    dotRadius: (ENDPOINT_DOT_DIAMETER_PX / 2) * scale,
+  };
 }
 
 const EPSILON = 1e-6;
