@@ -2,7 +2,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
-  ENDPOINT_DOT_DIAMETER_PX,
+  ENDPOINT_DOT_OUTER_DIAMETER_PX,
+  ENDPOINT_DOT_RING_PX,
   layoutDimensions,
   placeLabels,
   type DimensionSpec,
@@ -244,11 +245,15 @@ describe("placeLabels: inside the photo, and never over each other", () => {
 });
 
 describe("the dots on the measured points", () => {
-  it("are 6 CSS px across, at any scale", () => {
-    expect(ENDPOINT_DOT_DIAMETER_PX).toBe(6);
+  it("are 6 CSS px across OUTSIDE (fill plus ring), at any scale", () => {
+    expect(ENDPOINT_DOT_OUTER_DIAMETER_PX).toBe(6);
+    expect(ENDPOINT_DOT_RING_PX).toBe(1.5);
     for (const scale of [0.5, 1, 2.5]) {
       const { dotRadius } = layoutDimensions(SPECS, scale);
-      expect(dotRadius).toBeCloseTo(3 * scale, 12);
+      // Fill radius 2.25 px; the ring is centred on its edge, 0.75 px each way.
+      expect(dotRadius).toBeCloseTo(2.25 * scale, 12);
+      const outer = 2 * (dotRadius + (ENDPOINT_DOT_RING_PX / 2) * scale);
+      expect(outer).toBeCloseTo(6 * scale, 12);
     }
   });
 });
@@ -363,6 +368,39 @@ describe("FrozenPhoto: dots, the scale on each axis, and the screens without the
     });
     expect(dots(html)).toHaveLength(4);
     expect(html).toContain('viewBox="300 0 3400 3000"');
+  });
+
+  it("with a crop: the labels are kept inside the visible rect, each axis divided by its own ratio", () => {
+    // Overlay 1000x1000 in a still of 1000x1500: ratios 1 and 1.5. The crop is
+    // the still's middle 800x750 (from x 100, y 750), so the visible part of the
+    // overlay is x 100..900, y 500..1000.
+    const stillPx = { width: 1000, height: 1500 };
+    const crop = { x: 100, y: 750, width: 800, height: 750 };
+    const specs: DimensionSpec[] = [
+      { a: { x: 300, y: 100 }, b: { x: 700, y: 100 }, label: "Hand", side: 1 },
+    ];
+    const html = render({
+      phase: "measured",
+      still: stillPx,
+      layout: { box: { x: 0, y: 0, width: 390, height: 365.625 }, crop },
+      overlay: overlay({ imageWidth: 1000, imageHeight: 1000 }),
+      overlayToStill: 1,
+      overlayToStillY: 1.5,
+      layerScale: 1,
+      dimensions: specs,
+    });
+    const label =
+      /<g transform="translate\(([-\d.e]+) ([-\d.e]+)\)"><g class="easyDimLabel"[^>]*><rect x="[^"]+" y="[^"]+" width="([^"]+)" height="([^"]+)"/.exec(
+        html,
+      );
+    expect(label).not.toBeNull();
+    const [cx, cy, w, h] = label!.slice(1).map(Number);
+    // Bounds with Y divided by 1.5 (the right ones): top 500. Dividing Y by the
+    // width ratio would have put the top at 750.
+    expect(cy - h / 2).toBeCloseTo(500, 6);
+    expect(cx - w / 2).toBeGreaterThanOrEqual(100 - 1e-6);
+    expect(cx + w / 2).toBeLessThanOrEqual(900 + 1e-6);
+    expect(cy + h / 2).toBeLessThanOrEqual(1000 + 1e-6);
   });
 
   it("no overlay: nothing is drawn over the photo", () => {

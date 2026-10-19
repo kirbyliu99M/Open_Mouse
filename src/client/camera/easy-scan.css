@@ -164,9 +164,11 @@
 .easyDimExtensionHalo {
   stroke-width: 3;
 }
-/* A dot on each measured point (6 CSS px across, set in dimensionLayout.ts):
-   white like the main line, with the same dark halo as a 1.5 px ring so it
-   reads on white paper and on skin. */
+/* A dot on each measured point. Outer diameter 6 CSS px = a white fill of
+   4.5 px (r 2.25, set in dimensionLayout.ts) plus this 1.5 px ring, which is
+   centred on the fill's edge: so a 3 px pure-white core inside a 0.75 px dark
+   band on each side of the edge. White like the main line, with the same dark
+   halo colour as the ring so it reads on white paper and on skin. */
 .easyDimDot {
   fill: #ffffff;
   stroke: rgba(0, 0, 0, 0.55);
