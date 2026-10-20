@@ -211,7 +211,8 @@ const BLUR_RADIUS_PX = 1;
 /** Skin and most colourful backgrounds exceed this; blank paper doesn't. */
 const MAX_PAPER_SATURATION = 0.22;
 const MIN_PAPER_AREA_FRACTION = 0.1;
-const MIN_QUAD_AREA_FRACTION = 0.08;
+/** The smallest share of the frame a sheet's quad may cover. Also the floor for a frame a person places (`manualQuad.ts`). */
+export const MIN_QUAD_AREA_FRACTION = 0.08;
 /** How far (px) a boundary point may be from the coarse side line and still be assigned to it. */
 const SIDE_ASSIGNMENT_MAX_DISTANCE_FRACTION = 0.05;
 const RANSAC_ITERATIONS = 50;

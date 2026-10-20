@@ -26,10 +26,12 @@ import type { SheetQuadDetection } from "./detect";
 import { checkPaperEdgeGatesOnly, type GateFailure } from "../photo/gates";
 import {
   paperEdgeEvidenceSchema,
+  type PaperCornerSource,
   type PaperEdgeEvidence,
   type PaperSize,
 } from "../../lib/contracts/measurement";
 import type { Homography } from "../geometry/homography";
+import { checkManualQuad, type Quad4 } from "./manualQuad";
 
 export interface PaperEdgeGeometry {
   readonly homography: Homography;
@@ -132,4 +134,63 @@ export function evaluatePaperEdgeCalibration(
     parallaxCorrected,
   });
   return { ok: true, errors: [], calibration, geometry };
+}
+
+/**
+ * What a placed frame's calibration needs from the pipeline: the four
+ * corners (already labelled by `orientManualQuad`, in the analysed photo's
+ * pixels), where they came from, and the analysed photo's size.
+ */
+export interface ManualPaperCalibrationInput {
+  readonly corners: Quad4;
+  readonly cornersSource: Exclude<PaperCornerSource, "auto">;
+  readonly paperSize: PaperSize;
+  readonly image: { readonly width: number; readonly height: number };
+  readonly parallaxCorrected: boolean;
+}
+
+/** The result shape `finishPaperEdge` reads: a placed frame has a homography but no fitted edge. */
+export interface ManualPaperCalibrationResult {
+  readonly ok: boolean;
+  readonly errors: readonly GateFailure[];
+  readonly calibration: PaperEdgeEvidence | null;
+  readonly geometry: { readonly homography: Homography } | null;
+}
+
+/**
+ * The placed-frame counterpart of `evaluatePaperEdgeCalibration` (V3.2 F2,
+ * candidate). The homography is `buildPaperHomography`, the same as for the
+ * detector's corners. The coverage and curl gates do not apply (there is no
+ * fitted edge to measure), so the calibration leaves `edgeFitResidualMm` and
+ * `minSideCoverage` out rather than claim a check that did not happen; what
+ * is checked instead is `checkManualQuad` (the screen checks it too, before
+ * it lets the frame be used). A frame that fails it is reported as a hidden
+ * corner, the failure that offers the adjustment again.
+ */
+export function evaluateManualPaperCalibration(
+  input: ManualPaperCalibrationInput,
+): ManualPaperCalibrationResult {
+  const check = checkManualQuad(input.corners, input.image);
+  if (!check.ok) {
+    return {
+      ok: false,
+      errors: [
+        {
+          code: "PAPER_CORNER_HIDDEN",
+          message:
+            "The frame you placed can't be used — drag its four corners onto the paper's corners, or retake the photo.",
+        },
+      ],
+      calibration: null,
+      geometry: null,
+    };
+  }
+  const homography = buildPaperHomography(input.corners, input.paperSize);
+  const calibration = paperEdgeEvidenceSchema.parse({
+    method: "paper-edge",
+    paperSize: input.paperSize,
+    cornersSource: input.cornersSource,
+    parallaxCorrected: input.parallaxCorrected,
+  });
+  return { ok: true, errors: [], calibration, geometry: { homography } };
 }
