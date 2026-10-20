@@ -1,9 +1,13 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   CAPTURE_METHODS,
   EDGE_FIT_BUCKETS,
   FOCAL_SOURCES,
+  HAND_POSE_BUCKETS,
+  LIVE_WAIT_BUCKETS,
   PAPER_ASPECT_BUCKETS,
+  PAPER_COVERAGE_BUCKETS,
   PAPER_SKEW_BUCKETS,
   PRIOR_EFFECT_BUCKETS,
   RESOLUTION_BUCKETS,
@@ -12,11 +16,18 @@ import {
 } from "../../src/lib/contracts/analytics";
 import {
   buildScanQuality,
+  buildScanRejected,
   edgeFitBucket,
+  handPoseBucket,
+  liveWaitBucket,
   paperAspectBucket,
+  paperCoverageBucket,
   paperSkewBucket,
   priorEffectBucket,
+  rejectedHandPose,
+  rejectedPaperCoverage,
   rejectedPaperSkew,
+  rejectedShadowProps,
   resolutionBucket,
   sharpnessBucket,
 } from "../../src/client/analytics/scanQuality";
@@ -42,10 +53,21 @@ function diag(over: Partial<PipelineDiagnostics> = {}): PipelineDiagnostics {
       maxAngleDeviationDeg: 1.5,
       observedAspect: 0.7066,
       minSideCoverage: 0.9,
+      sideCoverages: [0.9, 1, 1, 0.95],
+      worstSide: "top",
       gateFailures: [],
     },
     laplacianVariance: 150,
-    hand: { detected: true, confidence: 0.9, handedness: "right" },
+    hand: {
+      detected: true,
+      confidence: 0.9,
+      handedness: "right",
+      flatness: {
+        pose: "flat_like",
+        reachMean: 0.745,
+        fingerStraightMin: 0.999,
+      },
+    },
     parallaxCorrected: true,
     measured: { handLengthMm: 180, palmWidthMm: 85 },
     focal: { source: "exif", px: 2900 },
@@ -257,6 +279,185 @@ describe("priorEffectBucket (shadow hand length minus the shown one, mm)", () =>
   );
 });
 
+describe("paperCoverageBucket (the sheet's least-seen side)", () => {
+  it.each([
+    [0, "under_0_6"],
+    [0.4, "under_0_6"],
+    [0.5999, "under_0_6"],
+    [0.6, "from_0_6_to_0_8"],
+    [0.7999, "from_0_6_to_0_8"],
+    [0.8, "from_0_8"],
+    [1, "from_0_8"],
+  ] as const)("%s -> %s", (v, bucket) => {
+    expect(paperCoverageBucket(v)).toBe(bucket);
+  });
+  it.each([Number.NaN, -0.01, 1.01, Infinity, -Infinity, null, undefined])(
+    "%s -> null",
+    (v) => {
+      expect(paperCoverageBucket(v)).toBeNull();
+    },
+  );
+  it("uses every step of the contract's list", () => {
+    expect(
+      new Set([0, 0.7, 0.9].map((v) => paperCoverageBucket(v) as string)),
+    ).toEqual(new Set(PAPER_COVERAGE_BUCKETS));
+  });
+});
+
+describe("handPoseBucket (only the grade is passed on)", () => {
+  it.each(["flat_like", "borderline", "extreme", "unknown"] as const)(
+    "%s",
+    (pose) => {
+      const hand = {
+        ...diag().hand,
+        flatness: { pose, reachMean: null, fingerStraightMin: null },
+      };
+      expect(handPoseBucket(hand)).toBe(pose);
+      expect(HAND_POSE_BUCKETS).toContain(pose);
+    },
+  );
+  it("is null without a hand or a reading", () => {
+    expect(handPoseBucket(null)).toBeNull();
+    expect(handPoseBucket(undefined)).toBeNull();
+    expect(handPoseBucket({ ...diag().hand, flatness: null })).toBeNull();
+  });
+});
+
+describe("liveWaitBucket (milliseconds to four steps and unknown)", () => {
+  it.each([
+    [0, "under_3_s"],
+    [2999, "under_3_s"],
+    [3000, "from_3_to_10_s"],
+    [9999, "from_3_to_10_s"],
+    [10000, "from_10_to_30_s"],
+    [29999, "from_10_to_30_s"],
+    [30000, "from_30_s"],
+    [600000, "from_30_s"],
+  ] as const)("%s ms -> %s", (v, bucket) => {
+    expect(liveWaitBucket(v)).toBe(bucket);
+  });
+  it.each([Number.NaN, -1, Infinity, -Infinity, null, undefined])(
+    "%s -> unknown",
+    (v) => {
+      expect(liveWaitBucket(v)).toBe("unknown");
+    },
+  );
+  it("only returns the contract's steps", () => {
+    for (const v of [0, 3000, 10000, 30000, null]) {
+      expect(LIVE_WAIT_BUCKETS).toContain(liveWaitBucket(v));
+    }
+  });
+  it("passes the contract's scan_capture_attempted schema", () => {
+    expect(() =>
+      analyticsEventSchemas.scan_capture_attempted.parse({
+        flow: "easy",
+        method: "canvas",
+        attempt: 1,
+        liveWait: liveWaitBucket(4200),
+      }),
+    ).not.toThrow();
+  });
+});
+
+describe("the shadow buckets of a refused scan", () => {
+  it("coverage needs the four corners, the pose needs a read hand", () => {
+    expect(rejectedPaperCoverage(diag())).toBe("from_0_8");
+    expect(rejectedHandPose(diag())).toBe("flat_like");
+    const noCorners = diag({
+      paper: {
+        ...diag().paper!,
+        widthFraction: null,
+        heightFraction: null,
+        edgeFitResidualMm: null,
+        maxAngleDeviationDeg: null,
+        observedAspect: null,
+        minSideCoverage: 0.3,
+        sideCoverages: [0.3, 1, 1, 1],
+        worstSide: null,
+      },
+      hand: {
+        detected: false,
+        confidence: null,
+        handedness: null,
+        flatness: null,
+      },
+    });
+    expect(rejectedPaperCoverage(noCorners)).toBeUndefined();
+    expect(rejectedHandPose(noCorners)).toBeUndefined();
+    expect(rejectedShadowProps(noCorners)).toEqual({});
+    expect(rejectedShadowProps(null)).toEqual({});
+    expect(rejectedShadowProps(undefined)).toEqual({});
+  });
+  it("rejectedShadowProps carries the three grades and passes the schema", () => {
+    const props = rejectedShadowProps(diag());
+    expect(props).toEqual({
+      paperSkew: "under_3",
+      paperCoverage: "from_0_8",
+      handPose: "flat_like",
+    });
+    expect(() =>
+      analyticsEventSchemas.scan_rejected.parse({
+        flow: "easy",
+        attempt: 1,
+        codes: ["PAPER_CURLED"],
+        ...props,
+      }),
+    ).not.toThrow();
+  });
+  it("no number or raw ratio rides along", () => {
+    const out = rejectedShadowProps(
+      diag({
+        hand: {
+          detected: true,
+          confidence: 0.9234,
+          handedness: "left",
+          flatness: {
+            pose: "extreme",
+            reachMean: 0.48123,
+            fingerStraightMin: 0.94321,
+          },
+        },
+      }),
+    );
+    expect(Object.values(out).every((v) => typeof v === "string")).toBe(true);
+    const text = JSON.stringify(out);
+    for (const needle of ["0.481", "0.943", "0.9234"]) {
+      expect(text).not.toContain(needle);
+    }
+  });
+});
+
+describe("buildScanQuality carries the shadow grades", () => {
+  const base = {
+    flow: "easy",
+    attempt: 1,
+    method: "canvas",
+  } as const;
+  it("adds paperCoverage and handPose", () => {
+    const out = buildScanQuality({ ...base, diagnostics: diag() });
+    expect(out?.paperCoverage).toBe("from_0_8");
+    expect(out?.handPose).toBe("flat_like");
+  });
+  it("leaves them out, and keeps the event, where they cannot be worked out", () => {
+    const out = buildScanQuality({
+      ...base,
+      diagnostics: diag({
+        paper: { ...diag().paper!, minSideCoverage: Number.NaN },
+        hand: {
+          detected: true,
+          confidence: 0.9,
+          handedness: "left",
+          flatness: null,
+        },
+      }),
+    });
+    expect(out).not.toBeNull();
+    expect(out).not.toHaveProperty("paperCoverage");
+    expect(out).not.toHaveProperty("handPose");
+    expect(() => analyticsEventSchemas.scan_quality.parse(out)).not.toThrow();
+  });
+});
+
 describe("rejectedPaperSkew (a refused scan's skew bucket)", () => {
   it("is the bucket when the four corners were found", () => {
     expect(rejectedPaperSkew(diag())).toBe("under_3");
@@ -305,6 +506,8 @@ describe("buildScanQuality", () => {
       paperSkew: "under_3",
       paperAspect: "under_2_pct",
       priorEffect: "within_2",
+      paperCoverage: "from_0_8",
+      handPose: "flat_like",
     });
   });
 
@@ -443,6 +646,8 @@ describe("buildScanQuality", () => {
             maxAngleDeviationDeg: null,
             observedAspect: null,
             minSideCoverage: 0.5,
+            sideCoverages: null,
+            worstSide: null,
             gateFailures: [],
           },
         },
@@ -467,12 +672,9 @@ describe("buildScanQuality", () => {
 });
 
 describe("privacy: the output is the contract's shape and nothing more", () => {
-  // The 2026-10-19 shadow buckets are optional in the contract and are not
-  // sent yet; the client PR that fills them (scan S3) drops this exclusion.
-  const NOT_YET_SENT = new Set(["paperCoverage", "handPose"]);
-  const CONTRACT_KEYS = Object.keys(analyticsEventSchemas.scan_quality.shape)
-    .filter((k) => !NOT_YET_SENT.has(k))
-    .sort();
+  const CONTRACT_KEYS = Object.keys(
+    analyticsEventSchemas.scan_quality.shape,
+  ).sort();
   const ENUM_VALUES = new Set<string>([
     "easy",
     "sheet",
@@ -484,6 +686,8 @@ describe("privacy: the output is the contract's shape and nothing more", () => {
     ...PAPER_SKEW_BUCKETS,
     ...PAPER_ASPECT_BUCKETS,
     ...PRIOR_EFFECT_BUCKETS,
+    ...PAPER_COVERAGE_BUCKETS,
+    ...HAND_POSE_BUCKETS,
   ]);
 
   // Distinctive raw values that must never appear in what is sent.
@@ -500,10 +704,22 @@ describe("privacy: the output is the contract's shape and nothing more", () => {
       maxAngleDeviationDeg: 7.4321,
       observedAspect: 0.6627,
       minSideCoverage: 0.91,
+      sideCoverages: [0.91, 1, 1, 1],
+      worstSide: "top",
       gateFailures: ["PAPER_CURLED"],
     },
     measured: { handLengthMm: 183.7, palmWidthMm: 86.2 },
     shadowPrior: { handLengthDeltaMm: -5.837 },
+    hand: {
+      detected: true,
+      confidence: 0.9234,
+      handedness: "left",
+      flatness: {
+        pose: "borderline",
+        reachMean: 0.55123,
+        fingerStraightMin: 0.97654,
+      },
+    },
   });
 
   const outputs = [
@@ -568,6 +784,9 @@ describe("privacy: the output is the contract's shape and nothing more", () => {
         "0.6627",
         "0.663",
         "0.063",
+        "0.551",
+        "0.976",
+        "0.9234",
       ]) {
         expect(text).not.toContain(needle);
       }
@@ -579,4 +798,103 @@ describe("privacy: the output is the contract's shape and nothing more", () => {
       expect(() => analyticsEventSchemas.scan_quality.parse(out)).not.toThrow();
     }
   });
+});
+
+describe("buildScanRejected: the whole scan_rejected payload", () => {
+  const errors = [
+    { code: "PAPER_EDGE_HIDDEN" },
+    { code: "PAPER_CURLED" },
+    { code: "PAPER_EDGE_HIDDEN" },
+    { code: "not a code!" },
+  ];
+
+  it.each(["easy", "sheet"] as const)(
+    "%s: the flow, the attempt, the codes and all three shadow grades",
+    (flow) => {
+      const out = buildScanRejected({
+        flow,
+        attempt: 3,
+        errors,
+        diagnostics: diag(),
+      });
+      expect(out).toEqual({
+        flow,
+        attempt: 3,
+        codes: ["PAPER_EDGE_HIDDEN", "PAPER_CURLED"],
+        paperSkew: "under_3",
+        paperCoverage: "from_0_8",
+        handPose: "flat_like",
+      });
+      expect(() =>
+        analyticsEventSchemas.scan_rejected.parse(out),
+      ).not.toThrow();
+    },
+  );
+
+  it("takes the grades from the diagnostics it is given, and leaves out what cannot be worked out", () => {
+    const hidden = buildScanRejected({
+      flow: "easy",
+      attempt: 1,
+      errors,
+      diagnostics: diag({
+        paper: { ...diag().paper!, minSideCoverage: 0.3 },
+        hand: {
+          detected: true,
+          confidence: 0.9,
+          handedness: "left",
+          flatness: { pose: "extreme", reachMean: 0.4, fingerStraightMin: 0.9 },
+        },
+      }),
+    });
+    expect(hidden.paperCoverage).toBe("under_0_6");
+    expect(hidden.handPose).toBe("extreme");
+    const none = buildScanRejected({
+      flow: "easy",
+      attempt: 1,
+      errors,
+      diagnostics: undefined,
+    });
+    expect(none).toEqual({
+      flow: "easy",
+      attempt: 1,
+      codes: ["PAPER_EDGE_HIDDEN", "PAPER_CURLED"],
+    });
+  });
+});
+
+describe("the two call sites send that payload for a refused photo", () => {
+  // The call sites are components that cannot run here, so this reads their
+  // source: each must build its scan_rejected for a pipeline result through
+  // buildScanRejected (which carries the grades), and neither may build one by
+  // hand from the result's errors again, which would drop them.
+  const read = (rel: string) =>
+    readFileSync(new URL(rel, import.meta.url), "utf8");
+  const sites = [
+    [
+      "EasyScanCamera.tsx",
+      "../../src/client/camera/EasyScanCamera.tsx",
+      "easy",
+    ],
+    ["ScanClient.tsx", "../../src/app/scan/ScanClient.tsx", "sheet"],
+  ] as const;
+
+  it.each(sites)("%s builds it with buildScanRejected", (_name, rel, flow) => {
+    const source = read(rel);
+    expect(source).toMatch(
+      new RegExp(
+        `track\\(\\s*"scan_rejected",\\s*buildScanRejected\\(\\{\\s*flow: "${flow}",\\s*attempt,\\s*errors: (pipelineResult|result)\\.errors,\\s*diagnostics: (pipelineResult|result)\\.diagnostics,`,
+      ),
+    );
+  });
+
+  it.each(sites)(
+    "%s has no hand-built payload from a result's errors",
+    (_name, rel) => {
+      const source = read(rel);
+      expect(source).not.toMatch(
+        /codes: issueCodes\(\s*(pipelineResult|result)\.errors/,
+      );
+      expect(source).not.toContain("rejectedShadowProps");
+    },
+  );
 });

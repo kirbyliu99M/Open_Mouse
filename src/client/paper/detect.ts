@@ -160,6 +160,15 @@ export interface SheetQuadDetection {
    * marker adapter) need not state it; absent means unknown.
    */
   readonly minCoverageSideIndex?: 0 | 1 | 2 | 3 | null;
+  /**
+   * The four per-side coverages (0-1) in the side order of `worstSideIndex`
+   * (0=TL-TR, 1=TR-BR, 2=BR-BL, 3=BL-TL), of which `minSideCoverage` is the
+   * smallest. Diagnostic only (scan S3, 2026-10-19): it lets the attempt log
+   * say WHICH edge was hidden, and changes no gate. Absent where the sides
+   * were not measured (no region found, the marker adapter, hand-built
+   * detections in tests).
+   */
+  readonly sideCoverages?: readonly [number, number, number, number];
 }
 
 const NONE: SheetQuadDetection = {
@@ -889,6 +898,12 @@ function detectPaperQuadImpl(
     worstSideIndex,
     paperRegionFound: true,
     minCoverageSideIndex: lowestCoverageSide(sideCoverages),
+    sideCoverages: [
+      sideCoverages[0],
+      sideCoverages[1],
+      sideCoverages[2],
+      sideCoverages[3],
+    ],
   };
 }
 

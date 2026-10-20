@@ -7,7 +7,10 @@
  * sheet that fills 90 % can both read "PAPER_CURLED").
  */
 import { computeQuadSkew } from "../camera/quad";
+import { screenSideOfPaperSide, type PaperSide } from "../camera/paperGate";
+import { lowestCoverageSide } from "../paper/detect";
 import type { FrameSize, PixelRect } from "../camera/visibleView";
+import type { HandFlatness } from "./handFlatness";
 
 export interface PaperDiagnostics {
   /** Corners whose two sides were both fitted, 0-4. */
@@ -46,6 +49,19 @@ export interface PaperDiagnostics {
   /** The smallest fraction of any side that was seen, 0-1. */
   readonly minSideCoverage: number;
   /**
+   * The four per-side coverages, 0-1, in the detector's side order (0 = the
+   * short side from the top-left to the top-right corner, then clockwise);
+   * `null` where the detector did not measure them. Paper geometry only (scan
+   * S3, 2026-10-19): it says which edge the 0.225-0.35 minimum was on.
+   */
+  readonly sideCoverages: readonly [number, number, number, number] | null;
+  /**
+   * The side with the lowest coverage, as the person sees it on the screen;
+   * `null` without four corners, on a tie for the lowest, with every side
+   * fully seen, or where the quad is turned too far for a plain name.
+   */
+  readonly worstSide: PaperSide | null;
+  /**
    * The paper gates that failed, by code. Listed even where the result goes on
    * to report another error first: a photo with no hand reports only that, and
    * this still says whether the sheet would have passed.
@@ -58,6 +74,15 @@ export interface HandDiagnostics {
   readonly detected: boolean | null;
   readonly confidence: number | null;
   readonly handedness: "left" | "right" | null;
+  /**
+   * SHADOW MODE (2026-10-19, 未拍板 candidate): how flat the four fingers look
+   * (`assessHandFlatness`), a grade and two ratios of distances in the same
+   * picture. Worked out from the landmarks the one detection already returned;
+   * no gate, measurement or submission reads it. `null` when no hand was
+   * detected. Stays on the device (the attempt log); only the grade leaves, as
+   * the `handPose` bucket of the scan events.
+   */
+  readonly flatness: HandFlatness | null;
 }
 
 /** What the person saw, and how it was carried over to the photo (visibleView.ts). */
@@ -157,6 +182,22 @@ export function paperMaxAngleDeviationDeg(
     bottomLeft,
   });
   return Number.isFinite(maxAngleDeviationDeg) ? maxAngleDeviationDeg : null;
+}
+
+/**
+ * The on-screen name of the side with the lowest coverage, from the detector's
+ * four corners (TL, TR, BR, BL) and its four per-side coverages; `null` when
+ * either is missing, when two or more sides tie for the lowest, when all are
+ * fully seen, or when the quad is turned too far for a plain name.
+ */
+export function paperWorstSide(
+  corners: readonly [Pt, Pt, Pt, Pt] | null,
+  sideCoverages: readonly number[] | null | undefined,
+): PaperSide | null {
+  if (!corners || !sideCoverages || sideCoverages.length !== 4) return null;
+  const index = lowestCoverageSide(sideCoverages);
+  if (index === null) return null;
+  return screenSideOfPaperSide(corners, index);
 }
 
 /**

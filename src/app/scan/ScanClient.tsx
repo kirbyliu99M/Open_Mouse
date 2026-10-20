@@ -24,10 +24,10 @@ import {
   HandLandmarkerLoadError,
 } from "@/client/photo/landmarks";
 import { track } from "@/client/analytics/track";
-import { clampAttempt, issueCodes } from "@/client/analytics/props";
+import { clampAttempt } from "@/client/analytics/props";
 import {
   buildScanQuality,
-  rejectedPaperSkew,
+  buildScanRejected,
 } from "@/client/analytics/scanQuality";
 import type { AttemptMethod } from "@/client/camera/attemptLog";
 import { detectDeviceFit } from "@/client/camera/deviceFit";
@@ -631,15 +631,19 @@ export default function ScanClient({
           setManualCorners(defaultManualCorners(result.overlay));
           setState({ kind: "needsManualCard", overlay: result.overlay });
         } else {
-          // Only where the sheet's four corners were found (paper-edge mode).
-          const paperSkew = rejectedPaperSkew(result.diagnostics);
+          // The shadow grades, each only where it can be worked out: the sheet's
+          // skew and coverage need its four corners (paper-edge mode), the hand
+          // pose needs a hand that was read.
           reportOutcomeOnce(() =>
-            track("scan_rejected", {
-              flow: "sheet",
-              attempt,
-              codes: issueCodes(result.errors.map((e) => e.code)),
-              ...(paperSkew ? { paperSkew } : {}),
-            }),
+            track(
+              "scan_rejected",
+              buildScanRejected({
+                flow: "sheet",
+                attempt,
+                errors: result.errors,
+                diagnostics: result.diagnostics,
+              }),
+            ),
           );
           setState({
             kind: "error",

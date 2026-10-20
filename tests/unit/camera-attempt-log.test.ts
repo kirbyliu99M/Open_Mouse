@@ -52,10 +52,21 @@ const DIAGNOSTICS: PipelineDiagnostics = {
     maxAngleDeviationDeg: 7.4321,
     observedAspect: 0.662712345,
     minSideCoverage: 0.71234,
+    sideCoverages: [0.2251234, 0.9, 1, 0.71234],
+    worstSide: "top",
     gateFailures: ["PAPER_CURLED"],
   },
   laplacianVariance: 142.3456,
-  hand: { detected: true, confidence: 0.91234, handedness: "left" },
+  hand: {
+    detected: true,
+    confidence: 0.91234,
+    handedness: "left",
+    flatness: {
+      pose: "borderline",
+      reachMean: 0.5512345,
+      fingerStraightMin: 0.9876543,
+    },
+  },
   parallaxCorrected: null,
   measured: { handLengthMm: null, palmWidthMm: null },
   focal: null,
@@ -142,6 +153,8 @@ describe("buildAttemptRecord", () => {
       maxAngleDeviationDeg: 7.4,
       observedAspect: 0.6627,
       minSideCoverage: 0.712,
+      sideCoverages: [0.225, 0.9, 1, 0.712],
+      worstSide: "top",
       gateFailures: ["PAPER_CURLED"],
     });
     expect(r.sharpness).toBe(142.35);
@@ -153,6 +166,9 @@ describe("buildAttemptRecord", () => {
       detected: true,
       confidence: 0.912,
       handedness: "left",
+      handPose: "borderline",
+      reachMean: 0.551,
+      fingerStraightMin: 0.988,
     });
     expect(r.analysed).toEqual({
       width: 1686,
@@ -276,6 +292,282 @@ describe("buildAttemptRecord", () => {
   });
 });
 
+describe("shadow diagnostics (scan S3, 未拍板): hand pose and live wait", () => {
+  const POSES = ["flat_like", "borderline", "extreme", "unknown"] as const;
+
+  it("records the hand pose summary and the live wait for a rejected photo", () => {
+    const r = buildAttemptRecord({
+      at: "2026-10-19T10:00:00.000Z",
+      userAgent: "x",
+      capture: { ...CAPTURE, liveWaitMs: 4321.7 },
+      outcome: { kind: "result", result: ERROR_RESULT },
+    });
+    expect(r.result).toBe("error");
+    expect(r.hand.handPose).toBe("borderline");
+    expect(r.hand.reachMean).toBe(0.551);
+    expect(r.hand.fingerStraightMin).toBe(0.988);
+    expect(r.liveWaitMs).toBe(4322);
+    // The sheet's coverage is the paper block's own, already kept.
+    expect(r.paper?.minSideCoverage).toBe(0.712);
+  });
+
+  it("records them for a measured photo too", () => {
+    const ok = buildAttemptRecord({
+      at: "2026-10-19T10:00:00.000Z",
+      userAgent: "x",
+      capture: { ...CAPTURE, liveWaitMs: 12000 },
+      outcome: {
+        kind: "result",
+        result: {
+          status: "ok",
+          measurements: {} as never,
+          submission: {} as never,
+          warnings: [],
+          overlay: ERROR_RESULT.overlay,
+          diagnostics: {
+            ...DIAGNOSTICS,
+            hand: {
+              detected: true,
+              confidence: 0.9,
+              handedness: "right",
+              flatness: {
+                pose: "flat_like",
+                reachMean: 0.7449,
+                fingerStraightMin: 0.9999,
+              },
+            },
+          },
+        },
+      },
+    });
+    expect(ok.result).toBe("ok");
+    expect(ok.hand.handPose).toBe("flat_like");
+    expect(ok.hand.reachMean).toBe(0.745);
+    expect(ok.hand.fingerStraightMin).toBe(1);
+    expect(ok.liveWaitMs).toBe(12000);
+  });
+
+  it("an upload, a typed length, a thrown pipeline or no diagnostics leaves them null", () => {
+    const upload = buildAttemptRecord({
+      at: "2026-10-19T10:00:00.000Z",
+      userAgent: "x",
+      capture: { ...CAPTURE, method: "upload" },
+      outcome: { kind: "result", result: ERROR_RESULT },
+    });
+    expect(upload.liveWaitMs).toBeNull();
+    const thrown = buildAttemptRecord({
+      at: "2026-10-19T10:00:00.000Z",
+      userAgent: "x",
+      capture: CAPTURE,
+      outcome: { kind: "thrown", code: "PROCESSING_FAILED", message: "" },
+    });
+    expect(thrown.hand).toEqual({
+      detected: null,
+      confidence: null,
+      handedness: null,
+      handPose: null,
+      reachMean: null,
+      fingerStraightMin: null,
+    });
+    const bare = buildAttemptRecord({
+      at: "2026-10-19T10:00:00.000Z",
+      userAgent: "x",
+      capture: CAPTURE,
+      outcome: {
+        kind: "result",
+        result: { ...ERROR_RESULT, diagnostics: undefined },
+      },
+    });
+    expect(bare.hand.handPose).toBeNull();
+    expect(bare.hand.reachMean).toBeNull();
+  });
+
+  it.each(POSES)("keeps the grade %s", (pose) => {
+    const r = record({
+      hand: { detected: true, handPose: pose, reachMean: 0.7 },
+    });
+    expect(r.hand.handPose).toBe(pose);
+  });
+
+  it("an unknown grade, a non-number or a non-finite number is null, not trusted", () => {
+    const r = record({
+      hand: {
+        detected: true,
+        handPose: "perfect",
+        reachMean: "0.7",
+        fingerStraightMin: Number.NaN,
+      },
+      liveWaitMs: Infinity,
+    });
+    expect(r.hand.handPose).toBeNull();
+    expect(r.hand.reachMean).toBeNull();
+    expect(r.hand.fingerStraightMin).toBeNull();
+    expect(r.liveWaitMs).toBeNull();
+  });
+
+  it("rounds the two ratios to 0.001 and the wait to whole ms", () => {
+    const r = record({
+      hand: { reachMean: 0.55149, fingerStraightMin: 0.97951 },
+      liveWaitMs: 1234.4,
+    });
+    expect(r.hand.reachMean).toBe(0.551);
+    expect(r.hand.fingerStraightMin).toBe(0.98);
+    expect(r.liveWaitMs).toBe(1234);
+  });
+
+  it("a record from before they were kept reads, with them null", () => {
+    const old = {
+      v: 1,
+      at: "2026-10-06T10:00:00.000Z",
+      result: "ok",
+      hand: { detected: true, confidence: 0.9, handedness: "left" },
+    };
+    const parsed = parseAttempts(JSON.stringify([old]));
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].hand).toEqual({
+      detected: true,
+      confidence: 0.9,
+      handedness: "left",
+      handPose: null,
+      reachMean: null,
+      fingerStraightMin: null,
+    });
+    expect(parsed[0].liveWaitMs).toBeNull();
+  });
+
+  it("survives a write and a read, and the ring still holds 20", () => {
+    const { storage } = fakeStorage();
+    let list: AttemptRecord[] = [];
+    for (let i = 0; i < 25; i++) {
+      list = recordAttempt(
+        storage,
+        record({
+          at: new Date(Date.UTC(2026, 9, 19, 10, 0, i)).toISOString(),
+          liveWaitMs: 1000 + i,
+        }),
+        list,
+      );
+    }
+    const back = readAttempts(storage) ?? [];
+    expect(back).toHaveLength(20);
+    expect(back[19].liveWaitMs).toBe(1024);
+    expect(back[19].hand.handPose).toBe("borderline");
+    expect(back).toEqual(list);
+  });
+
+  it("holds no landmark, depth array, millimetre or hand proportion, even if given one", () => {
+    const landmarks = Array.from({ length: 21 }, (_, i) => ({
+      x: 100.123 + i,
+      y: 200.456 + i,
+      z: -0.0123456 * i,
+    }));
+    const junk = {
+      ...record(),
+      landmarks,
+      landmarksPx: landmarks,
+      worldLandmarks: landmarks,
+      z: landmarks.map((p) => p.z),
+      handLengthMm: 183.7,
+      hand: {
+        detected: true,
+        confidence: 0.9,
+        handedness: "left",
+        handPose: "flat_like",
+        reachMean: 0.74512,
+        fingerStraightMin: 0.99912,
+        landmarks,
+        landmarksPx: landmarks,
+        worldLandmarks: landmarks,
+        z: landmarks.map((p) => p.z),
+        handLengthMm: 183.7,
+        palmWidthMm: 86.2,
+        wOverL: 0.344,
+      },
+    };
+    const clean = sanitizeAttempt(junk)!;
+    expect(Object.keys(clean.hand).sort()).toEqual([
+      "confidence",
+      "detected",
+      "fingerStraightMin",
+      "handPose",
+      "handedness",
+      "reachMean",
+    ]);
+    expect(Object.keys(clean)).not.toContain("landmarks");
+    expect(Object.keys(clean)).not.toContain("worldLandmarks");
+    const text = JSON.stringify(clean);
+    for (const needle of [
+      "landmark",
+      "worldLandmarks",
+      "100.123",
+      "200.456",
+      "0.0123",
+      "wOverL",
+      "0.344",
+      '"z"',
+    ]) {
+      expect(text, needle).not.toContain(needle);
+    }
+  });
+
+  it("a diagnostics block carrying landmarks does not leak them into the record", () => {
+    const withLandmarks = {
+      ...DIAGNOSTICS,
+      hand: {
+        ...DIAGNOSTICS.hand,
+        landmarksPx: [{ x: 321.987, y: 654.321 }],
+        worldLandmarks: [{ x: 0.0456, y: 0.0789, z: 0.0123 }],
+      },
+    } as unknown as PipelineDiagnostics;
+    const r = buildAttemptRecord({
+      at: "2026-10-19T10:00:00.000Z",
+      userAgent: "x",
+      capture: CAPTURE,
+      outcome: {
+        kind: "result",
+        result: { ...ERROR_RESULT, diagnostics: withLandmarks },
+      },
+    });
+    const text = JSON.stringify(r);
+    for (const needle of [
+      "321.987",
+      "654.321",
+      "0.0456",
+      "0.0789",
+      "worldLandmarks",
+    ])
+      expect(text, needle).not.toContain(needle);
+  });
+
+  it("every value in a record is a finite number, a boolean, a short string, a list or an object", () => {
+    const seen: string[] = [];
+    const walk = (v: unknown, path: string) => {
+      if (v === null || typeof v === "boolean") return;
+      if (typeof v === "number") {
+        expect(Number.isFinite(v), path).toBe(true);
+        return;
+      }
+      if (typeof v === "string") {
+        expect(v.length, path).toBeLessThanOrEqual(200);
+        return;
+      }
+      if (Array.isArray(v)) {
+        // No list of 21 points (a hand's landmarks) anywhere in a record.
+        expect(v.length, path).not.toBe(21);
+        v.forEach((item, i) => walk(item, `${path}[${i}]`));
+        return;
+      }
+      for (const [k, item] of Object.entries(v as object)) {
+        seen.push(`${path}.${k}`);
+        walk(item, `${path}.${k}`);
+      }
+    };
+    walk(record({ liveWaitMs: 5000 }), "record");
+    expect(seen).toContain("record.hand.handPose");
+    expect(seen).toContain("record.liveWaitMs");
+  });
+});
+
 describe("the ring buffer", () => {
   it("keeps the newest 20 and drops the oldest", () => {
     let list: AttemptRecord[] = [];
@@ -396,6 +688,9 @@ describe("parseAttempts — bad data in storage", () => {
       detected: null,
       confidence: null,
       handedness: null,
+      handPose: null,
+      reachMean: null,
+      fingerStraightMin: null,
     });
     expect(parsed[0].timingMs).toEqual({
       decode: null,
@@ -898,8 +1193,19 @@ describe("what the person saw (view) in a record", () => {
 describe("describeAttempt", () => {
   it("is one line: the time, how, the size, what happened, the sheet's share and the residual", () => {
     expect(describeAttempt(record())).toBe(
-      "10:20:30Z · takePhoto · 3000×4000 · PAPER_CURLED+LOW_LANDMARK_CONFIDENCE · paper 81%×77% · resid 1.623 mm · FOV mismatch · cropped",
+      "10:20:30Z · takePhoto · 3000×4000 · PAPER_CURLED+LOW_LANDMARK_CONFIDENCE · paper 81%×77% · resid 1.623 mm · edge top worst · cov 0.225/0.9/1/0.712 · pose borderline (reach 0.551) · FOV mismatch · cropped",
     );
+  });
+
+  it("adds the hand pose and the live wait when they were kept, and leaves them out when not", () => {
+    const line = describeAttempt(record({ liveWaitMs: 4321 }));
+    expect(line).toContain("pose borderline (reach 0.551)");
+    expect(line).toContain("live 4.3 s");
+    const none = describeAttempt(
+      record({ hand: { detected: true }, liveWaitMs: null }),
+    );
+    expect(none).not.toContain("pose");
+    expect(none).not.toContain("live");
   });
 
   it("an ok attempt says ok, and an upload with no sheet found leaves the paper out", () => {
@@ -1160,5 +1466,140 @@ describe("shadowPrior and the sheet's skew: local numbers for Copy JSON, never s
       expect(r.paper?.observedAspect).toBeNull();
       expect(JSON.stringify(r)).not.toMatch(/data:|base64/i);
     }
+  });
+});
+
+describe("which edge was hidden: the paper block's sideCoverages and worstSide (scan S3)", () => {
+  it("are kept for a rejected photo, rounded to 0.001, in the detector's side order", () => {
+    const r = record();
+    expect(r.paper?.sideCoverages).toEqual([0.225, 0.9, 1, 0.712]);
+    expect(r.paper?.worstSide).toBe("top");
+  });
+
+  it("and for a measured photo", () => {
+    const ok = buildAttemptRecord({
+      at: "2026-10-19T10:00:00.000Z",
+      userAgent: "x",
+      capture: CAPTURE,
+      outcome: {
+        kind: "result",
+        result: {
+          status: "ok",
+          measurements: {} as never,
+          submission: {} as never,
+          warnings: [],
+          overlay: ERROR_RESULT.overlay,
+          diagnostics: {
+            ...DIAGNOSTICS,
+            paper: {
+              ...DIAGNOSTICS.paper!,
+              sideCoverages: [1, 0.8764, 1, 0.9999],
+              worstSide: "right",
+            },
+          },
+        },
+      },
+    });
+    expect(ok.result).toBe("ok");
+    expect(ok.paper?.sideCoverages).toEqual([1, 0.876, 1, 1]);
+    expect(ok.paper?.worstSide).toBe("right");
+  });
+
+  it.each(["top", "bottom", "left", "right"] as const)(
+    "keeps the side name %s",
+    (side) => {
+      expect(
+        record({ paper: { cornersSeen: 4, worstSide: side } }).paper?.worstSide,
+      ).toBe(side);
+    },
+  );
+
+  it("survives a write and a read", () => {
+    const { storage } = fakeStorage();
+    const list = recordAttempt(storage, record(), []);
+    const back = readAttempts(storage)!;
+    expect(back).toEqual(list);
+    expect(back[0].paper?.sideCoverages).toEqual([0.225, 0.9, 1, 0.712]);
+    expect(back[0].paper?.worstSide).toBe("top");
+  });
+
+  it("a record from before they were kept reads with both null", () => {
+    const old = {
+      v: 1,
+      at: "2026-10-06T10:00:00.000Z",
+      result: "error",
+      paper: {
+        cornersSeen: 4,
+        widthFraction: 0.8,
+        heightFraction: 0.7,
+        edgeFitResidualMm: 0.3,
+        minSideCoverage: 0.3,
+        gateFailures: ["PAPER_EDGE_HIDDEN"],
+      },
+    };
+    const parsed = parseAttempts(JSON.stringify([old]));
+    expect(parsed[0].paper?.minSideCoverage).toBe(0.3);
+    expect(parsed[0].paper?.sideCoverages).toBeNull();
+    expect(parsed[0].paper?.worstSide).toBeNull();
+  });
+
+  it.each([
+    ["three values", [0.1, 0.2, 0.3]],
+    ["five values", [0.1, 0.2, 0.3, 0.4, 0.5]],
+    ["a string among them", [0.1, "0.2", 0.3, 0.4]],
+    ["a NaN among them", [0.1, Number.NaN, 0.3, 0.4]],
+    ["an infinity", [0.1, Infinity, 0.3, 0.4]],
+    ["a value over 1", [0.1, 1.2, 0.3, 0.4]],
+    ["a negative value", [0.1, -0.2, 0.3, 0.4]],
+    ["not a list", { 0: 0.1, 1: 0.2, 2: 0.3, 3: 0.4 }],
+    ["a string", "0.1,0.2,0.3,0.4"],
+    ["null", null],
+  ])("%s is null, never a partial list", (_name, bad) => {
+    expect(
+      record({ paper: { cornersSeen: 4, sideCoverages: bad } }).paper
+        ?.sideCoverages,
+    ).toBeNull();
+  });
+
+  it("an unknown side name is null", () => {
+    for (const bad of ["middle", "TOP", 2, null, undefined, {}]) {
+      expect(
+        record({ paper: { cornersSeen: 4, worstSide: bad } }).paper?.worstSide,
+      ).toBeNull();
+    }
+  });
+
+  it("holds paper geometry only: four shares and a side name, no landmark or hand number", () => {
+    const text = JSON.stringify(record().paper);
+    expect(text).not.toMatch(/landmark|world|"z"/i);
+    expect(Object.keys(record().paper!).sort()).toEqual([
+      "cornersSeen",
+      "edgeFitResidualMm",
+      "gateFailures",
+      "heightFraction",
+      "maxAngleDeviationDeg",
+      "minSideCoverage",
+      "observedAspect",
+      "sideCoverages",
+      "widthFraction",
+      "worstSide",
+    ]);
+  });
+
+  it("the panel line says the worst side and the four coverages, and leaves them out when not kept", () => {
+    expect(describeAttempt(record())).toContain(
+      "edge top worst · cov 0.225/0.9/1/0.712",
+    );
+    const unnamed = describeAttempt(
+      record({
+        paper: { cornersSeen: 4, sideCoverages: [0.3, 0.3, 1, 1] },
+      }),
+    );
+    expect(unnamed).toContain("edge ? worst · cov 0.3/0.3/1/1");
+    const old = describeAttempt(
+      record({ paper: { cornersSeen: 4, minSideCoverage: 0.3 } }),
+    );
+    expect(old).not.toContain("worst");
+    expect(describeAttempt(record({ paper: null }))).not.toContain("worst");
   });
 });
