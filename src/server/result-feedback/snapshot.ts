@@ -27,7 +27,9 @@ const EMPTY_PREFERENCES = fitPreferencesSchema.parse({});
  * with that request's own preferences.
  *
  * A first-three mouse whose total has no band throws (a 500): a ranked mouse
- * always has a total. A scan written before `calibration_method` existed has
+ * always has a total. The one exception is a hand outside the catalogue's
+ * length range (`coverage.lengthOutOfRange`): `total` is a sort value there,
+ * not a distance, so every `band` is null (v3.1, M4). A scan written before `calibration_method` existed has
  * none; it counts as `printed-sheet`, as `calibrationMethodOf` does for old
  * evidence. The result is parsed with the contract's schema, so a value
  * outside its lists throws instead of being stored.
@@ -48,6 +50,7 @@ export function buildSnapshot(
     scan.hand,
   );
   const ranked = groupShells(engineOutput.results, listed);
+  const outOfRange = engineOutput.coverage?.lengthOutOfRange === true;
   return resultFeedbackSnapshotSchema.parse({
     engineVersion: engineOutput.engineVersion,
     handSize: engineOutput.handType?.size ?? null,
@@ -56,6 +59,10 @@ export function buildSnapshot(
     calibrationMethod: scan.calibrationMethod ?? "printed-sheet",
     palmThicknessStated: scan.palmThicknessStated ?? null,
     topMice: ranked.slice(0, RESULT_FEEDBACK_TOP_MICE).map((entry) => {
+      // Outside the catalogue's length range `total` is a sort value, not a
+      // distance to this hand, so no band exists to store: null for every
+      // mouse (the contract allows it for exactly this case).
+      if (outOfRange) return { slug: entry.mouse.slug, band: null };
       const band = bandOf(entry.total);
       if (band === null) {
         throw new Error("A ranked mouse has no fit band.");
