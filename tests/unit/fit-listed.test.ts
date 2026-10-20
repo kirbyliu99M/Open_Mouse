@@ -92,16 +92,13 @@ describe("loadOwnedFit with an unlisted row in the catalogue", () => {
     expect(catalogueArg).toHaveLength(3);
   });
 
-  it("neither ranks nor excludes it, and stores nothing for it", async () => {
-    const { fit, fake } = await run();
+  it("neither ranks nor excludes it", async () => {
+    const { fit } = await run();
     const everywhere = [
       ...fit.results.map((r) => r.mouse.slug),
       ...fit.excluded.map((e) => e.slug),
     ];
     expect(everywhere).not.toContain("logitech-m100");
-    expect(fake.saveFitResultsCalls.flat().map((r) => r.mouseId)).not.toContain(
-      "mouse-hidden",
-    );
   });
 
   it("reports a listed trackball as excluded, not ranked", async () => {

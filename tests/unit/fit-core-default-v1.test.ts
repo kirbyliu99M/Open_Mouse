@@ -5,7 +5,6 @@ import {
   ENGINE_VERSION_V3,
 } from "../../src/server/fit/coefficients";
 import { resolveFitEngine } from "../../src/server/fit/engine";
-import { computePriors } from "../../src/server/fit/priors";
 import { loadOwnedFit } from "../../src/server/fit/core";
 import type { CatalogueMouse } from "../../src/server/fit/types";
 import {
@@ -38,7 +37,7 @@ const classified: CatalogueMouse = {
 const catalogue = [...sampleCatalogue, classified];
 
 async function run(prefs = fitPreferencesSchema.parse({})) {
-  const { repo: fitRepo, saveFitResultsCalls } = createFakeFitRepo(catalogue);
+  const { repo: fitRepo, otherCalls } = createFakeFitRepo(catalogue);
   const result = await loadOwnedFit(
     SCAN_ID,
     { userId: null, cookieSessionId: "c" },
@@ -50,7 +49,7 @@ async function run(prefs = fitPreferencesSchema.parse({})) {
     },
   );
   if (result.status !== "ok") throw new Error("unreachable");
-  return { fit: result.fit, rows: saveFitResultsCalls[0]! };
+  return { fit: result.fit, otherCalls };
 }
 
 describe("loadOwnedFit under the shipped default engine", () => {
@@ -58,10 +57,11 @@ describe("loadOwnedFit under the shipped default engine", () => {
     resolveFitEngine() === "v3" ? ENGINE_VERSION_V3 : ENGINE_VERSION_V1;
 
   it("runs the engine FIT_ENGINE names (v1 when unset) and sends a hand type", async () => {
-    const { fit, rows } = await run();
+    const { fit, otherCalls } = await run();
     expect(fit.engineVersion).toBe(expectedVersion);
     expect(fit.handType).toBeDefined();
-    expect(rows.every((r) => r.engineVersion === expectedVersion)).toBe(true);
+    // Nothing is stored: the repo is only asked for the catalogue.
+    expect(otherCalls).toEqual([]);
   });
 
   it("runs v1 when FIT_ENGINE is unset or not a valid value", async () => {
@@ -71,11 +71,11 @@ describe("loadOwnedFit under the shipped default engine", () => {
     }
   });
 
-  it("runs v3 and stores v3 rows when FIT_ENGINE=v3", async () => {
+  it("runs v3 when FIT_ENGINE=v3, and still stores nothing", async () => {
     vi.stubEnv("FIT_ENGINE", "v3");
-    const { fit, rows } = await run();
+    const { fit, otherCalls } = await run();
     expect(fit.engineVersion).toBe(ENGINE_VERSION_V3);
-    expect(rows.every((r) => r.engineVersion === ENGINE_VERSION_V3)).toBe(true);
+    expect(otherCalls).toEqual([]);
   });
 
   it("carries gripStyle.weights when no grip is stated, and none when one is", async () => {
@@ -87,20 +87,5 @@ describe("loadOwnedFit under the shipped default engine", () => {
       await run(fitPreferencesSchema.parse({ gripStyle: "palm" }))
     ).fit.gripStyle;
     expect(stated.weights).toBeUndefined();
-  });
-
-  it("stores a null sub-score as v1's catalogue-mean prior, not v0's 75", async () => {
-    const { fit, rows } = await run();
-    const grip = fit.gripStyle.used;
-    const expected = Math.round(computePriors(catalogue).thumb[grip]);
-    expect(expected).not.toBe(75);
-    const unclassified = fit.results.filter(
-      (e) => e.subscores.thumb.score === null,
-    );
-    expect(unclassified.length).toBeGreaterThan(0);
-    for (const e of unclassified) {
-      const row = rows.find((r) => r.rank === e.rank)!;
-      expect(row.thumbScore).toBe(expected);
-    }
   });
 });

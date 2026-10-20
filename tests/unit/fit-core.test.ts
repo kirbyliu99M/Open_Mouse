@@ -288,9 +288,9 @@ describe("loadOwnedFit — a successful fit", () => {
     });
   });
 
-  it("persists one row per ranked result, and repeating the request never throws (idempotent upsert key)", async () => {
+  it("stores nothing: the repo is only asked for the catalogue, however often the request repeats", async () => {
     const scanRepo = createFakeScanRepo(vi.fn(async () => sampleOwnedScan));
-    const { repo: fitRepo, saveFitResultsCalls } = createFakeFitRepo();
+    const { repo: fitRepo, otherCalls } = createFakeFitRepo();
 
     const first = await loadOwnedFit(
       SCAN_ID,
@@ -306,33 +306,9 @@ describe("loadOwnedFit — a successful fit", () => {
     );
 
     expect(first.status).toBe("ok");
-    expect(second.status).toBe("ok");
-    if (first.status !== "ok") throw new Error("unreachable");
-
-    expect(saveFitResultsCalls).toHaveLength(2);
-    expect(saveFitResultsCalls[0]).toHaveLength(first.fit.results.length);
-    expect(saveFitResultsCalls[0]!.map((r) => [r.mouseId, r.rank])).toEqual(
-      first.fit.results.map((r) => [
-        sampleCatalogue.find((m) => m.slug === r.mouse.slug)!.id,
-        r.rank,
-      ]),
-    );
-  });
-
-  it("propagates a persistence failure instead of returning ok with unsaved data", async () => {
-    const scanRepo = createFakeScanRepo(vi.fn(async () => sampleOwnedScan));
-    const { repo: fitRepo } = createFakeFitRepo(sampleCatalogue, async () => {
-      throw new Error("db write failed");
-    });
-
-    await expect(
-      loadOwnedFit(
-        SCAN_ID,
-        { userId: null, cookieSessionId: "session-1" },
-        NO_PREFS,
-        { scanRepo, fitRepo, now: NOW },
-      ),
-    ).rejects.toThrow();
+    expect(second).toEqual(first);
+    expect(otherCalls).toEqual([]);
+    expect(fitRepo.loadCatalogue).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -346,9 +322,9 @@ describe("loadOwnedFit — same-shell grouping", () => {
   };
   const catalogue = [...sampleCatalogue, twin];
 
-  it("stores exactly the shown entries, with their new contiguous ranks", async () => {
+  it("shows one card per shell, with new contiguous ranks, and stores nothing", async () => {
     const scanRepo = createFakeScanRepo(vi.fn(async () => sampleOwnedScan));
-    const { repo: fitRepo, saveFitResultsCalls } = createFakeFitRepo(catalogue);
+    const { repo: fitRepo, otherCalls } = createFakeFitRepo(catalogue);
 
     const result = await loadOwnedFit(
       SCAN_ID,
@@ -366,17 +342,7 @@ describe("loadOwnedFit — same-shell grouping", () => {
     expect(
       shown.find((e) => e.mouse.slug === "razer-basilisk")!.variants,
     ).toBeUndefined();
-
-    expect(saveFitResultsCalls).toHaveLength(1);
-    const rows = saveFitResultsCalls[0]!;
-    const slugById = new Map(catalogue.map((m) => [m.id, m.slug]));
-    expect(rows.map((r) => [r.rank, slugById.get(r.mouseId)])).toEqual(
-      shown.map((e) => [e.rank, e.mouse.slug]),
-    );
-    expect(rows.map((r) => r.totalScore)).toEqual(shown.map((e) => e.total));
-    // The variant is not stored as a row of its own.
-    const variantSlug = g502.variants![0]!.slug;
-    expect(rows.map((r) => slugById.get(r.mouseId))).not.toContain(variantSlug);
+    expect(otherCalls).toEqual([]);
   });
 
   it("leaves excluded untouched", async () => {

@@ -135,9 +135,11 @@ describe("POST /api/scans/{scanId}/analysis — ownership: 404, never 403", () =
 
   it("an internal failure while loading the fit is a 500 without leaking internals", async () => {
     const scanRepo = createFakeScanRepo(vi.fn(async () => sampleOwnedScan));
-    const { repo: fitRepo } = createFakeFitRepo(undefined, async () => {
-      throw new Error("db write failed: connection reset at 10.0.0.5:5432");
-    });
+    const fitRepo = {
+      loadCatalogue: vi.fn(async () => {
+        throw new Error("db read failed: connection reset at 10.0.0.5:5432");
+      }),
+    };
 
     const res = await computeAnalysisForScan(analysisRequest({}), SCAN_ID, {
       ...baseDeps(),
@@ -261,7 +263,7 @@ describe("POST /api/scans/{scanId}/analysis — oversized body", () => {
     const findOwnedScan = vi.fn(async () => sampleOwnedScan);
     const scanRepo = createFakeScanRepo(findOwnedScan);
     const loadCatalogue = vi.fn(async () => []);
-    const fitRepo = { loadCatalogue, saveFitResults: vi.fn(async () => {}) };
+    const fitRepo = { loadCatalogue };
     const request = new Request(
       `http://localhost/api/scans/${SCAN_ID}/analysis`,
       {

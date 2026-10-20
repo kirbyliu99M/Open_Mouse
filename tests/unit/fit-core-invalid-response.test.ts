@@ -45,7 +45,7 @@ const SCAN_ID = "5f0c6f7e-1c2d-4b8a-9d3e-2a1b0c9d8e7f";
 describe("loadOwnedFit — a computed response that fails its own contract", () => {
   it("throws instead of returning a silently malformed ok result", async () => {
     const scanRepo = createFakeScanRepo(vi.fn(async () => sampleOwnedScan));
-    const { repo: fitRepo, saveFitResultsCalls } = createFakeFitRepo();
+    const { repo: fitRepo, otherCalls } = createFakeFitRepo();
 
     await expect(
       loadOwnedFit(
@@ -56,7 +56,7 @@ describe("loadOwnedFit — a computed response that fails its own contract", () 
       ),
     ).rejects.toThrow();
 
-    // Never persisted: an invalid response is never written to fit_results.
-    expect(saveFitResultsCalls).toHaveLength(0);
+    // Nothing is stored on this path any more, valid response or not.
+    expect(otherCalls).toEqual([]);
   });
 });

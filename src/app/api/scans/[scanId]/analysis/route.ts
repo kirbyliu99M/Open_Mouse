@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 /**
  * One Gemini call plus `./analyse.ts`'s single built-in retry
  * (MAX_ATTEMPTS = 2), plus a handful of small DB round trips (rate-limiter
- * upsert, cache get/set, catalogue load, `fit_results` upsert) that each
+ * upsert, cache get/set, catalogue load) that each
  * run in well under a second on Neon's HTTP driver. Vercel Hobby's
  * serverless function ceiling is 60 seconds; 30 comfortably covers two
  * sequential `gemini-3.8-flash` calls even under elevated latency while

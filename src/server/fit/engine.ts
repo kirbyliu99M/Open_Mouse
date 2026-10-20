@@ -1,15 +1,6 @@
-import type {
-  FitPreferences,
-  FitResponse,
-  GripStyle,
-  Subscore,
-} from "../../lib/contracts/fit";
+import type { FitPreferences, FitResponse } from "../../lib/contracts/fit";
 import type { HandMeasurements } from "../../lib/contracts/measurement";
-import {
-  DEFAULT_ENGINE,
-  UNKNOWN_PRIOR_SCORE,
-  type EngineId,
-} from "./coefficients";
+import { DEFAULT_ENGINE, type EngineId } from "./coefficients";
 import { excludeReason } from "./exclusions";
 import { excludeReasonV1 } from "./exclusions-v1";
 import { computePriors } from "./priors";
@@ -101,29 +92,6 @@ export function excludeReasonForEngine(
   }
 }
 
-/**
- * What a null sub-score is stored as in `fit_results` under the named engine,
- * for the grip the response used: v0 stores `UNKNOWN_PRIOR_SCORE`; v1, v2 and v3
- * store the catalogue-mean prior their total used.
- */
-export function storedNullScore(
-  engine: EngineId,
-  catalogue: readonly CatalogueMouse[],
-): (subscore: Subscore, grip: GripStyle) => number {
-  switch (engine) {
-    case "v0":
-      return () => UNKNOWN_PRIOR_SCORE;
-    case "v1":
-    case "v2":
-    case "v3": {
-      const priors = computePriors(catalogue);
-      return (subscore, grip) => priors[subscore][grip];
-    }
-    default:
-      return unknownEngine(engine);
-  }
-}
-
 /** The values `FIT_ENGINE` may take. "v0" is deliberately not one of them. */
 const FIT_ENGINE_VALUES = [
   "v1",
@@ -136,8 +104,7 @@ const FIT_ENGINE_VALUES = [
  * (never `NEXT_PUBLIC_*`: that is baked in at build time, and a rollback has
  * to be a runtime change). `FIT_ENGINE` is read at request time; unset, empty
  * or any value other than "v1", "v2" or "v3" falls back to `DEFAULT_ENGINE`,
- * which is "v1". Every consumer asks this function, so the fit, the stored
- * null scores, the similar-hands exclusion rule and the feedback snapshot
+ * which is "v1". Every consumer asks this function, so the fit, the similar-hands exclusion rule and the feedback snapshot
  * cannot disagree. 未拍板 (candidate): flipping it in production is Kirby's
  * call.
  */

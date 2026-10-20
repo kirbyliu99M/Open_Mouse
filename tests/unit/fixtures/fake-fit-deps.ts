@@ -82,23 +82,29 @@ export function createFakeScanRepo(
 
 export interface FakeFitRepo {
   repo: FitRepo;
-  saveFitResultsCalls: Parameters<FitRepo["saveFitResults"]>[0][];
+  /**
+   * Every method other than `loadCatalogue` that anything called on `repo`.
+   * The fit path only reads the catalogue (it no longer writes `fit_results`),
+   * so a test expects this to stay empty; it catches any write method that is
+   * added to `FitRepo` later and called from the request path.
+   */
+  otherCalls: string[];
 }
 
-/** A fake `FitRepo`. `catalogue` is returned verbatim by `loadCatalogue`;
- * every `saveFitResults` call is recorded in `saveFitResultsCalls`, and
- * `onSave` (if given) can throw to simulate a persistence failure. */
+/** A fake `FitRepo`. `catalogue` is returned verbatim by `loadCatalogue`; a
+ * call to anything else on the repo is recorded in `otherCalls`. */
 export function createFakeFitRepo(
   catalogue: CatalogueMouse[] = sampleCatalogue,
-  onSave?: FitRepo["saveFitResults"],
 ): FakeFitRepo {
-  const saveFitResultsCalls: Parameters<FitRepo["saveFitResults"]>[0][] = [];
-  const repo: FitRepo = {
-    loadCatalogue: vi.fn(async () => catalogue),
-    saveFitResults: vi.fn(async (rows) => {
-      saveFitResultsCalls.push(rows);
-      if (onSave) await onSave(rows);
-    }),
-  };
-  return { repo, saveFitResultsCalls };
+  const otherCalls: string[] = [];
+  const base: FitRepo = { loadCatalogue: vi.fn(async () => catalogue) };
+  const repo = new Proxy(base, {
+    get(target, prop) {
+      if (prop in target) return target[prop as keyof FitRepo];
+      return async () => {
+        otherCalls.push(String(prop));
+      };
+    },
+  });
+  return { repo, otherCalls };
 }

@@ -14,7 +14,6 @@ import {
   resolveFitEngine,
   scoreFitDefault,
   scoreWithEngine,
-  storedNullScore,
 } from "../../src/server/fit/engine";
 import { hand, mouseRow, seedCatalogue } from "./fit-v2c-fixtures";
 
@@ -75,15 +74,6 @@ describe("the routes follow it", () => {
   it("scoreFitDefault stays on v1 for a garbage value", () => {
     vi.stubEnv("FIT_ENGINE", "v9");
     expect(scoreFitDefault(...args).engineVersion).toBe(ENGINE_VERSION_V1);
-  });
-
-  it("the stored null score uses the same resolved engine as the fit", () => {
-    // Same catalogue-mean prior for v1 and v3, never the v0 constant 75.
-    const stored = storedNullScore(
-      resolveFitEngine({ FIT_ENGINE: "v3" }),
-      seedCatalogue,
-    );
-    expect(typeof stored("thumb", "palm")).toBe("number");
   });
 });
 

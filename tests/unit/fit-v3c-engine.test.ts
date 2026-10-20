@@ -19,13 +19,8 @@ import {
   ENGINE_VERSION_V3,
   GRIP_WIDTH_FACTOR,
   GRIP_WIDTH_FACTOR_V3,
-  UNKNOWN_PRIOR_SCORE,
 } from "../../src/server/fit/coefficients";
-import {
-  scoreFitDefault,
-  scoreWithEngine,
-  storedNullScore,
-} from "../../src/server/fit/engine";
+import { scoreFitDefault, scoreWithEngine } from "../../src/server/fit/engine";
 import { computePriors } from "../../src/server/fit/priors";
 import { calibrateV3 } from "../../src/server/fit/calibration-v3-candidate";
 import { planV2, scoreFitV2 } from "../../src/server/fit/score-v2-candidate";
@@ -99,18 +94,6 @@ describe("engine dispatch", () => {
     expect(out).toEqual(v3(m, NO_REFS));
     // Rank stability is a separate step.
     expect(out.results.some((e) => "rankStability" in e)).toBe(false);
-  });
-
-  it('"v3" stores the catalogue-mean prior of every sub-score, like v1 and v2', () => {
-    const cat = [
-      mouseRow({ slug: "a", frontFlare: "outward_slight", thumbRest: true }),
-      mouseRow({ slug: "b", frontFlare: "outward_moderate", thumbRest: true }),
-    ];
-    const priors = computePriors(cat);
-    const stored = storedNullScore("v3", cat);
-    expect(stored("frontFlare", "claw")).toBe(priors.frontFlare.claw);
-    expect(stored("thumb", "palm")).toBe(priors.thumb.palm);
-    expect(stored("frontFlare", "claw")).not.toBe(UNKNOWN_PRIOR_SCORE);
   });
 });
 

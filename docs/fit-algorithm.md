@@ -155,10 +155,9 @@ answer fixed (every answer must stay at 2 points or below). `--real` includes bo
 `ENGINE_VERSION_V1 = "fit-v1-candidate.3"` (the palm-thickness shift bumped it from `fit-v1-candidate.2`, CALIB-1's value, and CALIB-1 had bumped `fit-v1-candidate`, so stored rows of different calibrations never mix; v0's `ENGINE_VERSION` stays `fit-v0-provisional`),
 `ENGINE_IS_PROVISIONAL = true`. `DEFAULT_ENGINE` in `coefficients.ts` (`"v0"` or `"v1"`) is the
 switch `scoreFitDefault` (`engine.ts`, used by the fit route) reads; it is `"v1"` since 2026-10-10 (see below). `fit_results` is unique
-on (scan, mouse, engineVersion), so no migration. That one line also switches what `fit_results` stores for a
-null sub-score: `core.ts` passes `storedNullScore(DEFAULT_ENGINE, catalogue)` to `buildFitResultRows`,
-so v1 rows store the catalogue-mean prior its total used (rounded, the column is a smallint) and v0
-rows keep 75.
+on (scan, mouse, engineVersion), so no migration. Since 2026-10-20 the request path no longer writes `fit_results` (the table stays, old
+rows are still deleted with their scan or account; nothing reads it), so `storedNullScore` and
+`buildFitResultRows` are gone.
 
 **Default engine.** Since 2026-10-10 (Kirby, after the v0-vs-v1 comparison on the real catalogue) v1 is the default engine (now `fit-v1-candidate.3`); `scoreFit` (v0, `fit-v0-provisional`) stays in the code and is reachable through `scoreWithEngine("v0", ...)`. v1 is still a candidate: its coefficients and labels were unchanged by the switch, and `.3` adds only the palm-thickness shift (§3); all of it is 未拍板.
 

@@ -48,7 +48,7 @@ const built = buildSeedRows(
   },
 );
 const catalogue = listedOnly(
-  // The seed rows carry no database id; loadOwnedFit's persisted rows need one.
+  // The seed rows carry no database id; the fake catalogue gives each one.
   [...built.withDescriptors, ...built.withoutDescriptors].map((r) => ({
     ...toCatalogueMouse(r),
     id: r.slug,

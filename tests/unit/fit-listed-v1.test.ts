@@ -78,7 +78,7 @@ describe("loadOwnedFit under fit-v1 with an unlisted row", () => {
       vi.mocked(scoreFitV1).mock.calls[0]![1].map((m) => m.slug),
     ).not.toContain("logitech-m100");
 
-    // Every priors computation (scoring and stored null scores) saw only listed rows.
+    // Every priors computation (scoring) saw only listed rows.
     expect(computePriors).toHaveBeenCalled();
     for (const [catalogue] of vi.mocked(computePriors).mock.calls)
       expect(catalogue.map((m) => m.slug)).not.toContain("logitech-m100");
@@ -88,8 +88,5 @@ describe("loadOwnedFit under fit-v1 with an unlisted row", () => {
       ...result.fit.excluded.map((e) => e.slug),
     ];
     expect(everywhere).not.toContain("logitech-m100");
-    expect(fake.saveFitResultsCalls.flat().map((r) => r.mouseId)).not.toContain(
-      "mouse-hidden",
-    );
   });
 });

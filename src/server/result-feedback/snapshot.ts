@@ -23,8 +23,7 @@ const EMPTY_PREFERENCES = fitPreferencesSchema.parse({});
  * mice only, same-shell entries grouped as the fit route groups them, and a
  * typed hand width scored on the scan's scale (`scoringMeasurements`, as in
  * `loadOwnedFit`, so the snapshot matches the page). Nothing
- * is read from or written to `fit_results`: every fit request overwrites it
- * with that request's own preferences.
+ * is read from `fit_results` (the fit request no longer writes it either).
  *
  * A first-three mouse whose total has no band throws (a 500): a ranked mouse
  * always has a total. The one exception is a hand outside the catalogue's

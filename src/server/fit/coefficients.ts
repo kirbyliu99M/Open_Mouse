@@ -12,10 +12,7 @@ import type { PalmThicknessLevel } from "../../lib/contracts/measurement";
  *
  * Bump `ENGINE_VERSION` when a score, weight, total or ranking can change for
  * the same input. Changing only which reason code or params a sub-score reports
- * does not: `fit_results` is unique on (scan, mouse, engineVersion) and upserts
- * `reasons` on conflict, so a re-fit under the same version simply overwrites
- * them, while a new version would leave a second row per mouse for the same
- * scan. (G4: a palm grip with no thumb rest now reports `thumb_rest_missing`
+ * does not. (G4: a palm grip with no thumb rest now reports `thumb_rest_missing`
  * instead of `thumb_neutral`, with the same score, so no bump.)
  */
 export const ENGINE_VERSION = "fit-v0-provisional";
@@ -177,7 +174,6 @@ export const VERTICAL_FORM_FACTOR_RATIO = 0.55;
 export type EngineId = "v0" | "v1" | "v2" | "v3";
 export const DEFAULT_ENGINE: EngineId = "v1";
 
-/** `fit_results` is unique on (scan, mouse, engineVersion), so a new version needs no migration. */
 export const ENGINE_VERSION_V1 = "fit-v1-candidate.3";
 
 /**

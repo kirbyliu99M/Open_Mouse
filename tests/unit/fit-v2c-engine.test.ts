@@ -5,26 +5,20 @@
  * to v0); and the default engine stays v1.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  GRIP_STYLES,
-  SUBSCORES,
-  type FitPreferences,
-} from "../../src/lib/contracts/fit";
+import { type FitPreferences } from "../../src/lib/contracts/fit";
 import {
   DEFAULT_ENGINE,
   ENGINE_VERSION_V1,
   ENGINE_VERSION_V2,
-  UNKNOWN_PRIOR_SCORE,
 } from "../../src/server/fit/coefficients";
 import {
   resolveFitEngine,
   scoreFitDefault,
   scoreWithEngine,
-  storedNullScore,
 } from "../../src/server/fit/engine";
 import { computePriors } from "../../src/server/fit/priors";
 import { scoreFitV2 } from "../../src/server/fit/score-v2-candidate";
-import { hand, mouseRow, seedCatalogue } from "./fit-v2c-fixtures";
+import { hand, seedCatalogue } from "./fit-v2c-fixtures";
 
 const prefs: FitPreferences = { includeVertical: false };
 const m = hand(250, 87.5); // out of range, so v2 really differs from v1
@@ -59,40 +53,6 @@ describe("T8: scoreWithEngine", () => {
       // @ts-expect-error "v9" is not an EngineId
       scoreWithEngine("v9", m, seedCatalogue, prefs, "right"),
     ).toThrow(/Unknown fit engine: v9/);
-    expect(() =>
-      // @ts-expect-error "v9" is not an EngineId
-      storedNullScore("v9", seedCatalogue),
-    ).toThrow(/Unknown fit engine: v9/);
-  });
-});
-
-describe("T8: storedNullScore", () => {
-  // Catalogue priors that are not 75 for any grip of frontFlare and thumb.
-  const cat = [
-    mouseRow({ slug: "a", frontFlare: "outward_slight", thumbRest: true }),
-    mouseRow({ slug: "b", frontFlare: "outward_moderate", thumbRest: true }),
-  ];
-
-  it('"v2" stores the catalogue-mean prior of every sub-score and grip, like v1', () => {
-    const priors = computePriors(cat);
-    const v2 = storedNullScore("v2", cat);
-    const v1 = storedNullScore("v1", cat);
-    let notSeventyFive = 0;
-    for (const sub of SUBSCORES) {
-      for (const grip of GRIP_STYLES) {
-        expect(v2(sub, grip)).toBe(priors[sub][grip]);
-        expect(v2(sub, grip)).toBe(v1(sub, grip));
-        if (v2(sub, grip) !== UNKNOWN_PRIOR_SCORE) notSeventyFive += 1;
-      }
-    }
-    // frontFlare and thumb, three grips each.
-    expect(notSeventyFive).toBe(6);
-  });
-
-  it('"v0" still stores 75', () => {
-    expect(storedNullScore("v0", cat)("thumb", "palm")).toBe(
-      UNKNOWN_PRIOR_SCORE,
-    );
   });
 });
 

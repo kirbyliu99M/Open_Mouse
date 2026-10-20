@@ -218,12 +218,13 @@ describe("cache keys", () => {
       computeCacheKey(fit, m, "en"),
     );
   });
-  it("the en key of a scored input is pinned (prompt version 7, score mode scored)", () => {
+  it("the en key of a scored input is pinned (prompt version 8, score mode scored)", () => {
     // Pinned at v3.1 (M3): the version went 6 -> 7 and the key now carries the
-    // score mode, so the old value (version 6) could not stay. A scored input
+    // score mode, so the old value (version 6) could not stay. Version 8 (the
+    // unscored mode loses its sub-score params) moved it again. A scored input
     // reads the same prompt as before; only the key moved.
     expect(computeCacheKey(makeFit(), makeMeasurements(), "en")).toBe(
-      "5991b1e5de6bb36f3017f0dff280eafa870e5d3ef01a80046c20f6399d3463ba",
+      "63166b6530b4a53c30785299d63650742a2400c16b14b0dcd813afa2a163d53a",
     );
   });
 });

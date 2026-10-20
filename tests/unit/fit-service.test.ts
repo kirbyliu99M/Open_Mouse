@@ -109,9 +109,9 @@ describe("POST /api/scans/{scanId}/fit — a successful fit", () => {
     expect(body.scanId).toBe(SCAN_ID);
   });
 
-  it("persists fit_results rows through the injected fitRepo", async () => {
+  it("no longer writes fit_results: the repo is only asked for the catalogue", async () => {
     const scanRepo = createFakeScanRepo(vi.fn(async () => sampleOwnedScan));
-    const { repo: fitRepo, saveFitResultsCalls } = createFakeFitRepo();
+    const { repo: fitRepo, otherCalls } = createFakeFitRepo();
 
     const res = await computeFitForScan(fitRequest({}), SCAN_ID, {
       scanRepo,
@@ -120,13 +120,15 @@ describe("POST /api/scans/{scanId}/fit — a successful fit", () => {
     });
     const body = await res.json();
 
-    expect(saveFitResultsCalls).toHaveLength(1);
-    expect(saveFitResultsCalls[0]).toHaveLength(body.results.length);
+    expect(res.status).toBe(200);
+    expect(body.results.length).toBeGreaterThan(0);
+    expect(fitRepo.loadCatalogue).toHaveBeenCalledTimes(1);
+    expect(otherCalls).toEqual([]);
   });
 
-  it("repeating the same request is idempotent — no unique-violation, no error", async () => {
+  it("repeating the same request gives the same answer and never errors", async () => {
     const scanRepo = createFakeScanRepo(vi.fn(async () => sampleOwnedScan));
-    const { repo: fitRepo, saveFitResultsCalls } = createFakeFitRepo();
+    const { repo: fitRepo, otherCalls } = createFakeFitRepo();
 
     const first = await computeFitForScan(fitRequest({}), SCAN_ID, {
       scanRepo,
@@ -141,7 +143,8 @@ describe("POST /api/scans/{scanId}/fit — a successful fit", () => {
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
-    expect(saveFitResultsCalls).toHaveLength(2);
+    expect(await second.json()).toEqual(await first.json());
+    expect(otherCalls).toEqual([]);
   });
 
   it("every response carries cache-control: no-store", async () => {
@@ -235,7 +238,7 @@ describe("POST /api/scans/{scanId}/fit — oversized body", () => {
     const findOwnedScan = vi.fn(async () => sampleOwnedScan);
     const scanRepo = createFakeScanRepo(findOwnedScan);
     const loadCatalogue = vi.fn(async () => []);
-    const fitRepo = { loadCatalogue, saveFitResults: vi.fn(async () => {}) };
+    const fitRepo = { loadCatalogue };
     const request = new Request(`http://localhost/api/scans/${SCAN_ID}/fit`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -259,7 +262,7 @@ describe("POST /api/scans/{scanId}/fit — per-IP rate limit (M2 hardening)", ()
   it("429s with a no-store, user-facing error body when the limiter rejects the request, without ever calling the repos", async () => {
     const findOwnedScan = vi.fn(async () => sampleOwnedScan);
     const scanRepo = createFakeScanRepo(findOwnedScan);
-    const { repo: fitRepo, saveFitResultsCalls } = createFakeFitRepo();
+    const { repo: fitRepo, otherCalls } = createFakeFitRepo();
 
     const res = await computeFitForScan(
       fitRequest({}, { "x-vercel-forwarded-for": "203.0.113.9" }),
@@ -277,7 +280,8 @@ describe("POST /api/scans/{scanId}/fit — per-IP rate limit (M2 hardening)", ()
     const body = await res.json();
     expect(typeof body.error).toBe("string");
     expect(findOwnedScan).not.toHaveBeenCalled();
-    expect(saveFitResultsCalls).toHaveLength(0);
+    expect(fitRepo.loadCatalogue).not.toHaveBeenCalled();
+    expect(otherCalls).toEqual([]);
   });
 
   it("does not limit when the request carries no usable client IP (local dev)", async () => {
@@ -320,11 +324,13 @@ describe("POST /api/scans/{scanId}/fit — per-IP rate limit (M2 hardening)", ()
 });
 
 describe("POST /api/scans/{scanId}/fit — an internal failure", () => {
-  it("500s without leaking internals when persistence fails", async () => {
+  it("500s without leaking internals when the catalogue cannot be read", async () => {
     const scanRepo = createFakeScanRepo(vi.fn(async () => sampleOwnedScan));
-    const { repo: fitRepo } = createFakeFitRepo(undefined, async () => {
-      throw new Error("db write failed: connection reset at 10.0.0.5:5432");
-    });
+    const fitRepo = {
+      loadCatalogue: vi.fn(async () => {
+        throw new Error("db read failed: connection reset at 10.0.0.5:5432");
+      }),
+    };
 
     const res = await computeFitForScan(fitRequest({}), SCAN_ID, {
       scanRepo,

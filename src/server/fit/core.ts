@@ -7,8 +7,7 @@ import type {
 } from "../../lib/contracts/measurement";
 import type { ScanRepo } from "../scans/repo";
 import type { FitRepo } from "./repo";
-import { buildFitResultRows } from "./rows";
-import { resolveFitEngine, scoreFitDefault, storedNullScore } from "./engine";
+import { scoreFitDefault } from "./engine";
 import { scoringMeasurements } from "./scoring-measurements";
 import { listedOnly } from "./listed";
 import { withFilterFacts } from "./filter-facts";
@@ -63,9 +62,10 @@ export type LoadOwnedFitResult =
  * so a malformed id can't reach the database.
  *
  * Throws (never silently returns bad data) if `scoreFit`'s output fails its
- * own `fitResponseSchema`, or if persisting `fit_results` fails — an HTTP
- * adapter turns either into a 500. Every number in the result comes from
- * `scoreFit`; this function adds none of its own (hard rule 2).
+ * own `fitResponseSchema` — an HTTP adapter turns that into a 500. Nothing is
+ * stored: since 2026-10-20 the request path no longer writes `fit_results`
+ * (the table stays for old rows; nothing reads it). Every number in the result
+ * comes from `scoreFit`; this function adds none of its own (hard rule 2).
  */
 export async function loadOwnedFit(
   scanId: string,
@@ -104,8 +104,8 @@ export async function loadOwnedFit(
     },
     owned.hand,
   );
-  // Same-shell entries become one card; ranks are renumbered, so what is
-  // stored and what is shown are the same list. `excluded` is untouched.
+  // Same-shell entries become one card; ranks are renumbered. `excluded` is
+  // untouched.
   // The filter's catalogue facts (shape, connectivity) ride along after the
   // grouping; nothing scores on them and the analysis never sees them. The
   // product photo (a static file) follows, for every entry; the same holds for
@@ -123,21 +123,6 @@ export async function loadOwnedFit(
       "scoreFit produced a response that fails fitResponseSchema.",
     );
   }
-
-  const mouseIdBySlug = new Map(
-    catalogue
-      .filter((m): m is typeof m & { id: string } => m.id !== undefined)
-      .map((m) => [m.slug, m.id] as const),
-  );
-  const storedNull = storedNullScore(resolveFitEngine(), catalogue);
-  const rows = buildFitResultRows(
-    scanId,
-    engineOutput.engineVersion,
-    results,
-    mouseIdBySlug,
-    (sub) => storedNull(sub, engineOutput.gripStyle.used),
-  );
-  await deps.fitRepo.saveFitResults(rows);
 
   return {
     status: "ok",

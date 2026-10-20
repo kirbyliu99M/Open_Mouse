@@ -40,7 +40,7 @@ export interface FitServiceDeps {
 /**
  * `POST /api/scans/{scanId}/fit`. Thin HTTP adapter over `loadOwnedFit`
  * (`./core.ts`), which owns scan-id validation, the ownership check,
- * scoring and persistence. This layer only reads the body-size cap, parses
+ * scoring. This layer only reads the body-size cap, parses
  * and validates `fitPreferencesSchema`, resolves the caller's identity, and
  * maps the core's result to 200 / 400 / 404 / 413 / 429 / 500 — every
  * response carrying `cache-control: no-store`.
