@@ -36,9 +36,9 @@ const withCalibration = (c: FitCalibration | undefined): FitResponse => ({
 });
 
 describe("the calibration note on the results page", () => {
-  it("the zh-TW draft reads as Kirby's wording, and the English one says the same", () => {
+  it("the zh-TW draft is the 2026-10-21 暫訂 wording, and the English one says the same", () => {
     expect(RESULTS_PAGE_COPY["zh-TW"].calibrationNotice).toBe(
-      "已參考你在問卷評過的滑鼠微調尺寸",
+      "已參考你在問卷評過的滑鼠，微調了理想尺寸。",
     );
     expect(RESULTS_PAGE_COPY.en.calibrationNotice).toMatch(/survey/i);
   });
