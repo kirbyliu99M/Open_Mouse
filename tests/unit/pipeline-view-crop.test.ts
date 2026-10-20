@@ -381,7 +381,8 @@ describe("paper-edge pipeline with a previewView: the photo is cut to what was o
     arrange(null);
     const result = ok(await run());
     expect(seen.bitmapCrops).toEqual([]);
-    expect(seen.closed).not.toHaveBeenCalled();
+    // Nothing was cropped, so the decoded bitmap is the one analysed: released at the end of the run.
+    expect(seen.closed).toHaveBeenCalledTimes(1);
     expect(seen.imageDataSizes).toEqual([DECODED]);
     expect(result.diagnostics?.fovCrop).toBeNull();
     expect(result.diagnostics?.view).toBeNull();
@@ -417,7 +418,7 @@ describe("paper-edge pipeline with a previewView: the photo is cut to what was o
     const result = ok(await run({ previewView: VIEW }));
     expect(result.diagnostics?.fovCrop).toBeNull();
     expect(result.diagnostics?.analysed).toEqual(DECODED);
-    expect(seen.closed).not.toHaveBeenCalled();
+    expect(seen.closed).toHaveBeenCalledTimes(1);
     expect(result.overlay.landmarksPx).toEqual(HAND_FULL);
   });
 

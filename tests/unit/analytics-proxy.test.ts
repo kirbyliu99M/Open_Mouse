@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   MAX_INGEST_BODY_BYTES,
+  UPSTREAM_TIMEOUT_MS,
   filterRequestHeaders,
   filterResponseHeaders,
   isIngestPath,
@@ -123,6 +124,56 @@ describe("proxyIngest", () => {
     );
     expect(res.status).toBe(413);
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("gives the upstream call a deadline of 8 seconds, as a signal", async () => {
+    expect(UPSTREAM_TIMEOUT_MS).toBe(8000);
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 204 }));
+    await proxyIngest(post(), ["e"], {
+      enabled: true,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("504s when the upstream does not answer in time", async () => {
+    // A fetch that never answers and gives up when its signal fires, as the real one does.
+    const hanging = ((_url: string, init: RequestInit) =>
+      new Promise<Response>((_, reject) => {
+        init.signal?.addEventListener("abort", () =>
+          reject(init.signal!.reason),
+        );
+      })) as unknown as typeof fetch;
+    const res = await proxyIngest(post(), ["e"], {
+      enabled: true,
+      fetchImpl: hanging,
+      timeoutMs: 20,
+    });
+    expect(res.status).toBe(504);
+  });
+
+  it("504s when the upstream stalls while its answer is being read", async () => {
+    const stalled = ((_url: string, init: RequestInit) =>
+      Promise.resolve({
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        arrayBuffer: () =>
+          new Promise<ArrayBuffer>((_, reject) => {
+            init.signal?.addEventListener("abort", () =>
+              reject(init.signal!.reason),
+            );
+          }),
+      })) as unknown as typeof fetch;
+    const res = await proxyIngest(post(), ["e"], {
+      enabled: true,
+      fetchImpl: stalled,
+      timeoutMs: 20,
+    });
+    expect(res.status).toBe(504);
   });
 
   it("502s when the upstream is unreachable", async () => {

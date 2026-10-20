@@ -173,6 +173,49 @@ describe("free text", () => {
     expect(looksLikeContactDetails("afternoon, by the window")).toBe(false);
     expect(looksLikeContactDetails("")).toBe(false);
   });
+
+  it.each([
+    "886 912 345 678",
+    "415-555-1234",
+    "(02) 2345-6789",
+    "0912.345.678",
+    "line: abc123",
+    "Line ID abc_123",
+    "line id",
+    "加我 line",
+    "加我line",
+    "加賴",
+    "wechat: kirby_99",
+    "@kirby99",
+    "ig @kirby.liu",
+    "kirby＠example.com",
+    "０９１２３４５６７８",
+    "call 415 555 1234 later",
+  ])("flags contact details: %s", (text) => {
+    expect(looksLikeContactDetails(text)).toBe(true);
+  });
+
+  it.each([
+    "G502 X Plus",
+    "MX Master 3S",
+    "M720",
+    "800 DPI",
+    "1000 Hz",
+    "2024",
+    "63 g",
+    "120 x 63 x 40 mm",
+    "19 cm",
+    "DPI 400 800 1600 3200",
+    "400 800 1600 3200 DPI",
+    "polling 125 250 500 1000 Hz",
+    "The line: smooth.",
+    "a straight line of sight",
+    "line up with the knuckle",
+    "G Pro X Superlight 2, 60 g, 2024-10-02",
+    "I use @ 800 DPI",
+  ])("does not flag mouse names and specs: %s", (text) => {
+    expect(looksLikeContactDetails(text)).toBe(false);
+  });
 });
 
 describe("planShots", () => {

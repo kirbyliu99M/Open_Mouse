@@ -19,6 +19,13 @@
  * key — equivalent to no rate limit at all — every request with no usable
  * IP shares one fixed bucket, `UNKNOWN_IP_KEY`, which is far stricter than
  * any single real IP's fair share. Fail toward limiting, not unlimited.
+ *
+ * That shared bucket is the analysis route's rule (it bounds model spend).
+ * The fit, similar, health, scan, feedback and survey routes instead skip
+ * their limit when there is no usable IP: on Vercel the platform always sets
+ * `x-vercel-forwarded-for`, so a caller cannot reach that branch by leaving
+ * the header out, and the branch exists for local dev and e2e, which send no
+ * forwarding header and would otherwise share one bucket.
  */
 
 /** Shared rate-limit bucket for any request with no usable IP header. */

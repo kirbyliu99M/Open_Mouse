@@ -10,7 +10,11 @@
  * It only relays envelopes addressed to this app's own DSN, so it cannot be
  * used to send events to someone else's Sentry project.
  */
-import { readCapped } from "@/server/analytics/proxy";
+import {
+  isTimeoutError,
+  readCapped,
+  UPSTREAM_TIMEOUT_MS,
+} from "@/server/analytics/proxy";
 
 /** Largest envelope accepted. An error event with its breadcrumbs is a few KB. */
 export const MAX_ENVELOPE_BYTES = 1024 * 1024;
@@ -72,6 +76,8 @@ export interface TunnelDeps {
   /** The configured DSN; unset turns the tunnel off. */
   dsn: string | undefined;
   fetchImpl: typeof fetch;
+  /** Upstream deadline in milliseconds; defaults to `UPSTREAM_TIMEOUT_MS`. */
+  timeoutMs?: number;
 }
 
 /** Handles one request to the tunnel. */
@@ -107,10 +113,11 @@ export async function proxyEnvelope(
         headers: contentType ? { "content-type": contentType } : {},
         body,
         redirect: "error",
+        signal: AbortSignal.timeout(deps.timeoutMs ?? UPSTREAM_TIMEOUT_MS),
       },
     );
-  } catch {
-    return new Response(null, { status: 502 });
+  } catch (error) {
+    return new Response(null, { status: isTimeoutError(error) ? 504 : 502 });
   }
   return new Response(null, {
     status: upstream.status,

@@ -110,7 +110,7 @@ const CALIBRATIONS: readonly {
 
 function arrange(detected: Detected) {
   vi.mocked(decodePhoto).mockResolvedValue({
-    bitmap: {} as ImageBitmap,
+    bitmap: { close: () => undefined } as unknown as ImageBitmap,
     width: WIDTH,
     height: HEIGHT,
   });

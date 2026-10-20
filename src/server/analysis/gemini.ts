@@ -51,6 +51,9 @@ export class GeminiTextModel implements TextModel {
         responseSchema: args.schema,
         thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
         maxOutputTokens: args.maxOutputTokens,
+        // `abortSignal` is the SDK's name (GenerateContentConfig). Client-side
+        // only: the service may still bill the call, but we stop waiting.
+        abortSignal: args.signal,
       },
     });
     const text = response.text;
