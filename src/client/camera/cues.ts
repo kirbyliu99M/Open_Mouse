@@ -136,16 +136,19 @@ export function cueCodeForPaperStage(
 
 /**
  * The REASON behind a paper-gate or stage cue code (the side name is not part
- * of it), `null` for any other cue. A stage cue is its own reason. The
+ * of it), `null` for any other cue. The four stage cues share ONE reason,
+ * "paper-stage", the way the four covered sides share "edge-covered": a
+ * stage that flips between samples (a sheet at a threshold) still counts as
+ * the same run, and the debounce then shows the plain no-paper text, so a
+ * flipping stage cannot keep an old cue (even "perfect") on screen. The
  * debounce (cueDebounce.ts) asks for the same reason twice in a row before
  * any of these is shown.
  */
-export type PaperGateReason =
-  "edge-covered" | "paper-curled" | PaperStageCueCode;
+export type PaperGateReason = "edge-covered" | "paper-curled" | "paper-stage";
 
 export function paperGateReason(code: CueCode): PaperGateReason | null {
   if (code === "paper-curled") return "paper-curled";
-  if (isPaperStageCueCode(code)) return code;
+  if (isPaperStageCueCode(code)) return "paper-stage";
   return PAPER_GATE_CUE_CODES.includes(code) ? "edge-covered" : null;
 }
 
@@ -279,6 +282,15 @@ export interface CueInput {
    * (the printed sheet): the cue is then exactly what it was before.
    */
   readonly paperStage?: PaperDetectionStage | null;
+  /**
+   * Whether the live loop has found the whole sheet at least once since it
+   * started (EasyScanCamera's `firstSheetSeenAtRef`). `false`: no stage cue,
+   * the "point the camera" / "place a blank sheet" cues exactly as before
+   * S2, because with no sheet ever seen the stage most likely describes the
+   * desk, not a sheet (an empty brown desk reads as no_bright_region, a white
+   * mug as too_small). Omitted: treated as seen.
+   */
+  readonly sheetSeenYet?: boolean;
 }
 
 /**
@@ -295,14 +307,24 @@ export function pickCue(
   if (input.cornersSeen <= 0) {
     // Where the detector stopped, when that step has words of its own; the
     // "point the camera" cues otherwise.
-    const stageCode = cueCodeForPaperStage(input.paperStage);
-    if (stageCode) return cue(stageCode, mode, locale);
-    if (
+    // Candidate order (未拍板, scan S2 review): no stage cue before a sheet
+    // was ever seen; after the place-paper timeout, "no bright region" in
+    // light the Light chip calls ok yields to "place a blank sheet" (the
+    // sheet is most likely gone, and "may be too dark" would contradict the
+    // chip). The other stages keep their cue after the timeout.
+    const timedOut =
       input.msSinceLastDetection >
-      CAMERA_CONSTANTS.noDetection.placePaperTimeoutMs
-    ) {
-      return cue("place-paper", mode, locale);
-    }
+      CAMERA_CONSTANTS.noDetection.placePaperTimeoutMs;
+    const stageCode =
+      input.sheetSeenYet === false
+        ? null
+        : cueCodeForPaperStage(input.paperStage);
+    const stageYields =
+      stageCode === "stage-no-bright-region" &&
+      timedOut &&
+      computeLightStatus(input.meanLuma, input.clippedFraction) === "ok";
+    if (stageCode && !stageYields) return cue(stageCode, mode, locale);
+    if (timedOut) return cue("place-paper", mode, locale);
     return cue("no-corners", mode, locale);
   }
   if (input.cornersSeen < 4) return cue("some-corners", mode, locale);

@@ -1935,6 +1935,8 @@ export default function EasyScanCamera({
           // Where the detector stopped, from the same detection (scan S2):
           // nothing is computed again for it.
           paperStage: detection.failureStage ?? null,
+          // No stage cue before the sheet was ever found (cues.ts).
+          sheetSeenYet: firstSheetSeenAtRef.current !== null,
           msSinceLastDetection,
         },
         "paper-edge",

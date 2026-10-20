@@ -196,12 +196,99 @@ describe("live preview: the stage's cue", () => {
     ).toBe("some-corners");
   });
 
-  it("each stage cue is its own debounce reason", () => {
+  it("the four stage cues are one debounce reason", () => {
     for (const stage of NAMED) {
       const code = cueCodeForPaperStage(stage)!;
-      expect(paperGateReason(code)).toBe(code);
+      expect(paperGateReason(code)).toBe("paper-stage");
     }
     expect(paperGateReason("no-corners")).toBeNull();
+  });
+
+  it("before a sheet was ever seen, no stage cue: the cues from before S2", () => {
+    for (const stage of NAMED) {
+      for (const [ms, code] of [
+        [0, "no-corners"],
+        [2001, "place-paper"],
+      ] as const) {
+        expect(
+          pickCue(
+            {
+              ...NO_SHEET,
+              paperStage: stage,
+              sheetSeenYet: false,
+              msSinceLastDetection: ms,
+            },
+            "paper-edge",
+            "en",
+          ).code,
+        ).toBe(code);
+      }
+    }
+  });
+
+  it("no sheet ever, light ok, past the timeout: place-paper, not 'may be too dark'", () => {
+    const input: CueInput = {
+      ...NO_SHEET,
+      meanLuma: 120,
+      clippedFraction: 0,
+      paperStage: "no_bright_region",
+      sheetSeenYet: false,
+      msSinceLastDetection: 2001,
+    };
+    expect(pickCue(input, "paper-edge", "en").code).toBe("place-paper");
+    expect(pickCue(input, "paper-edge", "zh-TW").code).toBe("place-paper");
+  });
+
+  it("after the timeout with a sheet seen: each named stage's code (candidate order)", () => {
+    const expected: Record<string, CueCode> = {
+      // Light ok: the sheet is most likely gone, so the timeout cue wins.
+      no_bright_region: "place-paper",
+      region_split: "stage-region-split",
+      aspect_mismatch: "stage-aspect-mismatch",
+      too_small: "stage-too-small",
+    };
+    for (const stage of NAMED) {
+      expect(
+        pickCue(
+          {
+            ...NO_SHEET,
+            paperStage: stage,
+            sheetSeenYet: true,
+            msSinceLastDetection: 2001,
+          },
+          "paper-edge",
+          "en",
+        ).code,
+      ).toBe(expected[stage]);
+    }
+  });
+
+  it("no bright region in dim light keeps its cue after the timeout", () => {
+    expect(
+      pickCue(
+        {
+          ...NO_SHEET,
+          meanLuma: 30,
+          paperStage: "no_bright_region",
+          sheetSeenYet: true,
+          msSinceLastDetection: 2001,
+        },
+        "paper-edge",
+        "en",
+      ).code,
+    ).toBe("stage-no-bright-region");
+  });
+
+  it("before the timeout with a sheet seen, every named stage has its cue", () => {
+    for (const stage of NAMED) {
+      expect(
+        pickCue(
+          { ...NO_SHEET, paperStage: stage, sheetSeenYet: true },
+          "paper-edge",
+          "en",
+        ).code,
+      ).toBe(cueCodeForPaperStage(stage));
+    }
   });
 });
 
@@ -235,6 +322,39 @@ describe("live preview: the S1 debounce (two in a row) holds for stage cues", ()
       s = step(s, code, 100 * (i + 1));
     });
     expect(s.shown).toBe("no-corners");
+  });
+
+  it("two stages that alternate do not keep 'perfect' on screen (default options)", () => {
+    let s = advanceCueDebounce(INITIAL_CUE_DEBOUNCE_STATE, "perfect", 0);
+    expect(s.shown).toBe("perfect");
+    for (let i = 1; i <= 60; i++) {
+      s = advanceCueDebounce(
+        s,
+        i % 2 ? "stage-too-small" : "stage-aspect-mismatch",
+        200 * i,
+      );
+    }
+    expect(s.shown).toBe("no-corners");
+  });
+
+  it.each([
+    ["stage-too-small", "stage-region-split"],
+    ["stage-no-bright-region", "stage-too-small"],
+  ] as const)(
+    "%s / %s alternating from 'perfect' or 'tilted' fall back to no-corners",
+    (a, b) => {
+      for (const start of ["perfect", "tilted"] as const) {
+        let s = step(INITIAL_CUE_DEBOUNCE_STATE, start, 0);
+        for (let i = 1; i <= 20; i++) s = step(s, i % 2 ? a : b, 1000 * i);
+        expect(s.shown).toBe("no-corners");
+      }
+    },
+  );
+
+  it("one stage held steady after 'perfect' shows that stage", () => {
+    let s = step(INITIAL_CUE_DEBOUNCE_STATE, "perfect", 0);
+    for (let i = 1; i <= 4; i++) s = step(s, "stage-too-small", 1000 * i);
+    expect(s.shown).toBe("stage-too-small");
   });
 });
 
