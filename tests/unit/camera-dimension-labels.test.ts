@@ -1,5 +1,9 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
+  ENDPOINT_DOT_OUTER_DIAMETER_PX,
+  ENDPOINT_DOT_RING_PX,
   layoutDimensions,
   placeLabels,
   type DimensionSpec,
@@ -10,6 +14,9 @@ import {
   type Box,
 } from "../../src/client/geometry/handSilhouette";
 import type { Rect } from "../../src/client/camera/quad";
+import { FrozenPhoto } from "../../src/client/camera/FrozenPhoto";
+import type { FrozenPhotoLayout } from "../../src/client/camera/photoLayout";
+import type { PhotoOverlay } from "../../src/client/photo/pipeline";
 
 /**
  * A hand near the right-hand side of a 1000 x 1000 photo: the length line is
@@ -234,5 +241,194 @@ describe("placeLabels: inside the photo, and never over each other", () => {
       for (const b of boxes)
         if (!inside(b, photo)) throw new Error(`hand ${n}: a label is outside`);
     }
+  });
+});
+
+describe("the dots on the measured points", () => {
+  it("are 6 CSS px across OUTSIDE (fill plus ring), at any scale", () => {
+    expect(ENDPOINT_DOT_OUTER_DIAMETER_PX).toBe(6);
+    expect(ENDPOINT_DOT_RING_PX).toBe(1.5);
+    for (const scale of [0.5, 1, 2.5]) {
+      const { dotRadius } = layoutDimensions(SPECS, scale);
+      // Fill radius 2.25 px; the ring is centred on its edge, 0.75 px each way.
+      expect(dotRadius).toBeCloseTo(2.25 * scale, 12);
+      const outer = 2 * (dotRadius + (ENDPOINT_DOT_RING_PX / 2) * scale);
+      expect(outer).toBeCloseTo(6 * scale, 12);
+    }
+  });
+});
+
+describe("FrozenPhoto: dots, the scale on each axis, and the screens without them", () => {
+  const layout: FrozenPhotoLayout = {
+    box: { x: 0, y: 0, width: 390, height: 731 },
+    crop: { x: 0, y: 0, width: 4001, height: 3000 },
+  };
+  const still = { width: 4001, height: 3000 };
+  const overlay = (extra: Partial<PhotoOverlay> = {}): PhotoOverlay =>
+    ({
+      imageWidth: 3000,
+      imageHeight: 2249,
+      landmarksPx: null,
+      paperCorners: null,
+      ...extra,
+    }) as PhotoOverlay;
+  const dims: DimensionSpec[] = [
+    {
+      a: { x: 1234.5, y: 2200.25 },
+      b: { x: 1300, y: 400 },
+      label: "Hand 190 mm",
+      side: 1,
+    },
+    {
+      a: { x: 900.125, y: 1500 },
+      b: { x: 1700, y: 1480.5 },
+      label: "Palm 84 mm",
+      side: 1,
+    },
+  ];
+  const render = (
+    props: Partial<Parameters<typeof FrozenPhoto>[0]> & {
+      phase: "processing" | "measured" | "gateFailure";
+    },
+  ) =>
+    renderToStaticMarkup(
+      createElement(FrozenPhoto, {
+        previewUrl: "blob:test",
+        still,
+        layout,
+        overlay: overlay(),
+        overlayToStill: 4001 / 3000,
+        layerScale: 0.9,
+        dimensions: dims,
+        problem: null,
+        ariaLabel: "photo",
+        ...props,
+      }),
+    );
+  const dots = (html: string) =>
+    [...html.matchAll(/<circle[^>]*data-endpoint="([ab])"[^>]*>/g)].map(
+      (m) => ({
+        end: m[1],
+        cx: Number(/cx="([^"]+)"/.exec(m[0])?.[1]),
+        cy: Number(/cy="([^"]+)"/.exec(m[0])?.[1]),
+        r: Number(/ r="([^"]+)"/.exec(m[0])?.[1]),
+      }),
+    );
+
+  it("measured: a dot on every a and b, exactly on the spec's analysed-image coordinates (0 px)", () => {
+    const html = render({
+      phase: "measured",
+      overlayToStillY: 3000 / 2249,
+    });
+    const found = dots(html);
+    expect(found).toHaveLength(4);
+    const want = [dims[0].a, dims[0].b, dims[1].a, dims[1].b];
+    found.forEach((d, i) => {
+      expect(d.cx - want[i].x).toBe(0);
+      expect(d.cy - want[i].y).toBe(0);
+      expect(d.r).toBeGreaterThan(0);
+    });
+    expect(found.map((d) => d.end)).toEqual(["a", "b", "a", "b"]);
+  });
+
+  it("the overlay group is scaled by its own ratio on each axis", () => {
+    const html = render({
+      phase: "measured",
+      overlayToStillY: 3000 / 2249,
+    });
+    const m = /<g transform="scale\(([^ )]+) ([^)]+)\)">/.exec(html);
+    expect(m).not.toBeNull();
+    expect(Number(m?.[1])).toBeCloseTo(4001 / 3000, 12);
+    expect(Number(m?.[2])).toBeCloseTo(3000 / 2249, 12);
+  });
+
+  it("equal ratios (no Y given): the same scale on both axes", () => {
+    const html = render({
+      phase: "measured",
+      still: { width: 2000, height: 1500 },
+      layout: {
+        box: layout.box,
+        crop: { x: 0, y: 0, width: 2000, height: 1500 },
+      },
+      overlay: overlay({ imageWidth: 1000, imageHeight: 750 }),
+      overlayToStill: 2,
+    });
+    expect(html).toContain('transform="scale(2 2)"');
+  });
+
+  it("with a crop: the dots and the group are unchanged by it", () => {
+    const html = render({
+      phase: "measured",
+      layout: {
+        box: { x: -50, y: 0, width: 490, height: 731 },
+        crop: { x: 300, y: 0, width: 3400, height: 3000 },
+      },
+      overlayToStill: 4001 / 3000,
+      overlayToStillY: 3000 / 2249,
+    });
+    expect(dots(html)).toHaveLength(4);
+    expect(html).toContain('viewBox="300 0 3400 3000"');
+  });
+
+  it("with a crop: the labels are kept inside the visible rect, each axis divided by its own ratio", () => {
+    // Overlay 1000x1000 in a still of 1000x1500: ratios 1 and 1.5. The crop is
+    // the still's middle 800x750 (from x 100, y 750), so the visible part of the
+    // overlay is x 100..900, y 500..1000.
+    const stillPx = { width: 1000, height: 1500 };
+    const crop = { x: 100, y: 750, width: 800, height: 750 };
+    const specs: DimensionSpec[] = [
+      { a: { x: 300, y: 100 }, b: { x: 700, y: 100 }, label: "Hand", side: 1 },
+    ];
+    const html = render({
+      phase: "measured",
+      still: stillPx,
+      layout: { box: { x: 0, y: 0, width: 390, height: 365.625 }, crop },
+      overlay: overlay({ imageWidth: 1000, imageHeight: 1000 }),
+      overlayToStill: 1,
+      overlayToStillY: 1.5,
+      layerScale: 1,
+      dimensions: specs,
+    });
+    const label =
+      /<g transform="translate\(([-\d.e]+) ([-\d.e]+)\)"><g class="easyDimLabel"[^>]*><rect x="[^"]+" y="[^"]+" width="([^"]+)" height="([^"]+)"/.exec(
+        html,
+      );
+    expect(label).not.toBeNull();
+    const [cx, cy, w, h] = label!.slice(1).map(Number);
+    // Bounds with Y divided by 1.5 (the right ones): top 500. Dividing Y by the
+    // width ratio would have put the top at 750.
+    expect(cy - h / 2).toBeCloseTo(500, 6);
+    expect(cx - w / 2).toBeGreaterThanOrEqual(100 - 1e-6);
+    expect(cx + w / 2).toBeLessThanOrEqual(900 + 1e-6);
+    expect(cy + h / 2).toBeLessThanOrEqual(1000 + 1e-6);
+  });
+
+  it("no overlay: nothing is drawn over the photo", () => {
+    const html = render({ phase: "measured", overlay: null });
+    expect(html).not.toContain("<circle");
+    expect(html).not.toContain("scale(");
+  });
+
+  it("while processing: no dots, no group", () => {
+    const html = render({ phase: "processing" });
+    expect(html).not.toContain("<circle");
+    expect(html).not.toContain("<g");
+  });
+
+  it("a failed photo: scaled the same, but no dimension lines and so no dots", () => {
+    const html = render({
+      phase: "gateFailure",
+      overlayToStillY: 3000 / 2249,
+      problem: { x: 100, y: 100, width: 400, height: 300 },
+    });
+    expect(html).toContain("easyProblem");
+    expect(html).toMatch(/scale\(1\.3\d+ 1\.3\d+\)/);
+    expect(dots(html)).toHaveLength(0);
+  });
+
+  it("measured without dimension specs: no dots", () => {
+    expect(dots(render({ phase: "measured", dimensions: null }))).toHaveLength(
+      0,
+    );
   });
 });

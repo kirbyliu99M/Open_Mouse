@@ -125,6 +125,7 @@ import {
   computeFrozenPhotoLayout,
   computeGuideRect,
   computeMeasuredTransform,
+  computeOverlayToStill,
   computeResultFocusRect,
   overlayUnitsPerPx,
   paperAspect,
@@ -2301,10 +2302,10 @@ export default function EasyScanCamera({
     result.kind === "measured" || result.kind === "gateFailure"
       ? result.overlay
       : null;
-  const overlayToStill =
-    resultOverlay && resultOverlay.imageWidth > 0 && stillSize
-      ? stillSize.width / resultOverlay.imageWidth
-      : 1;
+  const { x: overlayToStill, y: overlayToStillY } = computeOverlayToStill(
+    stillSize,
+    resultOverlay,
+  );
   // Once measured (or failed) the photo scales down and moves up, by a
   // transform, until nothing is under the bottom sheet.
   const measuredTransform =
@@ -2318,6 +2319,7 @@ export default function EasyScanCamera({
             stage: stageSize,
             layout: frozenLayout,
             overlayToStill,
+            overlayToStillY,
             overlay: resultOverlay,
             // The labels sit inside the paper; without a paper they hang off
             // the hand, which needs more room.
@@ -2395,6 +2397,7 @@ export default function EasyScanCamera({
         phase={measuredView ? result.kind : "processing"}
         overlay={measuredView ? resultOverlay : null}
         overlayToStill={overlayToStill}
+        overlayToStillY={overlayToStillY}
         layerScale={measuredView ? layerScale : 1}
         dimensions={measuredView ? dimensions : null}
         problem={measuredView ? problem : null}
