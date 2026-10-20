@@ -15,7 +15,6 @@ import {
   RESULT_FEEDBACK_AUTOCLOSE_MS,
   RESULT_FEEDBACK_TICK_MS,
   addVisibleTime,
-  buildSubmission,
   canPageScroll,
   dismissedEventDue,
   dragClosesSheet,
@@ -23,11 +22,11 @@ import {
   fetchAnswered,
   markFeedbackDone,
   reachedEnd,
+  feedbackSender,
   readFeedbackDone,
-  sendFeedback,
+  submitFeedback,
   shouldShowSheet,
   shownEvent,
-  submittedEvent,
   type SendFailure,
   type SheetPhase,
 } from "@/lib/results/resultFeedback";
@@ -51,11 +50,24 @@ export function ResultFeedbackSheet({
   scanId,
   language,
   emit,
+  resultFingerprint,
+  onResultChanged,
 }: {
   scanId: string;
   language: Locale;
   /** The results page's emitter (real pages only); it adds the page fields. */
   emit?: ResultsEmit;
+  /**
+   * V3.2 F1 (candidate): the fingerprint of the ranking on screen, sent with
+   * the rating. Absent: no header (the server behaves as before).
+   */
+  resultFingerprint?: string;
+  /**
+   * Called when the server answers 412 (the ranking changed): the page fetches
+   * the new ranking. The sheet keeps the stars and the comment, says why, and
+   * waits for the person to send again; it never sends by itself.
+   */
+  onResultChanged?: () => void;
 }) {
   const copy = resultFeedbackCopy(language);
   const markerRef = useRef<HTMLDivElement>(null);
@@ -233,34 +245,28 @@ export function ResultFeedbackSheet({
     close();
   };
 
-  const submit = async () => {
-    if (phase === "sending") return;
-    const built = buildSubmission({ stars, comment, locale: language });
-    if (!built.ok) {
-      setFailure(built.reason);
-      return;
-    }
-    setFailure(null);
-    setPhase("sending");
-    const result = await sendFeedback(scanId, built.body);
-    if (result.ok) {
-      markFeedbackDone(scanId);
-      const event = submittedEvent({
-        stars: built.body.stars,
-        comment: built.body.comment,
-      });
-      emit?.(event.name, event.props);
-      setPhase("thanks");
-      return;
-    }
-    if (result.reason === "conflict") {
-      markFeedbackDone(scanId);
-      setPhase("already");
-      return;
-    }
-    setFailure(result.reason);
-    setPhase("form");
-  };
+  // The wiring is `submitFeedback` (tested in result-fingerprint.test.ts):
+  // only the button calls it, so the sheet never sends by itself, also not
+  // when a new ranking (a new `resultFingerprint`) arrives after a 412.
+  const submit = () =>
+    submitFeedback(
+      {
+        scanId,
+        phase,
+        stars,
+        comment,
+        locale: language,
+        resultFingerprint,
+      },
+      {
+        send: feedbackSender(),
+        markDone: (id) => markFeedbackDone(id),
+        setFailure,
+        setPhase,
+        emitSubmitted: (event) => emit?.(event.name, event.props),
+        onResultChanged,
+      },
+    );
 
   // Thanks closes itself. After "thanks" or "already sent" the submit button
   // is gone: if the focus was on it (now the body), keep it inside the sheet,

@@ -65,6 +65,18 @@ export const fitPath = (scanId: string): string =>
  * per client IP. At the site-wide daily model cap the response is still 200,
  * with `source: "fallback"` — never a 429.
  */
+/**
+ * V3.2 (candidate, 未拍板): request header on the analysis POST and the result
+ * feedback POST carrying the `resultFingerprint` of the fit response the page
+ * is showing (fit.ts, `resultFingerprintSchema`). The server recomputes the
+ * fit; when the header is present and differs, it answers 412 (precondition
+ * failed, `errorResponseSchema`), writes and caches nothing, and the page
+ * fetches the fit again before retrying. A request without the header behaves
+ * as before (older pages). 412 is used rather than 409 because the feedback
+ * path already uses 409 for "this scan was already rated".
+ */
+export const RESULT_FINGERPRINT_HEADER = "x-result-fingerprint";
+
 export const analysisPath = (scanId: string): string =>
   `/api/scans/${encodeURIComponent(scanId)}/analysis`;
 

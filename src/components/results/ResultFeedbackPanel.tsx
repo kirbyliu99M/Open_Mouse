@@ -43,6 +43,8 @@ export function failureText(
       return copy.commentChars;
     case "invalid":
       return qn.sendInvalid;
+    case "stale":
+      return copy.resultChanged;
     default:
       // "network", and "conflict" (which the sheet handles as "already").
       return copy.sendFailed;

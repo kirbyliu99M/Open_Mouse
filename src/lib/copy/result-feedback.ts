@@ -56,6 +56,12 @@ export interface ResultFeedbackCopy {
   already: string;
   /** The comment holds characters that cannot be sent (not contact details). */
   commentChars: string;
+  /**
+   * V3.2 F1 (暫訂, candidate): the ranking changed on the server (a survey
+   * edited in another tab) while the sheet was open; nothing was stored and
+   * the page fetches the new ranking. The rating is not sent again by itself.
+   */
+  resultChanged: string;
   keptTitle: string;
   keptBody: string;
   notKeptTitle: string;
@@ -91,6 +97,7 @@ export const zhTW: ResultFeedbackCopy = {
   closeLabel: "關閉（這台裝置上這次結果不再詢問）",
   already: "這次的結果已經送出過回饋。",
   commentChars: "意見裡有無法送出的字元，請刪掉後再試一次。",
+  resultChanged: "結果已經更新，請先看一下新的排名再評分。",
   keptTitle: "會保存",
   keptBody:
     "星等、你選填的意見、手型分類、握法、量測方式、你自述的手掌厚度，以及推薦的前三名與配合度等級。",
@@ -124,6 +131,8 @@ export const en: ResultFeedbackCopy = {
   already: "You've already sent feedback on this result.",
   commentChars:
     "The comment has characters that can't be sent. Please remove them and try again.",
+  resultChanged:
+    "Your results have changed. Please look at the new ranking before rating.",
   keptTitle: "Kept",
   keptBody:
     "Your stars, your optional comment, your hand-type class, grip, how the scan was measured, the palm thickness you stated, and the top three picks with their fit level.",

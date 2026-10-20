@@ -15,7 +15,10 @@ import {
   resultFeedbackSubmitResponseSchema,
   type ResultFeedbackSubmission,
 } from "@/lib/contracts/result-feedback";
-import { resultFeedbackPath } from "@/lib/contracts/routes";
+import {
+  RESULT_FINGERPRINT_HEADER,
+  resultFeedbackPath,
+} from "@/lib/contracts/routes";
 import type { Locale } from "@/lib/contracts/locale";
 import { looksLikeContactDetails } from "@/lib/learning/session";
 import { browserStorage, type FlagStorage } from "./surveyReminder";
@@ -181,6 +184,8 @@ export function buildSubmission(input: {
 
 export type SendFailure =
   | "conflict"
+  /** 412 (V3.2 F1, candidate): the ranking changed; nothing was stored. */
+  | "stale"
   | "rate_limited"
   | "invalid"
   | "invalid_feedback"
@@ -202,6 +207,8 @@ export function failureFromStatus(
   switch (status) {
     case 409:
       return "conflict";
+    case 412:
+      return "stale";
     case 429:
       return "rate_limited";
     case 400:
@@ -249,16 +256,26 @@ export async function fetchAnswered(
   }
 }
 
-/** Send the body. Never throws. */
+/**
+ * Send the body. Never throws. `resultFingerprint` is the one of the ranking
+ * on screen (V3.2 F1, candidate); without it no header is sent and the server
+ * behaves as before.
+ */
 export async function sendFeedback(
   scanId: string,
   body: ResultFeedbackSubmission,
   fetchImpl: FetchImpl = defaultFetch,
+  resultFingerprint?: string,
 ): Promise<SendResult> {
   try {
     const res = await fetchImpl(resultFeedbackPath(scanId), {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(resultFingerprint
+          ? { [RESULT_FINGERPRINT_HEADER]: resultFingerprint }
+          : {}),
+      },
       body: JSON.stringify(body),
       credentials: "same-origin",
       cache: "no-store",
@@ -280,6 +297,121 @@ export async function sendFeedback(
   } catch {
     return { ok: false, reason: "network" };
   }
+}
+
+/**
+ * What the sheet does after a send. Pure, so the rules are tested:
+ *   - stored: remember it on this device, thank the person;
+ *   - 409 (rated already): remember it, say so;
+ *   - 412 (V3.2 F1, candidate: the ranking changed): nothing was stored; stay
+ *     on the form with the stars and the comment, say why (`resultChanged`),
+ *     fetch the new ranking, and wait for the person to send again; never send
+ *     by itself;
+ *   - anything else: stay on the form and say what went wrong.
+ */
+export function afterSend(result: SendResult): {
+  phase: SheetPhase;
+  failure: SendFailure | null;
+  markDone: boolean;
+  refetchFit: boolean;
+} {
+  if (result.ok)
+    return {
+      phase: "thanks",
+      failure: null,
+      markDone: true,
+      refetchFit: false,
+    };
+  if (result.reason === "conflict")
+    return {
+      phase: "already",
+      failure: null,
+      markDone: true,
+      refetchFit: false,
+    };
+  return {
+    phase: "form",
+    failure: result.reason,
+    markDone: false,
+    refetchFit: result.reason === "stale",
+  };
+}
+
+/** What `submitFeedback` touches: the sheet's state setters and the outside world. */
+/**
+ * The sheet's `send`: forwards the fingerprint of the ranking on screen to
+ * `sendFeedback`, which puts it in the `x-result-fingerprint` header (V3.2 F1,
+ * candidate). A factory so the forwarding is tested with a fake fetch.
+ */
+export function feedbackSender(
+  fetchImpl: FetchImpl = defaultFetch,
+): FeedbackSubmitIo["send"] {
+  return (scanId, body, resultFingerprint) =>
+    sendFeedback(scanId, body, fetchImpl, resultFingerprint);
+}
+
+export interface FeedbackSubmitIo {
+  send: (
+    scanId: string,
+    body: ResultFeedbackSubmission,
+    resultFingerprint: string | undefined,
+  ) => Promise<SendResult>;
+  markDone: (scanId: string) => void;
+  setFailure: (failure: SendFailure | null) => void;
+  setPhase: (phase: SheetPhase) => void;
+  /** `result_feedback_submitted`, only once the rating is stored. */
+  emitSubmitted?: (event: ReturnType<typeof submittedEvent>) => void;
+  /** The page refetches the fit (V3.2 F1, candidate: after a 412). */
+  onResultChanged?: () => void;
+}
+
+/**
+ * The sheet's submit button, wired (kept here so it is tested without a
+ * browser): build the body, send it with the fingerprint of the ranking on
+ * screen, then apply `afterSend`. A 412 calls `onResultChanged` once and
+ * leaves the sheet on the form; nothing sends again until the person presses
+ * the button again. Does nothing while a send is in flight.
+ */
+export async function submitFeedback(
+  input: {
+    scanId: string;
+    phase: SheetPhase;
+    stars: number | null;
+    comment: string;
+    locale: Locale;
+    resultFingerprint: string | undefined;
+  },
+  io: FeedbackSubmitIo,
+): Promise<void> {
+  if (input.phase === "sending") return;
+  const built = buildSubmission({
+    stars: input.stars,
+    comment: input.comment,
+    locale: input.locale,
+  });
+  if (!built.ok) {
+    io.setFailure(built.reason);
+    return;
+  }
+  io.setFailure(null);
+  io.setPhase("sending");
+  const result = await io.send(
+    input.scanId,
+    built.body,
+    input.resultFingerprint,
+  );
+  const next = afterSend(result);
+  if (next.markDone) io.markDone(input.scanId);
+  if (result.ok) {
+    io.emitSubmitted?.(
+      submittedEvent({ stars: built.body.stars, comment: built.body.comment }),
+    );
+  }
+  io.setFailure(next.failure);
+  io.setPhase(next.phase);
+  // 412: nothing was stored. Fetch the ranking that is now true and let the
+  // person look at it before sending again (never sent automatically).
+  if (next.refetchFit) io.onResultChanged?.();
 }
 
 export const feedbackStorageKey = (scanId: string): string =>

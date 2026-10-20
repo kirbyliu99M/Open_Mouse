@@ -101,6 +101,7 @@ export function ResultsView({
   language,
   analysisState = { status: "idle" },
   onRetryAnalysis,
+  onResultChanged,
   enteredLengthMm = null,
   enteredManual = null,
   showViewer = false,
@@ -120,6 +121,11 @@ export function ResultsView({
   language: Locale;
   analysisState?: AnalysisState;
   onRetryAnalysis?: () => void;
+  /**
+   * V3.2 F1 (candidate): the feedback sheet heard that the ranking changed on
+   * the server (412); the page fetches the fit again. Real scans only.
+   */
+  onResultChanged?: () => void;
   /** The hand length the user typed in, when the scan used no paper. */
   enteredLengthMm?: number | null;
   /**
@@ -573,6 +579,8 @@ export function ResultsView({
           scanId={scanId}
           language={language}
           emit={analytics ? emit : undefined}
+          resultFingerprint={response.resultFingerprint}
+          onResultChanged={onResultChanged}
         />
       )}
     </>
