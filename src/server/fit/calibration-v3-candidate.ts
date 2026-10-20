@@ -100,6 +100,12 @@ export function feelProbability(
   return feel === 1 ? pLong : feel === -1 ? pShort : pFine;
 }
 
+/**
+ * A posterior mean smaller than this (mm) is float residue, not an
+ * adjustment, and is read as exactly 0. Far below the grid step (0.1 mm).
+ */
+export const CALIBRATION_NEGLIGIBLE_SHIFT_MM = 1e-9;
+
 /** One answer: how the mouse (size `xMm`) felt, judged against these grip targets (before any offset). */
 export interface CalibrationAnswer {
   feel: Feel;
@@ -166,7 +172,12 @@ export function posteriorShift(
   });
   // z is positive for any real input (the prior and the "right" floor are
   // positive); the guard keeps a degenerate input from producing NaN.
-  const shiftMm = z > 0 ? weighted / z : 0;
+  const rawShiftMm = z > 0 ? weighted / z : 0;
+  // A symmetric posterior (a mouse exactly on the target, "just right") comes
+  // out as float noise around 0 (about 1e-16 mm), which is no adjustment: it
+  // must not switch on the "adjusted" notice or the analysis flag (A1-08).
+  const shiftMm =
+    Math.abs(rawShiftMm) < CALIBRATION_NEGLIGIBLE_SHIFT_MM ? 0 : rawShiftMm;
   return {
     shiftMm: shiftMm + 0, // never -0
     answers: answers.length,
