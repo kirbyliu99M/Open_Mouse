@@ -337,6 +337,71 @@ export function afterSend(result: SendResult): {
   };
 }
 
+/** What `submitFeedback` touches: the sheet's state setters and the outside world. */
+export interface FeedbackSubmitIo {
+  send: (
+    scanId: string,
+    body: ResultFeedbackSubmission,
+    resultFingerprint: string | undefined,
+  ) => Promise<SendResult>;
+  markDone: (scanId: string) => void;
+  setFailure: (failure: SendFailure | null) => void;
+  setPhase: (phase: SheetPhase) => void;
+  /** `result_feedback_submitted`, only once the rating is stored. */
+  emitSubmitted?: (event: ReturnType<typeof submittedEvent>) => void;
+  /** The page refetches the fit (V3.2 F1, candidate: after a 412). */
+  onResultChanged?: () => void;
+}
+
+/**
+ * The sheet's submit button, wired (kept here so it is tested without a
+ * browser): build the body, send it with the fingerprint of the ranking on
+ * screen, then apply `afterSend`. A 412 calls `onResultChanged` once and
+ * leaves the sheet on the form; nothing sends again until the person presses
+ * the button again. Does nothing while a send is in flight.
+ */
+export async function submitFeedback(
+  input: {
+    scanId: string;
+    phase: SheetPhase;
+    stars: number | null;
+    comment: string;
+    locale: Locale;
+    resultFingerprint: string | undefined;
+  },
+  io: FeedbackSubmitIo,
+): Promise<void> {
+  if (input.phase === "sending") return;
+  const built = buildSubmission({
+    stars: input.stars,
+    comment: input.comment,
+    locale: input.locale,
+  });
+  if (!built.ok) {
+    io.setFailure(built.reason);
+    return;
+  }
+  io.setFailure(null);
+  io.setPhase("sending");
+  const result = await io.send(
+    input.scanId,
+    built.body,
+    input.resultFingerprint,
+  );
+  const next = afterSend(result);
+  if (next.markDone) io.markDone(input.scanId);
+  if (result.ok) {
+    io.emitSubmitted?.(
+      submittedEvent({ stars: built.body.stars, comment: built.body.comment }),
+    );
+  }
+  io.setFailure(next.failure);
+  io.setPhase(next.phase);
+  // 412: nothing was stored. Fetch the ranking that is now true and let the
+  // person look at it before sending again (never sent automatically).
+  if (next.refetchFit) io.onResultChanged?.();
+}
+
 export const feedbackStorageKey = (scanId: string): string =>
   `${STORAGE_PREFIX}${scanId}`;
 

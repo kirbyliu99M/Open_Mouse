@@ -4,6 +4,7 @@
  * the analysis and feedback routes refusing a stale ranking with 412 (and
  * nothing else happening), and the results page's client helpers.
  */
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   fitPreferencesSchema,
@@ -53,7 +54,18 @@ import {
   afterSend,
   failureFromStatus,
   sendFeedback,
+  submitFeedback,
+  type FeedbackSubmitIo,
+  type SendFailure,
+  type SendResult,
+  type SheetPhase,
 } from "../../src/lib/results/resultFeedback";
+import {
+  analyseOnScreen,
+  refreshShownFit,
+  refreshThenReanalyse,
+  type ShownRankingRefs,
+} from "../../src/components/results/shownRanking";
 import { failureText } from "../../src/components/results/ResultFeedbackPanel";
 import { resultFeedbackCopy } from "../../src/lib/copy/result-feedback";
 import { questionnaireCopy } from "../../src/lib/copy/questionnaire";
@@ -532,6 +544,52 @@ describe("POST feedback with x-result-fingerprint", () => {
     expect(res.status).toBe(201);
     expect(s.writes).toHaveLength(1);
   });
+
+  // Signed in with two survey ratings (v3 calibrates): the snapshot must
+  // calibrate exactly as loadOwnedFit did for the page, or every rating of a
+  // calibrated person would be refused (or, if both ignored calibration, the
+  // survey edit in another tab would slip through).
+  const calibratedDeps = (s: ReturnType<typeof feedbackSetup>) => ({
+    ...s.deps,
+    getUserId: async () => "user-1",
+    surveyReferences: sourceOf([rated(g502.slug), rated(basilisk.slug)]),
+  });
+
+  it("signed in and calibrated: the fingerprint of the calibrated page is stored (201)", async () => {
+    vi.stubEnv("FIT_ENGINE", "v3");
+    const shown = await ownedFit({
+      userId: "user-1",
+      surveyReferences: sourceOf([rated(g502.slug), rated(basilisk.slug)]),
+    });
+    expect(shown.calibration?.referencesUsed).toBe(2);
+    const s = feedbackSetup();
+    const res = await handleResultFeedbackSubmission(
+      feedbackRequest({
+        [RESULT_FINGERPRINT_HEADER]: shown.resultFingerprint as string,
+      }),
+      SCAN_ID,
+      calibratedDeps(s),
+    );
+    expect(res.status).toBe(201);
+    expect(s.writes).toHaveLength(1);
+  });
+
+  it("the survey edited in another tab after the page loaded: the uncalibrated page's rating is 412, nothing stored", async () => {
+    vi.stubEnv("FIT_ENGINE", "v3");
+    // The page loaded before the survey existed ...
+    const shown = await ownedFit({ userId: "user-1" });
+    // ... and the server now calibrates from two new ratings.
+    const s = feedbackSetup();
+    const res = await handleResultFeedbackSubmission(
+      feedbackRequest({
+        [RESULT_FINGERPRINT_HEADER]: shown.resultFingerprint as string,
+      }),
+      SCAN_ID,
+      calibratedDeps(s),
+    );
+    expect(res.status).toBe(412);
+    expect(s.writes).toHaveLength(0);
+  });
 });
 
 // --- the results page's client helpers ----------------------------------------
@@ -703,5 +761,248 @@ describe("feedback on the page after a 412", () => {
     ).toBe(
       "Your results have changed. Please look at the new ranking before rating.",
     );
+  });
+});
+
+// --- the results page's wiring (review 2026-10-21: acceptance 7) ---------------
+
+describe("the feedback sheet's submit (submitFeedback)", () => {
+  function sheet(result: SendResult) {
+    const state: {
+      phase: SheetPhase;
+      failure: SendFailure | null;
+      phases: SheetPhase[];
+    } = { phase: "form", failure: null, phases: [] };
+    const send = vi.fn<FeedbackSubmitIo["send"]>(async () => result);
+    const markDone = vi.fn();
+    const emitSubmitted = vi.fn();
+    const onResultChanged = vi.fn();
+    const io: FeedbackSubmitIo = {
+      send,
+      markDone,
+      setFailure: (f) => {
+        state.failure = f;
+      },
+      setPhase: (p) => {
+        state.phase = p;
+        state.phases.push(p);
+      },
+      emitSubmitted,
+      onResultChanged,
+    };
+    return { state, io, send, markDone, emitSubmitted, onResultChanged };
+  }
+  const input = {
+    scanId: SCAN_ID,
+    phase: "form" as SheetPhase,
+    stars: 4,
+    comment: "  fits well  ",
+    locale: "zh-TW" as const,
+    resultFingerprint: FIT_A.resultFingerprint,
+  };
+
+  it("412: sends once with the fingerprint on screen, asks the page to refetch once, stays on the form", async () => {
+    const s = sheet({ ok: false, reason: "stale" });
+    await submitFeedback(input, s.io);
+    expect(s.send).toHaveBeenCalledTimes(1);
+    expect(s.send.mock.calls[0]?.[0]).toBe(SCAN_ID);
+    expect(s.send.mock.calls[0]?.[2]).toBe(FIT_A.resultFingerprint);
+    expect(s.send.mock.calls[0]?.[1]).toMatchObject({
+      stars: 4,
+      comment: "fits well",
+    });
+    expect(s.onResultChanged).toHaveBeenCalledTimes(1);
+    expect(s.state.phases).toEqual(["sending", "form"]);
+    expect(s.state.failure).toBe("stale");
+    expect(s.markDone).not.toHaveBeenCalled();
+    expect(s.emitSubmitted).not.toHaveBeenCalled();
+    // The stars and the comment are the sheet's own state: submitFeedback has
+    // no setter for them, so they stay for the person's second send.
+  });
+
+  it("stored: no refetch, marked done, the event sent, thanks", async () => {
+    const s = sheet({ ok: true, withdrawable: false });
+    await submitFeedback(input, s.io);
+    expect(s.onResultChanged).not.toHaveBeenCalled();
+    expect(s.markDone).toHaveBeenCalledWith(SCAN_ID);
+    expect(s.emitSubmitted).toHaveBeenCalledTimes(1);
+    expect(s.state.phase).toBe("thanks");
+  });
+
+  it("other failures do not refetch", async () => {
+    for (const reason of ["network", "conflict", "rate_limited"] as const) {
+      const s = sheet({ ok: false, reason });
+      await submitFeedback(input, s.io);
+      expect(s.onResultChanged).not.toHaveBeenCalled();
+    }
+  });
+
+  it("without a fingerprint none is sent; while sending, or without stars, nothing is sent", async () => {
+    const plain = sheet({ ok: true, withdrawable: false });
+    await submitFeedback({ ...input, resultFingerprint: undefined }, plain.io);
+    expect(plain.send).toHaveBeenCalledTimes(1);
+    expect(plain.send.mock.calls[0]?.[2]).toBeUndefined();
+
+    const busy = sheet({ ok: true, withdrawable: false });
+    await submitFeedback({ ...input, phase: "sending" }, busy.io);
+    expect(busy.send).not.toHaveBeenCalled();
+
+    const noStars = sheet({ ok: true, withdrawable: false });
+    await submitFeedback({ ...input, stars: null }, noStars.io);
+    expect(noStars.send).not.toHaveBeenCalled();
+    expect(noStars.state.failure).toBe("invalid");
+  });
+});
+
+describe("the provider's shown ranking (shownRanking.ts)", () => {
+  const refs = (shown: FitResponse | null): ShownRankingRefs => ({
+    shown: { current: shown },
+    generation: { current: 0 },
+    inflight: { current: null },
+  });
+
+  it("the analysis is asked with the fingerprint of the fit on screen", async () => {
+    const r = refs(FIT_A);
+    const fetchAnalysis = vi.fn(async () => READY);
+    await analyseOnScreen({
+      shown: r.shown,
+      fetchAnalysis,
+      refreshFit: async () => FIT_B,
+      stillWanted: () => true,
+    });
+    expect(fetchAnalysis).toHaveBeenCalledWith(FIT_A.resultFingerprint);
+  });
+
+  it("412 → the new fit is put on screen → the analysis is asked again with its fingerprint", async () => {
+    const r = refs(FIT_A);
+    const show = vi.fn();
+    const fetchFit = vi.fn(async () => ({
+      status: "ready" as const,
+      response: FIT_B,
+    }));
+    const fetchAnalysis = vi
+      .fn<(fp: string | undefined) => Promise<AnalysisOutcome>>()
+      .mockResolvedValueOnce({ status: "stale" })
+      .mockResolvedValueOnce(READY);
+    const out = await analyseOnScreen({
+      shown: r.shown,
+      fetchAnalysis,
+      refreshFit: () => refreshShownFit(r, fetchFit, show),
+      stillWanted: () => true,
+    });
+    expect(out).toBe(READY);
+    expect(fetchAnalysis.mock.calls.map((c) => c[0])).toEqual([
+      FIT_A.resultFingerprint,
+      FIT_B.resultFingerprint,
+    ]);
+    expect(show).toHaveBeenCalledWith(FIT_B);
+    expect(r.shown.current).toBe(FIT_B);
+    expect(r.inflight.current).toBeNull();
+  });
+
+  it("refreshShownFit: one request for two callers; dropped when the scan moved on; a failed fetch keeps the old fit", async () => {
+    const r = refs(FIT_A);
+    const show = vi.fn();
+    let resolve!: (o: { status: "ready"; response: FitResponse }) => void;
+    const fetchFit = vi.fn(
+      () =>
+        new Promise<{ status: "ready"; response: FitResponse }>((res) => {
+          resolve = res;
+        }),
+    );
+    const one = refreshShownFit(r, fetchFit, show);
+    const two = refreshShownFit(r, fetchFit, show);
+    expect(two).toBe(one);
+    expect(fetchFit).toHaveBeenCalledTimes(1);
+    r.generation.current += 1;
+    resolve({ status: "ready", response: FIT_B });
+    expect(await one).toBeNull();
+    expect(show).not.toHaveBeenCalled();
+    expect(r.shown.current).toBe(FIT_A);
+
+    const failed = refs(FIT_A);
+    expect(
+      await refreshShownFit(
+        failed,
+        async () => ({ status: "networkError" }),
+        show,
+      ),
+    ).toBeNull();
+    expect(failed.shown.current).toBe(FIT_A);
+  });
+
+  it("the sheet's 412 (refreshThenReanalyse): asks the analysis again only when it was asked already and the refresh worked", async () => {
+    const reanalyse = vi.fn();
+    await refreshThenReanalyse({
+      refreshNow: async () => FIT_B,
+      analysisStarted: () => true,
+      reanalyse,
+    });
+    expect(reanalyse).toHaveBeenCalledTimes(1);
+
+    const notAsked = vi.fn();
+    await refreshThenReanalyse({
+      refreshNow: async () => FIT_B,
+      analysisStarted: () => false,
+      reanalyse: notAsked,
+    });
+    expect(notAsked).not.toHaveBeenCalled();
+
+    const failed = vi.fn();
+    await refreshThenReanalyse({
+      refreshNow: async () => null,
+      analysisStarted: () => true,
+      reanalyse: failed,
+    });
+    expect(failed).not.toHaveBeenCalled();
+  });
+});
+
+// The repo has no DOM test runtime (no jsdom), so the props that connect the
+// tested pieces above are pinned in the source.
+describe("the results page's components pass the fingerprint and the refetch", () => {
+  const src = (path: string) =>
+    readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+
+  it("ResultsView hands the fit's fingerprint and onResultChanged to the sheet", () => {
+    const view = src("src/components/results/ResultsView.tsx");
+    const sheet = view.slice(view.indexOf("<ResultFeedbackSheet"));
+    const tag = sheet.slice(0, sheet.indexOf("/>"));
+    expect(tag).toContain("resultFingerprint={response.resultFingerprint}");
+    expect(tag).toContain("onResultChanged={onResultChanged}");
+  });
+
+  it("the main page passes the provider's refreshFit as onResultChanged", () => {
+    expect(src("src/app/results/[scanId]/ResultsRankClient.tsx")).toContain(
+      "onResultChanged={scan.refreshFit}",
+    );
+  });
+
+  it("the provider asks with the shown fit and refreshes through shownRanking", () => {
+    const provider = src("src/app/results/[scanId]/ResultsScanProvider.tsx");
+    expect(provider).toMatch(/analyseOnScreen\(\{\s*shown: shownFitRef,/);
+    expect(provider).toMatch(
+      /shown: shownFitRef,\s*generation: fitGenerationRef,/,
+    );
+    expect(provider).toContain("refreshShownFit(");
+    expect(provider).toContain("refreshThenReanalyse({");
+    expect(provider).toContain(
+      "analysisStarted: () => analysisStartedRef.current",
+    );
+  });
+
+  it("the sheet sends through submitFeedback from the button only, with the fingerprint and onResultChanged", () => {
+    const sheet = src("src/components/results/ResultFeedbackSheet.tsx");
+    const call = sheet.slice(sheet.indexOf("submitFeedback(\n"));
+    const block = call.slice(0, call.indexOf("\n    );"));
+    expect(block).toMatch(/^\s*resultFingerprint,$/m);
+    expect(block).toMatch(/^\s*onResultChanged,$/m);
+    // One call site, reached only from the submit button.
+    expect(sheet.match(/submitFeedback\(\n/g)).toHaveLength(1);
+    expect(sheet.match(/\bsubmit\(\)/g)).toHaveLength(1);
+    expect(sheet).toContain("onSubmit={() => void submit()}");
+    // No effect reruns on a new fingerprint (that could send by itself).
+    for (const deps of sheet.matchAll(/\}, \[([^\]]*)\]\);/g))
+      expect(deps[1]).not.toMatch(/resultFingerprint|onResultChanged/);
   });
 });

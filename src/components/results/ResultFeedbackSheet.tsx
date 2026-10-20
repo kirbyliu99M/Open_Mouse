@@ -15,8 +15,6 @@ import {
   RESULT_FEEDBACK_AUTOCLOSE_MS,
   RESULT_FEEDBACK_TICK_MS,
   addVisibleTime,
-  afterSend,
-  buildSubmission,
   canPageScroll,
   dismissedEventDue,
   dragClosesSheet,
@@ -26,9 +24,9 @@ import {
   reachedEnd,
   readFeedbackDone,
   sendFeedback,
+  submitFeedback,
   shouldShowSheet,
   shownEvent,
-  submittedEvent,
   type SendFailure,
   type SheetPhase,
 } from "@/lib/results/resultFeedback";
@@ -247,36 +245,29 @@ export function ResultFeedbackSheet({
     close();
   };
 
-  const submit = async () => {
-    if (phase === "sending") return;
-    const built = buildSubmission({ stars, comment, locale: language });
-    if (!built.ok) {
-      setFailure(built.reason);
-      return;
-    }
-    setFailure(null);
-    setPhase("sending");
-    const result = await sendFeedback(
-      scanId,
-      built.body,
-      undefined,
-      resultFingerprint,
+  // The wiring is `submitFeedback` (tested in result-fingerprint.test.ts):
+  // only the button calls it, so the sheet never sends by itself, also not
+  // when a new ranking (a new `resultFingerprint`) arrives after a 412.
+  const submit = () =>
+    submitFeedback(
+      {
+        scanId,
+        phase,
+        stars,
+        comment,
+        locale: language,
+        resultFingerprint,
+      },
+      {
+        send: (id, body, fingerprint) =>
+          sendFeedback(id, body, undefined, fingerprint),
+        markDone: (id) => markFeedbackDone(id),
+        setFailure,
+        setPhase,
+        emitSubmitted: (event) => emit?.(event.name, event.props),
+        onResultChanged,
+      },
     );
-    const next = afterSend(result);
-    if (next.markDone) markFeedbackDone(scanId);
-    if (result.ok) {
-      const event = submittedEvent({
-        stars: built.body.stars,
-        comment: built.body.comment,
-      });
-      emit?.(event.name, event.props);
-    }
-    setFailure(next.failure);
-    setPhase(next.phase);
-    // 412: nothing was stored. Fetch the ranking that is now true and let the
-    // person look at it before sending again (never sent automatically).
-    if (next.refetchFit) onResultChanged?.();
-  };
 
   // Thanks closes itself. After "thanks" or "already sent" the submit button
   // is gone: if the focus was on it (now the body), keep it inside the sheet,

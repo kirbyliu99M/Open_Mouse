@@ -15,7 +15,6 @@ import { useParams } from "next/navigation";
 import type { FitResponse } from "@/lib/contracts/fit";
 import type { AnalysisState } from "@/components/results/analysisState";
 import {
-  analyseShownRanking,
   fetchAnalysisResult,
   fetchFitResult,
   type FitOutcome,
@@ -34,6 +33,12 @@ import {
   type StoredManualEntry,
 } from "@/components/results/userLengthDisclosure";
 import { prefetchMouseLinks } from "@/components/results/mouseLinksStore";
+import {
+  analyseOnScreen,
+  refreshShownFit,
+  refreshThenReanalyse,
+  type ShownRankingRefs,
+} from "@/components/results/shownRanking";
 import { sweepLegacyHandKeys } from "@/components/results/handDisclosure";
 import { track } from "@/client/analytics/track";
 import type { ResultsAnalytics } from "@/lib/results/analyticsEvents";
@@ -224,23 +229,16 @@ export function ResultsScanProvider({
    * (the old ranking stays on screen).
    */
   const refreshFitNow = useCallback((): Promise<FitResponse | null> => {
-    if (refreshInflightRef.current) return refreshInflightRef.current;
-    const generation = fitGenerationRef.current;
-    const request = (async () => {
-      const outcome = await fetchFitResult(scanId, PREFERENCES);
-      if (generation !== fitGenerationRef.current) return null;
-      if (outcome.status !== "ready") return null;
-      shownFitRef.current = outcome.response;
-      setPageState({ kind: "ready", response: outcome.response });
-      return outcome.response;
-    })();
-    refreshInflightRef.current = request;
-    const forget = () => {
-      if (refreshInflightRef.current === request)
-        refreshInflightRef.current = null;
+    const refs: ShownRankingRefs = {
+      shown: shownFitRef,
+      generation: fitGenerationRef,
+      inflight: refreshInflightRef,
     };
-    request.then(forget, forget);
-    return request;
+    return refreshShownFit(
+      refs,
+      () => fetchFitResult(scanId, PREFERENCES),
+      (response) => setPageState({ kind: "ready", response }),
+    );
   }, [scanId]);
 
   const runAnalysis = useCallback(async () => {
@@ -250,8 +248,8 @@ export function ResultsScanProvider({
     setAnalysisState({ status: "loading" });
     // Sent with the fingerprint of the ranking on screen; a 412 refetches the
     // fit once and asks again (V3.2 F1, `analyseShownRanking`).
-    const outcome = await analyseShownRanking({
-      resultFingerprint: shownFitRef.current?.resultFingerprint,
+    const outcome = await analyseOnScreen({
+      shown: shownFitRef,
       fetchAnalysis: (fingerprint) =>
         fetchAnalysisResult(scanId, PREFERENCES, fetch, fingerprint),
       refreshFit: refreshFitNow,
@@ -276,8 +274,10 @@ export function ResultsScanProvider({
   // The feedback sheet heard 412: show the new ranking, and when the written
   // analysis was already asked for, ask again so it is about that ranking.
   const refreshFit = useCallback(() => {
-    void refreshFitNow().then((fresh) => {
-      if (fresh && analysisStartedRef.current) void runAnalysis();
+    void refreshThenReanalyse({
+      refreshNow: refreshFitNow,
+      analysisStarted: () => analysisStartedRef.current,
+      reanalyse: () => void runAnalysis(),
     });
   }, [refreshFitNow, runAnalysis]);
 
