@@ -194,16 +194,65 @@ describe("the threshold of two voices", () => {
     expect(refs.map((r) => r.slug)).toEqual([G, B]);
   });
 
-  it("two mice of the same shell are one voice: no calibration; with a third voice all three go in", () => {
+  it("two mice of the same shell are one voice: no calibration; with a third voice they go in as one reference of that shell (A1-07)", () => {
     expect(
       autoCalibrationReferences([rated(G), rated(g502se.slug)], catalogue),
     ).toEqual([]);
+    // One reference per shell, the first of the shell: the engine would have
+    // merged the two rows into one answer anyway, and the cap of 8 now counts
+    // shells, not rows.
     expect(
       autoCalibrationReferences(
         [rated(G), rated(g502se.slug), rated(B)],
         catalogue,
       ).map((r) => r.slug),
-    ).toEqual([G, g502se.slug, B]);
+    ).toEqual([G, B]);
+  });
+
+  it("a second model of a shell fills in a dimension the first left unanswered", () => {
+    const [shell] = autoCalibrationReferences(
+      [
+        rated(G, { painPoints: ["width"] }),
+        rated(g502se.slug, { painPoints: ["length"] }),
+        rated(B),
+      ],
+      catalogue,
+    );
+    expect(shell!.slug).toBe(G);
+    expect(shell!.feel).toEqual({ length: 0, width: 0, height: 0 });
+  });
+
+  it("eight versions of one shell do not use up the cap: another shell still calibrates (A1-07)", () => {
+    const versions: CatalogueMouse[] = Array.from({ length: 8 }, (_, i) => ({
+      ...g502,
+      id: `v${i}`,
+      slug: `g502-version-${i}`,
+      model: "G502 SE",
+    }));
+    const cat = [...versions, basilisk];
+    const refs = autoCalibrationReferences(
+      [...versions.map((v) => rated(v.slug)), rated(B)],
+      cat,
+    );
+    expect(refs.map((r) => r.slug)).toEqual([versions[0]!.slug, B]);
+    // And through the engine's own count: two voices.
+    expect(adoptedReferenceCount(refs, cat)).toBe(2);
+  });
+
+  it("nine shells: the first eight, in order", () => {
+    const many: CatalogueMouse[] = Array.from({ length: 9 }, (_, i) => ({
+      ...basilisk,
+      id: `s${i}`,
+      slug: `shell-${i}`,
+      brand: `Brand${i}`,
+    }));
+    const refs = autoCalibrationReferences(
+      many.map((m) => rated(m.slug)),
+      many,
+    );
+    expect(refs.map((r) => r.slug)).toEqual(
+      many.slice(0, 8).map((m) => m.slug),
+    );
   });
 
   it.each([

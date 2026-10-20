@@ -10,6 +10,7 @@ import {
   adoptedReferences,
 } from "./calibration-v3-candidate";
 import type { EngineId } from "./coefficients";
+import { shellKey } from "./shell-groups";
 import type { CatalogueMouse } from "./types";
 
 /**
@@ -105,18 +106,60 @@ export function surveyRatingsToReferences(
 }
 
 /**
+ * One reference per shell (`shellKey`), in the order the shells first appear:
+ * models of one shell are one voice, so the cap of 8 must count shells, not
+ * rows (A1-07: eight versions of one shell used to fill the cap and shut out
+ * every other shell). A later model of the same shell fills in a dimension the
+ * first left unanswered (`null`), so nothing the person said is lost; the
+ * first answer wins where both answered. Survey references never carry grips
+ * (see `surveyRatingsToReferences`), so there is nothing to merge there.
+ */
+function onePerShell(
+  references: readonly FitReference[],
+  catalogue: readonly CatalogueMouse[],
+): FitReference[] {
+  const bySlug = new Map<string, CatalogueMouse>();
+  for (const mouse of catalogue) {
+    if (mouse.listed !== false && !bySlug.has(mouse.slug)) {
+      bySlug.set(mouse.slug, mouse);
+    }
+  }
+  const byShell = new Map<string, FitReference>();
+  for (const reference of references) {
+    const mouse = bySlug.get(reference.slug);
+    if (mouse === undefined) continue;
+    const key = shellKey(mouse);
+    const first = byShell.get(key);
+    byShell.set(
+      key,
+      first === undefined
+        ? reference
+        : {
+            ...first,
+            feel: {
+              length: first.feel.length ?? reference.feel.length,
+              width: first.feel.width ?? reference.feel.width,
+              height: first.feel.height ?? reference.feel.height,
+            },
+          },
+    );
+  }
+  return [...byShell.values()];
+}
+
+/**
  * The references to calibrate with, or an empty list when the survey does not
  * give enough: those the engine would really use (listed, not special-use,
- * length/width model applies, answered at least one dimension), at most 8, and
- * only when they make `MIN_AUTO_CALIBRATION_REFERENCES` voices after the
- * same-shell models are counted once. Pure.
+ * length/width model applies, answered at least one dimension), one per shell,
+ * at most 8, and only when they make `MIN_AUTO_CALIBRATION_REFERENCES` voices.
+ * The shells are taken first and the cap applied after (A1-07). Pure.
  */
 export function autoCalibrationReferences(
   ratings: readonly SurveyRatingForCalibration[],
   catalogue: readonly CatalogueMouse[],
 ): FitReference[] {
-  const adopted = adoptedReferences(
-    surveyRatingsToReferences(ratings),
+  const adopted = onePerShell(
+    adoptedReferences(surveyRatingsToReferences(ratings), catalogue),
     catalogue,
   ).slice(0, MAX_AUTO_CALIBRATION_REFERENCES);
   return adoptedReferenceCount(adopted, catalogue) >=
