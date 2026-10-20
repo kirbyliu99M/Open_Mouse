@@ -9,24 +9,35 @@ import {
   type Filters,
 } from "@/lib/results/filters";
 import { chipsOf } from "@/lib/results/filterLabels";
+import {
+  clearBesideToggle,
+  filtersBesideToggle,
+} from "@/lib/results/shapeToggle";
 import { useFocusFilter } from "./FilterFocus";
 import "./filter.css";
 
 /**
  * The applied filters as removable chips, with 「清除全部」 (a text link, the
  * secondary button). Renders nothing when no filter is chosen.
+ *
+ * `besideToggle` (the results page, V3.2 U1): the shape the toggle shows is
+ * not a chip, and 「清除全部」 leaves it (`filtersBesideToggle`,
+ * `clearBesideToggle`); nothing renders when it is the only choice.
  */
 export function FilterChips({
   filters,
   language,
   onChange,
+  besideToggle = false,
 }: {
   filters: Filters;
   language: Locale;
   onChange: (next: Filters) => void;
+  besideToggle?: boolean;
 }) {
   const focusFilter = useFocusFilter();
-  if (!isFiltering(filters)) return null;
+  const shown = besideToggle ? filtersBesideToggle(filters) : filters;
+  if (!isFiltering(shown)) return null;
   // The pressed chip (or the whole row) is gone after a change: focus moves to
   // the filter's anchor rather than falling back to the page.
   const change = (next: Filters) => {
@@ -34,7 +45,7 @@ export function FilterChips({
     focusFilter();
   };
   const copy = RESULTS_PAGE_COPY[language].filter;
-  const chips = chipsOf(filters, copy);
+  const chips = chipsOf(shown, copy);
   return (
     <div className="results-chips">
       <ul className="results-chips-list" aria-label={copy.chipsLabel}>
@@ -71,7 +82,9 @@ export function FilterChips({
       <button
         type="button"
         className="results-textLink"
-        onClick={() => change(emptyFilters())}
+        onClick={() =>
+          change(besideToggle ? clearBesideToggle(filters) : emptyFilters())
+        }
       >
         {copy.clearAll}
       </button>

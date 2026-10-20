@@ -21,12 +21,12 @@ export interface LoadingCopy {
   photo: LoaderCopy;
 }
 
-const zhTW: LoadingCopy = {
+export const zhTW: LoadingCopy = {
   fit: { working: "正在比對", done: "完成" },
   photo: { working: "正在測量你的手", done: "測量完成" },
 };
 
-const en: LoadingCopy = {
+export const en: LoadingCopy = {
   fit: { working: "Matching", done: "Done" },
   photo: { working: "Measuring your hand", done: "Measured" },
 };

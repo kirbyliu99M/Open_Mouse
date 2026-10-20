@@ -14,7 +14,9 @@ import {
 } from "../../src/lib/results/filters";
 import {
   cardMotion,
+  clearBesideToggle,
   fewSegmentNote,
+  filtersBesideToggle,
   rowDelayMs,
   SHAPE_SEGMENTS,
   segmentDirection,
@@ -22,6 +24,7 @@ import {
   segmentOf,
   segmentOnly,
   TOGGLE_MOTION,
+  toggleShowsShape,
   withSegment,
 } from "../../src/lib/results/shapeToggle";
 import { filterFit, type FilterSpec } from "./fixtures/filter-fit";
@@ -343,5 +346,72 @@ describe("the results page with the toggle", () => {
     const html = render(emptyFilters());
     expect(html).not.toContain("results-badge");
     expect(html).not.toContain("results-fewNote");
+  });
+});
+
+describe("the chips row and the button's count beside the toggle", () => {
+  it("leave out the one shape the toggle shows, and keep both shapes as chips", () => {
+    const ergo = f({
+      shape: ["ergonomic"],
+      brand: ["Razer"],
+      order: ["brand", "shape"],
+    });
+    expect(toggleShowsShape(ergo)).toBe(true);
+    expect(filtersBesideToggle(ergo).shape).toEqual([]);
+    expect(filtersBesideToggle(ergo).brand).toEqual(["Razer"]);
+    const both = f({ shape: ["ergonomic", "symmetrical"], order: ["shape"] });
+    expect(toggleShowsShape(both)).toBe(false);
+    expect(filtersBesideToggle(both)).toBe(both);
+  });
+
+  it("「清除全部」 there clears the rest and keeps the toggle's segment", () => {
+    const ergo = f({
+      shape: ["ergonomic"],
+      brand: ["Razer"],
+      order: ["brand", "shape"],
+    });
+    const cleared = clearBesideToggle(ergo);
+    expect(cleared.shape).toEqual(["ergonomic"]);
+    expect(cleared.brand).toEqual([]);
+    expect(cleared.order).toEqual(["shape"]);
+    expect(
+      clearBesideToggle(f({ brand: ["Razer"], order: ["brand"] })),
+    ).toEqual(emptyFilters());
+  });
+
+  it("on the page: a toggle-only shape gives no chip and 「篩選」 with no number", () => {
+    const html = renderToStaticMarkup(
+      createElement(ResultsView, {
+        response: filterFit([
+          { slug: "s1", shape: "symmetrical" },
+          { slug: "e2", shape: "ergonomic" },
+        ]),
+        language: "zh-TW",
+        filters: withSegment(emptyFilters(), "ergonomic"),
+        onFiltersChange: () => {},
+      }),
+    );
+    expect(html).not.toContain("results-chips");
+    expect(html).toMatch(/results-filterButton[^]*?<span>篩選<\/span>/);
+  });
+
+  it("with a brand too: only the brand is a chip, and the count is 1", () => {
+    const html = renderToStaticMarkup(
+      createElement(ResultsView, {
+        response: filterFit([
+          { slug: "s1", brand: "Razer", shape: "symmetrical" },
+          { slug: "e2", brand: "Razer", shape: "ergonomic" },
+        ]),
+        language: "zh-TW",
+        filters: withSegment(
+          f({ brand: ["Razer"], order: ["brand"] }),
+          "ergonomic",
+        ),
+        onFiltersChange: () => {},
+      }),
+    );
+    expect(html).toContain("篩選（1）");
+    expect(html).toContain("移除「Razer」");
+    expect(html).not.toContain("移除「人體工學」");
   });
 });

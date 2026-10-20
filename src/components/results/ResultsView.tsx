@@ -301,8 +301,8 @@ export function ResultsView({
                         <span className="results-badge">
                           {onlyShape
                             ? copy.shapeToggle.segmentRank(
-                                copy.shapeToggle.segment[onlyShape],
                                 card.displayRank,
+                                copy.shapeToggle.segment[onlyShape],
                               )
                             : copy.filter.filteredRank(card.displayRank)}
                         </span>
@@ -509,8 +509,8 @@ export function ResultsView({
         <section className="results-fewNote">
           <p className="results-fewNote-text">
             {copy.shapeToggle.fewNote(
-              copy.shapeToggle.segment[few.shape],
               few.count,
+              copy.shapeToggle.segment[few.shape],
             )}
           </p>
           <button
@@ -614,6 +614,7 @@ export function ResultsView({
           onSheetOpened={
             analytics ? () => emit("filter_sheet_opened", {}) : undefined
           }
+          besideToggle
           lead={
             <ShapeToggle
               language={language}

@@ -7,6 +7,8 @@
  */
 import { TOP_PICK_COUNT } from "./rankRoutes";
 import {
+  clearGroup,
+  emptyFilters,
   FILTER_GROUPS,
   setSelection,
   type Filters,
@@ -77,6 +79,31 @@ export function segmentForKey(
     default:
       return null;
   }
+}
+
+/**
+ * Whether the toggle shows the shape choice: one shape is chosen, so a
+ * segment is checked. The chips row and the 「篩選（n）」 count beside it then
+ * leave the shape out, so it is not said twice (the filter panel still shows
+ * it). Both shapes chosen, no segment is checked and the chip stays.
+ */
+export function toggleShowsShape(filters: Filters): boolean {
+  return filters.shape.length === 1;
+}
+
+/** What the chips row and the button's count show beside the toggle. */
+export function filtersBesideToggle(filters: Filters): Filters {
+  return toggleShowsShape(filters) ? clearGroup(filters, "shape") : filters;
+}
+
+/**
+ * 「清除全部」 in the chips row beside the toggle: clears what the row shows,
+ * and leaves the segment the toggle shows as it is.
+ */
+export function clearBesideToggle(filters: Filters): Filters {
+  return toggleShowsShape(filters)
+    ? setSelection(emptyFilters(), "shape", filters.shape)
+    : emptyFilters();
 }
 
 /**

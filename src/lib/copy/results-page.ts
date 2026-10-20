@@ -200,9 +200,9 @@ export interface ShapeToggleCopy {
   label: string;
   segment: Record<ShapeSegment, string>;
   /** The large card's place when the shape is the only filter: 「人體工學第 1 名」. */
-  segmentRank: (segment: string, n: number) => string;
+  segmentRank: (n: number, segment: string) => string;
   /** Under a shape that has only a few mice, all of them on the page. */
-  fewNote: (segment: string, n: number) => string;
+  fewNote: (n: number, segment: string) => string;
   /** The note's way back to 「綜合」. */
   seeOverall: string;
 }
@@ -338,8 +338,8 @@ export const zhTW: ResultsPageCopy = {
       symmetrical: "左右對稱",
       ergonomic: "人體工學",
     },
-    segmentRank: (segment, n) => `${segment}第 ${n} 名`,
-    fewNote: (segment, n) =>
+    segmentRank: (n, segment) => `${segment}第 ${n} 名`,
+    fewNote: (n, segment) =>
       `目前符合的${segment}款只有 ${n} 款，全部列在這裡。`,
     seeOverall: "看綜合排序",
   },
@@ -504,8 +504,8 @@ export const en: ResultsPageCopy = {
       symmetrical: "Symmetrical",
       ergonomic: "Ergonomic",
     },
-    segmentRank: (segment, n) => `#${n} ${segment.toLowerCase()}`,
-    fewNote: (segment, n) =>
+    segmentRank: (n, segment) => `#${n} ${segment.toLowerCase()}`,
+    fewNote: (n, segment) =>
       `Only ${n} ${segment.toLowerCase()} mice match right now. They are all listed here.`,
     seeOverall: "See the overall ranking",
   },
