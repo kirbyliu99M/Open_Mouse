@@ -7,14 +7,20 @@
  *   - `analyseOnScreen`: ask for the analysis with the fingerprint of the fit
  *     on screen (412 → refresh → ask once more, `analyseShownRanking`);
  *   - `refreshThenReanalyse`: what the feedback sheet's 412 does: refresh, and
- *     ask for the analysis again only when it was asked for already.
+ *     ask for the analysis again only when it was asked for already;
+ *   - `shownRankingClient`: the two above wired to the real fetch helpers
+ *     (scan id, preferences, fetch), so the header the page sends and the
+ *     refetch on 412 are tested through a fake fetch, not the source text.
  * The provider holds the boxes below in `useRef`s.
  */
 import type { FitResponse } from "@/lib/contracts/fit";
 import {
   analyseShownRanking,
+  fetchAnalysisResult,
+  fetchFitResult,
   type AnalysisOutcome,
   type FitOutcome,
+  type FitPreferencesInput,
 } from "./fetchResults";
 
 /** A mutable box, the shape of a React ref. */
@@ -87,4 +93,39 @@ export async function refreshThenReanalyse(input: {
 }): Promise<void> {
   const fresh = await input.refreshNow();
   if (fresh && input.analysisStarted()) input.reanalyse();
+}
+
+/**
+ * What `ResultsScanProvider` uses: `refreshNow` fetches the fit again and shows
+ * it in place (`refreshShownFit`); `analyse` asks for the analysis with the
+ * fingerprint of the fit on screen in the `x-result-fingerprint` header, and on
+ * a 412 refreshes through `refreshNow` and asks once more (`analyseOnScreen`).
+ * Pure apart from `fetchImpl`, so the wiring is tested with a fake fetch.
+ */
+export function shownRankingClient(input: {
+  scanId: string;
+  preferences: FitPreferencesInput;
+  fetchImpl: typeof fetch;
+  refs: ShownRankingRefs;
+  show: (fit: FitResponse) => void;
+}): {
+  refreshNow: () => Promise<FitResponse | null>;
+  analyse: (stillWanted: () => boolean) => Promise<AnalysisOutcome | null>;
+} {
+  const { scanId, preferences, fetchImpl, refs, show } = input;
+  const refreshNow = () =>
+    refreshShownFit(
+      refs,
+      () => fetchFitResult(scanId, preferences, fetchImpl),
+      show,
+    );
+  const analyse = (stillWanted: () => boolean) =>
+    analyseOnScreen({
+      shown: refs.shown,
+      fetchAnalysis: (fingerprint) =>
+        fetchAnalysisResult(scanId, preferences, fetchImpl, fingerprint),
+      refreshFit: refreshNow,
+      stillWanted,
+    });
+  return { refreshNow, analyse };
 }

@@ -15,7 +15,6 @@ import { useParams } from "next/navigation";
 import type { FitResponse } from "@/lib/contracts/fit";
 import type { AnalysisState } from "@/components/results/analysisState";
 import {
-  fetchAnalysisResult,
   fetchFitResult,
   type FitOutcome,
   type FitPreferencesInput,
@@ -34,8 +33,7 @@ import {
 } from "@/components/results/userLengthDisclosure";
 import { prefetchMouseLinks } from "@/components/results/mouseLinksStore";
 import {
-  analyseOnScreen,
-  refreshShownFit,
+  shownRankingClient,
   refreshThenReanalyse,
   type ShownRankingRefs,
 } from "@/components/results/shownRanking";
@@ -226,20 +224,24 @@ export function ResultsScanProvider({
    * V3.2 F1 (candidate): the server says the ranking on screen is stale. Fetch
    * the fit again and, when it comes, show it in place (the page stays; no
    * loader). Resolves to the new fit, or null when it could not be fetched
-   * (the old ranking stays on screen).
+   * (the old ranking stays on screen). `analyse` sends the fingerprint of the
+   * fit on screen; both are tested with a fake fetch (`shownRankingClient`).
    */
-  const refreshFitNow = useCallback((): Promise<FitResponse | null> => {
+  const rankingClient = useMemo(() => {
     const refs: ShownRankingRefs = {
       shown: shownFitRef,
       generation: fitGenerationRef,
       inflight: refreshInflightRef,
     };
-    return refreshShownFit(
+    return shownRankingClient({
+      scanId,
+      preferences: PREFERENCES,
+      fetchImpl: fetch,
       refs,
-      () => fetchFitResult(scanId, PREFERENCES),
-      (response) => setPageState({ kind: "ready", response }),
-    );
+      show: (response) => setPageState({ kind: "ready", response }),
+    });
   }, [scanId]);
+  const refreshFitNow = rankingClient.refreshNow;
 
   const runAnalysis = useCallback(async () => {
     analysisStartedRef.current = true;
@@ -248,13 +250,9 @@ export function ResultsScanProvider({
     setAnalysisState({ status: "loading" });
     // Sent with the fingerprint of the ranking on screen; a 412 refetches the
     // fit once and asks again (V3.2 F1, `analyseShownRanking`).
-    const outcome = await analyseOnScreen({
-      shown: shownFitRef,
-      fetchAnalysis: (fingerprint) =>
-        fetchAnalysisResult(scanId, PREFERENCES, fetch, fingerprint),
-      refreshFit: refreshFitNow,
-      stillWanted: () => run === analysisRunRef.current,
-    });
+    const outcome = await rankingClient.analyse(
+      () => run === analysisRunRef.current,
+    );
     if (outcome === null || run !== analysisRunRef.current) return;
     if (outcome.status === "ready") {
       track("analysis_shown", {
@@ -269,7 +267,7 @@ export function ResultsScanProvider({
       track("analysis_shown", { outcome: "error" });
       setAnalysisState({ status: "error" });
     }
-  }, [scanId, refreshFitNow]);
+  }, [rankingClient]);
 
   // The feedback sheet heard 412: show the new ranking, and when the written
   // analysis was already asked for, ask again so it is about that ranking.

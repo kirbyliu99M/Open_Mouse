@@ -53,6 +53,7 @@ import {
 import {
   afterSend,
   failureFromStatus,
+  feedbackSender,
   sendFeedback,
   submitFeedback,
   type FeedbackSubmitIo,
@@ -64,6 +65,7 @@ import {
   analyseOnScreen,
   refreshShownFit,
   refreshThenReanalyse,
+  shownRankingClient,
   type ShownRankingRefs,
 } from "../../src/components/results/shownRanking";
 import { failureText } from "../../src/components/results/ResultFeedbackPanel";
@@ -74,6 +76,7 @@ import {
   createFakeScanRepo,
   sampleCatalogue,
   sampleOwnedScan,
+  shellCatalogue,
 } from "./fixtures/fake-fit-deps";
 
 vi.mock("server-only", () => ({}));
@@ -261,9 +264,12 @@ async function ownedFit(
   opts: {
     userId?: string | null;
     surveyReferences?: SurveyReferenceSource;
+    catalogue?: CatalogueMouse[];
   } = {},
 ): Promise<FitResponse> {
-  const { repo: fitRepo } = createFakeFitRepo(sampleCatalogue);
+  const { repo: fitRepo } = createFakeFitRepo(
+    opts.catalogue ?? sampleCatalogue,
+  );
   const result = await loadOwnedFit(
     SCAN_ID,
     { userId: opts.userId ?? null, cookieSessionId: "c" },
@@ -322,6 +328,58 @@ describe("the fit response carries the fingerprint", () => {
       const { resultFingerprint: fromSnapshot } =
         await buildSnapshotAndFingerprint(sampleOwnedScan, sampleCatalogue);
       expect(fromSnapshot).toBe(fit.resultFingerprint);
+    },
+  );
+
+  // The page (core.ts) and the snapshot (snapshot.ts) each run listedOnly and
+  // groupShells; with two plain mice both orders agree whatever they do, so
+  // this catalogue has a same-shell pair, an unlisted row and more than five
+  // shown places.
+  it.each(["v1", "v3"])(
+    "with a same-shell pair and an unlisted row (%s) the snapshot's fingerprint still equals the page's",
+    async (engine) => {
+      vi.stubEnv("FIT_ENGINE", engine);
+      const fit = await ownedFit({ catalogue: shellCatalogue });
+      const top = fit.results.slice(0, RESULT_FINGERPRINT_TOP_PLACES);
+      const slugs = fit.results.map((r) => r.mouse.slug);
+      // The fixture does what it is for: the merged card is in the first five,
+      // its variant is not a place of its own, the unlisted row is not ranked,
+      // and there are more shown places than the fingerprint reads.
+      const merged = top.find((r) => (r.variants?.length ?? 0) > 0);
+      expect(merged).toBeDefined();
+      expect(
+        [merged!.mouse.slug, ...merged!.variants!.map((v) => v.slug)].sort(),
+      ).toEqual(["acme-m75", "acme-m75-wireless"]);
+      expect(slugs.filter((s) => s.startsWith("acme-m75"))).toHaveLength(1);
+      expect(slugs).not.toContain("acme-hidden");
+      expect(fit.results.length).toBeGreaterThan(RESULT_FINGERPRINT_TOP_PLACES);
+      expect(fit.resultFingerprint).toBe(fingerprintOfFit(fit));
+
+      const { resultFingerprint: fromSnapshot } =
+        await buildSnapshotAndFingerprint(sampleOwnedScan, shellCatalogue);
+      expect(fromSnapshot).toBe(fit.resultFingerprint);
+
+      // Both drift directions would change it: the variant as a place of its
+      // own (no grouping), or the unlisted row ranked beside its shell.
+      const asPlaces = (extra: (slug: string) => string[]) =>
+        fingerprintOfFit({
+          ...fit,
+          results: fit.results.flatMap((r) => [
+            r,
+            ...extra(r.mouse.slug).map((slug) => ({ mouse: { slug } })),
+          ]),
+        });
+      const ungrouped = asPlaces((slug) =>
+        slug === merged!.mouse.slug ? merged!.variants!.map((v) => v.slug) : [],
+      );
+      const withUnlisted = asPlaces((slug) =>
+        slug === merged!.mouse.slug ? ["acme-hidden"] : [],
+      );
+      expect(top.indexOf(merged!)).toBeLessThan(
+        RESULT_FINGERPRINT_TOP_PLACES - 1,
+      );
+      expect(withUnlisted).not.toBe(fit.resultFingerprint);
+      expect(ungrouped).not.toBe(fit.resultFingerprint);
     },
   );
 });
@@ -958,6 +1016,137 @@ describe("the provider's shown ranking (shownRanking.ts)", () => {
   });
 });
 
+// What the provider and the sheet actually call, driven through a fake fetch:
+// the header values sent, and the refetch on 412 (review of e1bf2080: the
+// source-text checks below alone missed a dropped fingerprint argument).
+describe("the page's fetch wiring sends the fingerprint and refetches on 412", () => {
+  const headersOf = (init: RequestInit | undefined) =>
+    (init?.headers ?? {}) as Record<string, string>;
+
+  it("shownRankingClient: header of the shown fit, 412 → the fit is fetched and shown, then the new fingerprint is sent", async () => {
+    const shownFit = await ownedFit();
+    const fresh: FitResponse = {
+      ...shownFit,
+      resultFingerprint: "bbbbbbbbbbbbbbbb",
+    };
+    const prefs = { gripStyle: "claw" } as const;
+    const analysisUrl = analysisPath(SCAN_ID);
+    let analysisCalls = 0;
+    const fetchImpl = vi.fn<typeof fetch>(async (url) => {
+      if (String(url) === analysisUrl) {
+        analysisCalls += 1;
+        return new Response(JSON.stringify({ error: "x" }), {
+          status: analysisCalls === 1 ? 412 : 429,
+        });
+      }
+      return new Response(JSON.stringify(fresh), { status: 200 });
+    });
+    const refs: ShownRankingRefs = {
+      shown: { current: shownFit },
+      generation: { current: 0 },
+      inflight: { current: null },
+    };
+    const show = vi.fn();
+    const client = shownRankingClient({
+      scanId: SCAN_ID,
+      preferences: prefs,
+      fetchImpl,
+      refs,
+      show,
+    });
+
+    const outcome = await client.analyse(() => true);
+
+    expect(outcome).toEqual({ status: "rateLimited" });
+    const calls = fetchImpl.mock.calls;
+    expect(calls.map(([url]) => String(url) === analysisUrl)).toEqual([
+      true,
+      false,
+      true,
+    ]);
+    expect(String(calls[1]?.[0])).toContain(SCAN_ID);
+    expect(headersOf(calls[0]?.[1])[RESULT_FINGERPRINT_HEADER]).toBe(
+      shownFit.resultFingerprint,
+    );
+    expect(headersOf(calls[2]?.[1])[RESULT_FINGERPRINT_HEADER]).toBe(
+      "bbbbbbbbbbbbbbbb",
+    );
+    for (const [, init] of calls)
+      expect(JSON.parse(String(init?.body))).toEqual(prefs);
+    expect(show).toHaveBeenCalledTimes(1);
+    expect(show.mock.calls[0]?.[0]?.resultFingerprint).toBe("bbbbbbbbbbbbbbbb");
+    expect(refs.shown.current?.resultFingerprint).toBe("bbbbbbbbbbbbbbbb");
+  });
+
+  it("shownRankingClient: refreshNow alone fetches the fit and shows it", async () => {
+    const shownFit = await ownedFit();
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () => new Response(JSON.stringify(shownFit), { status: 200 }),
+    );
+    const show = vi.fn();
+    const client = shownRankingClient({
+      scanId: SCAN_ID,
+      preferences: {},
+      fetchImpl,
+      refs: {
+        shown: { current: null },
+        generation: { current: 0 },
+        inflight: { current: null },
+      },
+      show,
+    });
+    expect((await client.refreshNow())?.resultFingerprint).toBe(
+      shownFit.resultFingerprint,
+    );
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(String(fetchImpl.mock.calls[0]?.[0])).not.toBe(
+      analysisPath(SCAN_ID),
+    );
+    expect(show).toHaveBeenCalledTimes(1);
+  });
+
+  it("feedbackSender through submitFeedback: the header carries the shown fingerprint; none without one", async () => {
+    const run = async (fingerprint: string | undefined) => {
+      const fetchImpl = vi.fn<FeedbackFetch>(async () => ({
+        ok: false,
+        status: 412,
+        json: async () => ({ error: "x" }),
+      }));
+      const onResultChanged = vi.fn();
+      await submitFeedback(
+        {
+          scanId: SCAN_ID,
+          phase: "form",
+          stars: 5,
+          comment: "",
+          locale: "en",
+          resultFingerprint: fingerprint,
+        },
+        {
+          send: feedbackSender(fetchImpl),
+          markDone: vi.fn(),
+          setFailure: vi.fn(),
+          setPhase: vi.fn(),
+          onResultChanged,
+        },
+      );
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(fetchImpl.mock.calls[0]?.[0]).toBe(resultFeedbackPath(SCAN_ID));
+      return {
+        headers: fetchImpl.mock.calls[0]?.[1]?.headers ?? {},
+        onResultChanged,
+      };
+    };
+    const sent = await run(FIT_A.resultFingerprint);
+    expect(sent.headers[RESULT_FINGERPRINT_HEADER]).toBe(
+      FIT_A.resultFingerprint,
+    );
+    expect(sent.onResultChanged).toHaveBeenCalledTimes(1);
+    const plain = await run(undefined);
+    expect(RESULT_FINGERPRINT_HEADER in plain.headers).toBe(false);
+  });
+});
+
 // The repo has no DOM test runtime (no jsdom), so the props that connect the
 // tested pieces above are pinned in the source.
 describe("the results page's components pass the fingerprint and the refetch", () => {
@@ -978,14 +1167,25 @@ describe("the results page's components pass the fingerprint and the refetch", (
     );
   });
 
-  it("the provider asks with the shown fit and refreshes through shownRanking", () => {
+  it("the provider builds shownRankingClient with the real fetch and analyses through it", () => {
     const provider = src("src/app/results/[scanId]/ResultsScanProvider.tsx");
-    expect(provider).toMatch(/analyseOnScreen\(\{\s*shown: shownFitRef,/);
+    const call = provider.slice(provider.indexOf("shownRankingClient({"));
+    const block = call.slice(0, call.indexOf("});"));
+    expect(block).toMatch(/^\s*scanId,$/m);
+    expect(block).toMatch(/^\s*preferences: PREFERENCES,$/m);
+    expect(block).toMatch(/^\s*fetchImpl: fetch,$/m);
+    expect(block).toMatch(/^\s*refs,$/m);
     expect(provider).toMatch(
-      /shown: shownFitRef,\s*generation: fitGenerationRef,/,
+      /shown: shownFitRef,\s*generation: fitGenerationRef,\s*inflight: refreshInflightRef,/,
     );
-    expect(provider).toContain("refreshShownFit(");
+    // The one analysis call and the one refresh both go through the client.
+    expect(provider.match(/rankingClient\.analyse\(/g)).toHaveLength(1);
+    expect(provider).toContain(
+      "const refreshFitNow = rankingClient.refreshNow;",
+    );
+    expect(provider).not.toMatch(/\bfetchAnalysisResult\b|\banalyseOnScreen\b/);
     expect(provider).toContain("refreshThenReanalyse({");
+    expect(provider).toContain("refreshNow: refreshFitNow,");
     expect(provider).toContain(
       "analysisStarted: () => analysisStartedRef.current",
     );
@@ -997,6 +1197,9 @@ describe("the results page's components pass the fingerprint and the refetch", (
     const block = call.slice(0, call.indexOf("\n    );"));
     expect(block).toMatch(/^\s*resultFingerprint,$/m);
     expect(block).toMatch(/^\s*onResultChanged,$/m);
+    // The send is the tested forwarder (header checked through a fake fetch).
+    expect(block).toMatch(/^\s*send: feedbackSender\(\),$/m);
+    expect(sheet).not.toMatch(/\bsendFeedback\b/);
     // One call site, reached only from the submit button.
     expect(sheet.match(/submitFeedback\(\n/g)).toHaveLength(1);
     expect(sheet.match(/\bsubmit\(\)/g)).toHaveLength(1);

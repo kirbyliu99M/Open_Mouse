@@ -22,8 +22,8 @@ import {
   fetchAnswered,
   markFeedbackDone,
   reachedEnd,
+  feedbackSender,
   readFeedbackDone,
-  sendFeedback,
   submitFeedback,
   shouldShowSheet,
   shownEvent,
@@ -259,8 +259,7 @@ export function ResultFeedbackSheet({
         resultFingerprint,
       },
       {
-        send: (id, body, fingerprint) =>
-          sendFeedback(id, body, undefined, fingerprint),
+        send: feedbackSender(),
         markDone: (id) => markFeedbackDone(id),
         setFailure,
         setPhase,

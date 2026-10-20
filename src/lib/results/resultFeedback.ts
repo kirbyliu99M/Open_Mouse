@@ -338,6 +338,18 @@ export function afterSend(result: SendResult): {
 }
 
 /** What `submitFeedback` touches: the sheet's state setters and the outside world. */
+/**
+ * The sheet's `send`: forwards the fingerprint of the ranking on screen to
+ * `sendFeedback`, which puts it in the `x-result-fingerprint` header (V3.2 F1,
+ * candidate). A factory so the forwarding is tested with a fake fetch.
+ */
+export function feedbackSender(
+  fetchImpl: FetchImpl = defaultFetch,
+): FeedbackSubmitIo["send"] {
+  return (scanId, body, resultFingerprint) =>
+    sendFeedback(scanId, body, fetchImpl, resultFingerprint);
+}
+
 export interface FeedbackSubmitIo {
   send: (
     scanId: string,
