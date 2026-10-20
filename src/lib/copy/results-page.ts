@@ -66,6 +66,15 @@ export interface ResultsPageCopy {
   scoresHeading: string;
   sizeNotice: string;
   fitNotice: string;
+  /**
+   * Shown instead of every score while the hand is outside the catalogue's
+   * length range (`coverage.lengthOutOfRange`). `above` / `below` follow
+   * `coverage.direction`; `partial` is for `direction` null (only some grips
+   * are clamped). Candidate (未拍板): the first two are the 2026-10-18 draft
+   * with "overall score" in place of "fit score", because the six sub-scores
+   * stay on the page; the third is new. No health claim anywhere.
+   */
+  coverageNotice: { above: string; below: string; partial: string };
   enteredLengthNotice: (mm: number) => string;
   leftHandNotice: string;
   othersHeading: string;
@@ -212,6 +221,14 @@ export const zhTW: ResultsPageCopy = {
   scoresHeading: "六項分數",
   sizeNotice: "這支滑鼠有幾項形狀分數還沒評過，所以合手度分數目前主要看尺寸。",
   fitNotice: "這幾支都不太適合你的手，下面是最接近的一支。",
+  coverageNotice: {
+    above:
+      "你的手型超出目前目錄涵蓋範圍。以下是目錄中最大、與你其他尺寸最接近的款式，僅供參考，不提供合手度總分。",
+    below:
+      "你的手型超出目前目錄涵蓋範圍。以下是目錄中最小、與你其他尺寸最接近的款式，僅供參考，不提供合手度總分。",
+    partial:
+      "你的手型在部分握法下，理想尺寸超出目前目錄涵蓋範圍。排名僅供參考，不提供合手度總分。",
+  },
   enteredLengthNotice: (mm) =>
     `依你輸入的手長（${mm}${NBSP}mm）估算，掃描時沒有使用紙張。`,
   leftHandNotice: "左手的合手度還沒評過，購買前請先確認每支滑鼠的形狀。",
@@ -344,6 +361,14 @@ export const en: ResultsPageCopy = {
   sizeNotice:
     "Some shape scores aren't rated yet for this mouse, so the fit score currently leans on its size.",
   fitNotice: "None of these fits your hand well. The closest is below.",
+  coverageNotice: {
+    above:
+      "Your hand is larger than the catalogue currently covers. Below are the largest mice in it, closest to your other measurements. For reference only, with no overall fit score.",
+    below:
+      "Your hand is smaller than the catalogue currently covers. Below are the smallest mice in it, closest to your other measurements. For reference only, with no overall fit score.",
+    partial:
+      "For some grips, your ideal size falls outside what the catalogue currently covers. The order is for reference only, with no overall fit score.",
+  },
   enteredLengthNotice: (mm) =>
     `Based on the hand length you entered (${mm}${NBSP}mm). Measured without paper.`,
   leftHandNotice:

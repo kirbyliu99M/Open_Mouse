@@ -183,6 +183,16 @@ export function ResultsView({
 
   const content = (
     <>
+      {/* Out of the catalogue's range the notice is about coverage and shows
+          on every page of the list; it never depends on `total`. */}
+      {scoresHidden && entry && (
+        <p
+          className="results-coverageNotice"
+          data-direction={response.coverage?.direction ?? "partial"}
+        >
+          {copy.coverageNotice[response.coverage?.direction ?? "partial"]}
+        </p>
+      )}
       {isMain && entry && !scoresHidden && entry.total < POOR_FIT_THRESHOLD && (
         <p className="results-fitNotice">{copy.fitNotice}</p>
       )}

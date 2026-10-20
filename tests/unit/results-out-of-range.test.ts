@@ -10,6 +10,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ResultsView } from "../../src/components/results/ResultsView";
 import { FIXTURES } from "../../src/components/results/fixtures";
+import { en as enBands, zhTW as zhBands } from "../../src/lib/copy/fit-bands";
+import { RESULTS_PAGE_COPY } from "../../src/lib/copy/results-page";
 import type { Locale } from "../../src/lib/contracts/locale";
 import type { FitResponse } from "../../src/lib/contracts/fit";
 import { inRange, outOfRange } from "./fit-out-of-range-fixture";
@@ -100,5 +102,69 @@ describe("results page, hand outside the catalogue's length range", () => {
       results: base.results.map((e) => ({ ...e, total: 12 })),
     };
     expect(render(low)).not.toContain("results-fitNotice");
+  });
+});
+
+describe("the coverage notice (M7)", () => {
+  const withDirection = (direction: "above" | "below" | null) => {
+    const base = outOfRange();
+    return { ...base, coverage: { ...base.coverage!, direction } };
+  };
+
+  it.each([
+    ["above", "above"],
+    ["below", "below"],
+    [null, "partial"],
+  ] as const)(
+    "direction %s shows the %s wording, in both languages, and nothing from the poor-fit notice",
+    (direction, key) => {
+      for (const language of ["zh-TW", "en"] as const) {
+        const copy = RESULTS_PAGE_COPY[language];
+        const html = render(withDirection(direction), { language });
+        expect(html).toContain('class="results-coverageNotice"');
+        expect(html).toContain(copy.coverageNotice[key]);
+        expect(html).not.toContain(copy.fitNotice);
+      }
+    },
+  );
+
+  it("is triggered by coverage, not by total: a low total in range gets the poor-fit notice, an out-of-range hand with a high total gets the coverage notice", () => {
+    const low = inRange();
+    const lowTotals = {
+      ...low,
+      results: low.results.map((e) => ({ ...e, total: 12 })),
+    };
+    const lowHtml = render(lowTotals);
+    expect(lowHtml).toContain("results-fitNotice");
+    expect(lowHtml).not.toContain("results-coverageNotice");
+
+    const highHtml = render(outOfRange());
+    expect(highHtml).toContain("results-coverageNotice");
+    expect(highHtml).not.toContain("results-fitNotice");
+  });
+
+  it("is on a detail page too, and absent when the hand is in range", () => {
+    expect(render(outOfRange(), { rank: 3, scanId: "scan-1" })).toContain(
+      "results-coverageNotice",
+    );
+    expect(render(inRange())).not.toContain("results-coverageNotice");
+    expect(render(FIXTURES["many-results"])).not.toContain(
+      "results-coverageNotice",
+    );
+  });
+
+  it("the wording holds no number and no band word", () => {
+    for (const language of ["zh-TW", "en"] as const) {
+      for (const text of Object.values(
+        RESULTS_PAGE_COPY[language].coverageNotice,
+      )) {
+        expect(text).not.toMatch(/\d/);
+        for (const band of Object.values(
+          { "zh-TW": zhBands, en: enBands }[language].bands,
+        )) {
+          expect(text).not.toContain(band.label);
+        }
+      }
+    }
   });
 });
