@@ -22,6 +22,7 @@
  * between reloads.
  */
 import { HAND_POSE_BUCKETS } from "@/lib/contracts/analytics";
+import type { PaperCornerSource } from "@/lib/contracts/measurement";
 import type { HandPoseGrade } from "../photo/handFlatness";
 import type { PipelineResult } from "../photo/pipeline";
 import {
@@ -101,7 +102,8 @@ export interface AttemptRecord {
     readonly maxAngleDeviationDeg: number | null;
     /** The sheet's observed short side over long side (about 0.7071 for A4 seen flat), to 0.0001; `null` without four corners or in a record from before it was kept. */
     readonly observedAspect: number | null;
-    readonly minSideCoverage: number;
+    /** `null` for a frame the person placed (no side was fitted), and never `null` in a record from before V3.2. */
+    readonly minSideCoverage: number | null;
     /**
      * The four per-side coverages to 0.001, in the detector's side order (0 =
      * the short side from the top-left to the top-right corner, then
@@ -120,6 +122,12 @@ export interface AttemptRecord {
      * is dropped to `null`.
      */
     readonly failureStage: PaperDetectionStage | null;
+    /**
+     * V3.2 F2 (candidate): where the corners came from, `auto` for the
+     * detector's own (also every record from before it was kept), `adjusted`
+     * or `manual` for a frame the person placed.
+     */
+    readonly cornersSource: PaperCornerSource;
   } | null;
   /** Laplacian variance of the analysed photo. */
   readonly sharpness: number | null;
@@ -212,6 +220,19 @@ export interface AttemptRecord {
     readonly hand: number | null;
     readonly total: number | null;
   };
+  /**
+   * V3.2 F2, Kirby's accuracy check (candidate, only with `?debug=1`): how far
+   * each corner he dragged ended from the detector's own, on a photo the
+   * detector had measured. Pixel distances in the decoded photo (TL, TR, BR,
+   * BL, to 0.1), that photo's long edge (so the distances can be scaled to
+   * another photo size), and whether the magnifier was on. No coordinate, no
+   * picture. `null` on every ordinary attempt.
+   */
+  readonly cornerCheck: {
+    readonly magnifier: boolean;
+    readonly distancesPx: readonly [number, number, number, number];
+    readonly imageLongEdgePx: number | null;
+  } | null;
   readonly userAgent: string;
 }
 
@@ -344,7 +365,11 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
           edgeFitResidualMm: cleanNumber(paper.edgeFitResidualMm, 3),
           maxAngleDeviationDeg: cleanNumber(paper.maxAngleDeviationDeg, 1),
           observedAspect: cleanNumber(paper.observedAspect, 4),
-          minSideCoverage: cleanNumber(paper.minSideCoverage, 3) ?? 0,
+          // A placed frame has none; a record from before V3.2 always has one.
+          minSideCoverage:
+            paper.minSideCoverage === null
+              ? null
+              : (cleanNumber(paper.minSideCoverage, 3) ?? 0),
           sideCoverages: cleanSideCoverages(paper.sideCoverages),
           worstSide:
             paper.worstSide === "top" ||
@@ -359,6 +384,11 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
           failureStage: isPaperDetectionStage(paper.failureStage)
             ? paper.failureStage
             : null,
+          cornersSource:
+            paper.cornersSource === "adjusted" ||
+            paper.cornersSource === "manual"
+              ? paper.cornersSource
+              : "auto",
         }
       : null,
     sharpness: cleanNumber(raw.sharpness, 2),
@@ -432,7 +462,34 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
       hand: cleanNumber(timing?.hand, 0),
       total: cleanNumber(timing?.total, 0),
     },
+    cornerCheck: cleanCornerCheck(raw.cornerCheck),
     userAgent: cleanString(raw.userAgent, MAX_USER_AGENT_LENGTH) ?? "",
+  };
+}
+
+/** Distances of at most this many pixels are kept; anything larger is not a corner check. */
+const MAX_CORNER_DISTANCE_PX = 5000;
+
+/**
+ * The accuracy check, rebuilt: a boolean, exactly four finite distances in
+ * 0-5000 px to 0.1, and a whole long edge; anything else is `null` as a whole.
+ */
+function cleanCornerCheck(value: unknown): AttemptRecord["cornerCheck"] {
+  const check = asObject(value);
+  if (!check || typeof check.magnifier !== "boolean") return null;
+  const list = check.distancesPx;
+  if (!Array.isArray(list) || list.length !== 4) return null;
+  const out: number[] = [];
+  for (const item of list) {
+    const n = cleanNumber(item, 1);
+    if (n === null || n < 0 || n > MAX_CORNER_DISTANCE_PX) return null;
+    out.push(n);
+  }
+  const edge = cleanNumber(check.imageLongEdgePx, 0);
+  return {
+    magnifier: check.magnifier,
+    distancesPx: [out[0], out[1], out[2], out[3]],
+    imageLongEdgePx: edge !== null && edge > 0 ? edge : null,
   };
 }
 
@@ -580,6 +637,16 @@ export interface AttemptCapture {
 
 export type AttemptOutcome =
   | { readonly kind: "result"; readonly result: PipelineResult }
+  /**
+   * Kirby's corner check (V3.2 F2, `?debug=1` only): no analysis ran; the
+   * record holds the distances and the magnifier switch, nothing else.
+   */
+  | {
+      readonly kind: "cornerCheck";
+      readonly magnifier: boolean;
+      readonly distancesPx: readonly [number, number, number, number];
+      readonly imageLongEdgePx: number | null;
+    }
   /** The pipeline threw (the detector would not load, an unexpected failure). */
   | {
       readonly kind: "thrown";
@@ -620,6 +687,9 @@ export function buildAttemptRecord(input: {
   let diagnostics: PipelineResultDiagnostics | undefined;
   if (outcome.kind === "thrown") {
     errors = [{ code: outcome.code, message: outcome.message }];
+  } else if (outcome.kind === "cornerCheck") {
+    // Not an analysis: nothing failed, and no pipeline numbers are recorded.
+    result = "ok";
   } else {
     const pipeline = outcome.result;
     diagnostics = pipeline.diagnostics;
@@ -706,6 +776,14 @@ export function buildAttemptRecord(input: {
       hand: diagnostics?.handMs ?? null,
       total: diagnostics?.totalMs ?? null,
     },
+    cornerCheck:
+      outcome.kind === "cornerCheck"
+        ? {
+            magnifier: outcome.magnifier,
+            distancesPx: outcome.distancesPx,
+            imageLongEdgePx: outcome.imageLongEdgePx,
+          }
+        : null,
     userAgent: input.userAgent,
   });
   // `result` and `at` are set above, so the record is always valid; the
@@ -745,6 +823,7 @@ export function buildAttemptRecord(input: {
       focal: { source: null, px: null },
       shadowPrior: { handLengthDeltaMm: null },
       timingMs: { decode: null, paper: null, hand: null, total: null },
+      cornerCheck: null,
       userAgent: "",
     }
   );
@@ -782,6 +861,12 @@ export function describeAttempt(record: AttemptRecord): string {
     );
   if (record.paper?.failureStage)
     parts.push(`stage ${record.paper.failureStage}`);
+  if (record.paper && record.paper.cornersSource !== "auto")
+    parts.push(`corners ${record.paper.cornersSource}`);
+  if (record.cornerCheck)
+    parts.push(
+      `corner check ${record.cornerCheck.magnifier ? "magnifier on" : "magnifier off"} · ${record.cornerCheck.distancesPx.join("/")} px`,
+    );
   if (record.paper?.sideCoverages)
     parts.push(
       `edge ${record.paper.worstSide ?? "?"} worst · cov ${record.paper.sideCoverages.join("/")}`,

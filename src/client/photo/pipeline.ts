@@ -55,7 +55,11 @@ import {
   checkLandmarkConfidence,
 } from "./gates";
 import { detectPaperQuad } from "../paper/detect";
-import { evaluatePaperEdgeCalibration } from "../paper/calibration";
+import {
+  evaluateManualPaperCalibration,
+  evaluatePaperEdgeCalibration,
+} from "../paper/calibration";
+import { orientManualQuad, shiftQuad, type Quad4 } from "../paper/manualQuad";
 import type {
   HandMeasurements,
   ScanSubmission,
@@ -63,6 +67,7 @@ import type {
 import {
   analysisFrames,
   assumedDetectionFocalPx,
+  toFullFrame,
   visibleRectInStill,
   type FrameSize,
   type PixelRect,
@@ -111,6 +116,14 @@ export interface PhotoOverlay {
    * instead) and wherever paper-edge didn't find a quad at all.
    */
   readonly paperCorners?: readonly [Point2, Point2, Point2, Point2] | null;
+  /**
+   * V3.2 F2 (candidate): the corners the paper detector could work out when it
+   * found the sheet but not all four of its corners (`partialCorners`, TL, TR,
+   * BR, BL, `null` where it could not), in the same full-resolution pixels.
+   * Set only on that failure, so the frame the person adjusts can start from
+   * them; absent everywhere else.
+   */
+  readonly paperPartialCorners?: readonly (Point2 | null)[];
 }
 
 export type PipelineResult =
@@ -195,6 +208,21 @@ export interface RunPhotoPipelineInput {
    * callback that throws is ignored. Omitted, nothing is called.
    */
   readonly onStage?: (stage: PipelineStage) => void;
+  /**
+   * V3.2 F2 (candidate, 未拍板): a paper frame the person placed on the photo
+   * after the detector's own was turned back. Paper-edge only. `corners` are
+   * in the WHOLE decoded photo's pixels (the overlay's), in any order: they are
+   * moved into the analysed picture and labelled as the detector labels its
+   * own (`orientManualQuad`). The detector does not run; every hand gate, the
+   * homography (`buildPaperHomography`) and the measurements are the same as
+   * for detected corners. `source` is what the submission's `cornersSource`
+   * says: `adjusted` (the detector's corners, moved or confirmed) or `manual`
+   * (placed where the detector had none).
+   */
+  readonly manualPaperCorners?: {
+    readonly corners: Quad4;
+    readonly source: "adjusted" | "manual";
+  };
 }
 
 /** The steps `onStage` reports. */
@@ -676,9 +704,30 @@ async function runPaperEdgePipeline(
     // narrows the picture, not the lens (visibleView.ts). Without a crop it is
     // what the detector would have assumed anyway. A frame that was cut before
     // it got here says how wide the picture it was cut from was.
-    const quad = detectPaperQuad(imageData, paperSize, {
-      focalPxHint: assumedDetectionFocalPx(frames, input.focalReferenceWidthPx),
-    });
+    const focalPxHint = assumedDetectionFocalPx(
+      frames,
+      input.focalReferenceWidthPx,
+    );
+    // A frame the person placed (V3.2 F2) replaces the detector's: it is its
+    // own branch, so the detected path below is exactly what it was.
+    if (input.manualPaperCorners) {
+      return await finishManualPaper({
+        input,
+        manual: input.manualPaperCorners,
+        paperSize,
+        trace,
+        bitmap,
+        gray,
+        width,
+        height,
+        fullWidth,
+        fullHeight,
+        crop,
+        focalPxHint,
+        paperStartedAt,
+      });
+    }
+    const quad = detectPaperQuad(imageData, paperSize, { focalPxHint });
     trace.paperMs = performance.now() - paperStartedAt;
     notifyStage(input, "paper");
     const quadSize = quad.corners
@@ -721,10 +770,21 @@ async function runPaperEdgePipeline(
             "We couldn't find a sheet of paper in this photo — place a blank A4 (or Letter) sheet flat on a plain, contrasting surface and retake.",
         };
       trace.paper = { ...trace.paper, gateFailures: [failure.code] };
+      // The corners it did work out, for the frame the person may adjust
+      // (V3.2 F2): only when the sheet itself was found.
+      const partial = quad.paperRegionFound
+        ? quad.partialCorners.map((p) => (p ? toFullFrame(p, crop) : null))
+        : null;
       return {
         status: "error",
         errors: [failure],
-        overlay: { ...overlayBase, landmarksPx: null },
+        overlay: {
+          ...overlayBase,
+          landmarksPx: null,
+          ...(partial && partial.some((p) => p !== null)
+            ? { paperPartialCorners: partial }
+            : {}),
+        },
       };
     }
 
@@ -792,6 +852,118 @@ async function runPaperEdgePipeline(
   } finally {
     if (bitmap !== decoded.bitmap) bitmap.close();
   }
+}
+
+/**
+ * The paper-edge run for a frame the person placed (V3.2 F2, candidate): the
+ * frame instead of the detector, then the same hand detection and the same
+ * `finishPaperEdge` (hand gates, EXIF focal length, parallax-corrected
+ * measurements, overlay) as detected corners. The frame is checked again
+ * here (`evaluateManualPaperCalibration`), whatever the screen checked.
+ */
+async function finishManualPaper(args: {
+  readonly input: RunPhotoPipelineInput;
+  readonly manual: NonNullable<RunPhotoPipelineInput["manualPaperCorners"]>;
+  readonly paperSize: PaperSize;
+  readonly trace: PipelineTrace;
+  readonly bitmap: ImageBitmap;
+  readonly gray: Float64Array;
+  readonly width: number;
+  readonly height: number;
+  readonly fullWidth: number;
+  readonly fullHeight: number;
+  readonly crop: PixelRect | null;
+  readonly focalPxHint: number;
+  readonly paperStartedAt: number;
+}): Promise<PipelineResult> {
+  const { input, manual, paperSize, trace, width, height, crop } = args;
+  const image = { width, height };
+  // Whole-photo pixels to the analysed picture's, then the detector's labels.
+  const inAnalysed = shiftQuad(
+    manual.corners,
+    -(crop?.x ?? 0),
+    -(crop?.y ?? 0),
+  );
+  const corners = orientManualQuad(
+    inAnalysed,
+    paperSize,
+    image,
+    args.focalPxHint,
+  );
+  const paperEval = evaluateManualPaperCalibration({
+    corners,
+    cornersSource: manual.source,
+    paperSize,
+    image,
+    parallaxCorrected: false,
+  });
+  trace.paperMs = performance.now() - args.paperStartedAt;
+  notifyStage(input, "paper");
+  const quadSize = paperSizeFractions(corners, width, height);
+  // What the record says of a placed frame: its geometry, where its corners
+  // came from, and no edge numbers (there was no fitted edge to measure).
+  trace.paper = {
+    cornersSeen: 4,
+    paperRegionFound: true,
+    widthFraction: quadSize?.widthFraction ?? null,
+    heightFraction: quadSize?.heightFraction ?? null,
+    edgeFitResidualMm: null,
+    maxAngleDeviationDeg: paperMaxAngleDeviationDeg(corners),
+    observedAspect: paperObservedAspect(corners),
+    minSideCoverage: null,
+    sideCoverages: null,
+    worstSide: null,
+    gateFailures: paperEval.errors.map((error) => error.code),
+    failureStage: null,
+    cornersSource: manual.source,
+  };
+  const overlayBase = {
+    imageWidth: args.fullWidth,
+    imageHeight: args.fullHeight,
+    markers: [] as DetectedMarker[],
+    card: null,
+  };
+  if (!paperEval.ok || !paperEval.geometry) {
+    return {
+      status: "error",
+      errors: paperEval.errors,
+      overlay: { ...overlayBase, landmarksPx: null },
+    };
+  }
+  const hand = await detectHandTraced(args.bitmap, trace, input);
+  if (!hand) {
+    return {
+      status: "error",
+      errors: [
+        {
+          code: "HAND_NOT_DETECTED",
+          message:
+            "We couldn't find a hand in this photo — lay your hand flat on the sheet, fingers together, and retake.",
+          detail: { kind: "handNotDetected", on: "paper" },
+        },
+      ],
+      overlay: { ...overlayBase, landmarksPx: null },
+    };
+  }
+  const laplacianVariance =
+    trace.laplacianVariance ??
+    computeLaplacianVariance(args.gray, width, height);
+  trace.laplacianVariance = laplacianVariance;
+  const finish = await finishPaperEdge({
+    quad: { corners, paperRegionFound: true },
+    paperEval,
+    paperSize,
+    hand,
+    request: input,
+    laplacianVariance,
+    decoded: { width: args.fullWidth, height: args.fullHeight },
+    crop,
+    readJpegBytes: async () => new Uint8Array(await input.file.arrayBuffer()),
+  });
+  trace.parallaxCorrected = finish.parallaxCorrected;
+  trace.focal = finish.focal;
+  trace.shadowPrior = finish.shadowPrior;
+  return finish.result;
 }
 
 async function runUserLengthPipeline(

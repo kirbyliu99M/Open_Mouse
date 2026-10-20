@@ -12,6 +12,7 @@ import { lowestCoverageSide } from "../paper/detect";
 import type { PaperDetectionStage } from "../paper/detectionStage";
 import type { FrameSize, PixelRect } from "../camera/visibleView";
 import type { HandFlatness } from "./handFlatness";
+import type { PaperCornerSource } from "../../lib/contracts/measurement";
 
 export interface PaperDiagnostics {
   /** Corners whose two sides were both fitted, 0-4. */
@@ -47,8 +48,8 @@ export interface PaperDiagnostics {
    * candidate); no gate looks at it.
    */
   readonly observedAspect: number | null;
-  /** The smallest fraction of any side that was seen, 0-1. */
-  readonly minSideCoverage: number;
+  /** The smallest fraction of any side that was seen, 0-1; `null` for a frame the person placed (no side was fitted). */
+  readonly minSideCoverage: number | null;
   /**
    * The four per-side coverages, 0-1, in the detector's side order (0 = the
    * short side from the top-left to the top-right corner, then clockwise);
@@ -75,6 +76,13 @@ export interface PaperDiagnostics {
    * in tests). A step of the algorithm, not a proven cause.
    */
   readonly failureStage?: PaperDetectionStage | null;
+  /**
+   * V3.2 F2 (candidate): where the corners came from, as the submission's
+   * `cornersSource` says. Absent for the detector's own corners (every run
+   * before V3.2 and every detected run since); `adjusted` or `manual` for a
+   * frame the person placed, whose edge numbers are then `null`.
+   */
+  readonly cornersSource?: PaperCornerSource;
 }
 
 export interface HandDiagnostics {

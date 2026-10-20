@@ -48,10 +48,23 @@ import type { FocalDiagnostics, ShadowPriorDiagnostics } from "./diagnostics";
 import type { PipelineResult } from "./pipeline";
 
 export interface PaperEdgeFinishInput {
-  /** The detection, in the analysed (possibly cropped) image's pixels. All four corners found. */
-  readonly quad: SheetQuadDetection;
-  /** `evaluatePaperEdgeCalibration(quad, paperSize, false)`, with its geometry. */
-  readonly paperEval: PaperEdgeCalibrationResult;
+  /**
+   * The detection, in the analysed (possibly cropped) image's pixels. All four
+   * corners found. For a frame the person placed (V3.2 F2), its four labelled
+   * corners and `paperRegionFound: true`: only these two fields are read.
+   */
+  readonly quad: Pick<SheetQuadDetection, "corners" | "paperRegionFound">;
+  /**
+   * `evaluatePaperEdgeCalibration(quad, paperSize, false)`, with its geometry,
+   * or `evaluateManualPaperCalibration` for a placed frame (a homography, no
+   * fitted edge). Only the homography of the geometry is read.
+   */
+  readonly paperEval: Pick<
+    PaperEdgeCalibrationResult,
+    "ok" | "errors" | "calibration"
+  > & {
+    readonly geometry: { readonly homography: Homography } | null;
+  };
   readonly paperSize: PaperSize;
   /** What MediaPipe found, in the analysed image's pixels. */
   readonly hand: {
