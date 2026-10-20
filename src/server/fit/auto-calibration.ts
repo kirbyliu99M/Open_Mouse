@@ -41,7 +41,9 @@ const FIT_SATISFACTION_MIN = 4;
 /**
  * What the survey keeps about one rating of a catalogue mouse, as far as
  * calibration reads it: the mouse's slug, the stars, what bothered the person,
- * and the grip stored with the contribution the rating belongs to.
+ * and the grip stored with the contribution the rating belongs to (kept for
+ * the source's sake; calibration does not read it, see
+ * `surveyRatingsToReferences`).
  */
 export interface SurveyRatingForCalibration {
   slug: string;
@@ -69,8 +71,10 @@ export interface SurveyReferenceSource {
  *   dimensions.
  * - satisfaction 3 or less: not used, since it is not known whether the mouse
  *   felt too large or too small.
- * - `grips` is the stored grip when there is one, else empty (the engine then
- *   judges it in the grip it uses for this hand).
+ * - `grips` is always empty (A1-05): the engine then judges the mouse in the
+ *   grip it really uses for this hand in this calculation. The grip the survey
+ *   stored may be a prediction the old engine made for a skipped question, not
+ *   something the person said, so it is never read as a fact here.
  * - `specialUse` is false: the survey has no such question.
  *
  * A slug rated twice keeps its first entry (the caller passes newest first).
@@ -88,7 +92,7 @@ export function surveyRatingsToReferences(
       rating.painPoints.includes(dimension) ? null : 0;
     out.push({
       slug: rating.slug,
-      grips: rating.gripStyle ? [rating.gripStyle] : [],
+      grips: [],
       feel: {
         length: feel("length"),
         width: feel("width"),

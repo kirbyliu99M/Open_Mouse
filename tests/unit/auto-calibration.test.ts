@@ -110,7 +110,7 @@ describe("surveyRatingsToReferences", () => {
       expect(surveyRatingsToReferences([rated(G, { satisfaction })])).toEqual([
         {
           slug: G,
-          grips: ["claw"],
+          grips: [],
           feel: { length: 0, width: 0, height: 0 },
           specialUse: false,
         },
@@ -153,12 +153,12 @@ describe("surveyRatingsToReferences", () => {
     },
   );
 
-  it("grips: the stored grip when there is one, else empty", () => {
+  it("grips are always empty: a stored grip may be a prediction, not an answer (A1-05)", () => {
     const [withGrip, noGrip] = surveyRatingsToReferences([
       rated(G, { gripStyle: "fingertip" }),
       rated(B, { gripStyle: null }),
     ]);
-    expect(withGrip!.grips).toEqual(["fingertip"]);
+    expect(withGrip!.grips).toEqual([]);
     expect(noGrip!.grips).toEqual([]);
   });
 
@@ -430,6 +430,45 @@ describe("loadOwnedFit with the survey", () => {
     expect(fit.calibration?.referencesUsed).toBe(2);
     expect(fit.calibration?.dims.length.answers).toBeGreaterThan(0);
     expect(fit.targets).not.toEqual(plain.targets);
+  });
+
+  it("a stored claw grip does not decide the calibration: with the engine on fingertip it calibrates as fingertip (A1-05)", async () => {
+    vi.stubEnv("FIT_ENGINE", "v3");
+    const prefs = fitPreferencesSchema.parse({ gripStyle: "fingertip" });
+    const viaSurvey = async (grip: "claw" | "palm" | null) =>
+      (
+        await run({
+          userId: "user-1",
+          prefs,
+          surveyReferences: sourceOf([
+            rated(G, { gripStyle: grip }),
+            rated(B, { gripStyle: grip }),
+          ]).source,
+        })
+      ).result.fit;
+    const stored = await viaSurvey("claw");
+    expect(stored.gripStyle.used).toBe("fingertip");
+    expect(stored.calibration?.referencesUsed).toBe(2);
+    // Whatever grip the survey stored, the calibration is the same ...
+    expect(stored.targets).toEqual((await viaSurvey("palm")).targets);
+    expect(stored.targets).toEqual((await viaSurvey(null)).targets);
+    // ... and it is the one a request would get by naming no grip itself, which
+    // the engine reads in the grip in use (fingertip), not the stored claw.
+    const explicit = (grips: Array<"claw" | "fingertip">) =>
+      run({
+        userId: "user-1",
+        prefs: fitPreferencesSchema.parse({
+          gripStyle: "fingertip",
+          references: [G, B].map((slug) => ({
+            slug,
+            grips,
+            feel: { length: 0, width: 0, height: 0 },
+          })),
+        }),
+      }).then((r) => r.result.fit);
+    expect(stored.targets).toEqual((await explicit([])).targets);
+    expect(stored.targets).toEqual((await explicit(["fingertip"])).targets);
+    expect(stored.targets).not.toEqual((await explicit(["claw"])).targets);
   });
 
   it("one usable rating: no calibration block, and the response equals the uncalibrated one", async () => {
