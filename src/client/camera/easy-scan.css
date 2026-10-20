@@ -1630,3 +1630,29 @@ main.easyScanShell {
 .easyDeviceColumns .manualEntry-panel {
   text-align: start;
 }
+
+/* The particle loader over the photo while it is analysed (V3.2 U1,
+   candidate): a dark veil with the cloud in the middle. It lets taps through
+   and fades in; the loader fades the whole veil out when it is done. */
+.easyProcessingLoader {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  padding: 0;
+  background: rgb(6 7 9 / 0.72);
+  pointer-events: none;
+  animation: easyProcessingLoader-in 160ms ease-out;
+}
+@keyframes easyProcessingLoader-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .easyProcessingLoader {
+    background: #060709;
+  }
+}

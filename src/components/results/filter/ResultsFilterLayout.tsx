@@ -117,8 +117,8 @@ export function ResultsFilterLayout({
   onSheetOpened?: () => void;
   /**
    * Optional content that comes first: above the filter bar on a phone, at the
-   * top of the content column beside the sidebar (the all-mice page's search).
-   * The results page passes none.
+   * top of the content column beside the sidebar (the all-mice page's search;
+   * the results page's shape toggle, V3.2 U1).
    */
   lead?: ReactNode;
   shells?: "switch" | "both";

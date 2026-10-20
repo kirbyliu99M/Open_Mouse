@@ -701,3 +701,100 @@ dialog.results-sheet[data-leaving="true"]::backdrop {
 .results-chip--static:active {
   opacity: 1;
 }
+
+/* ---- The shape toggle (V3.2 U1, candidate / 未拍板) ----
+   「綜合｜左右對稱｜人體工學」 above the filter button: a dark track, the
+   checked segment under a white pill (BTN-1's selected-toggle fill). The pill
+   slides by transform only; the labels' colour changes at once. */
+.results-shapeToggle {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: var(--facet-chip);
+}
+.results-shapeToggle-pill {
+  position: absolute;
+  top: 0.25rem;
+  bottom: 0.25rem;
+  left: 0.25rem;
+  width: calc((100% - 0.5rem) / 3);
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+}
+.results-shapeToggle[data-motion="reduced"] .results-shapeToggle-pill {
+  transition: none;
+  animation: results-shapeToggle-fade 120ms ease-out;
+}
+@keyframes results-shapeToggle-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.results-shapeToggle-option {
+  position: relative;
+  min-height: 2.75rem;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.results-shapeToggle-option[aria-checked="true"] {
+  color: var(--on-button-primary);
+  cursor: default;
+}
+.results-shapeToggle-option:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+.results-shapeToggle-option:not([aria-checked="true"]):active {
+  opacity: 0.65;
+}
+@media (forced-colors: active) {
+  .results-shapeToggle-pill {
+    background: Highlight;
+  }
+  .results-shapeToggle-option[aria-checked="true"] {
+    color: HighlightText;
+  }
+}
+@media print {
+  .results-shapeToggle {
+    display: none;
+  }
+}
+
+/* The note under a shape with only a few mice (all of them are on the page). */
+.results-fewNote {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 1rem 1.25rem 0.5rem;
+  border-radius: 1rem;
+  background: var(--facet-surface);
+}
+.results-fewNote-text {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+/* The filter button sits 16 px under the toggle. */
+.results-shapeToggle + .results-filterChrome > .results-filterBar {
+  margin-top: -0.5rem;
+}

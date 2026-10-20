@@ -186,6 +186,27 @@ export interface RunPhotoPipelineInput {
    * the camera's photo never pass it. Not used by any gate.
    */
   readonly focalReferenceWidthPx?: number;
+  /**
+   * Told when a step of the analysis has finished, for the loader's ring
+   * (V3.2 U1): `decoded` (the photo is decoded), `paper` (the sheet was
+   * looked for; paper-edge only) and `hand` (the hand was looked for).
+   * Called once per step that runs, in that order, whatever the step found.
+   * It only listens: nothing in the run reads it or waits for it, and a
+   * callback that throws is ignored. Omitted, nothing is called.
+   */
+  readonly onStage?: (stage: PipelineStage) => void;
+}
+
+/** The steps `onStage` reports. */
+export type PipelineStage = "decoded" | "paper" | "hand";
+
+/** Tells the caller a step has finished; a callback that throws changes nothing. */
+function notifyStage(input: RunPhotoPipelineInput, stage: PipelineStage) {
+  try {
+    input.onStage?.(stage);
+  } catch {
+    // The loader is a convenience: it must never break a scan.
+  }
 }
 
 /**
@@ -235,6 +256,7 @@ function newTrace(): PipelineTrace {
 async function detectHandTraced(
   bitmap: ImageBitmap,
   trace: PipelineTrace,
+  input: RunPhotoPipelineInput,
 ): Promise<Awaited<ReturnType<typeof detectHandLandmarks>>> {
   const startedAt = performance.now();
   try {
@@ -257,6 +279,7 @@ async function detectHandTraced(
     return hand;
   } finally {
     trace.handMs = performance.now() - startedAt;
+    notifyStage(input, "hand");
   }
 }
 
@@ -345,6 +368,7 @@ async function runPhotoPipelineTraced(
     trace.decodeMs = performance.now() - decodeStartedAt;
     trace.decoded = { width: decoded.width, height: decoded.height };
     trace.analysed = trace.decoded;
+    notifyStage(input, "decoded");
   } catch (err) {
     trace.decodeMs = performance.now() - decodeStartedAt;
     const message =
@@ -456,7 +480,7 @@ async function runDecodedPipeline(
   }
   const cardScaleRatio = computeCardScaleRatio(cardCorners, homography);
 
-  const hand = await detectHandTraced(bitmap, trace);
+  const hand = await detectHandTraced(bitmap, trace, input);
   const overlayBase = {
     imageWidth: width,
     imageHeight: height,
@@ -656,6 +680,7 @@ async function runPaperEdgePipeline(
       focalPxHint: assumedDetectionFocalPx(frames, input.focalReferenceWidthPx),
     });
     trace.paperMs = performance.now() - paperStartedAt;
+    notifyStage(input, "paper");
     const quadSize = quad.corners
       ? paperSizeFractions(quad.corners, width, height)
       : null;
@@ -723,7 +748,7 @@ async function runPaperEdgePipeline(
       };
     }
 
-    const hand = await detectHandTraced(bitmap, trace);
+    const hand = await detectHandTraced(bitmap, trace, input);
     if (!hand) {
       return {
         status: "error",
@@ -776,7 +801,7 @@ async function runUserLengthPipeline(
     markers: [] as DetectedMarker[],
     card: null,
   };
-  const hand = await detectHandTraced(bitmap, trace);
+  const hand = await detectHandTraced(bitmap, trace, input);
   if (!hand)
     return {
       status: "error",

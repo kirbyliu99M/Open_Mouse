@@ -15,11 +15,12 @@ import {
 import { clampCount } from "@/client/analytics/props";
 import { poorFitField } from "@/components/results/fitNotice";
 import {
+  filterAppliedSource,
   filterSelectionProps,
   filtersChanged,
   headerCard,
   resultsPageFields,
-  type FilterChangeSource,
+  type ResultsFilterChange,
 } from "@/lib/results/analyticsEvents";
 import { RESULTS_VIEWER_ENABLED } from "@/lib/results/features";
 import { mainResultsPath } from "@/lib/results/rankRoutes";
@@ -65,11 +66,14 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
   filtersRef.current = filters;
 
   const onFiltersChange = useCallback(
-    (next: Filters, source: FilterChangeSource) => {
+    (next: Filters, change: ResultsFilterChange) => {
       const changed = filtersChanged(filtersRef.current, next);
       filtersRef.current = next;
       setFilters(next);
-      if (changed) {
+      // The shape toggle has no `filter_applied` source in the contract, so
+      // its changes are not sent (reported to Claude, V3.2 U1).
+      const source = filterAppliedSource(change);
+      if (changed && source !== null) {
         // The page after the change: a filter is only changed on the main
         // page, whose big header is always the list's first place.
         const after = filteredView(fit, next);

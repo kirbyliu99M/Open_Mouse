@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { manualEntryCopy } from "@/lib/copy/manualEntry";
@@ -13,6 +13,15 @@ import {
   type Filters,
 } from "@/lib/results/filters";
 import { handTypeLabel } from "@/lib/results/handTypeLabel";
+import {
+  fewSegmentNote,
+  segmentDirection,
+  segmentOf,
+  segmentOnly,
+  withSegment,
+  type ShapeSegment,
+} from "@/lib/results/shapeToggle";
+import { usePrefersReducedMotion } from "@/client/camera/useReducedMotion";
 import { pathForEntry } from "@/lib/results/rankRoutes";
 import type { Locale } from "@/lib/contracts/locale";
 import { retailerOf } from "@/lib/contracts/analytics";
@@ -23,14 +32,16 @@ import {
   linkPositionOf,
   officialKindOf,
   resultsPageFields,
-  type FilterChangeSource,
   type ResultsAnalytics,
+  type ResultsFilterChange,
 } from "@/lib/results/analyticsEvents";
 import type { AnalysisState } from "./analysisState";
 import { FilteredAnalysisLine } from "./FilteredAnalysisLine";
 import { FilterSummary } from "./filter/FilterSummary";
 import { FilterNoMatch } from "./filter/FilterNoMatch";
 import { ResultsFilterLayout } from "./filter/ResultsFilterLayout";
+import { ShapeToggle } from "./filter/ShapeToggle";
+import { useSegmentSwap } from "./filter/useSegmentSwap";
 import { OtherMice } from "./OtherMice";
 import { OtherPicks } from "./OtherPicks";
 import { MousePhoto } from "./MousePhoto";
@@ -66,6 +77,15 @@ const BAND_COPY = { "zh-TW": zhBands, en: enBands } as const;
  * then the place in that list. Only what is on screen follows the filter: the
  * written analysis and the share card stay on the overall #1 (`response` is
  * never filtered). Without `onFiltersChange` (the demo) nothing changes.
+ *
+ * Shape toggle (V3.2 U1, candidate): with the filter, 「綜合｜左右對稱｜人體工學」
+ * sits above the filter button. It sets the filter's 滑鼠握感 group and
+ * nothing else (`withSegment`), so the panel and the toggle always agree and
+ * the page reads the same `filteredView`: renumbered cards, the place line,
+ * `FilteredAnalysisLine` and the share button's filter rule, `FilterNoMatch`
+ * when nothing is left. A shape with only a few mice lists exactly those,
+ * with a note that they are all there. The cards change over with
+ * `useSegmentSwap`.
  *
  * Order: top bar, hand type (when the response has one), photo, rank and
  * score (the official link sits on the fit-band chip's row), why, purchase
@@ -120,9 +140,38 @@ export function ResultsView({
   /** The applied filters. */
   filters?: Filters;
   /** Passed only by the real results page; without it there is no filter UI. */
-  onFiltersChange?: (next: Filters, source: FilterChangeSource) => void;
+  onFiltersChange?: (next: Filters, source: ResultsFilterChange) => void;
 }) {
   const view = filteredView(response, filters);
+  const reducedMotion = usePrefersReducedMotion();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const swap = useSegmentSwap(rootRef, reducedMotion);
+  // The segment just pressed, until the change it starts reaches `filters`
+  // (the cards fade out first): the toggle shows it at once.
+  const [pressed, setPressed] = useState<{
+    segment: ShapeSegment;
+    on: Filters;
+  } | null>(null);
+  const shownSegment =
+    pressed && pressed.on === filters ? pressed.segment : segmentOf(filters);
+  const selectSegment = (segment: ShapeSegment, refocus = false) => {
+    if (!onFiltersChange) return;
+    const next = withSegment(filters, segment);
+    setPressed({ segment, on: filters });
+    swap(segmentDirection(shownSegment, segment), () =>
+      onFiltersChange(next, "shape_toggle"),
+    );
+    // The note's button goes away with the change: focus moves to the
+    // segment that is now checked.
+    if (refocus)
+      requestAnimationFrame(() =>
+        rootRef.current
+          ?.querySelector<HTMLElement>(
+            '.results-shapeToggle [role="radio"][aria-checked="true"]',
+          )
+          ?.focus(),
+      );
+  };
   const card = headerCard(view, rank);
   const entry = card?.entry ?? null;
   // The official link and the purchase links of the one mouse in the big
@@ -158,6 +207,10 @@ export function ResultsView({
   // when the overall #1 still leads it is exactly the button of an unfiltered
   // page (Kirby, 2026-10-11).
   const shareOverall = filtering && (view.count === 0 || view.swapped);
+  // The place line names the shape when it is the only filter (「人體工學第 1 名」).
+  const onlyShape = segmentOnly(filters);
+  const few =
+    isMain && onFiltersChange ? fewSegmentNote(filters, view.count) : null;
 
   // Analytics (real pages only): every event carries the page fields of the
   // mouse in the big header, built here once. The refs hold what is sent once
@@ -246,7 +299,12 @@ export function ResultsView({
                     <>
                       <p className="results-score-rank results-score-places">
                         <span className="results-badge">
-                          {copy.filter.filteredRank(card.displayRank)}
+                          {onlyShape
+                            ? copy.shapeToggle.segmentRank(
+                                copy.shapeToggle.segment[onlyShape],
+                                card.displayRank,
+                              )
+                            : copy.filter.filteredRank(card.displayRank)}
                         </span>
                         {showOverall && (
                           <span className="results-score-overall">
@@ -447,6 +505,24 @@ export function ResultsView({
         }
       />
 
+      {few && (
+        <section className="results-fewNote">
+          <p className="results-fewNote-text">
+            {copy.shapeToggle.fewNote(
+              copy.shapeToggle.segment[few.shape],
+              few.count,
+            )}
+          </p>
+          <button
+            type="button"
+            className="results-textLink"
+            onClick={() => selectSegment("overall", true)}
+          >
+            {copy.shapeToggle.seeOverall}
+          </button>
+        </section>
+      )}
+
       {/* How people with a similar hand size rated the mice: about the
           person, not about one mouse, so only the main page of a real scan
           asks for it. It draws nothing until it has an answer. */}
@@ -503,7 +579,7 @@ export function ResultsView({
   );
 
   return (
-    <div className="results-view" data-rank={card?.displayRank}>
+    <div className="results-view" data-rank={card?.displayRank} ref={rootRef}>
       <PrintOpenDetails />
       {/* Decorative haze behind the hero: see .results-glow in results.css. */}
       <div className="results-glow" aria-hidden="true" />
@@ -537,6 +613,14 @@ export function ResultsView({
           onChange={onFiltersChange}
           onSheetOpened={
             analytics ? () => emit("filter_sheet_opened", {}) : undefined
+          }
+          lead={
+            <ShapeToggle
+              language={language}
+              selected={shownSegment}
+              reducedMotion={reducedMotion}
+              onSelect={(segment) => selectSegment(segment)}
+            />
           }
         >
           {content}
