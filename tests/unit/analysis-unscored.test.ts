@@ -280,7 +280,7 @@ describe("analyse(), unscored: no new numerals, ever", () => {
 
 describe("the cache key, unscored", () => {
   it("is on version 8 and differs from the scored key of the same scan", () => {
-    expect(ANALYSIS_PROMPT_VERSION).toBe(8);
+    expect(ANALYSIS_PROMPT_VERSION).toBe(9);
     for (const locale of ["en", "zh-TW"] as const) {
       expect(computeCacheKey(OUT, M, locale)).not.toBe(
         computeCacheKey(IN, M, locale),

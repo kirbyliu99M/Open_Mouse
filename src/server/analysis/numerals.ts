@@ -885,6 +885,55 @@ function escapeRegExp(text: string): string {
 }
 
 /**
+ * Folds `text` the way the digit paths read it (format characters dropped,
+ * vulgar fractions as decimals, NFKC, every script's digits as ASCII) one
+ * character at a time, and remembers which original characters each folded
+ * character came from. Slash fractions are left alone here, and so is the
+ * original text: this only lets `withoutDisplayNames` look at the same
+ * characters the number readers will see.
+ */
+function foldWithOrigins(text: string): {
+  folded: string;
+  from: number[];
+  to: number[];
+} {
+  let folded = "";
+  const from: number[] = [];
+  const to: number[] = [];
+  let at = 0;
+  for (const ch of text) {
+    const frac = VULGAR_FRACTIONS.get(ch.codePointAt(0)!);
+    const pieces = /\p{Cf}/u.test(ch)
+      ? ""
+      : frac
+        ? fractionDecimalString(frac[0], frac[1])
+        : ch.normalize("NFKC");
+    for (const piece of pieces) {
+      const digit = UNICODE_DIGIT_VALUES.get(piece.codePointAt(0)!);
+      const out = digit !== undefined ? String(digit) : piece;
+      for (let k = 0; k < out.length; k += 1) {
+        folded += out[k];
+        from.push(at);
+        to.push(at + ch.length);
+      }
+    }
+    at += ch.length;
+  }
+  return { folded, from, to };
+}
+
+/**
+ * What may not follow a display name for it to count as a whole name: a letter
+ * or digit, a decimal or group fraction (".5", ",5"), a percent sign, or a unit
+ * ("mm", "cm", "g", "%", 分, 公分, 公克...). Each of them turns the name's last
+ * digit into the start of a quantity ("Superlight 2 mm", "Superlight 2%",
+ * "Superlight 2１ mm" once the full-width 1 is folded).
+ */
+const AFTER_NAME_BLOCKER = new RegExp(
+  "(?![A-Za-z0-9]|[.,]\\d|\\s*(?:%|(?:mm|cm|g|kg|grams?|percent)(?![A-Za-z])|分|公分|公克|克|毫米))",
+);
+
+/**
  * Takes the input's own full display names (brand + model, or the model alone)
  * out of `text`, so a standalone number that is part of a real name ("G Pro X
  * Superlight 2") is not read as a quantity the input lacks. `exemptTokens`
@@ -893,27 +942,41 @@ function escapeRegExp(text: string): string {
  * Narrow on purpose:
  * - the whole name must be there: longest names first, any case, any run of
  *   whitespace between its words;
+ * - names are matched on the folded text (see `foldWithOrigins`), the text the
+ *   number readers see, so a full-width or other-script digit glued to the name
+ *   ("Superlight 2１") is a digit that follows it, not something to skip;
  * - it must stand alone: not glued to a letter or digit before it, and not
- *   followed by a letter, a digit or a decimal fraction ("Superlight 2" does
- *   not match inside "Superlight 25" or "Superlight 2.5");
+ *   followed by a letter, a digit, a decimal fraction, a percent sign or a unit
+ *   (`AFTER_NAME_BLOCKER`): "Superlight 2" does not match inside "Superlight
+ *   25", "Superlight 2.5", "Superlight 2%" or "Superlight 2 mm";
  * - a name with no letter in it is ignored, so it can never exempt a number;
  * - what follows the name is still checked ("Superlight 2 85 分" leaves 85).
- * The name is replaced by a space, so the text on both sides stays apart.
+ * The matched characters of the original text are replaced by a space, so the
+ * text on both sides stays apart and nothing else in it is changed.
  */
 export function withoutDisplayNames(
   text: string,
   names: readonly string[],
 ): string {
-  const usable = [...new Set(names.map((n) => n.trim()))]
+  const usable = [
+    ...new Set(names.map((n) => stripFormatChars(n).normalize("NFKC").trim())),
+  ]
     .filter((n) => /[A-Za-z]/.test(n))
     .sort((a, b) => b.length - a.length);
   let out = text;
   for (const name of usable) {
     const body = name.split(/\s+/).map(escapeRegExp).join("\\s+");
-    out = out.replace(
-      new RegExp(`(?<![A-Za-z0-9])${body}(?![A-Za-z0-9]|\\.\\d)`, "gi"),
-      " ",
+    const pattern = new RegExp(
+      `(?<![A-Za-z0-9])${body}${AFTER_NAME_BLOCKER.source}`,
+      "gi",
     );
+    const { folded, from, to } = foldWithOrigins(out);
+    const spans = [...folded.matchAll(pattern)].map(
+      (m) => [from[m.index!], to[m.index! + m[0].length - 1]] as const,
+    );
+    for (const [a, b] of spans.reverse()) {
+      out = `${out.slice(0, a)} ${out.slice(b)}`;
+    }
   }
   return out;
 }
