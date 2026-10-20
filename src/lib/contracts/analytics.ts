@@ -383,14 +383,16 @@ export const analyticsEventSchemas = {
 
   /** A results page settled once (not again on a re-render). A detail page
    * (place 2 to 5) counts too. `poorFit`: the mouse in the header scores
-   * under the poor-fit notice's threshold. */
+   * under the poor-fit notice's threshold. 2026-10-20 (fit-v3.0 candidate):
+   * when the fit response's length is out of the catalogue's range the total
+   * is a ranking value, not a fit, so `poorFit` is left out. */
   results_page_viewed: z.union([
     z.strictObject({
       state: z.literal("ready"),
       ...resultsPage,
       mouse: mouseSlug,
       overallRank: rank,
-      poorFit: z.boolean(),
+      poorFit: z.boolean().optional(),
     }),
     z.strictObject({
       state: z.enum(RESULTS_STATES).exclude(["ready"]),

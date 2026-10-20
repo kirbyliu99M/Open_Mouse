@@ -30,6 +30,10 @@
  *     hand type is what the fit response's `handType` would say (null when
  *     that response has none). A first-three mouse with no band (`bandOf`
  *     gives null) is a 500, not a guess: a ranked mouse always has a total.
+ *     2026-10-20 (fit-v3.0 candidate): when the fit response says the hand's
+ *     length is outside what the catalogue covers (`coverage.lengthOutOfRange`),
+ *     no band may be shown or kept, so each `band` is null for that snapshot.
+ *     null means "out of the catalogue's range", never "unknown".
  *   - Never kept: photos, a millimetre value, a hand-length or palm-width bin,
  *     names, email. Without a measurement, nothing here needs the survey's
  *     consent tick; the page shows a notice above the button instead
@@ -114,7 +118,8 @@ export const resultFeedbackSnapshotSchema = z.strictObject({
     .array(
       z.strictObject({
         slug: z.string().min(1).max(100),
-        band: z.enum(FIT_BANDS),
+        /** null only when the fit response's length is out of range (above). */
+        band: z.enum(FIT_BANDS).nullable(),
       }),
     )
     .max(RESULT_FEEDBACK_TOP_MICE),
