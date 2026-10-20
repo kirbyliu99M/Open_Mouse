@@ -168,7 +168,13 @@ import {
   type AttemptOutcome,
   type AttemptRecord,
 } from "./attemptLog";
-import { createPaperEdgeQuadSource, type SheetQuadSource } from "./quad-source";
+import {
+  createPaperEdgeQuadSource,
+  NO_QUAD_DETECTION,
+  type SheetQuadDetection,
+  type SheetQuadSource,
+} from "./quad-source";
+import { evaluateLivePaperGate } from "./paperGate";
 import {
   INITIAL_HAND_CHIP_STATE,
   applyDetectedHandedness,
@@ -1756,7 +1762,7 @@ export default function EasyScanCamera({
         return;
       }
 
-      let detection;
+      let detection: SheetQuadDetection;
       const detectStartedAt = performance.now();
       try {
         // The assumed focal length is the whole stream's, scaled to the
@@ -1769,14 +1775,7 @@ export default function EasyScanCamera({
           ),
         });
       } catch {
-        detection = {
-          corners: null,
-          cornersSeen: 0 as const,
-          cornersFound: [false, false, false, false] as const,
-          partialCorners: [null, null, null, null] as const,
-          minSideCoverage: 0,
-          edgeFitResidualPx: 0,
-        };
+        detection = NO_QUAD_DETECTION;
       }
       const detectMs = performance.now() - detectStartedAt;
       const sampleQuad: Quad | null = detection.corners
@@ -1820,6 +1819,9 @@ export default function EasyScanCamera({
           clippedFraction,
           steady,
           sharpEnough,
+          // The photo's own paper gate, on this detection: no second
+          // detector run (paperGate.ts).
+          paperGate: evaluateLivePaperGate(detection, paperSizeRef.current),
           msSinceLastDetection,
         },
         "paper-edge",

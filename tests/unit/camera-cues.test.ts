@@ -421,3 +421,111 @@ describe("the easy scan's hint line", () => {
     ).toBe("");
   });
 });
+
+describe("pickCue: the photo's paper gate (S1)", () => {
+  const covered = { kind: "edge-covered", side: "left" } as const;
+
+  it("a covered edge is its own cue, named by side, in both languages", () => {
+    const en = pickCue(baseInput({ paperGate: covered }), "paper-edge", "en");
+    expect(en.code).toBe("edge-covered-left");
+    expect(en.message).toBe("The left edge is covered. Move your hand in.");
+    expect(en.allPass).toBe(false);
+    const zh = pickCue(
+      baseInput({ paperGate: covered }),
+      "paper-edge",
+      "zh-TW",
+    );
+    expect(zh.message).toBe("紙的左緣被擋住，手往內移");
+  });
+
+  it("with no trustworthy side name, the plain 'an edge' cue", () => {
+    const cue = pickCue(
+      baseInput({ paperGate: { kind: "edge-covered", side: null } }),
+      "paper-edge",
+      "en",
+    );
+    expect(cue.code).toBe("edge-covered");
+    expect(cue.message).toBe("An edge is covered. Move your hand in.");
+  });
+
+  it("a paper that is not flat is its own cue", () => {
+    const cue = pickCue(
+      baseInput({ paperGate: { kind: "curled" } }),
+      "paper-edge",
+      "en",
+    );
+    expect(cue.code).toBe("paper-curled");
+    expect(cue.message).toBe("Smooth the paper down.");
+  });
+
+  it("passes, and not-yet-judged, change nothing: the cue is what it was without the field", () => {
+    expect(pickCue(baseInput(), "paper-edge", "en").code).toBe("perfect");
+    for (const paperGate of [
+      { kind: "pass" },
+      { kind: "not-evaluated" },
+    ] as const)
+      expect(pickCue(baseInput({ paperGate }), "paper-edge", "en").code).toBe(
+        "perfect",
+      );
+  });
+
+  it("sits after the corner, tilt, size and light cues and before shake and focus", () => {
+    const gate = { paperGate: covered };
+    // Before it: no corners, some corners, tilt, size.
+    expect(
+      pickCue(
+        baseInput({ ...gate, cornersSeen: 3, quad: null }),
+        "paper-edge",
+        "en",
+      ).code,
+    ).toBe("some-corners");
+    const skewed: Quad = {
+      topLeft: { x: 0, y: 0 },
+      topRight: { x: 400, y: 0 },
+      bottomRight: { x: 200, y: 400 },
+      bottomLeft: { x: 0, y: 400 },
+    };
+    expect(
+      pickCue(baseInput({ ...gate, quad: skewed }), "paper-edge", "en").code,
+    ).toBe("tilted");
+    const small: Quad = {
+      topLeft: { x: 0, y: 0 },
+      topRight: { x: 100, y: 0 },
+      bottomRight: { x: 100, y: 100 },
+      bottomLeft: { x: 0, y: 100 },
+    };
+    expect(
+      pickCue(baseInput({ ...gate, quad: small }), "paper-edge", "en").code,
+    ).toBe("too-far");
+    // Light comes first: poor light can itself cause the edge failure.
+    expect(
+      pickCue(baseInput({ ...gate, meanLuma: 40 }), "paper-edge", "en").code,
+    ).toBe("dark");
+    expect(
+      pickCue(baseInput({ ...gate, clippedFraction: 0.2 }), "paper-edge", "en")
+        .code,
+    ).toBe("bright");
+    // After it: unsteady and out of focus both wait for the gate.
+    for (const worse of [{ steady: false }, { sharpEnough: false }])
+      expect(
+        pickCue(baseInput({ ...gate, ...worse }), "paper-edge", "en").code,
+      ).toBe("edge-covered-left");
+  });
+
+  it("a refusal with no words is read as the corners cue, never as perfect", () => {
+    expect(
+      pickCue(baseInput({ paperGate: { kind: "blocked" } }), "paper-edge", "en")
+        .code,
+    ).toBe("some-corners");
+  });
+
+  it("the easy scan's cue line says the same words, from the code", () => {
+    const cue = cueFromCode("edge-covered-top", "paper-edge", "en");
+    expect(easyCueText(cue, { tapToFocus: true, locale: "en" })).toBe(
+      "The top edge is covered. Move your hand in.",
+    );
+    expect(easyCueText(cue, { tapToFocus: false, locale: "zh-TW" })).toBe(
+      "紙的上緣被擋住，手往內移",
+    );
+  });
+});
