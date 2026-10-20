@@ -11,7 +11,7 @@ import {
 } from "@/lib/particles/degrade";
 import {
   approach,
-  breathAt,
+  breathFor,
   breathLook,
   cloudPoints,
   litColor,
@@ -19,8 +19,8 @@ import {
   loaderParticleCount,
   particleLook,
   RING,
+  loaderStatusText,
   ringAngle,
-  STILL_BREATH,
   type CloudPoint,
   type LoaderInput,
 } from "@/lib/particles/loading";
@@ -203,12 +203,7 @@ export function ParticleLoader({
               : f.progress
             : Math.max(shown, f.progress);
       lastAt = now;
-      const breath =
-        f.phase === "failed"
-          ? 0
-          : still
-            ? STILL_BREATH
-            : breathAt(now - at.startedAt);
+      const breath = breathFor(f.phase, still, now - at.startedAt);
       draw(ctx, points, sizePx, dpr, {
         progress: shown,
         failed: f.phase === "failed",
@@ -250,11 +245,7 @@ export function ParticleLoader({
     wake.current();
   }, [input, reducedMotion]);
 
-  const said = input.arrival?.ok
-    ? status.done
-    : input.arrival
-      ? ""
-      : status.working;
+  const said = loaderStatusText(input, status);
   return (
     <div
       ref={rootRef}

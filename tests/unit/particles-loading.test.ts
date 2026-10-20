@@ -3,6 +3,7 @@ import { PARTICLE_BUDGET_2D, PALETTE } from "../../src/lib/particles/budget";
 import {
   approach,
   breathAt,
+  breathFor,
   breathLook,
   cloudPoints,
   CLOUD_INNER,
@@ -13,6 +14,7 @@ import {
   litShare,
   loaderFrameAt,
   loaderParticleCount,
+  loaderStatusText,
   loaderTimeline,
   LOADING_TIMING,
   mixHex,
@@ -20,6 +22,7 @@ import {
   photoStagesFor,
   photoStepCount,
   ringAngle,
+  STILL_BREATH,
   stepProgress,
   stepsDone,
   timeProgress,
@@ -335,5 +338,57 @@ describe("the cloud", () => {
     const right = pts.filter((p) => p.x > 0).length;
     expect(right).toBeGreaterThan(30);
     expect(right).toBeLessThan(70);
+  });
+});
+
+describe("breathFor: reduced motion holds the breath, a failure breathes out", () => {
+  const times = [0, 400, 1600, 2500, 4000, 7321, 60_000];
+
+  it("under reduced motion is STILL_BREATH at any time, while waiting, filling or done", () => {
+    for (const phase of ["waiting", "filling", "done"] as const) {
+      for (const ms of times)
+        expect(breathFor(phase, true, ms)).toBe(STILL_BREATH);
+    }
+  });
+
+  it("after a failure is 0 (breathed out), with or without reduced motion", () => {
+    for (const ms of times) {
+      expect(breathFor("failed", false, ms)).toBe(0);
+      expect(breathFor("failed", true, ms)).toBe(0);
+    }
+  });
+
+  it("otherwise follows breathAt", () => {
+    for (const phase of ["waiting", "filling", "done"] as const) {
+      for (const ms of times)
+        expect(breathFor(phase, false, ms)).toBe(breathAt(ms));
+    }
+    // It does breathe: not held at one value.
+    expect(breathFor("waiting", false, 0)).not.toBe(
+      breathFor("waiting", false, 1600),
+    );
+  });
+
+  it("the ring's progress takes no reduced-motion input, so it keeps moving", () => {
+    // loaderFrameAt(input, now): nothing else decides the ring.
+    expect(loaderFrameAt.length).toBe(2);
+    const input: LoaderInput = {
+      startedAt: 0,
+      minMs: LOADING_TIMING.MIN_DISPLAY_FIT_MS,
+      steps: null,
+      arrival: null,
+    };
+    const a = loaderFrameAt(input, 300).progress;
+    const b = loaderFrameAt(input, 1500).progress;
+    expect(b).toBeGreaterThan(a);
+  });
+});
+
+describe("loaderStatusText: the one status region's words", () => {
+  const words = { working: "W", done: "D" };
+  it("says working while waiting, done after a result, nothing after a failure", () => {
+    expect(loaderStatusText({ arrival: null }, words)).toBe("W");
+    expect(loaderStatusText({ arrival: { at: 1, ok: true } }, words)).toBe("D");
+    expect(loaderStatusText({ arrival: { at: 1, ok: false } }, words)).toBe("");
   });
 });

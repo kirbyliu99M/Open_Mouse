@@ -207,6 +207,19 @@ export interface LoaderFrame {
   opacity: number;
 }
 
+/**
+ * What the loader's one `role="status"` region says: `working` while it
+ * waits, `done` once the answer is a result, nothing after a failure (the
+ * error says it). Never a percentage.
+ */
+export function loaderStatusText(
+  input: Pick<LoaderInput, "arrival">,
+  status: { working: string; done: string },
+): string {
+  if (input.arrival === null) return status.working;
+  return input.arrival.ok ? status.done : "";
+}
+
 /** The wait's value at `now`, before any answer: the time curve or the steps. */
 export function waitingProgress(input: LoaderInput, now: number): number {
   if (input.steps === null) return timeProgress(now - input.startedAt);
@@ -312,6 +325,21 @@ export function breathLook(b: number): BreathLook {
 
 /** Reduced motion: no breathing and no flash, the cloud held at full breath. */
 export const STILL_BREATH = 1;
+
+/**
+ * The breath the loader draws for its phase at `ms` into the wait: breathed
+ * out (0) once it has failed, held at `STILL_BREATH` under reduced motion,
+ * otherwise `breathAt(ms)`. The ring's progress never depends on this.
+ */
+export function breathFor(
+  phase: LoaderPhase,
+  reducedMotion: boolean,
+  ms: number,
+): number {
+  if (phase === "failed") return 0;
+  if (reducedMotion) return STILL_BREATH;
+  return breathAt(ms);
+}
 
 // ---------------------------------------------------------------- intensity
 
