@@ -204,6 +204,11 @@ export const OFFICIAL_CONNECTIVITY: Readonly<Record<string, string>> = {
     "Wireless",
   // hyperx.com product page: wired USB-A cable, no wireless mode.
   "https://hyperx.com/products/hyperx-pulsefire-saga-gaming-mouse": "Wired",
+  // logitech.com product pages (Kirby's 2026-10-20 owner rows): the seed
+  // (logitech.json) already says wireless; the candidate must agree.
+  "https://www.logitech.com/en-us/shop/p/mx-master-4": "Wireless",
+  "https://www.logitech.com/en-us/shop/p/mx-master-3s": "Wireless",
+  "https://www.logitech.com/en-us/shop/p/mx-anywhere-3s": "Wireless",
   // wlmouse.com spec: 2.4GHz wireless and wired, so Wireless.
   "https://www.wlmouse.com/en-wl/products/bxv2-max-black-gold": "Wireless",
   "https://www.wlmouse.com/en-wl/products/bxv2-med-black-gold": "Wireless",

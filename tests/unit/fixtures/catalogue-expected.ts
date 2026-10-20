@@ -7,9 +7,9 @@ export const CATALOGUE_EXPECTED = {
   /** logitech.json rows. */
   seedRows: 38,
   /** Rows in catalogue.json (the approved candidates). */
-  candidates: 406,
+  candidates: 409,
   /** Candidates merged into a logitech.json row. */
-  merged: 15,
+  merged: 18,
   /** Candidates that became rows of their own. */
   imported: 391,
   /** seedRows + imported. */
@@ -25,9 +25,9 @@ export const CATALOGUE_EXPECTED = {
   /** data_source = public_compilation. */
   publicCompilation: 383,
   /** Candidates whose descriptors are inferred. */
-  inferred: 8,
+  inferred: 11,
   /** CAT-2: candidates by connectivity (wireless includes wired-and-wireless mice). */
-  candidateConnectivity: { wired: 78, wireless: 327, unknown: 1 },
+  candidateConnectivity: { wired: 78, wireless: 330, unknown: 1 },
   /** CAT-2: every built row (seed rows + imported). */
   rowConnectivity: { wired: 79, wireless: 349, unknown: 1 },
   /** CAT-2: the listed rows only. */
