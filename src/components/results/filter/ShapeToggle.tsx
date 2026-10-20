@@ -6,6 +6,7 @@ import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import {
   SHAPE_SEGMENTS,
   segmentForKey,
+  tabStopOf,
   type ShapeSegment,
 } from "@/lib/results/shapeToggle";
 import "./filter.css";
@@ -38,11 +39,15 @@ export function ShapeToggle({
 }) {
   const copy = RESULTS_PAGE_COPY[language].shapeToggle;
   const buttons = useRef<Partial<Record<ShapeSegment, HTMLButtonElement>>>({});
-  const tabStop = selected ?? SHAPE_SEGMENTS[0];
+  const tabStop = tabStopOf(selected);
   const index = selected === null ? 0 : SHAPE_SEGMENTS.indexOf(selected);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    const next = segmentForKey(selected, e.key);
+    // From the segment that has the focus: with none checked that is the tab
+    // stop, not `selected` (null).
+    const from =
+      SHAPE_SEGMENTS.find((s) => buttons.current[s] === e.target) ?? tabStop;
+    const next = segmentForKey(from, e.key);
     if (next === null) return;
     e.preventDefault();
     buttons.current[next]?.focus();

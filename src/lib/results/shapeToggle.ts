@@ -54,24 +54,33 @@ export function segmentDirection(
 }
 
 /**
- * The segment a key moves to inside the toggle (radio-group keys): the arrows
- * step and wrap around, Home and End go to the ends. `null` for any other key.
- * With no segment selected, a step forward starts at the first one and a step
- * back at the last one.
+ * The segment Tab reaches in the toggle: the checked one, or the first when
+ * none is checked (both shapes chosen in the filter panel).
+ */
+export function tabStopOf(selected: ShapeSegment | null): ShapeSegment {
+  return selected ?? SHAPE_SEGMENTS[0];
+}
+
+/**
+ * The segment a key moves to inside the toggle (radio-group keys, as the
+ * WAI-ARIA radio group): from `from`, the segment that has the focus, the
+ * arrows step and wrap around, Home and End go to the ends. `null` for any
+ * other key. With none checked the focus is on the tab stop (`tabStopOf`), so
+ * a step right from there goes to 「左右對稱」, not to the segment it is on.
  */
 export function segmentForKey(
-  current: ShapeSegment | null,
+  from: ShapeSegment,
   key: string,
 ): ShapeSegment | null {
   const n = SHAPE_SEGMENTS.length;
-  const at = current === null ? -1 : SHAPE_SEGMENTS.indexOf(current);
+  const at = SHAPE_SEGMENTS.indexOf(from);
   switch (key) {
     case "ArrowRight":
     case "ArrowDown":
       return SHAPE_SEGMENTS[(at + 1) % n]!;
     case "ArrowLeft":
     case "ArrowUp":
-      return SHAPE_SEGMENTS[at === -1 ? n - 1 : (at - 1 + n) % n]!;
+      return SHAPE_SEGMENTS[(at - 1 + n) % n]!;
     case "Home":
       return SHAPE_SEGMENTS[0];
     case "End":

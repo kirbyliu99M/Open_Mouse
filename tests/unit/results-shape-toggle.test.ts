@@ -23,6 +23,7 @@ import {
   segmentForKey,
   segmentOf,
   segmentOnly,
+  tabStopOf,
   TOGGLE_MOTION,
   toggleShowsShape,
   withSegment,
@@ -100,10 +101,19 @@ describe("segmentDirection and segmentForKey", () => {
     expect(segmentForKey("symmetrical", "ArrowDown")).toBe("ergonomic");
     expect(segmentForKey("ergonomic", "Home")).toBe("overall");
     expect(segmentForKey("overall", "End")).toBe("ergonomic");
-    expect(segmentForKey(null, "ArrowRight")).toBe("overall");
-    expect(segmentForKey(null, "ArrowLeft")).toBe("ergonomic");
     expect(segmentForKey("overall", "Enter")).toBeNull();
     expect(segmentForKey("overall", "a")).toBeNull();
+  });
+
+  it("with none checked, the keys start from the tab stop, where the focus is", () => {
+    // Both shapes chosen in the panel: Tab lands on 綜合 ...
+    expect(tabStopOf(null)).toBe("overall");
+    expect(tabStopOf("ergonomic")).toBe("ergonomic");
+    // ... and a step right moves on to 左右對稱 (it does not stay on 綜合),
+    // a step left wraps to 人體工學, as from a focused 綜合.
+    expect(segmentForKey(tabStopOf(null), "ArrowRight")).toBe("symmetrical");
+    expect(segmentForKey(tabStopOf(null), "ArrowDown")).toBe("symmetrical");
+    expect(segmentForKey(tabStopOf(null), "ArrowLeft")).toBe("ergonomic");
   });
 });
 
@@ -339,6 +349,44 @@ describe("the results page with the toggle", () => {
     );
     expect(html).toContain("results-noMatch");
     expect(html).toContain("目前沒有符合條件的滑鼠");
+    expect(html).not.toContain("results-fewNote");
+  });
+
+  it("左右對稱 alone, with the overall #1 still first: no badge, the plain share button, and the few-mice note", () => {
+    const sym = withSegment(emptyFilters(), "symmetrical");
+    const view = filteredView(fit(), sym);
+    expect(view.swapped).toBe(false);
+    expect(view.cards.map((c) => c.entry.mouse.slug)).toEqual([
+      "s1",
+      "s2",
+      "s4",
+    ]);
+    const html = render(sym);
+    expect(html).not.toContain("results-badge");
+    expect(html).not.toContain("左右對稱第 1 名");
+    expect(html).not.toContain("分享總排名第 1 名");
+    expect(html).toContain("第 1 名");
+    expect(html).toContain("results-fewNote");
+    expect(html).toContain("目前符合的左右對稱款只有 3 款，全部列在這裡。");
+  });
+
+  it("a detail page under one shape: the place line names the shape, then the overall rank", () => {
+    const html = renderToStaticMarkup(
+      createElement(ResultsView, {
+        response: fit(),
+        language: "zh-TW",
+        filters: withSegment(emptyFilters(), "symmetrical"),
+        onFiltersChange: () => {},
+        rank: 3,
+        scanId: "scan-1",
+      }),
+    );
+    // s4 is the third symmetrical mouse and fourth overall.
+    expect(html).toMatch(/results-badge">左右對稱第 3 名</);
+    expect(html).toContain("總排名第 4 名");
+    expect(html).not.toContain("篩選後第 3 名");
+    expect(html).toMatch(/class="results-score-model">S4</);
+    // The few-mice note is the list page's, not a detail page's.
     expect(html).not.toContain("results-fewNote");
   });
 

@@ -341,6 +341,54 @@ export function breathFor(
   return breathAt(ms);
 }
 
+/** What the loader carries from one drawn frame to the next. */
+export interface LoaderDrawState {
+  /** The ring as drawn (0 to 1). */
+  shown: number;
+  /** When the last frame was drawn (0 before the first). */
+  lastAt: number;
+}
+
+export interface LoaderStep {
+  state: LoaderDrawState;
+  frame: LoaderFrame;
+  /** The breath to draw (`breathFor`). */
+  breath: number;
+  /** Failed or done: no frame is asked for after this one. */
+  settled: boolean;
+}
+
+/**
+ * One drawn frame of the loader at `now`, from the frame before. The fill is
+ * eased already; while waiting, a step that jumps is caught up with smoothly
+ * (`approach`). A failure stops the ring where it is drawn (where the wait
+ * was, for a loader that only now appears). `reducedMotion` only holds the
+ * breath: the ring moves the same with it as without it.
+ */
+export function loaderStep(
+  prev: LoaderDrawState,
+  input: LoaderInput,
+  now: number,
+  reducedMotion: boolean,
+): LoaderStep {
+  const frame = loaderFrameAt(input, now);
+  const { shown } = prev;
+  const next =
+    frame.phase === "waiting"
+      ? approach(shown, frame.progress, prev.lastAt > 0 ? now - prev.lastAt : 0)
+      : frame.phase === "failed"
+        ? shown > 0
+          ? shown
+          : frame.progress
+        : Math.max(shown, frame.progress);
+  return {
+    state: { shown: next, lastAt: now },
+    frame,
+    breath: breathFor(frame.phase, reducedMotion, now - input.startedAt),
+    settled: frame.phase === "failed" || frame.phase === "done",
+  };
+}
+
 // ---------------------------------------------------------------- intensity
 
 /** The lit particles' colour: first light, near the cap, and done. */

@@ -10,18 +10,17 @@ import {
   observeFrame,
 } from "@/lib/particles/degrade";
 import {
-  approach,
-  breathFor,
   breathLook,
   cloudPoints,
   litColor,
-  loaderFrameAt,
   loaderParticleCount,
+  loaderStep,
   particleLook,
   RING,
   loaderStatusText,
   ringAngle,
   type CloudPoint,
+  type LoaderDrawState,
   type LoaderInput,
 } from "@/lib/particles/loading";
 import "./particle-loader.css";
@@ -168,8 +167,7 @@ export function ParticleLoader({
     // Nothing scrolls here: the frames count from the start.
     let guard = armGuard(newGuard(budget));
     let raf = 0;
-    let shown = 0;
-    let lastAt = 0;
+    let drawn: LoaderDrawState = { shown: 0, lastAt: 0 };
     let sizePx = 0;
     let dpr = 1;
 
@@ -189,23 +187,11 @@ export function ParticleLoader({
       fit();
       guard = observeFrame(guard, now, budget);
       const { input: at, reducedMotion: still } = live.current;
-      const f = loaderFrameAt(at, now);
-      const settled = f.phase === "failed" || f.phase === "done";
-      // The fill is eased already; while waiting, a step that jumps is
-      // caught up with smoothly. A failure stops the ring where it is drawn
-      // (where the wait was, for a loader that only now appears).
-      shown =
-        f.phase === "waiting"
-          ? approach(shown, f.progress, lastAt > 0 ? now - lastAt : 0)
-          : f.phase === "failed"
-            ? shown > 0
-              ? shown
-              : f.progress
-            : Math.max(shown, f.progress);
-      lastAt = now;
-      const breath = breathFor(f.phase, still, now - at.startedAt);
+      const step = loaderStep(drawn, at, now, still);
+      drawn = step.state;
+      const { frame: f, breath, settled } = step;
       draw(ctx, points, sizePx, dpr, {
-        progress: shown,
+        progress: drawn.shown,
         failed: f.phase === "failed",
         bright: f.phase === "filling" || f.phase === "done",
         breath,

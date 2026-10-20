@@ -14,6 +14,7 @@ import {
   litShare,
   loaderFrameAt,
   loaderParticleCount,
+  loaderStep,
   loaderStatusText,
   loaderTimeline,
   LOADING_TIMING,
@@ -27,6 +28,7 @@ import {
   stepsDone,
   timeProgress,
   waitingProgress,
+  type LoaderDrawState,
   type LoaderInput,
 } from "../../src/lib/particles/loading";
 
@@ -369,18 +371,58 @@ describe("breathFor: reduced motion holds the breath, a failure breathes out", (
     );
   });
 
-  it("the ring's progress takes no reduced-motion input, so it keeps moving", () => {
-    // loaderFrameAt(input, now): nothing else decides the ring.
-    expect(loaderFrameAt.length).toBe(2);
+  // The loader's frame loop, one rAF frame (16 ms) at a time, as
+  // ParticleLoader draws it (loaderStep is what its frame() calls).
+  const run = (input: LoaderInput, still: boolean, untilMs: number) => {
+    let state: LoaderDrawState = { shown: 0, lastAt: 0 };
+    const frames: { shown: number; breath: number; settled: boolean }[] = [];
+    for (let now = input.startedAt; now <= untilMs; now += 16) {
+      const step = loaderStep(state, input, now, still);
+      state = step.state;
+      frames.push({
+        shown: state.shown,
+        breath: step.breath,
+        settled: step.settled,
+      });
+      if (step.settled) break;
+    }
+    return frames;
+  };
+
+  it("under reduced motion the drawn ring still moves forward, frame after frame, and does not breathe", () => {
     const input: LoaderInput = {
-      startedAt: 0,
+      startedAt: 1000,
       minMs: LOADING_TIMING.MIN_DISPLAY_FIT_MS,
       steps: null,
       arrival: null,
     };
-    const a = loaderFrameAt(input, 300).progress;
-    const b = loaderFrameAt(input, 1500).progress;
-    expect(b).toBeGreaterThan(a);
+    const frames = run(input, true, 1000 + 3000);
+    expect(frames.length).toBeGreaterThan(100);
+    // From the second frame on (the first has no time step), every frame is
+    // further round than the one before.
+    for (let i = 2; i < frames.length; i++)
+      expect(frames[i]!.shown).toBeGreaterThan(frames[i - 1]!.shown);
+    expect(frames.at(-1)!.shown).toBeGreaterThan(0.1);
+    for (const fr of frames) {
+      expect(fr.breath).toBe(STILL_BREATH);
+      expect(breathLook(fr.breath).scale).toBe(1);
+    }
+  });
+
+  it("the ring is drawn the same with reduced motion as without it, to a full ring", () => {
+    const input: LoaderInput = {
+      startedAt: 1000,
+      minMs: LOADING_TIMING.MIN_DISPLAY_FIT_MS,
+      steps: null,
+      arrival: { at: 1800, ok: true },
+    };
+    const still = run(input, true, 10_000);
+    const moving = run(input, false, 10_000);
+    expect(still.map((fr) => fr.shown)).toEqual(moving.map((fr) => fr.shown));
+    expect(still.at(-1)!.settled).toBe(true);
+    expect(still.at(-1)!.shown).toBe(1);
+    // Without reduced motion it does breathe.
+    expect(new Set(moving.map((fr) => fr.breath)).size).toBeGreaterThan(1);
   });
 });
 
