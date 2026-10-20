@@ -25,8 +25,12 @@ import type {
 
 export interface AnalysisInputSubscore {
   score: number | null;
-  /** Where the score falls; `null` for an unrated sub-score (not a band). */
-  band: FitBand | null;
+  /**
+   * Where the score falls; `null` for an unrated sub-score (not a band).
+   * Absent in the unscored mode (the hand is outside the catalogue's length
+   * range): no band of any kind goes to the model then.
+   */
+  band?: FitBand | null;
   reasonCode: ReasonCode;
   /**
    * What the reason means for how the mouse feels in use, from the fit-band
@@ -46,11 +50,12 @@ export interface AnalysisInputEntry {
   widthMm: number;
   heightMm: number;
   weightG: number | null;
-  total: number;
-  /** The band `total` falls in (`../../lib/fit/bands`; thresholds are candidates). */
-  band: FitBand;
-  /** What that band means for using the mouse. English, no digit. */
-  bandMeaning: string;
+  /** Absent in the unscored mode: out of the catalogue's range `total` is a sort value, not a distance to this hand. */
+  total?: number;
+  /** The band `total` falls in (`../../lib/fit/bands`; thresholds are candidates). Absent when unscored. */
+  band?: FitBand;
+  /** What that band means for using the mouse. English, no digit. Absent when unscored. */
+  bandMeaning?: string;
   confidencePercent: number;
   /**
    * Decided on the raw 0..1 confidence with the results UI's own threshold,
@@ -64,6 +69,24 @@ export interface AnalysisInputEntry {
 export interface AnalysisInput {
   /** The language the prose is written in; the band wording below is in it too. */
   locale: Locale;
+  /**
+   * "unscored" while the hand is outside the catalogue's length range
+   * (`coverage.lengthOutOfRange`): the entries then carry no `total`, `band`
+   * or `bandMeaning`, their sub-scores no `band`, and the prompt and the
+   * fallback are the ones written for that mode. Absent means scored, the
+   * only mode before fit-v3. The coverage block itself, its direction and its
+   * numbers never enter the input (contract, hard rule 2): this flag is all
+   * the model is told.
+   */
+  scoreMode?: "unscored";
+  /**
+   * True only when the target sizes already include a personal calibration
+   * shift (a v3 response whose `calibration` has a non-zero shift): the prose
+   * must not call the targets "measured from your hand alone". A bare flag:
+   * none of the calibration block's numbers enter the input (hard rule 2).
+   * Absent otherwise.
+   */
+  targetsPersonallyAdjusted?: true;
   rankingProvisional: boolean;
   /**
    * One caveat that goes with any band: an estimate, method still being tuned.
@@ -145,21 +168,25 @@ function bandOfTotal(total: number): FitBand {
   return band;
 }
 
-function toInputEntry(entry: FitEntry, locale: Locale): AnalysisInputEntry {
+function toInputEntry(
+  entry: FitEntry,
+  locale: Locale,
+  scored: boolean,
+): AnalysisInputEntry {
   const bandCopy = copyFor(locale);
   const subscores = Object.fromEntries(
     Object.entries(entry.subscores).map(([key, sub]) => [
       key,
       {
         score: sub.score,
-        band: bandOf(sub.score),
+        ...(scored ? { band: bandOf(sub.score) } : {}),
         reasonCode: sub.reason.code,
         impact: bandCopy.impact[sub.reason.code],
         params: roundedParams(sub.reason.params),
       } satisfies AnalysisInputSubscore,
     ]),
   ) as Record<Subscore, AnalysisInputSubscore>;
-  const band = bandOfTotal(entry.total);
+  const band = scored ? bandOfTotal(entry.total) : null;
   return {
     rank: entry.rank,
     slug: entry.mouse.slug,
@@ -169,9 +196,13 @@ function toInputEntry(entry: FitEntry, locale: Locale): AnalysisInputEntry {
     widthMm: oneDecimal(entry.mouse.widthMm),
     heightMm: oneDecimal(entry.mouse.heightMm),
     weightG: entry.mouse.weightG,
-    total: entry.total,
-    band,
-    bandMeaning: bandCopy.bands[band].meaning,
+    ...(band === null
+      ? {}
+      : {
+          total: entry.total,
+          band,
+          bandMeaning: bandCopy.bands[band].meaning,
+        }),
     confidencePercent: Math.round(entry.confidence * 100),
     lowConfidence: isLowConfidence(entry.confidence),
     subscores,
@@ -185,8 +216,14 @@ export function buildAnalysisInput(
   calibrationMethod?: CalibrationMethod | null,
 ): AnalysisInput {
   const bandCopy = copyFor(locale);
+  const scored = fit.coverage?.lengthOutOfRange !== true;
+  const adjusted =
+    fit.calibration !== undefined &&
+    Object.values(fit.calibration.dims).some((dim) => dim.shiftMm !== 0);
   return {
     locale,
+    ...(scored ? {} : { scoreMode: "unscored" as const }),
+    ...(adjusted ? { targetsPersonallyAdjusted: true as const } : {}),
     rankingProvisional: ENGINE_IS_PROVISIONAL,
     estimateNote: bandCopy.provisional,
     gripStyle: roundedGripStyle(fit.gripStyle),
@@ -210,6 +247,6 @@ export function buildAnalysisInput(
     })),
     topPicks: fit.results
       .slice(0, 3)
-      .map((entry) => toInputEntry(entry, locale)),
+      .map((entry) => toInputEntry(entry, locale, scored)),
   };
 }

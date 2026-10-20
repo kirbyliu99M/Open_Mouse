@@ -54,12 +54,19 @@ import type { AnalysisOutput } from "./schema";
  * `thumb_neutral`. Prose accepted under the old rules must not be served as if
  * it had passed the new ones.
  *
+ * Bumped to 7 (v3.1 consumers): a hand outside the catalogue's length range
+ * gets its own prompt and fallback with no total, band or band meaning
+ * (`AnalysisInput.scoreMode`), and the prompt can say the targets include a
+ * personal adjustment. The mode is part of the cache key as well (below), so a
+ * scored answer can never be served for an unscored input even if the two
+ * prompts were ever edited to read alike.
+ *
  * Bumped to 6 (fit bands): the prompt now asks for how the mouse will feel to
  * use, and the data carries each top pick's band and meaning and each
  * sub-score's band and impact sentence, in place of the old reason text. Prose
  * written for the old prompt must not be served for the new one.
  */
-export const ANALYSIS_PROMPT_VERSION = 6;
+export const ANALYSIS_PROMPT_VERSION = 7;
 
 /**
  * Recursively sorts every plain object's own keys so `JSON.stringify`'s
@@ -84,8 +91,8 @@ export function canonicalize(value: unknown): unknown {
 }
 
 /**
- * `cacheKey = sha256(promptVersion + the exact first prompt the model is
- * sent)`.
+ * `cacheKey = sha256(promptVersion + score mode + the exact first prompt the
+ * model is sent)`.
  *
  * The prompt text *is* what the model sees, so keying on it is exact in
  * both directions: anything that changes what the model is shown or told
@@ -113,6 +120,7 @@ export function computeCacheKey(
   return createHash("sha256")
     .update(
       `${ANALYSIS_PROMPT_VERSION}
+${input.scoreMode ?? "scored"}
 ${prompt}`,
     )
     .digest("hex");

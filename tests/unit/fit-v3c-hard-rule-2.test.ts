@@ -1,11 +1,14 @@
 /**
  * fit-v3.0 candidate (未拍板), hard rule 2: `calibration` is not part of what
  * the analysis or the share card read. The same v3 response with and without
- * the block gives deeply equal analysis input and share card input and the
- * same numbers for the analysis numeral allow-list, and neither input carries
- * a calibration field or any of its keys. (The response's `targets` already
- * include the offsets, and that is the same on both sides: this compares the
- * block, not the targets.)
+ * the block gives analysis input that differs in exactly one thing, the bare
+ * flag `targetsPersonallyAdjusted: true` (so the prose does not claim the
+ * targets come from the hand alone; v3.1 consumers, M3), the same numbers for
+ * the analysis numeral allow-list, and no calibration key or number; the share
+ * card input is deeply equal. (The response's `targets` already include the
+ * offsets, and that is the same on both sides: this compares the block, not
+ * the targets. Out of range both sides are unscored alike, because `coverage`
+ * stays in both: only the block is removed.)
  */
 import { describe, expect, it } from "vitest";
 import { buildShareCardInput } from "../../src/components/results/share/input";
@@ -85,12 +88,16 @@ describe.each(CASES)("hard rule 2, v3 (%s)", (_name, m, prefs) => {
   });
 
   it.each(["en", "zh-TW"] as const)(
-    "analysis input: no calibration field, deeply equal, same numbers (%s)",
+    "analysis input: only the bare adjusted flag differs, same numbers, no calibration key (%s)",
     (locale) => {
       for (const cal of [undefined, "manual-entry"] as const) {
         const got = buildAnalysisInput(withBlock, m, locale, cal);
         const want = buildAnalysisInput(withoutBlock, m, locale, cal);
-        expect(got).toEqual(want);
+        expect(got.targetsPersonallyAdjusted).toBe(true);
+        expect(want).not.toHaveProperty("targetsPersonallyAdjusted");
+        const { targetsPersonallyAdjusted: _flag, ...rest } = got;
+        void _flag;
+        expect(rest).toEqual(want);
         expect(sorted(got)).toEqual(sorted(want));
         const json = JSON.stringify(got);
         for (const key of [
@@ -104,6 +111,23 @@ describe.each(CASES)("hard rule 2, v3 (%s)", (_name, m, prefs) => {
       }
     },
   );
+
+  it("the adjusted flag needs a real shift: a block whose every dimension is frozen or unanswered sets nothing", () => {
+    const frozen: FitResponse = {
+      ...withBlock,
+      calibration: {
+        referencesUsed: 1,
+        dims: {
+          length: { shiftMm: 0, answers: 1, conflict: true },
+          gripWidth: { shiftMm: 0, answers: 0, conflict: false },
+          height: { shiftMm: 0, answers: 0, conflict: false },
+        },
+      },
+    };
+    expect(buildAnalysisInput(frozen, m, "en")).not.toHaveProperty(
+      "targetsPersonallyAdjusted",
+    );
+  });
 
   it.each(["en", "zh-TW"] as const)(
     "share card input: no calibration field, deeply equal, same numbers (%s)",

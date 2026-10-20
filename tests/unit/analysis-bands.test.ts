@@ -581,7 +581,7 @@ describe("buildFallbackOutput — use-experience wording", () => {
       for (const total of [20, 60, 75, 95]) {
         const input = inputFor(entryWith(code, { total }));
         const out = buildFallbackOutput(input);
-        const meaning = en.bands[input.topPicks[0]!.band].meaning;
+        const meaning = en.bands[input.topPicks[0]!.band!].meaning;
         expect(analysisOutputSchema.safeParse(out).success).toBe(true);
         const side = SIDE_OF[code];
         if (side === "helpful") {
