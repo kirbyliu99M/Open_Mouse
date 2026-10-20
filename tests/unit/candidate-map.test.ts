@@ -360,7 +360,7 @@ describe("OFFICIAL_CONNECTIVITY", () => {
     (e) => e.dataSource === "first_party",
   );
 
-  it("pins the seven values read from the brand pages", () => {
+  it("pins the ten values read from the brand pages", () => {
     expect(OFFICIAL_CONNECTIVITY).toEqual({
       "https://hyperx.com/products/hyperx-pulsefire-haste-3-wired-gaming-mouse":
         "Wired",
@@ -372,6 +372,9 @@ describe("OFFICIAL_CONNECTIVITY", () => {
       "https://www.wlmouse.com/en-wl/products/bxv2-mini-black-gold": "Wireless",
       "https://dareu.com/products/dareu-ultra-07-tri-mode-modular-gaming-mouse":
         "Wireless",
+      "https://www.logitech.com/en-us/shop/p/mx-master-4": "Wireless",
+      "https://www.logitech.com/en-us/shop/p/mx-master-3s": "Wireless",
+      "https://www.logitech.com/en-us/shop/p/mx-anywhere-3s": "Wireless",
     });
   });
 
@@ -380,7 +383,7 @@ describe("OFFICIAL_CONNECTIVITY", () => {
     for (const url of Object.keys(OFFICIAL_CONNECTIVITY)) {
       expect(urls.has(url), url).toBe(true);
     }
-    expect(official).toHaveLength(8);
+    expect(official).toHaveLength(11);
   });
 
   it("leaves exactly the one unreadable official page (Razer Boomslang) null", () => {

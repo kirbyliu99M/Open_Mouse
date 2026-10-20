@@ -24,12 +24,11 @@ import type {
   SpecRecord,
 } from "../../src/server/catalogue/seed-rows";
 
+// The three MX mice Kirby described on 2026-10-20 are catalogue rows now
+// (owner rows merged into the Logitech seed), so they are not additions.
 const firstPartyAdditions = [
   "logitech-g903-hero",
-  "logitech-mx-anywhere-3s",
   "logitech-mx-ergo-s",
-  "logitech-mx-master-3s",
-  "logitech-mx-master-4",
   "logitech-mx-vertical",
 ];
 
@@ -158,10 +157,10 @@ describe("the bundled mouse-media.json", () => {
   it("is a valid file with catalogue and photographed first-party mice", () => {
     expect(Object.keys(parseMouseMedia(bundled))).toHaveLength(412);
     expect(entries).toHaveLength(412);
-    expect(slugs).toHaveLength(406);
+    expect(slugs).toHaveLength(409);
   });
 
-  it("covers the catalogue and only the six first-party additions", () => {
+  it("covers the catalogue and only the three first-party additions", () => {
     const media = new Set(Object.keys(bundled));
     const cat = new Set(slugs);
     expect(slugs.filter((s) => !media.has(s))).toEqual([]);
