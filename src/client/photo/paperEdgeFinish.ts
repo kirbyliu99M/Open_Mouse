@@ -287,6 +287,7 @@ export async function finishPaperEdge(
     gripStyleStated: input.request.gripStyleStated,
     measurements: corrected.measurements,
     paperSize: calibration.paperSize,
+    cornersSource: calibration.cornersSource,
     edgeFitResidualMm: calibration.edgeFitResidualMm,
     minSideCoverage: calibration.minSideCoverage,
     parallaxCorrected: corrected.parallaxCorrected,

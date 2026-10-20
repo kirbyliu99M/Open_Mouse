@@ -14,6 +14,7 @@ import {
   type ScanSubmission,
   type HandMeasurements,
   type PrintedSheetEvidence,
+  type PaperCornerSource,
   type PaperEdgeEvidence,
   type PaperSize,
   type UserLengthEvidence,
@@ -68,10 +69,16 @@ export interface AssemblePaperEdgeSubmissionInput {
   readonly gripStyleStated?: "palm" | "claw" | "fingertip";
   readonly measurements: HandMeasurements;
   readonly paperSize: PaperSize;
-  /** `detectPaperQuad`'s residual, already converted to sheet mm (see `src/client/paper/homography.ts#localScaleMmPerPx`). */
-  readonly edgeFitResidualMm: number;
-  /** `detectPaperQuad`'s coverage metric, 0–1. */
-  readonly minSideCoverage: number;
+  /**
+   * Where the four corners came from (V3.2 candidate). Absent means the
+   * detector's own corners, and the calibration is then exactly what it was
+   * before V3.2 (no `cornersSource` key at all).
+   */
+  readonly cornersSource?: PaperCornerSource;
+  /** `detectPaperQuad`'s residual, already converted to sheet mm (see `src/client/paper/homography.ts#localScaleMmPerPx`). Required by the contract for detected corners; absent for corners a person placed. */
+  readonly edgeFitResidualMm?: number;
+  /** `detectPaperQuad`'s coverage metric, 0–1. Required by the contract for detected corners; absent for corners a person placed. */
+  readonly minSideCoverage?: number;
   /** Whether parallax correction actually ran (`computeCorrectedHandMeasurements`'s own flag) — unlike the printed-sheet builder, this is NOT hardcoded, since the paper-edge path always attempts it. */
   readonly parallaxCorrected: boolean;
 }
@@ -85,11 +92,20 @@ export interface AssemblePaperEdgeSubmissionInput {
 export function assemblePaperEdgeSubmission(
   input: AssemblePaperEdgeSubmissionInput,
 ): ScanSubmission & { calibration: PaperEdgeEvidence } {
+  // Only the fields that are there: a placed frame has no fitted edge, and
+  // the contract refuses detected corners without both edge numbers.
   const calibration: PaperEdgeEvidence = {
     method: "paper-edge",
     paperSize: input.paperSize,
-    edgeFitResidualMm: input.edgeFitResidualMm,
-    minSideCoverage: input.minSideCoverage,
+    ...(input.cornersSource !== undefined
+      ? { cornersSource: input.cornersSource }
+      : {}),
+    ...(input.edgeFitResidualMm !== undefined
+      ? { edgeFitResidualMm: input.edgeFitResidualMm }
+      : {}),
+    ...(input.minSideCoverage !== undefined
+      ? { minSideCoverage: input.minSideCoverage }
+      : {}),
     parallaxCorrected: input.parallaxCorrected,
   };
 
