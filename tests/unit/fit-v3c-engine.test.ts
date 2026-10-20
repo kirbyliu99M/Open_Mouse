@@ -4,7 +4,7 @@
  * shift; with references it adds the personal calibration and the contract's
  * `calibration` block. The default engine stays v1.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   GRIP_STYLES,
   fitCalibrationSchema,
@@ -72,13 +72,23 @@ const v2 = (m: ReturnType<typeof hand>, prefs: FitPreferences) =>
 
 const NO_REFS: FitPreferences = { includeVertical: false };
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("engine dispatch", () => {
-  it("DEFAULT_ENGINE is still v1, and the default path does not run v3", () => {
+  it("DEFAULT_ENGINE is still v1: with FIT_ENGINE unset the default path does not run v3, and FIT_ENGINE=v3 does", () => {
     expect(DEFAULT_ENGINE).toBe("v1");
     const m = hand(190, 65.7);
+    vi.stubEnv("FIT_ENGINE", "");
     expect(scoreFitDefault(m, seedCatalogue, NO_REFS, "right")).toEqual(
       scoreWithEngine("v1", m, seedCatalogue, NO_REFS, "right"),
     );
+    vi.stubEnv("FIT_ENGINE", "v3");
+    expect(scoreFitDefault(m, seedCatalogue, NO_REFS, "right")).toEqual(
+      scoreWithEngine("v3", m, seedCatalogue, NO_REFS, "right"),
+    );
+    vi.unstubAllEnvs();
   });
 
   it('"v3" runs the candidate and reports its version', () => {

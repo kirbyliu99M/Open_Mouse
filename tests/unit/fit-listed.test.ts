@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fitPreferencesSchema } from "../../src/lib/contracts/fit";
 import { loadOwnedFit } from "../../src/server/fit/core";
 import { listedOnly } from "../../src/server/fit/listed";
@@ -58,6 +58,15 @@ describe("listedOnly", () => {
 });
 
 describe("loadOwnedFit with an unlisted row in the catalogue", () => {
+  // The mocked DEFAULT_ENGINE is what the route runs when FIT_ENGINE is not
+  // set; a runner that exports FIT_ENGINE must not override it.
+  beforeEach(() => {
+    vi.stubEnv("FIT_ENGINE", "");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   const run = async () => {
     const fake = createFakeFitRepo([...sampleCatalogue, hidden, trackball]);
     const result = await loadOwnedFit(

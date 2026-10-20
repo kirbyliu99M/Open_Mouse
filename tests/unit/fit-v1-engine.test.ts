@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import seedRows from "../../src/db/seed/logitech.json";
 import factsJson from "../../src/db/seed/logitech-facts.json";
 import type { FitEntry } from "../../src/lib/contracts/fit";
@@ -10,6 +10,7 @@ import {
   UNKNOWN_PRIOR_SCORE,
 } from "../../src/server/fit/coefficients";
 import {
+  resolveFitEngine,
   scoreFitDefault,
   scoreWithEngine,
   storedNullScore,
@@ -22,6 +23,10 @@ import { buildSeedCatalogue } from "../../src/server/fit/seed-catalogue";
 import { buildStabilityReport } from "../../src/server/fit/stability-report";
 import type { CatalogueMouse } from "../../src/server/fit/types";
 import golden from "./fixtures/fit-golden.json";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 const seed = buildSeedCatalogue(
   seedRows as Parameters<typeof buildSeedCatalogue>[0],
@@ -100,10 +105,13 @@ describe("scoreWithEngine", () => {
     expect(c.total).toBe(manual.total);
   });
 
-  it("scoreFitDefault follows DEFAULT_ENGINE, which is v1", () => {
+  it("scoreFitDefault follows FIT_ENGINE, which is v1 when unset", () => {
+    // These numbers are v1's: pin the variable off, whatever the runner set.
+    vi.stubEnv("FIT_ENGINE", "");
     expect(DEFAULT_ENGINE).toBe("v1");
+    expect(resolveFitEngine()).toBe("v1");
     expect(scoreFitDefault(hand, seed, prefs, "right")).toEqual(
-      scoreWithEngine(DEFAULT_ENGINE, hand, seed, prefs, "right"),
+      scoreWithEngine("v1", hand, seed, prefs, "right"),
     );
     const out = scoreFitDefault(hand, seed, prefs, "right");
     expect(out.engineVersion).toBe("fit-v1-candidate.3");

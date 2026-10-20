@@ -27,7 +27,7 @@ function unknownEngine(engine: never): never {
 }
 
 /**
- * Runs the named engine. `scoreFitDefault` passes `DEFAULT_ENGINE`; tests pass
+ * Runs the named engine. `scoreFitDefault` passes `resolveFitEngine()`; tests pass
  * "v1" or "v2" to exercise a candidate path without flipping the switch.
  *
  * "v3" is the fit-v3.0 candidate (score-v3-candidate.ts), on the same terms.
@@ -97,10 +97,35 @@ export function storedNullScore(
   }
 }
 
+/** The values `FIT_ENGINE` may take. "v0" is deliberately not one of them. */
+const FIT_ENGINE_VALUES = [
+  "v1",
+  "v2",
+  "v3",
+] as const satisfies readonly EngineId[];
+
 /**
- * The engine the fit route runs: `DEFAULT_ENGINE` in coefficients.ts picks it,
- * and that constant is the single switch. It is "v1" since Kirby's decision of
- * 2026-10-10 (v1 is still a candidate); `scoreFit` is v0, unchanged.
+ * The one place that decides which engine the routes run. Server-side only
+ * (never `NEXT_PUBLIC_*`: that is baked in at build time, and a rollback has
+ * to be a runtime change). `FIT_ENGINE` is read at request time; unset, empty
+ * or any value other than "v1", "v2" or "v3" falls back to `DEFAULT_ENGINE`,
+ * which is "v1". Every consumer asks this function, so the fit, the stored
+ * null scores, the similar-hands exclusion rule and the feedback snapshot
+ * cannot disagree. 未拍板 (candidate): flipping it in production is Kirby's
+ * call.
+ */
+export function resolveFitEngine(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): EngineId {
+  const raw = env.FIT_ENGINE?.trim();
+  const named = FIT_ENGINE_VALUES.find((v) => v === raw);
+  return named ?? DEFAULT_ENGINE;
+}
+
+/**
+ * The engine the fit route runs: `resolveFitEngine()` picks it (the
+ * `FIT_ENGINE` environment variable, "v1" when unset or invalid). `scoreFit`
+ * is v0, unchanged.
  */
 export function scoreFitDefault(
   measurements: HandMeasurements,
@@ -108,5 +133,11 @@ export function scoreFitDefault(
   prefs: FitPreferences,
   hand: "left" | "right",
 ): Omit<FitResponse, "scanId"> {
-  return scoreWithEngine(DEFAULT_ENGINE, measurements, catalogue, prefs, hand);
+  return scoreWithEngine(
+    resolveFitEngine(),
+    measurements,
+    catalogue,
+    prefs,
+    hand,
+  );
 }

@@ -5,7 +5,7 @@
  * typed. Nothing here touches a database: fake repos, and the checked-in seed
  * as the real catalogue.
  */
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import catalogueJson from "../../src/db/seed/catalogue.json";
 import descriptorsJson from "../../src/db/seed/logitech-descriptors.json";
 import factsJson from "../../src/db/seed/logitech-facts.json";
@@ -26,7 +26,7 @@ import type {
   SpecRecord,
 } from "../../src/server/catalogue/seed-rows";
 import { loadOwnedFit } from "../../src/server/fit/core";
-import { scoreFitDefault } from "../../src/server/fit/engine";
+import { scoreFitDefault, scoreWithEngine } from "../../src/server/fit/engine";
 import { listedOnly } from "../../src/server/fit/listed";
 import { groupShells } from "../../src/server/fit/shell-groups";
 import { buildSnapshot } from "../../src/server/result-feedback/snapshot";
@@ -193,20 +193,37 @@ describe("the real catalogue, typed 190 x 85 mm, claw, medium thickness", () => 
     return i + 1;
   };
 
-  it("moves Scimitar Elite from the top to far down, and no Scimitar leads", async () => {
-    // What the engine saw before this change: the typed 85 mm, unconverted.
-    const before = groupShells(
-      scoreFitDefault(measure(TYPED_WIDTH), catalogue, prefs, "right").results,
-      catalogue,
-    );
-    const after = (await fitFor(scan(TYPED_WIDTH, "manual-entry"))).fit.results;
-
-    // Grouped (user-visible) ranks, 2026-10-17: Scimitar Elite Wireless 1 -> 221
-    // of 310, Trinity CF first after. G903 Hero 249 -> 252: the conversion does
-    // not lift it (its length sub-score, 22, is what holds it down), so no
-    // claim about it is made here.
-    expect(rankOf(before, "Scimitar Elite Wireless")).toBe(1);
-    expect(after[0]!.mouse.model).not.toMatch(/^Scimitar/);
-    expect(rankOf(after, "Scimitar Elite Wireless")).toBeGreaterThan(100);
+  // The baseline ("what the engine saw before the conversion") is scored with
+  // an explicit engine, so it does not move with FIT_ENGINE; the conversion
+  // itself runs through the route, which follows FIT_ENGINE. Rank 1 is v1's;
+  // v3's wider grip target puts the same mouse at BEFORE_RANK.v3.
+  const BEFORE_RANK = { v1: 1, v3: 3 } as const;
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
+
+  it.each(["v1", "v3"] as const)(
+    "moves Scimitar Elite from near the top to far down, and no Scimitar leads (%s)",
+    async (engine) => {
+      vi.stubEnv("FIT_ENGINE", engine);
+      // What the engine saw before this change: the typed 85 mm, unconverted.
+      const before = groupShells(
+        scoreWithEngine(engine, measure(TYPED_WIDTH), catalogue, prefs, "right")
+          .results,
+        catalogue,
+      );
+      const after = (await fitFor(scan(TYPED_WIDTH, "manual-entry"))).fit
+        .results;
+
+      // v1, grouped (user-visible) ranks, 2026-10-17: Scimitar Elite Wireless
+      // 1 -> 221 of 310, Trinity CF first after. G903 Hero 249 -> 252: the
+      // conversion does not lift it (its length sub-score, 22, is what holds it
+      // down), so no claim about it is made here.
+      expect(rankOf(before, "Scimitar Elite Wireless")).toBe(
+        BEFORE_RANK[engine],
+      );
+      expect(after[0]!.mouse.model).not.toMatch(/^Scimitar/);
+      expect(rankOf(after, "Scimitar Elite Wireless")).toBeGreaterThan(100);
+    },
+  );
 });

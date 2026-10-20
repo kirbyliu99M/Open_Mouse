@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import seedRows from "../../src/db/seed/logitech.json";
 import factsJson from "../../src/db/seed/logitech-facts.json";
 import { GRIP_STYLES } from "../../src/lib/contracts/fit";
@@ -12,7 +12,11 @@ import {
   SIGMA_MM,
   UNKNOWN_PRIOR_SCORE,
 } from "../../src/server/fit/coefficients";
-import { scoreFitDefault, scoreWithEngine } from "../../src/server/fit/engine";
+import {
+  resolveFitEngine,
+  scoreFitDefault,
+  scoreWithEngine,
+} from "../../src/server/fit/engine";
 import { excludeReasonV1 } from "../../src/server/fit/exclusions-v1";
 import { argmaxGrip, gripWeights } from "../../src/server/fit/grip-weights";
 import { computePriors } from "../../src/server/fit/priors";
@@ -62,9 +66,16 @@ const hand: HandMeasurements = {
 };
 const noPriors = computePriors([]);
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("v1 is the default (Kirby, 2026-10-10); v0 stays reachable", () => {
-  it("DEFAULT_ENGINE is v1 and the default engine is scoreFitV1, byte for byte", () => {
+  it("DEFAULT_ENGINE is v1 and, with FIT_ENGINE unset, the default engine is scoreFitV1, byte for byte", () => {
+    // Pin the variable off, whatever the runner set: the claim is about v1.
+    vi.stubEnv("FIT_ENGINE", "");
     expect(DEFAULT_ENGINE).toBe("v1");
+    expect(resolveFitEngine()).toBe("v1");
     expect(ENGINE_VERSION).toBe("fit-v0-provisional");
     const args = [hand, seed, prefs, "right"] as const;
     expect(scoreFitDefault(...args)).toEqual(
