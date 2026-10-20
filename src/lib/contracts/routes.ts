@@ -50,22 +50,6 @@ export const scanSubmitResponseSchema = z.strictObject({
 export type ScanSubmitResponse = z.infer<typeof scanSubmitResponseSchema>;
 
 /**
- * `POST` — body: `fitPreferencesSchema` (fit.ts); `{}` means no preferences.
- * 200 → `fitResponseSchema` (fit.ts); 400 invalid body; 404 unknown scan;
- * 429 rate limited per client IP (`errorResponseSchema`; no session, scan or
- * fit result is written — only the limiter's own counter).
- */
-export const fitPath = (scanId: string): string =>
-  `/api/scans/${encodeURIComponent(scanId)}/fit`;
-
-/**
- * `POST` — body: `fitPreferencesSchema`, the SAME preferences the fit request
- * used, so the server analyses exactly the ranking the user is looking at.
- * 200 → `analysisResponseSchema` (analysis.ts); 400; 404; 429 rate limited
- * per client IP. At the site-wide daily model cap the response is still 200,
- * with `source: "fallback"` — never a 429.
- */
-/**
  * V3.2 (candidate, 未拍板): request header on the analysis POST and the result
  * feedback POST carrying the `resultFingerprint` of the fit response the page
  * is showing (fit.ts, `resultFingerprintSchema`). The server recomputes the
@@ -77,6 +61,25 @@ export const fitPath = (scanId: string): string =>
  */
 export const RESULT_FINGERPRINT_HEADER = "x-result-fingerprint";
 
+/**
+ * `POST` — body: `fitPreferencesSchema` (fit.ts); `{}` means no preferences.
+ * 200 → `fitResponseSchema` (fit.ts); 400 invalid body; 404 unknown scan;
+ * 429 rate limited per client IP (`errorResponseSchema`; no session, scan or
+ * fit result is written — only the limiter's own counter).
+ */
+export const fitPath = (scanId: string): string =>
+  `/api/scans/${encodeURIComponent(scanId)}/fit`;
+
+/**
+ * `POST` — body: `fitPreferencesSchema`, the SAME preferences the fit request
+ * used, so the server analyses exactly the ranking the user is looking at.
+ * 200 → `analysisResponseSchema` (analysis.ts); 400; 404; 412 (V3.2
+ * candidate) when `RESULT_FINGERPRINT_HEADER` is sent and the recomputed fit
+ * differs — checked after 404 and before any rate limit, cache or model call,
+ * so it spends no model budget; 429 rate limited per client IP. At the
+ * site-wide daily model cap the response is still 200, with
+ * `source: "fallback"` — never a 429.
+ */
 export const analysisPath = (scanId: string): string =>
   `/api/scans/${encodeURIComponent(scanId)}/analysis`;
 
@@ -183,7 +186,9 @@ export const similarPath = (scanId: string): string =>
  * client IP → 413 body too large → 404 malformed id, or unknown, foreign or
  * expired scan → 400 body that is not JSON or fails the schema (stars outside
  * 1 to 5, an unknown notice version, a comment with control characters, an
- * email address or a phone number) → 409 this scan was already rated →
+ * email address or a phone number) → 412 (V3.2 candidate) the
+ * `RESULT_FINGERPRINT_HEADER` differs from the recomputed fit → 409 this scan
+ * was already rated →
  * 201 → `resultFeedbackSubmitResponseSchema`. Every non-2xx is
  * `errorResponseSchema` and stores nothing. One rating per scan holds under
  * concurrent POSTs: the mark on the scan is set by one conditional update
