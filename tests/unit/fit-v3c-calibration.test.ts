@@ -18,10 +18,12 @@ import {
   feelProbability,
   posteriorShift,
 } from "../../src/server/fit/calibration-v3-candidate";
+import { buildAnalysisInput } from "../../src/server/analysis/input";
 import { SIGMA_MM } from "../../src/server/fit/coefficients";
 import { scoreFitV3 } from "../../src/server/fit/score-v3-candidate";
 import { shellKey } from "../../src/server/fit/shell-groups";
 import type { FitTargets } from "../../src/server/fit/targets";
+import { makeFit, makeMeasurements } from "./analysis-fixtures";
 import { hand, mouseRow, seedCatalogue, seedPriors } from "./fit-v2c-fixtures";
 
 const TARGET: FitTargets = { lengthMm: 120, gripWidthMm: 64, heightMm: 38 };
@@ -95,6 +97,31 @@ describe("posteriorShift", () => {
     );
     expect(Math.abs(p.shiftMm)).toBeLessThan(0.1);
     expect(p.conflict).toBe(false);
+  });
+
+  it("a symmetric posterior is exactly 0, not float residue (A1-08)", () => {
+    for (const band of [SIGMA_MM.length, SIGMA_MM.gripWidth, SIGMA_MM.height]) {
+      const p = posteriorShift([{ feel: 0, xMm: 120, targetsMm: [120] }], band);
+      expect(Object.is(p.shiftMm, 0)).toBe(true);
+      expect(p.answers).toBe(1);
+    }
+    // Two mirrored answers also cancel exactly.
+    const mirrored = posteriorShift(
+      [
+        { feel: 0, xMm: 124, targetsMm: [120] },
+        { feel: 0, xMm: 116, targetsMm: [120] },
+      ],
+      SIGMA_MM.length,
+    );
+    expect(Object.is(mirrored.shiftMm, 0)).toBe(true);
+  });
+
+  it("a real but small shift is kept (the cut is far below the 0.1 mm grid step)", () => {
+    const p = posteriorShift(
+      [{ feel: 0, xMm: 120.3, targetsMm: [120] }],
+      SIGMA_MM.length,
+    );
+    expect(p.shiftMm).toBeGreaterThan(0.01);
   });
 
   it("'just right' on a longer mouse pulls the target up, on a shorter one down", () => {
@@ -283,6 +310,25 @@ describe("calibrateV3", () => {
       expect(out.calibration.dims[d].conflict).toBe(false);
     }
     expect(out.calibration.referencesUsed).toBe(1);
+  });
+
+  it("a mouse exactly on the targets moves nothing: shifts are exactly 0 and the analysis is not told the targets were adjusted (A1-08)", () => {
+    for (const grip of ["palm", "claw", "fingertip"] as const) {
+      const out = calibrateV3(
+        [ref("acme-on-target", { length: 0, width: 0, height: 0 })],
+        [onTarget],
+        BASE,
+        grip,
+      );
+      for (const d of ["length", "gripWidth", "height"] as const) {
+        expect(Object.is(out.shiftsMm[d], 0)).toBe(true);
+        expect(Object.is(out.calibration.dims[d].shiftMm, 0)).toBe(true);
+      }
+      const fit = { ...makeFit(), calibration: out.calibration };
+      expect(
+        buildAnalysisInput(fit, makeMeasurements(), "en"),
+      ).not.toHaveProperty("targetsPersonallyAdjusted");
+    }
   });
 
   it("a mouse called too long on every dimension lowers all three targets", () => {

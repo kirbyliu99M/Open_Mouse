@@ -61,6 +61,14 @@ import type { AnalysisOutput } from "./schema";
  * scored answer can never be served for an unscored input even if the two
  * prompts were ever edited to read alike.
  *
+ * Bumped to 10 (A1-02): in the unscored mode the sub-scores' scores are no
+ * longer sent to the model, and an answer that states a score or a grade is
+ * refused, so earlier prose for that mode is not served again.
+ *
+ * Bumped to 9 (A1-01): a display name no longer hides a digit, percent sign or
+ * unit written right after it, so text the old check accepted ("Superlight 2１
+ * mm") is not served again.
+ *
  * Bumped to 8 (v3.1 consumers): in the unscored mode the sub-scores no longer
  * carry `params` (the contract keeps them out of the input there), so the
  * prompt data of that mode changed.
@@ -70,7 +78,7 @@ import type { AnalysisOutput } from "./schema";
  * sub-score's band and impact sentence, in place of the old reason text. Prose
  * written for the old prompt must not be served for the new one.
  */
-export const ANALYSIS_PROMPT_VERSION = 8;
+export const ANALYSIS_PROMPT_VERSION = 10;
 
 /**
  * Recursively sorts every plain object's own keys so `JSON.stringify`'s

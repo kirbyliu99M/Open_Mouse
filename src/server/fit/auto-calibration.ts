@@ -10,6 +10,7 @@ import {
   adoptedReferences,
 } from "./calibration-v3-candidate";
 import type { EngineId } from "./coefficients";
+import { shellKey } from "./shell-groups";
 import type { CatalogueMouse } from "./types";
 
 /**
@@ -41,7 +42,9 @@ const FIT_SATISFACTION_MIN = 4;
 /**
  * What the survey keeps about one rating of a catalogue mouse, as far as
  * calibration reads it: the mouse's slug, the stars, what bothered the person,
- * and the grip stored with the contribution the rating belongs to.
+ * and the grip stored with the contribution the rating belongs to (kept for
+ * the source's sake; calibration does not read it, see
+ * `surveyRatingsToReferences`).
  */
 export interface SurveyRatingForCalibration {
   slug: string;
@@ -69,8 +72,10 @@ export interface SurveyReferenceSource {
  *   dimensions.
  * - satisfaction 3 or less: not used, since it is not known whether the mouse
  *   felt too large or too small.
- * - `grips` is the stored grip when there is one, else empty (the engine then
- *   judges it in the grip it uses for this hand).
+ * - `grips` is always empty (A1-05): the engine then judges the mouse in the
+ *   grip it really uses for this hand in this calculation. The grip the survey
+ *   stored may be a prediction the old engine made for a skipped question, not
+ *   something the person said, so it is never read as a fact here.
  * - `specialUse` is false: the survey has no such question.
  *
  * A slug rated twice keeps its first entry (the caller passes newest first).
@@ -88,7 +93,7 @@ export function surveyRatingsToReferences(
       rating.painPoints.includes(dimension) ? null : 0;
     out.push({
       slug: rating.slug,
-      grips: rating.gripStyle ? [rating.gripStyle] : [],
+      grips: [],
       feel: {
         length: feel("length"),
         width: feel("width"),
@@ -101,18 +106,60 @@ export function surveyRatingsToReferences(
 }
 
 /**
+ * One reference per shell (`shellKey`), in the order the shells first appear:
+ * models of one shell are one voice, so the cap of 8 must count shells, not
+ * rows (A1-07: eight versions of one shell used to fill the cap and shut out
+ * every other shell). A later model of the same shell fills in a dimension the
+ * first left unanswered (`null`), so nothing the person said is lost; the
+ * first answer wins where both answered. Survey references never carry grips
+ * (see `surveyRatingsToReferences`), so there is nothing to merge there.
+ */
+function onePerShell(
+  references: readonly FitReference[],
+  catalogue: readonly CatalogueMouse[],
+): FitReference[] {
+  const bySlug = new Map<string, CatalogueMouse>();
+  for (const mouse of catalogue) {
+    if (mouse.listed !== false && !bySlug.has(mouse.slug)) {
+      bySlug.set(mouse.slug, mouse);
+    }
+  }
+  const byShell = new Map<string, FitReference>();
+  for (const reference of references) {
+    const mouse = bySlug.get(reference.slug);
+    if (mouse === undefined) continue;
+    const key = shellKey(mouse);
+    const first = byShell.get(key);
+    byShell.set(
+      key,
+      first === undefined
+        ? reference
+        : {
+            ...first,
+            feel: {
+              length: first.feel.length ?? reference.feel.length,
+              width: first.feel.width ?? reference.feel.width,
+              height: first.feel.height ?? reference.feel.height,
+            },
+          },
+    );
+  }
+  return [...byShell.values()];
+}
+
+/**
  * The references to calibrate with, or an empty list when the survey does not
  * give enough: those the engine would really use (listed, not special-use,
- * length/width model applies, answered at least one dimension), at most 8, and
- * only when they make `MIN_AUTO_CALIBRATION_REFERENCES` voices after the
- * same-shell models are counted once. Pure.
+ * length/width model applies, answered at least one dimension), one per shell,
+ * at most 8, and only when they make `MIN_AUTO_CALIBRATION_REFERENCES` voices.
+ * The shells are taken first and the cap applied after (A1-07). Pure.
  */
 export function autoCalibrationReferences(
   ratings: readonly SurveyRatingForCalibration[],
   catalogue: readonly CatalogueMouse[],
 ): FitReference[] {
-  const adopted = adoptedReferences(
-    surveyRatingsToReferences(ratings),
+  const adopted = onePerShell(
+    adoptedReferences(surveyRatingsToReferences(ratings), catalogue),
     catalogue,
   ).slice(0, MAX_AUTO_CALIBRATION_REFERENCES);
   return adoptedReferenceCount(adopted, catalogue) >=

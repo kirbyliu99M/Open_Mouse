@@ -21,6 +21,7 @@ import {
   GRIP_WIDTH_FACTOR_V3,
 } from "../../src/server/fit/coefficients";
 import { scoreFitDefault, scoreWithEngine } from "../../src/server/fit/engine";
+import { gaussianRaw } from "../../src/server/fit/subscores-v1";
 import { computePriors } from "../../src/server/fit/priors";
 import { calibrateV3 } from "../../src/server/fit/calibration-v3-candidate";
 import { planV2, scoreFitV2 } from "../../src/server/fit/score-v2-candidate";
@@ -110,6 +111,31 @@ describe("without references: v2 plus the width factor and the thickness sign", 
     // length and height are v2's
     expect(a.targets.lengthMm).toBe(b.targets.lengthMm);
     expect(a.targets.heightMm).toBe(b.targets.heightMm);
+  });
+
+  it("the grip-width error spread follows each engine's own factor (A1-06)", () => {
+    // sigma_eff = sqrt(5^2 + (k * 4)^2): v3 k = 1.00, v1/v2 k = 0.88.
+    const sigmaV3 = Math.sqrt(5 ** 2 + (GRIP_WIDTH_FACTOR_V3 * 4) ** 2);
+    const sigmaV2 = Math.sqrt(5 ** 2 + (GRIP_WIDTH_FACTOR * 4) ** 2);
+    expect(sigmaV3).toBeCloseTo(6.403124, 6);
+    expect(sigmaV2).toBeCloseTo(6.114769, 6);
+    const check = (
+      entries: ReturnType<typeof v3>["results"],
+      sigma: number,
+    ) => {
+      let checked = 0;
+      for (const e of entries) {
+        const { score, reason } = e.subscores.gripWidth;
+        if (score === null) continue;
+        const delta = reason.params.deltaMm!;
+        // Far-off mice score 0 either way; the near ones tell the sigmas apart.
+        expect(score).toBe(Math.round(gaussianRaw(delta, sigma)));
+        if (Math.abs(delta) > 4) checked += 1;
+      }
+      expect(checked).toBeGreaterThan(10);
+    };
+    check(v3(m, NO_REFS).results, sigmaV3);
+    check(v2(m, NO_REFS).results, sigmaV2);
   });
 
   it("thick lowers the height target by 1.5 mm, thin raises it, no answer leaves it", () => {
@@ -265,8 +291,12 @@ describe("with references", () => {
       r.results.find((e) => e.mouse.slug === slug)!.rank;
     expect(rank(base, "logitech-g-pro-2-lightspeed")).toBe(139);
     expect(rank(base, "logitech-g903-hero")).toBe(273);
-    expect(rank(out, "logitech-g-pro-2-lightspeed")).toBe(42);
-    expect(rank(out, "logitech-g903-hero")).toBe(189);
+    // A1-06: v3's grip-width error spread now follows v3's 1.00 palm-width
+    // factor (sqrt(5^2 + (1.00 * 4)^2) = 6.403124 mm, was 6.114769 with v1's
+    // 0.88), which moved these ranks: G Pro 2 42 -> 45, G903 189 -> 196. The
+    // base ranks and the shifts above did not move.
+    expect(rank(out, "logitech-g-pro-2-lightspeed")).toBe(45);
+    expect(rank(out, "logitech-g903-hero")).toBe(196);
   });
 
   it("references only change the targets and the order, never the set of mice or the version", () => {

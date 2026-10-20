@@ -49,6 +49,8 @@ export function ResultsDetails({
   const [opened, setOpened] = useState(false);
   const copy = RESULTS_PAGE_COPY[language];
   const { mouse } = entry;
+  // Out of the catalogue's range no score is shown anywhere, the bars included.
+  const scoresHidden = response.coverage?.lengthOutOfRange === true;
   const shapeUnrated = (["heightHump", "frontFlare", "thumb"] as const).some(
     (key) => entry.subscores[key].score === null,
   );
@@ -96,6 +98,7 @@ export function ResultsDetails({
               subscore={key}
               data={entry.subscores[key]}
               language={language}
+              showScore={!scoresHidden}
             />
           ))}
         </div>

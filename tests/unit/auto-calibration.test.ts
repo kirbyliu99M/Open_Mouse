@@ -110,7 +110,7 @@ describe("surveyRatingsToReferences", () => {
       expect(surveyRatingsToReferences([rated(G, { satisfaction })])).toEqual([
         {
           slug: G,
-          grips: ["claw"],
+          grips: [],
           feel: { length: 0, width: 0, height: 0 },
           specialUse: false,
         },
@@ -153,12 +153,12 @@ describe("surveyRatingsToReferences", () => {
     },
   );
 
-  it("grips: the stored grip when there is one, else empty", () => {
+  it("grips are always empty: a stored grip may be a prediction, not an answer (A1-05)", () => {
     const [withGrip, noGrip] = surveyRatingsToReferences([
       rated(G, { gripStyle: "fingertip" }),
       rated(B, { gripStyle: null }),
     ]);
-    expect(withGrip!.grips).toEqual(["fingertip"]);
+    expect(withGrip!.grips).toEqual([]);
     expect(noGrip!.grips).toEqual([]);
   });
 
@@ -194,16 +194,65 @@ describe("the threshold of two voices", () => {
     expect(refs.map((r) => r.slug)).toEqual([G, B]);
   });
 
-  it("two mice of the same shell are one voice: no calibration; with a third voice all three go in", () => {
+  it("two mice of the same shell are one voice: no calibration; with a third voice they go in as one reference of that shell (A1-07)", () => {
     expect(
       autoCalibrationReferences([rated(G), rated(g502se.slug)], catalogue),
     ).toEqual([]);
+    // One reference per shell, the first of the shell: the engine would have
+    // merged the two rows into one answer anyway, and the cap of 8 now counts
+    // shells, not rows.
     expect(
       autoCalibrationReferences(
         [rated(G), rated(g502se.slug), rated(B)],
         catalogue,
       ).map((r) => r.slug),
-    ).toEqual([G, g502se.slug, B]);
+    ).toEqual([G, B]);
+  });
+
+  it("a second model of a shell fills in a dimension the first left unanswered", () => {
+    const [shell] = autoCalibrationReferences(
+      [
+        rated(G, { painPoints: ["width"] }),
+        rated(g502se.slug, { painPoints: ["length"] }),
+        rated(B),
+      ],
+      catalogue,
+    );
+    expect(shell!.slug).toBe(G);
+    expect(shell!.feel).toEqual({ length: 0, width: 0, height: 0 });
+  });
+
+  it("eight versions of one shell do not use up the cap: another shell still calibrates (A1-07)", () => {
+    const versions: CatalogueMouse[] = Array.from({ length: 8 }, (_, i) => ({
+      ...g502,
+      id: `v${i}`,
+      slug: `g502-version-${i}`,
+      model: "G502 SE",
+    }));
+    const cat = [...versions, basilisk];
+    const refs = autoCalibrationReferences(
+      [...versions.map((v) => rated(v.slug)), rated(B)],
+      cat,
+    );
+    expect(refs.map((r) => r.slug)).toEqual([versions[0]!.slug, B]);
+    // And through the engine's own count: two voices.
+    expect(adoptedReferenceCount(refs, cat)).toBe(2);
+  });
+
+  it("nine shells: the first eight, in order", () => {
+    const many: CatalogueMouse[] = Array.from({ length: 9 }, (_, i) => ({
+      ...basilisk,
+      id: `s${i}`,
+      slug: `shell-${i}`,
+      brand: `Brand${i}`,
+    }));
+    const refs = autoCalibrationReferences(
+      many.map((m) => rated(m.slug)),
+      many,
+    );
+    expect(refs.map((r) => r.slug)).toEqual(
+      many.slice(0, 8).map((m) => m.slug),
+    );
   });
 
   it.each([
@@ -430,6 +479,45 @@ describe("loadOwnedFit with the survey", () => {
     expect(fit.calibration?.referencesUsed).toBe(2);
     expect(fit.calibration?.dims.length.answers).toBeGreaterThan(0);
     expect(fit.targets).not.toEqual(plain.targets);
+  });
+
+  it("a stored claw grip does not decide the calibration: with the engine on fingertip it calibrates as fingertip (A1-05)", async () => {
+    vi.stubEnv("FIT_ENGINE", "v3");
+    const prefs = fitPreferencesSchema.parse({ gripStyle: "fingertip" });
+    const viaSurvey = async (grip: "claw" | "palm" | null) =>
+      (
+        await run({
+          userId: "user-1",
+          prefs,
+          surveyReferences: sourceOf([
+            rated(G, { gripStyle: grip }),
+            rated(B, { gripStyle: grip }),
+          ]).source,
+        })
+      ).result.fit;
+    const stored = await viaSurvey("claw");
+    expect(stored.gripStyle.used).toBe("fingertip");
+    expect(stored.calibration?.referencesUsed).toBe(2);
+    // Whatever grip the survey stored, the calibration is the same ...
+    expect(stored.targets).toEqual((await viaSurvey("palm")).targets);
+    expect(stored.targets).toEqual((await viaSurvey(null)).targets);
+    // ... and it is the one a request would get by naming no grip itself, which
+    // the engine reads in the grip in use (fingertip), not the stored claw.
+    const explicit = (grips: Array<"claw" | "fingertip">) =>
+      run({
+        userId: "user-1",
+        prefs: fitPreferencesSchema.parse({
+          gripStyle: "fingertip",
+          references: [G, B].map((slug) => ({
+            slug,
+            grips,
+            feel: { length: 0, width: 0, height: 0 },
+          })),
+        }),
+      }).then((r) => r.result.fit);
+    expect(stored.targets).toEqual((await explicit([])).targets);
+    expect(stored.targets).toEqual((await explicit(["fingertip"])).targets);
+    expect(stored.targets).not.toEqual((await explicit(["claw"])).targets);
   });
 
   it("one usable rating: no calibration block, and the response equals the uncalibrated one", async () => {

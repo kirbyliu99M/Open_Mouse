@@ -24,7 +24,12 @@ import type {
 } from "../../lib/contracts/fit";
 
 export interface AnalysisInputSubscore {
-  score: number | null;
+  /**
+   * The sub-score, or `null` for an unrated one. Absent in the unscored mode:
+   * a number the model could quote as "the score" is not sent there (A1-02);
+   * the reason code and the impact sentence carry what it has to say.
+   */
+  score?: number | null;
   /**
    * Where the score falls; `null` for an unrated sub-score (not a band).
    * Absent in the unscored mode (the hand is outside the catalogue's length
@@ -183,8 +188,7 @@ function toInputEntry(
     Object.entries(entry.subscores).map(([key, sub]) => [
       key,
       {
-        score: sub.score,
-        ...(scored ? { band: bandOf(sub.score) } : {}),
+        ...(scored ? { score: sub.score, band: bandOf(sub.score) } : {}),
         reasonCode: sub.reason.code,
         impact: bandCopy.impact[sub.reason.code],
         ...(scored ? { params: roundedParams(sub.reason.params) } : {}),

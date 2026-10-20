@@ -4,6 +4,8 @@ import { GRIP_STYLES } from "../../src/lib/contracts/fit";
 import {
   BASE_WEIGHTS,
   CURVATURE_ADJUSTMENT_MM,
+  GRIP_WIDTH_FACTOR,
+  GRIP_WIDTH_FACTOR_V3,
   THUMB_REST_ERGONOMIC_ADJUSTMENT_MM,
 } from "../../src/server/fit/coefficients";
 import {
@@ -110,6 +112,24 @@ describe("scoreGripWidthV1", () => {
       expect(r.score).toBeCloseTo(gaussianRaw(adj, sigma), 12);
     },
   );
+
+  it("the error spread takes the factor the target was made with (A1-06): default 0.88, v3 1.00", () => {
+    expect(SIGMA_EFF.gripWidth()).toBeCloseTo(6.114769, 6);
+    expect(SIGMA_EFF.gripWidth(GRIP_WIDTH_FACTOR)).toBe(SIGMA_EFF.gripWidth());
+    expect(SIGMA_EFF.gripWidth(GRIP_WIDTH_FACTOR_V3)).toBeCloseTo(6.403124, 6);
+    const m = mouse({ widthMm: 72, sideCurvature: null });
+    const v1 = scoreGripWidthV1(m, target);
+    const v3 = scoreGripWidthV1(m, target, GRIP_WIDTH_FACTOR_V3);
+    expect(v1.score).toBeCloseTo(
+      gaussianRaw(72 - target, SIGMA_EFF.gripWidth()),
+      12,
+    );
+    expect(v3.score).toBeCloseTo(
+      gaussianRaw(72 - target, SIGMA_EFF.gripWidth(GRIP_WIDTH_FACTOR_V3)),
+      12,
+    );
+    expect(v3.score).toBeGreaterThan(v1.score!);
+  });
 
   it("the curvature table is not all zero (guards the table-driven test above)", () => {
     expect(SIDE_CURVATURES.some((c) => CURVATURE_ADJUSTMENT_MM[c] !== 0)).toBe(

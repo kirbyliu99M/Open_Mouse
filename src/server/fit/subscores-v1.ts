@@ -51,8 +51,9 @@ export function gaussianRaw(delta: number, sigma: number): number {
 export const SIGMA_EFF = {
   length: (grip: GripStyle) =>
     sigmaEff(SIGMA_MM.length, LENGTH_FACTOR[grip], SIGMA_MEAS_MM.handLength),
-  gripWidth: () =>
-    sigmaEff(SIGMA_MM.gripWidth, GRIP_WIDTH_FACTOR, SIGMA_MEAS_MM.palmWidth),
+  /** `k` is the factor the target was made with: v1/v2 0.88, v3 1.00 (`GRIP_WIDTH_FACTOR_V3`). */
+  gripWidth: (k: number = GRIP_WIDTH_FACTOR) =>
+    sigmaEff(SIGMA_MM.gripWidth, k, SIGMA_MEAS_MM.palmWidth),
   height: (grip: GripStyle) =>
     sigmaEff(SIGMA_MM.height, HEIGHT_FACTOR[grip], SIGMA_MEAS_MM.handLength),
 } as const;
@@ -101,6 +102,8 @@ export function thumbRestAdjustmentMm(widthMm: number): number {
 export function scoreGripWidthV1(
   mouse: CatalogueMouse,
   targetMm: number,
+  /** The factor the target's palm-width term uses; the error spread follows it. */
+  gripWidthFactor: number = GRIP_WIDTH_FACTOR,
 ): SubscoreResult {
   const curvature = mouse.sideCurvature;
   const curvatureAdjMm =
@@ -111,7 +114,7 @@ export function scoreGripWidthV1(
       : 0;
   const effectiveWidthMm = mouse.widthMm + curvatureAdjMm + ergonomicThumbAdjMm;
   const deltaMm = effectiveWidthMm - targetMm;
-  const sigma = SIGMA_EFF.gripWidth();
+  const sigma = SIGMA_EFF.gripWidth(gripWidthFactor);
   // Halved only while sideCurvature is unknown (docs/fit-algorithm.md §4).
   const weight =
     curvature === null ? BASE_WEIGHTS.gripWidth / 2 : BASE_WEIGHTS.gripWidth;

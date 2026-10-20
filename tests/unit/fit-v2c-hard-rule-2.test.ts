@@ -99,7 +99,7 @@ describe.each(CASES)("T10 (%s)", (_n, m, prefs) => {
   const sortedNumbers = (x: unknown) =>
     [...collectNumbers(x)].sort((p, q) => p - q);
 
-  /** The scored input minus exactly what the unscored mode removes (score fields and sub-score params). */
+  /** The scored input minus exactly what the unscored mode removes (score fields, sub-score scores and params). */
   function withoutScoreFields(input: AnalysisInput) {
     const { scoreMode: _mode, ...rest } = input;
     void _mode;
@@ -112,8 +112,8 @@ describe.each(CASES)("T10 (%s)", (_n, m, prefs) => {
           ...plainEntry,
           subscores: Object.fromEntries(
             Object.entries(entry.subscores).map(([key, sub]) => {
-              const { band: _sb, params: _sp, ...plainSub } = sub;
-              void [_sb, _sp];
+              const { band: _sb, params: _sp, score: _ss, ...plainSub } = sub;
+              void [_sb, _sp, _ss];
               return [key, plainSub];
             }),
           ),
@@ -159,6 +159,7 @@ describe.each(CASES)("T10 (%s)", (_n, m, prefs) => {
               for (const sub of Object.values(entry.subscores)) {
                 expect(sub, name).not.toHaveProperty("band");
                 expect(sub, name).not.toHaveProperty("params");
+                expect(sub, name).not.toHaveProperty("score");
               }
             }
             // Everything else is what the plain response gives.
