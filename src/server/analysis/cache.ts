@@ -61,12 +61,16 @@ import type { AnalysisOutput } from "./schema";
  * scored answer can never be served for an unscored input even if the two
  * prompts were ever edited to read alike.
  *
+ * Bumped to 8 (v3.1 consumers): in the unscored mode the sub-scores no longer
+ * carry `params` (the contract keeps them out of the input there), so the
+ * prompt data of that mode changed.
+ *
  * Bumped to 6 (fit bands): the prompt now asks for how the mouse will feel to
  * use, and the data carries each top pick's band and meaning and each
  * sub-score's band and impact sentence, in place of the old reason text. Prose
  * written for the old prompt must not be served for the new one.
  */
-export const ANALYSIS_PROMPT_VERSION = 7;
+export const ANALYSIS_PROMPT_VERSION = 8;
 
 /**
  * Recursively sorts every plain object's own keys so `JSON.stringify`'s

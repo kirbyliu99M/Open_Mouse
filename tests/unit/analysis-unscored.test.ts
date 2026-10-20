@@ -68,9 +68,11 @@ describe("analysis input, hand outside the catalogue's range", () => {
         expect(entry).not.toHaveProperty("bandMeaning");
         for (const sub of Object.values(entry.subscores)) {
           expect(sub).not.toHaveProperty("band");
-          // The sub-scores themselves, their reasons and params stay (the
-          // true target; v3.1 decision a).
+          // The sub-scores' scores and reason codes stay (the true target;
+          // v3.1 decision a); their params do not (contract, coverage).
           expect(sub.impact.length).toBeGreaterThan(0);
+          expect(sub.reasonCode).toBeTruthy();
+          expect(sub).not.toHaveProperty("params");
         }
       }
       expect(collectNumbers(input).has(TOTAL)).toBe(false);
@@ -80,8 +82,21 @@ describe("analysis input, hand outside the catalogue's range", () => {
     },
   );
 
+  it("the numbers the model may repeat do not grow when unscored: every number of the unscored input is in the scored one, minus the params", () => {
+    const scored = collectNumbers(buildAnalysisInput(IN, M, "en"));
+    const unscored = collectNumbers(buildAnalysisInput(OUT, M, "en"));
+    for (const n of unscored) expect(scored.has(n)).toBe(true);
+    const paramNumbers = Object.values(
+      buildAnalysisInput(IN, M, "en").topPicks[0]!.subscores,
+    ).flatMap((sub) => Object.values(sub.params ?? {}));
+    expect(paramNumbers.length).toBeGreaterThan(0);
+    const prompt = dataPart(buildPrompt(buildAnalysisInput(OUT, M, "en")));
+    expect(prompt).not.toContain('"params"');
+  });
+
   it("in range the input is the old one: scored, all fields, no new key", () => {
     const input = buildAnalysisInput(IN, M, "en");
+    expect(input.topPicks[0]!.subscores.length.params).toBeDefined();
     expect(input).not.toHaveProperty("scoreMode");
     expect(input).not.toHaveProperty("targetsPersonallyAdjusted");
     expect(input.topPicks[0]!.total).toBe(TOTAL);
@@ -195,8 +210,20 @@ describe("the unscored fallback", () => {
       expect(text).not.toContain(String(TOTAL));
       expect(findMedicalClaimTerm(text)).toBeNull();
       const allowed = collectNumbers(input);
+      // The product name is not a quantity: take it out before the check (a
+      // bare "2" in "Superlight 2" is not covered by the name exemption, which
+      // needs a letter in the token; before the params left the input, a
+      // param that happened to equal 2 let it through).
+      const names = input.topPicks.flatMap((e) => [
+        `${e.brand} ${e.model}`,
+        e.model,
+      ]);
       for (const part of text.split("\n")) {
-        expect(findUnknownNumeral(part, allowed, new Set())).toBeNull();
+        const quantities = names.reduce(
+          (acc, name) => acc.split(name).join(""),
+          part,
+        );
+        expect(findUnknownNumeral(quantities, allowed, new Set())).toBeNull();
       }
       // It names the top pick as the closest in the catalogue.
       expect(out.headline).toContain("G Pro X Superlight 2");
@@ -260,8 +287,8 @@ describe("analyse(), unscored: no new numerals, ever", () => {
 });
 
 describe("the cache key, unscored", () => {
-  it("is on version 7 and differs from the scored key of the same scan", () => {
-    expect(ANALYSIS_PROMPT_VERSION).toBe(7);
+  it("is on version 8 and differs from the scored key of the same scan", () => {
+    expect(ANALYSIS_PROMPT_VERSION).toBe(8);
     for (const locale of ["en", "zh-TW"] as const) {
       expect(computeCacheKey(OUT, M, locale)).not.toBe(
         computeCacheKey(IN, M, locale),

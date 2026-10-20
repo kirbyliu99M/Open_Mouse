@@ -38,7 +38,12 @@ export interface AnalysisInputSubscore {
    * carries no digit, so it adds no numeral to what the model may repeat.
    */
   impact: string;
-  params: Record<string, number>;
+  /**
+   * The reason's numbers (mm, g, ratios), rounded. Absent in the unscored mode:
+   * the params sit on the true target, which may be far outside the catalogue,
+   * and the contract (`fitCoverageSchema`) keeps them out of the input then.
+   */
+  params?: Record<string, number>;
 }
 
 export interface AnalysisInputEntry {
@@ -182,7 +187,7 @@ function toInputEntry(
         ...(scored ? { band: bandOf(sub.score) } : {}),
         reasonCode: sub.reason.code,
         impact: bandCopy.impact[sub.reason.code],
-        params: roundedParams(sub.reason.params),
+        ...(scored ? { params: roundedParams(sub.reason.params) } : {}),
       } satisfies AnalysisInputSubscore,
     ]),
   ) as Record<Subscore, AnalysisInputSubscore>;
