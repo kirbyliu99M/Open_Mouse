@@ -242,6 +242,18 @@ const mouseSlug = z
 const attempt = z.int().min(1).max(ANALYTICS_COUNT_CAP);
 const rank = z.int().min(1).max(100);
 
+/** V3.2 candidate (S2): the step at which paper detection stopped when no
+ * sheet was found. A step of the algorithm, never a claimed physical cause.
+ * The client's detector reports the same values. */
+export const PAPER_DETECTION_STAGES = [
+  "no_bright_region",
+  "region_split",
+  "aspect_mismatch",
+  "too_small",
+  "exception",
+  "unknown",
+] as const;
+
 /** Where a filter change was made: the wide sidebar, the narrow sheet, a chip
  * (removing one option, or 全部清除), the no-match block's buttons, or (V3.2
  * candidate) the results page's 綜合／左右對稱／人體工學 shape toggle. */
@@ -385,6 +397,9 @@ export const analyticsEventSchemas = {
     paperCoverage: z.enum(PAPER_COVERAGE_BUCKETS).optional(),
     /** 2026-10-19, candidate, shadow mode: see `HAND_POSE_BUCKETS`; absent without a hand. */
     handPose: z.enum(HAND_POSE_BUCKETS).optional(),
+    /** V3.2 candidate: where paper detection stopped (see
+     * `PAPER_DETECTION_STAGES`); only with PAPER_NOT_FOUND, absent otherwise. */
+    paperStage: z.enum(PAPER_DETECTION_STAGES).optional(),
   }),
 
   /** The pipeline produced measurements (the numbers themselves stay out). */
