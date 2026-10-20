@@ -103,3 +103,29 @@ describe("POST /api/scans 400 issues for a calibration union", () => {
     expect(json.issues.map((i) => i.path)).toContain("calibration.paperSize");
   });
 });
+
+describe("paper-edge cornersSource (V3.2 candidate)", () => {
+  const { edgeFitResidualMm: _r, minSideCoverage: _c, ...bare } = paperEdge;
+  const ok = (c: unknown) => scanSubmissionSchema.safeParse(body(c)).success;
+
+  it("treats an absent cornersSource as auto and still needs both edge numbers", () => {
+    expect(ok(paperEdge)).toBe(true);
+    expect(ok({ ...paperEdge, cornersSource: "auto" })).toBe(true);
+    expect(ok(bare)).toBe(false);
+    expect(ok({ ...bare, cornersSource: "auto" })).toBe(false);
+    expect(ok({ ...bare, edgeFitResidualMm: 0.6 })).toBe(false);
+  });
+
+  it("lets hand-placed or moved corners leave the edge numbers out", () => {
+    expect(ok({ ...bare, cornersSource: "manual" })).toBe(true);
+    expect(ok({ ...bare, cornersSource: "adjusted" })).toBe(true);
+    expect(ok({ ...paperEdge, cornersSource: "adjusted" })).toBe(true);
+  });
+
+  it("keeps the limits when the numbers are given, and refuses an unknown source", () => {
+    expect(
+      ok({ ...paperEdge, cornersSource: "manual", minSideCoverage: 0.1 }),
+    ).toBe(false);
+    expect(ok({ ...paperEdge, cornersSource: "guessed" })).toBe(false);
+  });
+});

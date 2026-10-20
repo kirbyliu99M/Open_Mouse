@@ -202,29 +202,68 @@ export const printedSheetEvidenceSchema = z.strictObject({
   parallaxCorrected: z.boolean(),
 });
 
-/** Plain paper: four corners from the paper's own edges. */
-export const paperEdgeEvidenceSchema = z.strictObject({
-  method: z.literal("paper-edge"),
-  paperSize: z.enum(Object.keys(PAPER_SIZES_MM) as [PaperSize, ...PaperSize[]]),
-  /** Mean distance of detected edge points from their fitted side, in mm. */
-  edgeFitResidualMm: z
-    .number()
-    .finite()
-    .min(0)
-    .max(PAPER_EDGE_LIMITS.maxEdgeFitResidualMm, {
-      message:
-        "The paper's edges don't fit a flat sheet — is it curled or folded?",
-    }),
-  /** Smallest fraction of any side's length that was seen, 0–1. */
-  minSideCoverage: z
-    .number()
-    .finite()
-    .max(1)
-    .min(PAPER_EDGE_LIMITS.minSideCoverage, {
-      message: "Too much of one paper edge is hidden to trust its corners.",
-    }),
-  parallaxCorrected: z.boolean(),
-});
+/** Where a paper-edge calibration's four corners came from (V3.2 candidate,
+ * 未拍板; Kirby 2026-10-21). `auto`: the detector's corners, unchanged.
+ * `adjusted`: the detector's corners, moved by the person. `manual`: placed by
+ * the person after detection failed. The homography and every millimetre
+ * formula are the same for all three; only the source differs. */
+export const PAPER_CORNER_SOURCES = ["auto", "adjusted", "manual"] as const;
+export type PaperCornerSource = (typeof PAPER_CORNER_SOURCES)[number];
+
+/**
+ * Plain paper: four corners from the paper's own edges.
+ *
+ * `cornersSource` absent means `auto` (every body sent before V3.2). For
+ * `auto`, `edgeFitResidualMm` and `minSideCoverage` are required as before:
+ * they describe the fitted edges the corners came from. For `adjusted` and
+ * `manual` they may be left out, because no fitted edge stands behind a
+ * corner the person placed, and a number there would claim a check that did
+ * not happen. When present they still obey the same limits.
+ */
+export const paperEdgeEvidenceSchema = z
+  .strictObject({
+    method: z.literal("paper-edge"),
+    paperSize: z.enum(
+      Object.keys(PAPER_SIZES_MM) as [PaperSize, ...PaperSize[]],
+    ),
+    /** V3.2 candidate: see `PAPER_CORNER_SOURCES`. Absent = `auto`. */
+    cornersSource: z.enum(PAPER_CORNER_SOURCES).optional(),
+    /** Mean distance of detected edge points from their fitted side, in mm. */
+    edgeFitResidualMm: z
+      .number()
+      .finite()
+      .min(0)
+      .max(PAPER_EDGE_LIMITS.maxEdgeFitResidualMm, {
+        message:
+          "The paper's edges don't fit a flat sheet — is it curled or folded?",
+      })
+      .optional(),
+    /** Smallest fraction of any side's length that was seen, 0–1. */
+    minSideCoverage: z
+      .number()
+      .finite()
+      .max(1)
+      .min(PAPER_EDGE_LIMITS.minSideCoverage, {
+        message: "Too much of one paper edge is hidden to trust its corners.",
+      })
+      .optional(),
+    parallaxCorrected: z.boolean(),
+  })
+  .superRefine((e, ctx) => {
+    if ((e.cornersSource ?? "auto") !== "auto") return;
+    if (e.edgeFitResidualMm === undefined)
+      ctx.addIssue({
+        code: "custom",
+        path: ["edgeFitResidualMm"],
+        message: "Detected corners need their edge-fit residual.",
+      });
+    if (e.minSideCoverage === undefined)
+      ctx.addIssue({
+        code: "custom",
+        path: ["minSideCoverage"],
+        message: "Detected corners need their side coverage.",
+      });
+  });
 
 /**
  * No paper at all (Kirby, 2026-09-26): the user measures their own hand

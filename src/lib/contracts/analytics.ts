@@ -389,7 +389,10 @@ export const analyticsEventSchemas = {
   scan_measured: z.strictObject({
     flow: z.enum(SCAN_FLOWS),
     attempt,
-    paper: z.enum(["detected", "manual", "none"]),
+    /** `adjusted` (V3.2 candidate): plain-paper corners the person moved or
+     * placed by hand (`cornersSource` adjusted or manual). `manual` stays the
+     * printed sheet's hand-placed card corners. */
+    paper: z.enum(["detected", "adjusted", "manual", "none"]),
   }),
 
   /** The conditions of a photo that was measured (2026-10-16, candidate), sent
