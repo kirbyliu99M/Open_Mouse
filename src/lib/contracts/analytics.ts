@@ -243,12 +243,14 @@ const attempt = z.int().min(1).max(ANALYTICS_COUNT_CAP);
 const rank = z.int().min(1).max(100);
 
 /** Where a filter change was made: the wide sidebar, the narrow sheet, a chip
- * (removing one option, or 全部清除), or the no-match block's buttons. */
+ * (removing one option, or 全部清除), the no-match block's buttons, or (V3.2
+ * candidate) the results page's 綜合／左右對稱／人體工學 shape toggle. */
 export const FILTER_SOURCES = [
   "sidebar",
   "sheet",
   "chips",
   "no_match",
+  "shape_toggle",
 ] as const;
 
 /** The three share buttons: the top bar's link, the one beside the purchase
