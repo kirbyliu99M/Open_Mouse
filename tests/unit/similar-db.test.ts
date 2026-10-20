@@ -175,20 +175,16 @@ describe("handleSimilar on PGlite", () => {
       handLengthMm: 186.4,
       palmWidthMm: 82.7,
     });
-    await contribute({
-      ratings: [
-        [a, 5],
-        [hidden, 1],
-        [trackball, 1],
-      ],
-    });
-    await contribute({
-      ratings: [
-        [a, 3],
-        [hidden, 1],
-        [trackball, 1],
-      ],
-    });
+    // Five neighbours (the floor), in the caller's cell: 180 to 199 x 80 to 89 mm.
+    for (const satisfaction of [5, 3, 4, 4, 4]) {
+      await contribute({
+        ratings: [
+          [a, satisfaction],
+          [hidden, 1],
+          [trackball, 1],
+        ],
+      });
+    }
     // The caller's own contribution, from another scan: left out.
     await contribute({
       userId: "user-1",
@@ -205,7 +201,7 @@ describe("handleSimilar on PGlite", () => {
     const body = similarResponseSchema.parse(await res.json());
     expect(body).toEqual({
       available: true,
-      neighbours: 2,
+      neighbours: 5,
       basis: {
         handLengthBinMm: 185,
         palmWidthBinMm: 80,
@@ -217,7 +213,7 @@ describe("handleSimilar on PGlite", () => {
           slug: "mouse-a",
           brand: "Acme",
           model: "Zed",
-          raters: 2,
+          raters: 5,
           meanSatisfaction: 4,
         },
       ],

@@ -14,36 +14,41 @@
 import { CONTRIBUTION_BIN_MM } from "../../lib/contracts/survey";
 
 /**
- * Candidate (未拍板): how far a contributor's hand length may be from the
- * caller's, in bins, to count as a neighbour. 2 bins = 10 mm.
+ * Candidate (未拍板, Kirby approved the direction 2026-10-20): the width of one
+ * fixed hand length cell, in millimetres. Cells sit on a grid anchored at 0 and
+ * a cell holds the lengths from its lower edge up to, but not including, the
+ * next one: 180 to 199 mm is one cell, 200 to 219 mm the next. The caller and
+ * every contributor are put in the cell their own stored bin falls in, and only
+ * people of the same cell are neighbours.
  *
- * Why: the scan's hand length range (100 to 280 mm) is wider than the palm
- * width range (50 to 150 mm), so length gets the wider radius. That is a
- * judgement, not a number measured from contributions: there is no data yet to
- * fit one against. With little data, a radius this wide also keeps the pool big
- * enough to reach the floor of people.
+ * Why fixed cells and not a window around each caller: windows that follow the
+ * caller overlap, so a caller who picks their outline can ask twice, one bin
+ * apart, and subtract the two answers to recover one person's rating. Within a
+ * fixed cell every position gives the very same answer, and two different cells
+ * share nobody, so two queries never differ by a single person.
+ *
+ * Why 20: it is the width of the window this replaced (+-10 mm), so the pool a
+ * caller draws on stays about the same size. The scan's hand length range (100
+ * to 280 mm) is wider than the palm width range (50 to 150 mm), so length gets
+ * the wider cell. That is a judgement, not a number fitted to data. It must be
+ * a positive multiple of `CONTRIBUTION_BIN_MM`, so that no bin straddles a
+ * grid line.
  */
-export const SIMILAR_HAND_LENGTH_RADIUS_BINS = 2;
+export const SIMILAR_HAND_LENGTH_CELL_MM = 4 * CONTRIBUTION_BIN_MM;
 
 /**
- * Candidate (未拍板): the same for palm width, in bins. 1 bin = 5 mm. The
- * narrower of the two radii, with the same caveat: it is a judgement, not
- * something fitted to data.
+ * Candidate (未拍板): the same for palm width, in millimetres, with the same
+ * grid and the same lower-edge-in, upper-edge-out rule: 90 to 99 mm is one
+ * cell. 10 is the width of the window this replaced (+-5 mm).
  */
-export const SIMILAR_PALM_WIDTH_RADIUS_BINS = 1;
-
-/** The two radii in millimetres: what the engine compares a difference with. */
-export const SIMILAR_HAND_LENGTH_RADIUS_MM =
-  SIMILAR_HAND_LENGTH_RADIUS_BINS * CONTRIBUTION_BIN_MM;
-export const SIMILAR_PALM_WIDTH_RADIUS_MM =
-  SIMILAR_PALM_WIDTH_RADIUS_BINS * CONTRIBUTION_BIN_MM;
+export const SIMILAR_PALM_WIDTH_CELL_MM = 2 * CONTRIBUTION_BIN_MM;
 
 /**
  * Candidate (未拍板): whether a neighbour must use the caller's grip.
  *
  * Off: the pool is small, and each extra filter takes people away from a count
- * that has a floor of two. Turning it on is this one flag. The response's
- * `basis.gripStyle` is the caller's own grip either way, reported for context
+ * that has a floor of `SIMILAR_MIN_PEOPLE` people. Turning it on is this one
+ * flag. The response's `basis.gripStyle` is the caller's own grip either way, reported for context
  * only, and the contract texts (`recommend.ts`, `survey.ts`) say the same: the
  * grip stored with a contribution is compared only if this flag is on. Whether
  * to turn it on is Kirby's decision (未拍板).
@@ -67,8 +72,8 @@ export const SIMILAR_REQUIRE_SAME_GRIP = false;
  * Why not every rating of every mouse by everyone: a mouse under the floor is
  * never shown, and a person who is not a neighbour is in no neighbour count, so
  * letting either move globalMean would let a hidden rating change the order of
- * what is shown. Everything that orders the list is an aggregate of two or more
- * neighbours.
+ * what is shown. Everything that orders the list is an aggregate of
+ * `SIMILAR_MIN_PEOPLE` or more neighbours.
  *
  * What the pull does to the order of two mice with plain means a > b. In
  * general, a score minus globalMean is n * (mean - globalMean) / (n + m), which
@@ -79,29 +84,30 @@ export const SIMILAR_REQUIRE_SAME_GRIP = false;
  * the order can reverse, and the direction depends on the side:
  *   - globalMean below both: the smaller group is pulled toward it harder (m /
  *     (n + m) of its score is the prior), so a small group's higher mean can
- *     fall under a larger group's lower one. With m = 4, n = 2 raters at mean a
- *     against n = 8 raters at mean b, that is exactly when a + globalMean < 2b
- *     (a = 5, b = 4.6: globalMean < 4.2). With n = 10 for the larger group
- *     instead (six 5s and four 4s, mean 4.6) against two 5s, it is when
- *     globalMean < 4.25. The tests work that pair: outranked at globalMean 3.0
- *     (3.667 against 4.143), not at 4.667 (4.778 against 4.619).
+ *     fall under a larger group's lower one. With m = 4, n = 5 raters at mean a
+ *     against n = 20 raters at mean b, that is exactly when
+ *     24 * (5a + 4g) < 9 * (20b + 4g), g being globalMean. For five 5s against
+ *     sixteen 5s and four 4s (mean 4.8) it is when globalMean < 4.4. The tests
+ *     work that pair: outranked at globalMean 4.2 (4.644 against 4.7), not at
+ *     4.84 (4.929 against 4.807).
  *   - globalMean above both: the same pull works the other way, and a small
  *     group's lower mean can pass a larger group's higher one. With m = 4: 50
- *     raters (ten 5s and forty 4s, mean 4.2), two raters (two 4s, mean 4.0)
+ *     raters (ten 5s and forty 4s, mean 4.2), five raters (five 4s, mean 4.0)
  *     and, as a third mouse that lifts the prior, 100 raters (ninety 5s and ten
- *     4s, mean 4.9). globalMean = 708 / 152 = 4.658; the 50 raters score 4.234
- *     and the two raters score 4.439, so the group with the lower mean is
+ *     4s, mean 4.9). globalMean = 720 / 155 = 4.645; the 50 raters score 4.233
+ *     and the five raters score 4.287, so the group with the lower mean is
  *     ahead. The tests work this example.
  * globalMean is a weighted mean of the plain means of the mice that clear the
  * floor, so it is between the lowest and highest of them: with exactly two such
  * mice it is between their two means and the order never reverses; a reversal
  * needs a third mouse.
  *
- * Why 4: it is twice the floor of two, so a mouse that only just clears the
- * floor gets one third of its weight from its own neighbours, and a mouse with
- * eight raters gets two thirds. It is a taste for how fast to trust a small
- * group, not a fitted value. It must be a positive number (not necessarily a
- * whole one).
+ * Why 4: it is a little under the floor of five, so a mouse that only just
+ * clears the floor gets 4/9 of its weight from the prior and 5/9 from its own
+ * neighbours, and a mouse with twenty raters gets five sixths from its own. It
+ * is a taste for how fast to trust a small group, not a fitted value (and it
+ * was picked when the floor was two; the floor of five was not a reason to
+ * change it). It must be a positive number (not necessarily a whole one).
  *
  * The score only orders the list. The mean a visitor sees is always the plain
  * mean of the neighbours' ratings, never this score.

@@ -7,19 +7,25 @@
  *
  * Rules, all candidates (未拍板) unless the contract fixes them; the tunable
  * numbers are in `constants.ts`:
- *   1. A neighbour is a contributor, not the caller (any id in
- *      `ownContributionIds`), whose hand length is within
- *      `SIMILAR_HAND_LENGTH_RADIUS_MM` and palm width within
- *      `SIMILAR_PALM_WIDTH_RADIUS_MM` of the caller's (and, if
- *      `SIMILAR_REQUIRE_SAME_GRIP`, whose grip is the caller's).
+ *   1. The hand space is cut into fixed cells: hand length every
+ *      `SIMILAR_HAND_LENGTH_CELL_MM` (20 mm) and palm width every
+ *      `SIMILAR_PALM_WIDTH_CELL_MM` (10 mm), on a grid anchored at 0. A cell
+ *      includes its lower edge and excludes its upper one (hand lengths 180 to
+ *      199 mm are one cell, 200 to 219 mm the next), so each stored bin is in
+ *      exactly one. A neighbour is a contributor, not the caller (any id in
+ *      `ownContributionIds`), whose stored hand length bin and palm width bin
+ *      fall in the same cells as the caller's own bins (and, if
+ *      `SIMILAR_REQUIRE_SAME_GRIP`, whose grip is the caller's). There is no
+ *      radius: a person 5 mm away across a grid line is not a neighbour, and a
+ *      person 15 mm away in the same cell is.
  *   2. A mouse's `raters` is the neighbours who rated it and its
  *      `meanSatisfaction` is their plain mean. It is never the ranking score.
  *   3. Mice are ranked by a Bayesian average toward one number for the whole
  *      list: the mean of every neighbour rating of every mouse that at least
  *      `SIMILAR_MIN_PEOPLE` neighbours rated (a plain mean over ratings,
  *      whether or not that mouse makes the top `MAX_SIMILAR_MICE`). So every
- *      number that orders the list comes from an aggregate of two or more
- *      neighbours: the ratings of a mouse that fewer than `SIMILAR_MIN_PEOPLE`
+ *      number that orders the list comes from an aggregate of at least
+ *      `SIMILAR_MIN_PEOPLE` neighbours: the ratings of a mouse that fewer than `SIMILAR_MIN_PEOPLE`
  *      neighbours rated, and of people who are not neighbours, move nothing.
  *      Ties go to more raters, then to the slug in code-unit order.
  *   4. The floor `SIMILAR_MIN_PEOPLE` (contract): under it, neighbours are not
@@ -28,17 +34,29 @@
  *   5. The caller's own contributions are left out of everything, the prior
  *      too, so the answer cannot depend on, or give back, what the caller said.
  *
- * Known limit (a later server PR and Kirby decide): the windows (hand length
- * +-10 mm, palm width +-5 mm) overlap and the mean is not coarsened, so a caller
- * who picks their own outline can subtract two answers one bin apart and
- * recover one rating (hands of 170, 175, 180, 190 mm rate 4, 5, 2, 1: at 180 mm
- * 4 raters, mean 3; at 175 mm 3 raters, mean 3.6667; 4*3 - 3*3.6667 = 1). The
- * floor does not stop it and the prior is not the cause. A second known case
- * is a mouse rated by exactly two neighbours, one of them an account the caller
- * controls: its shown mean gives the other rating away (the contract already
- * says a floor of two is not airtight). Options: probe limits, fixed cells, a
- * higher floor, a coarser mean. Until one is chosen, never claim that a single
- * contributor cannot be worked out.
+ * What the fixed cells stop, and what they do not (Kirby approved fixed cells
+ * and the floor of 5 on 2026-10-20, candidates until a formal meeting):
+ *
+ * - Subtracting two overlapping windows. With a window that followed the
+ *   caller (hand length +-10 mm, palm width +-5 mm) a caller who picked their
+ *   own outline could ask twice, one bin apart, and the two groups of
+ *   neighbours differed by one person. Example: hands of 170, 175, 180 and
+ *   190 mm rating 4, 5, 2 and 1; a caller at 180 mm got 4 raters, mean 3, and
+ *   a caller at 175 mm got 3 raters, mean 3.6667; 4 * 3 - 3 * 3.6667 = 1, the
+ *   rating of the 190 mm hand. With fixed cells every position inside a cell
+ *   gets the same answer (the neighbours depend on the cell, not on where in
+ *   it the caller is; only `basis` repeats the caller's own bin), and two
+ *   different cells share nobody, so no two queries differ by a single person,
+ *   and a cell with fewer than `SIMILAR_MIN_PEOPLE` people says nothing at all.
+ *   The caller's own contributions are the one thing that differs between two
+ *   callers of the same cell, and the caller knows those already.
+ * - The mean is not coarsened, and the floor is not airtight. A caller who
+ *   controls `SIMILAR_MIN_PEOPLE - 1` accounts in one cell that rated one
+ *   mouse (four, with a floor of 5) and the one other person who did can work
+ *   that person's rating out from the shown mean. Fixed cells do not change
+ *   this and neither does a higher floor; it only costs more accounts. Never
+ *   claim that a single contributor cannot be worked out. Options if that is
+ *   ever not enough: a coarser mean, probe limits, a higher floor.
  *
  * What the caller of this function must do (checked 2026-10-09 against the
  * planned catalogue growth: more brands, `listed = false` for the Logitech mice
@@ -61,8 +79,8 @@ import {
 } from "../../lib/contracts/recommend";
 import { CONTRIBUTION_BIN_MM } from "../../lib/contracts/survey";
 import {
-  SIMILAR_HAND_LENGTH_RADIUS_MM,
-  SIMILAR_PALM_WIDTH_RADIUS_MM,
+  SIMILAR_HAND_LENGTH_CELL_MM,
+  SIMILAR_PALM_WIDTH_CELL_MM,
   SIMILAR_PRIOR_WEIGHT,
   SIMILAR_REQUIRE_SAME_GRIP,
   SIMILAR_SCORE_TIE_EPSILON,
@@ -110,15 +128,17 @@ export interface Caller {
  * `constants.ts`. The floor on people is not here; it is the contract's.
  */
 export interface SimilarRules {
-  handLengthRadiusMm: number;
-  palmWidthRadiusMm: number;
+  /** Width of one hand length cell, in mm (a grid anchored at 0). */
+  handLengthCellMm: number;
+  /** Width of one palm width cell, in mm. */
+  palmWidthCellMm: number;
   requireSameGrip: boolean;
   priorWeight: number;
 }
 
 export const DEFAULT_SIMILAR_RULES: SimilarRules = {
-  handLengthRadiusMm: SIMILAR_HAND_LENGTH_RADIUS_MM,
-  palmWidthRadiusMm: SIMILAR_PALM_WIDTH_RADIUS_MM,
+  handLengthCellMm: SIMILAR_HAND_LENGTH_CELL_MM,
+  palmWidthCellMm: SIMILAR_PALM_WIDTH_CELL_MM,
   requireSameGrip: SIMILAR_REQUIRE_SAME_GRIP,
   priorWeight: SIMILAR_PRIOR_WEIGHT,
 };
@@ -228,26 +248,37 @@ export function shrunkScore(
 }
 
 /**
- * True when `candidate` is a neighbour of `caller` under the rules above.
+ * The fixed cell a size falls in: the grid is anchored at 0, a cell includes its
+ * lower edge and excludes its upper one, so 180 and 199 are in cell 9 (cell
+ * width 20) and 200 is in cell 10. NaN, a missing value and the infinities give
+ * a cell that is NaN or infinite and is never equal to a finite cell (`NaN` is
+ * not equal to anything, itself included).
+ */
+const cellOf = (mm: number, cellMm: number): number => Math.floor(mm / cellMm);
+
+/**
+ * True when `candidate` is a neighbour of `caller` under the rules above: the
+ * same hand length cell, the same palm width cell and, if the rule says so, the
+ * same grip.
  *
- * Each size is tested as "within the radius", never as "not beyond it": a bin
- * that is NaN or missing makes the difference NaN, and `NaN <= radius` is false
- * (out), while `NaN > radius` is false too, so testing "beyond the radius" and
- * excluding on that would take such a contributor in as a neighbour.
+ * Each size is tested with `===` on a cell, never as "not in a different cell":
+ * a bin that is NaN or missing gives a cell that equals nothing, so it is out,
+ * while testing "different cell" and excluding on that would take such a
+ * contributor in as a neighbour.
  */
 function isNeighbour(
   caller: Caller,
   candidate: Contribution,
   rules: SimilarRules,
 ): boolean {
-  const handClose =
-    Math.abs(candidate.handLengthBinMm - caller.handLengthBinMm) <=
-    rules.handLengthRadiusMm;
-  if (!handClose) return false;
-  const palmClose =
-    Math.abs(candidate.palmWidthBinMm - caller.palmWidthBinMm) <=
-    rules.palmWidthRadiusMm;
-  if (!palmClose) return false;
+  const sameHandCell =
+    cellOf(candidate.handLengthBinMm, rules.handLengthCellMm) ===
+    cellOf(caller.handLengthBinMm, rules.handLengthCellMm);
+  if (!sameHandCell) return false;
+  const samePalmCell =
+    cellOf(candidate.palmWidthBinMm, rules.palmWidthCellMm) ===
+    cellOf(caller.palmWidthBinMm, rules.palmWidthCellMm);
+  if (!samePalmCell) return false;
   return !rules.requireSameGrip || candidate.gripStyle === caller.gripStyle;
 }
 
@@ -285,12 +316,12 @@ export function similarHands(
   if (listable.length === 0) return unavailable();
 
   // The prior: one mean over every valid neighbour rating of those mice, so a
-  // mean of ratings, not of per-mouse means. It is made of aggregates of two or
-  // more neighbours only: the ratings of a mouse under the floor, of someone
+  // mean of ratings, not of per-mouse means. It is made of aggregates of at least
+  // `SIMILAR_MIN_PEOPLE` neighbours only: the ratings of a mouse under the floor, of someone
   // who is not a neighbour, and of the caller are all outside it. `tally`'s
   // filter is the only one, so what counts as a valid rating is the same here
   // as in the per-mouse numbers. `listable` is not empty and each of its mice
-  // has at least two ratings, so the division below is never by zero.
+  // has at least `SIMILAR_MIN_PEOPLE` ratings, so the division below is never by zero.
   const priorRatings = listable.flatMap(([, near]) => near.values);
   const globalMean = orderFreeSum(priorRatings) / priorRatings.length;
 

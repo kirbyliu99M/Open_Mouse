@@ -217,9 +217,9 @@ describe("GET /api/scans/{scanId}/similar", () => {
   describe("200", () => {
     it("answers from the neighbours of the caller's hand, with the profile read from the scan", async () => {
       pool = [
-        person([["a", 5]]),
-        person([["a", 4]]),
+        ...[5, 4, 5, 4, 4].map((n) => person([["a", n]])),
         person([["a", 3]], { handLengthBinMm: 105 }), // far away: ignored
+        person([["a", 1]], { handLengthBinMm: 200 }), // next cell over: ignored
       ];
       const scan = addScan();
       const res = await getOwn(scan);
@@ -227,7 +227,7 @@ describe("GET /api/scans/{scanId}/similar", () => {
       const body = await answer(res);
       expect(body).toEqual({
         available: true,
-        neighbours: 2,
+        neighbours: 5,
         // 186.4 and 82.7 rounded DOWN to the 5 mm bin.
         basis: {
           handLengthBinMm: 185,
@@ -239,15 +239,15 @@ describe("GET /api/scans/{scanId}/similar", () => {
             slug: "a",
             brand: "Brand a",
             model: "Model a",
-            raters: 2,
-            meanSatisfaction: 4.5,
+            raters: 5,
+            meanSatisfaction: 4.4,
           },
         ],
       });
     });
 
     it("reports the grip the person stated, else the one the fit predicts", async () => {
-      pool = [...crowd(2, "a", 4)];
+      pool = [...crowd(5, "a", 4)];
       const stated: GripStyle =
         predictGrip(186.4, 106.2) === "claw" ? "palm" : "claw";
       const scan = addScan({ scan: { gripStyleStated: stated } });
@@ -260,7 +260,7 @@ describe("GET /api/scans/{scanId}/similar", () => {
       const thin: PooledContribution[][] = [
         [], // nobody
         [person([["a", 5]])], // one neighbour
-        [person([["a", 5]]), person([["b", 5]])], // two neighbours, no mouse rated twice
+        [...crowd(4, "a", 5), ...crowd(4, "b", 5)], // eight neighbours, no mouse rated by five
         [...crowd(5, "a", 5)].map((c) => ({ ...c, handLengthBinMm: 250 })), // plenty, but far away
       ];
       for (const contributions of thin) {
@@ -277,7 +277,7 @@ describe("GET /api/scans/{scanId}/similar", () => {
     it("lists at most MAX_SIMILAR_MICE mice and always validates against the schema", async () => {
       catalogue = ["a", "b", "c", "d", "e", "f", "g"].map((s) => mouse(s));
       pool = ["a", "b", "c", "d", "e", "f", "g"].flatMap((s, i) =>
-        crowd(2 + (i % 3), s, 1 + (i % 5)),
+        crowd(5 + (i % 3), s, 1 + (i % 5)),
       );
       const scan = addScan();
       const body = await answer(await getOwn(scan));
@@ -285,7 +285,7 @@ describe("GET /api/scans/{scanId}/similar", () => {
     });
 
     it("takes brand and model from the current mice row, never from a contribution", async () => {
-      pool = [...crowd(2, "a", 4)];
+      pool = [...crowd(5, "a", 4)];
       const scan = addScan();
       const before = await answer(await getOwn(scan));
       expect(before.available && before.mice[0]).toMatchObject({
@@ -308,16 +308,12 @@ describe("GET /api/scans/{scanId}/similar", () => {
     });
 
     it("ignores a rating whose mouse is no longer in the catalogue", async () => {
-      pool = [
+      pool = Array.from({ length: 5 }, () =>
         person([
           ["a", 4],
           ["gone", 1],
         ]),
-        person([
-          ["a", 4],
-          ["gone", 1],
-        ]),
-      ];
+      );
       const scan = addScan();
       const body = await answer(await getOwn(scan));
       expect(slugs(body)).toEqual(["a"]);
@@ -325,17 +321,17 @@ describe("GET /api/scans/{scanId}/similar", () => {
   });
 
   describe("what the caller may be shown", () => {
-    // Twenty neighbours; B is rated by ten of them (six 5s, four 4s), A by two
-    // 5s (the pair that reverses with the prior: constants.ts), and U by all
-    // twenty as a 1. Left in, U's twenty 1s pull the prior from 4.67 to 2.38
-    // and put B ahead of A.
+    // Twenty-five neighbours; B is rated by twenty of them (sixteen 5s, four
+    // 4s), A by five 5s (the pair that reverses with the prior: constants.ts),
+    // and U by all twenty-five as a 1. Left in, U's twenty-five 1s pull the
+    // prior from 4.84 to 2.92 and put B ahead of A.
     const world = (hidden: Partial<CatalogueMouse>) => {
       catalogue = [mouse("a"), mouse("b"), mouse("u", hidden)];
-      const ratings: PooledContribution[] = Array.from({ length: 20 }, (_, i) =>
+      const ratings: PooledContribution[] = Array.from({ length: 25 }, (_, i) =>
         person([
-          ...(i < 2 ? ([["a", 5]] as [string, number][]) : []),
-          ...(i >= 2 && i < 12
-            ? ([["b", i < 8 ? 5 : 4]] as [string, number][])
+          ...(i < 5 ? ([["a", 5]] as [string, number][]) : []),
+          ...(i >= 5 && i < 25
+            ? ([["b", i < 21 ? 5 : 4]] as [string, number][])
             : []),
           ["u", 1],
         ]),
@@ -392,9 +388,9 @@ describe("GET /api/scans/{scanId}/similar", () => {
         }),
       ];
       pool = [
-        ...crowd(2, "ergo", 5),
-        ...crowd(2, "sym", 4),
-        ...crowd(2, "ambidextrous", 3),
+        ...crowd(5, "ergo", 5),
+        ...crowd(5, "sym", 4),
+        ...crowd(5, "ambidextrous", 3),
       ];
       const left = addScan({ scan: { hand: "left" } });
       const right = addScan({ scan: { hand: "right" } });
@@ -412,13 +408,12 @@ describe("GET /api/scans/{scanId}/similar", () => {
     it("keeps a contributor as a neighbour when every rating of theirs was dropped", async () => {
       catalogue = [mouse("a"), mouse("u", { listed: false })];
       pool = [
-        person([["a", 4]]),
-        person([["a", 4]]),
+        ...crowd(5, "a", 4),
         person([["u", 1]]), // only a hidden mouse: still a person with this hand
       ];
       const scan = addScan();
       const body = await answer(await getOwn(scan));
-      expect(body.available && body.neighbours).toBe(3);
+      expect(body.available && body.neighbours).toBe(6);
       expect(slugs(body)).toEqual(["a"]);
     });
 
@@ -460,24 +455,26 @@ describe("GET /api/scans/{scanId}/similar", () => {
       signedInAs = "user-1";
       const scan = addScan({ userId: "user-1" });
       pool = [
-        ...crowd(2, "a", 5),
-        // Two earlier contributions of this account, one rating a third mouse.
+        ...crowd(5, "a", 5),
+        // Six earlier contributions of this account: one rates A, five rate B.
+        // Counted, B would have five raters, clear the floor and enter the prior.
         person([["a", 1]], { userId: "user-1" }),
-        person([["b", 1]], { userId: "user-1" }),
-        person([["b", 1]], { userId: "user-1" }),
+        ...Array.from({ length: 5 }, () =>
+          person([["b", 1]], { userId: "user-1" }),
+        ),
       ];
       const body = await answer(await get(scan.scanId));
       expect(body).toMatchObject({
         available: true,
-        neighbours: 2,
-        mice: [{ slug: "a", raters: 2, meanSatisfaction: 5 }],
+        neighbours: 5,
+        mice: [{ slug: "a", raters: 5, meanSatisfaction: 5 }],
       });
     });
 
-    it("is available: false when the caller's own contribution was one of the two that made the floor", async () => {
+    it("is available: false when the caller's own contribution was one of the five that made the floor", async () => {
       signedInAs = "user-1";
       const scan = addScan({ userId: "user-1" });
-      pool = [person([["a", 5]], { userId: "user-1" }), person([["a", 4]])];
+      pool = [person([["a", 5]], { userId: "user-1" }), ...crowd(4, "a", 4)];
       expect(await (await get(scan.scanId)).json()).toEqual({
         available: false,
         reason: "insufficient_data",
@@ -488,30 +485,31 @@ describe("GET /api/scans/{scanId}/similar", () => {
       signedInAs = "user-1";
       const scan = addScan({ userId: "user-1" });
       pool = [
-        ...crowd(2, "a", 5),
+        ...crowd(5, "a", 5),
         // This account's earlier contribution: every rating of it moved on.
         person([], { userId: "user-1" }),
       ];
       const body = await answer(await get(scan.scanId));
-      // Counted as a neighbour it would make three.
-      expect(body).toMatchObject({ available: true, neighbours: 2 });
+      // Counted as a neighbour it would make six.
+      expect(body).toMatchObject({ available: true, neighbours: 5 });
     });
 
     it("counts every other signed-in account's contribution at the same bins: only the caller's own account is left out", async () => {
       signedInAs = "user-1";
       const scan = addScan({ userId: "user-1" });
       pool = [
-        person([["a", 5]], { userId: "user-2" }),
-        person([["a", 3]], { userId: "user-3" }),
+        ...[5, 3, 4, 4, 4].map((n, i) =>
+          person([["a", n]], { userId: `user-${i + 2}` }),
+        ),
         person([["a", 1]], { userId: "user-1" }),
-        person([], { userId: "user-4" }),
+        person([], { userId: "user-7" }),
       ];
       const body = await answer(await get(scan.scanId));
       expect(body).toMatchObject({
         available: true,
-        // user-2, user-3 and user-4 (who has no ratings left but is a neighbour).
-        neighbours: 3,
-        mice: [{ slug: "a", raters: 2, meanSatisfaction: 4 }],
+        // user-2 to user-6, and user-7 (who has no ratings left but is a neighbour).
+        neighbours: 6,
+        mice: [{ slug: "a", raters: 5, meanSatisfaction: 4 }],
       });
     });
 
@@ -519,12 +517,13 @@ describe("GET /api/scans/{scanId}/similar", () => {
       pool = [
         person([["a", 5]], { userId: "user-2" }),
         person([["a", 3]], { userId: "user-1" }),
+        ...crowd(3, "a", 4),
       ];
       const scan = addScan();
       const body = await answer(await getOwn(scan));
       expect(body).toMatchObject({
-        neighbours: 2,
-        mice: [{ slug: "a", raters: 2, meanSatisfaction: 4 }],
+        neighbours: 5,
+        mice: [{ slug: "a", raters: 5, meanSatisfaction: 4 }],
       });
     });
   });
@@ -600,7 +599,7 @@ describe("GET /api/scans/{scanId}/similar", () => {
     });
 
     it("a signed-in owner is served from any browser, with no cookie", async () => {
-      pool = [...crowd(2, "a", 4)];
+      pool = [...crowd(5, "a", 4)];
       signedInAs = "user-1";
       const scan = addScan({ userId: "user-1" });
       expect((await get(scan.scanId)).status).toBe(200);
@@ -654,7 +653,7 @@ describe("GET /api/scans/{scanId}/similar", () => {
     afterEach(() => vi.restoreAllMocks());
 
     it("every response of every status carries Cache-Control: no-store", async () => {
-      pool = [...crowd(2, "a", 4)];
+      pool = [...crowd(5, "a", 4)];
       const scan = addScan();
       const responses = [
         await getOwn(scan), // 200
@@ -687,7 +686,7 @@ describe("GET /api/scans/{scanId}/similar", () => {
           model: "Quillmodel",
         }),
       ];
-      pool = [...crowd(2, "zq-slug", 4)];
+      pool = [...crowd(5, "zq-slug", 4)];
       const scan = addScan();
       const res = await getOwn(scan);
       expect(res.status).toBe(500);
@@ -708,7 +707,7 @@ describe("GET /api/scans/{scanId}/similar", () => {
 
     it("a failure is the plain 500, and no log line carries a name, a bin, a rating or the scan id", async () => {
       catalogue = [mouse("a", { brand: "Zephyrbrand", model: "Quillmodel" })];
-      pool = [...crowd(2, "a", 4)];
+      pool = [...crowd(5, "a", 4)];
       const scan = addScan();
       await getOwn(scan); // answered
       const failed = await getOwn(scan, {

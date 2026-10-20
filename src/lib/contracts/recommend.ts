@@ -4,15 +4,15 @@
  *
  * Aggregates only. Nothing here lets a caller work back to one contributor:
  * the response carries counts and means, and the server withholds a mouse, or
- * the whole block, when too few people stand behind it. Kirby (2026-10-06):
- * in the test phase there is no minimum of its own, because there is no volume
- * of data; so the engine sets none beyond the floor the shape itself enforces,
- * `SIMILAR_MIN_PEOPLE`, below which a count or a mean would be one person's
- * answer. Keeping that floor is Claude's reading, not Kirby's decision
- * (未拍板): Kirby may remove it. At a floor of two it is not airtight either:
- * a caller who is one of two raters could work the other's rating out from a
- * mean, so the server must leave the caller's own contribution out of what it
- * counts, and that is for the server PR to settle. Until the floor is met the
+ * the whole block, when too few people stand behind it, `SIMILAR_MIN_PEOPLE`.
+ * Kirby (2026-10-06) first kept only a floor of two. Kirby (2026-10-20), after
+ * a code review showed that overlapping windows let two answers one bin apart
+ * be subtracted to give one rating back, approved a floor of five and
+ * neighbours drawn from fixed cells instead of a window around each caller
+ * (candidate until merged). A floor is still not airtight: someone who
+ * controls four of five raters of a mouse can work out the fifth, so never
+ * claim that a single contributor cannot be worked out. The server leaves the
+ * caller's own contributions out of what it counts. Until the floor is met the
  * answer is `available: false`, never a guess. Every number is made in
  * TypeScript (AGENTS.md hard rule 2).
  *
@@ -30,8 +30,8 @@ import { z } from "zod";
 import { GRIP_STYLES } from "./fit";
 import { CONTRIBUTION_BIN_MM } from "./survey";
 
-/** No count in a response may be below this: one person is not an aggregate. */
-export const SIMILAR_MIN_PEOPLE = 2;
+/** No count in a response may be below this (Kirby 2026-10-20: 2 → 5). */
+export const SIMILAR_MIN_PEOPLE = 5;
 
 export const MAX_SIMILAR_MICE = 5;
 
