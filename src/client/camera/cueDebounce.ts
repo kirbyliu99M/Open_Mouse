@@ -69,6 +69,11 @@ function adopt(code: CueCode, nowMs: number): CueDebounceState {
 const GENERIC_FOR_REASON: Record<PaperGateReason, CueCode> = {
   "edge-covered": "edge-covered",
   "paper-curled": "paper-curled",
+  // A detector-stage cue (scan S2) is its own reason: no side to disagree on.
+  "stage-no-bright-region": "stage-no-bright-region",
+  "stage-region-split": "stage-region-split",
+  "stage-aspect-mismatch": "stage-aspect-mismatch",
+  "stage-too-small": "stage-too-small",
 };
 
 /** The state after one sample whose (raw) cue code is `sample`. */

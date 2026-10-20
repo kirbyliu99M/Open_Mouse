@@ -43,6 +43,7 @@ import {
 } from "../../src/client/photo/pipeline";
 import { computeSheetLayout } from "../../src/client/sheet/layout";
 import { photoStagesFor } from "../../src/lib/particles/loading";
+import { en as paperStageCopyEn } from "../../src/lib/copy/paper-stage";
 import { ID1_CARD_MM, SHEET } from "../../src/lib/contracts/measurement";
 
 const S = 3; // px per mm
@@ -378,5 +379,70 @@ describe("blank paper pipeline: onStage when no sheet is found", () => {
     );
     expect(result.status).toBe("error");
     expect(seen.slice(0, 2)).toEqual(["decoded", "paper"]);
+  });
+});
+
+describe("blank paper pipeline: the detector's failure stage (scan S2)", () => {
+  const noSheet = (failureStage?: string) =>
+    ({
+      corners: null,
+      cornersSeen: 0,
+      cornersFound: [false, false, false, false],
+      partialCorners: [null, null, null, null],
+      minSideCoverage: 0,
+      edgeFitResidualPx: 0,
+      worstSideIndex: null,
+      paperRegionFound: false,
+      ...(failureStage ? { failureStage } : {}),
+    }) as never;
+
+  it("names the stage in the English message and the detail, keeps the code, calls the detector once", async () => {
+    arrange("right");
+    vi.mocked(detectPaperQuad).mockReturnValue(noSheet("region_split"));
+    const result = await run(
+      { method: "paper-edge", paperSize: "a4" },
+      { handExplicit: true },
+    );
+    expect(vi.mocked(detectPaperQuad)).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe("error");
+    if (result.status !== "error") return;
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]!.code).toBe("PAPER_NOT_FOUND");
+    expect(result.errors[0]!.detail).toEqual({
+      kind: "paperStage",
+      stage: "region_split",
+    });
+    expect(result.errors[0]!.message).toBe(paperStageCopyEn.regionSplit.retake);
+    expect(result.diagnostics?.paper?.failureStage).toBe("region_split");
+    expect(result.diagnostics?.paper?.gateFailures).toEqual([
+      "PAPER_NOT_FOUND",
+    ]);
+  });
+
+  it("without a stage, the failure is exactly what it was", async () => {
+    arrange("right");
+    vi.mocked(detectPaperQuad).mockReturnValue(noSheet());
+    const result = await run(
+      { method: "paper-edge", paperSize: "a4" },
+      { handExplicit: true },
+    );
+    expect(vi.mocked(detectPaperQuad)).toHaveBeenCalledTimes(1);
+    if (result.status !== "error") throw new Error("expected an error");
+    expect(result.errors[0]).toEqual({
+      code: "PAPER_NOT_FOUND",
+      message:
+        "We couldn't find a sheet of paper in this photo — place a blank A4 (or Letter) sheet flat on a plain, contrasting surface and retake.",
+    });
+    expect(result.diagnostics?.paper?.failureStage).toBeNull();
+  });
+
+  it("a found sheet still calls the detector once and carries no stage", async () => {
+    arrange("right");
+    const result = await run(
+      { method: "paper-edge", paperSize: "a4" },
+      { handExplicit: true },
+    );
+    expect(vi.mocked(detectPaperQuad)).toHaveBeenCalledTimes(1);
+    expect(result.diagnostics?.paper?.failureStage).toBeNull();
   });
 });

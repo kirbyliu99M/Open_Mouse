@@ -52,6 +52,9 @@
  *    `paperSize` even after perspective) — failing any of them reports no
  *    detection rather than a wrong one.
  *
+ * Every "no detection" carries `failureStage`, the step it stopped at
+ * (`detectionStage.ts`, scan S2): no step above changed for it.
+ *
  * `cornersSeen` is exactly the count of `true` in `cornersFound`
  * (TL/TR/BR/BL, both adjacent sides fit); `minSideCoverage` is the
  * smallest fraction of any side's length that had inlier points spread
@@ -80,6 +83,12 @@ import {
   RANSAC_SEED,
 } from "./quad-math";
 import { assumedFocalPxFromFov, resolveOrientation } from "./orientation";
+import {
+  stageForSmallRegions,
+  type PaperDetectionStage,
+} from "./detectionStage";
+
+export type { PaperDetectionStage };
 
 export type PaperSize = "a4" | "letter";
 
@@ -169,6 +178,15 @@ export interface SheetQuadDetection {
    * detections in tests).
    */
   readonly sideCoverages?: readonly [number, number, number, number];
+  /**
+   * Scan S2 (V3.2, 2026-10-21, candidate): where the detector stopped, set on
+   * every "no sheet" result it returns (`paperRegionFound: false`) and never
+   * on a found sheet, so a found sheet's result is exactly what it was before.
+   * Diagnostic only: it picks the words of the hint and goes in the local
+   * attempt log, and changes no corner, gate or number (`detectionStage.ts`).
+   * Absent where no detector ran (the marker adapter, hand-built detections).
+   */
+  readonly failureStage?: PaperDetectionStage;
 }
 
 const NONE: SheetQuadDetection = {
@@ -181,6 +199,11 @@ const NONE: SheetQuadDetection = {
   worstSideIndex: null,
   paperRegionFound: false,
 };
+
+/** "No sheet", with where the detector stopped (`failureStage`). */
+function none(stage: PaperDetectionStage): SheetQuadDetection {
+  return { ...NONE, failureStage: stage };
+}
 
 // ── Tunable constants ────────────────────────────────────────────────────
 
@@ -645,7 +668,7 @@ export function detectPaperQuad(
   try {
     return detectPaperQuadImpl(frame, paperSize, options);
   } catch {
-    return NONE;
+    return none("exception");
   }
 }
 
@@ -656,7 +679,7 @@ function detectPaperQuadImpl(
 ): SheetQuadDetection {
   const { width, height, data } = frame;
   const pixelCount = width * height;
-  if (width < 20 || height < 20) return NONE;
+  if (width < 20 || height < 20) return none("unknown");
 
   const scale = resolutionScale(width, height);
   const ransacInlierThresholdPx =
@@ -677,7 +700,7 @@ function detectPaperQuadImpl(
   }
 
   const { labels, areas } = labelComponents(mask, width, height);
-  if (areas.length === 0) return NONE;
+  if (areas.length === 0) return none("no_bright_region");
   let bestLabel = 0;
   let bestArea = areas[0];
   for (let i = 1; i < areas.length; i++) {
@@ -686,7 +709,11 @@ function detectPaperQuadImpl(
       bestLabel = i;
     }
   }
-  if (bestArea < MIN_PAPER_AREA_FRACTION * pixelCount) return NONE;
+  if (bestArea < MIN_PAPER_AREA_FRACTION * pixelCount) {
+    return none(
+      stageForSmallRegions(areas, pixelCount, MIN_PAPER_AREA_FRACTION),
+    );
+  }
 
   const { rowPoints, colPoints } = collectBoundaryCandidates(
     labels,
@@ -696,11 +723,13 @@ function detectPaperQuadImpl(
     width,
     height,
   );
-  if (rowPoints.length + colPoints.length < 4 * RANSAC_MIN_POINTS) return NONE;
+  if (rowPoints.length + colPoints.length < 4 * RANSAC_MIN_POINTS) {
+    return none("unknown");
+  }
 
   const hull = convexHull(rowPoints.concat(colPoints));
   const coarseQuad = simplifyToQuad(hull);
-  if (!coarseQuad) return NONE;
+  if (!coarseQuad) return none("unknown");
   const ordered = orderQuadCorners(coarseQuad);
 
   const diag = Math.hypot(width, height);
@@ -741,7 +770,7 @@ function detectPaperQuadImpl(
     if (coarse) return coarse.line;
     return null; // degenerate input (e.g. 3 near-collinear coarse corners) — no detection, not a throw.
   });
-  if (finalLinesOrNull.some((line) => line === null)) return NONE;
+  if (finalLinesOrNull.some((line) => line === null)) return none("unknown");
   const finalLines = finalLinesOrNull as NormalLine[];
 
   // Working quad: EVERY side present, falling back to the coarse line
@@ -754,15 +783,15 @@ function detectPaperQuadImpl(
     const c1 = intersectLines(finalLines[0], finalLines[1]);
     const c2 = intersectLines(finalLines[1], finalLines[2]);
     const c3 = intersectLines(finalLines[2], finalLines[3]);
-    if (!c0 || !c1 || !c2 || !c3) return NONE;
+    if (!c0 || !c1 || !c2 || !c3) return none("unknown");
     workingCorners = [c0, c1, c2, c3];
   } catch {
-    return NONE;
+    return none("exception");
   }
 
-  if (!isConvexQuad(workingCorners)) return NONE;
+  if (!isConvexQuad(workingCorners)) return none("unknown");
   if (polygonArea(workingCorners) < MIN_QUAD_AREA_FRACTION * pixelCount) {
-    return NONE;
+    return none("too_small");
   }
 
   // Component-vs-quad area consistency (B3): a merged/attached second
@@ -771,11 +800,14 @@ function detectPaperQuadImpl(
   // match the connected component it was fit from.
   const quadArea = polygonArea(workingCorners);
   const componentToQuadAreaRatio = bestArea / quadArea;
-  if (
-    componentToQuadAreaRatio < MIN_COMPONENT_TO_QUAD_AREA_RATIO ||
-    componentToQuadAreaRatio > MAX_COMPONENT_TO_QUAD_AREA_RATIO
-  ) {
-    return NONE;
+  // Under the minimum: the region fills too little of its own quad, as when
+  // it is cut into or split. Over the maximum: it spills well past the quad
+  // (merged with the background), which no named stage describes.
+  if (componentToQuadAreaRatio < MIN_COMPONENT_TO_QUAD_AREA_RATIO) {
+    return none("region_split");
+  }
+  if (componentToQuadAreaRatio > MAX_COMPONENT_TO_QUAD_AREA_RATIO) {
+    return none("unknown");
   }
 
   // Orientation + rectified aspect (B1 + B3): which of the quad's two axes
@@ -793,7 +825,7 @@ function detectPaperQuadImpl(
     focalPx,
   );
   if (!orientation || orientation.residual > MAX_ORIENTATION_RESIDUAL) {
-    return NONE;
+    return none("aspect_mismatch");
   }
   const expectedRectifiedAspect = orientation.rotateBy1
     ? longMm / shortMm
@@ -801,7 +833,7 @@ function detectPaperQuadImpl(
   const aspectError =
     Math.abs(orientation.rectifiedAspect - expectedRectifiedAspect) /
     expectedRectifiedAspect;
-  if (aspectError > ASPECT_TOLERANCE_FRACTION) return NONE;
+  if (aspectError > ASPECT_TOLERANCE_FRACTION) return none("aspect_mismatch");
 
   // Relabel so TL→TR is always the paper's WIDTH (short) side, exactly
   // like a photo shot upright would have given `buildPaperHomography`

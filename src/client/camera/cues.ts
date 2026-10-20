@@ -23,6 +23,21 @@ import {
 } from "./quad";
 import { computeLightStatus, type LightStatus } from "./light";
 import type { LivePaperGate, PaperSide } from "./paperGate";
+import {
+  paperStageLines,
+  type PaperDetectionStage,
+} from "../paper/detectionStage";
+
+/**
+ * The cue codes that name where the paper detector stopped (scan S2,
+ * 2026-10-21, candidate): one per stage that has something to say. The words
+ * are `src/lib/copy/paper-stage.ts`'s live lines, in "may" words.
+ */
+export type PaperStageCueCode =
+  | "stage-no-bright-region"
+  | "stage-region-split"
+  | "stage-aspect-mismatch"
+  | "stage-too-small";
 
 export type CueCode =
   | "place-paper"
@@ -41,7 +56,8 @@ export type CueCode =
   | "bright"
   | "hold-still"
   | "out-of-focus"
-  | "perfect";
+  | "perfect"
+  | PaperStageCueCode;
 
 export interface Cue {
   readonly code: CueCode;
@@ -50,7 +66,10 @@ export interface Cue {
   readonly allPass: boolean;
 }
 
-const CUE_KEYS: Record<CueCode, keyof CameraCuesCopy["paper"]> = {
+const CUE_KEYS: Record<
+  Exclude<CueCode, PaperStageCueCode>,
+  keyof CameraCuesCopy["paper"]
+> = {
   "place-paper": "placePaper",
   "no-corners": "noCorners",
   "some-corners": "someCorners",
@@ -84,11 +103,49 @@ export const PAPER_GATE_CUE_CODES: readonly CueCode[] = [
   "paper-curled",
 ];
 
-/** The REASON behind a paper-gate cue code (the side name is not part of it), `null` for any other cue. */
-export type PaperGateReason = "edge-covered" | "paper-curled";
+/** Each detector stage that has its own cue, and that cue. */
+const STAGE_CUE_CODES: Partial<Record<PaperDetectionStage, PaperStageCueCode>> =
+  {
+    no_bright_region: "stage-no-bright-region",
+    region_split: "stage-region-split",
+    aspect_mismatch: "stage-aspect-mismatch",
+    too_small: "stage-too-small",
+  };
+
+const STAGE_OF_CUE: Record<PaperStageCueCode, PaperDetectionStage> = {
+  "stage-no-bright-region": "no_bright_region",
+  "stage-region-split": "region_split",
+  "stage-aspect-mismatch": "aspect_mismatch",
+  "stage-too-small": "too_small",
+};
+
+function isPaperStageCueCode(code: CueCode): code is PaperStageCueCode {
+  return code in STAGE_OF_CUE;
+}
+
+/**
+ * The cue for where the detector stopped, or `null` where the stage has no
+ * cue of its own (`exception` and `unknown` say nothing a "point the camera"
+ * cue does not, so those keep the existing no-paper cues) or there is none.
+ */
+export function cueCodeForPaperStage(
+  stage: PaperDetectionStage | null | undefined,
+): PaperStageCueCode | null {
+  return stage ? (STAGE_CUE_CODES[stage] ?? null) : null;
+}
+
+/**
+ * The REASON behind a paper-gate or stage cue code (the side name is not part
+ * of it), `null` for any other cue. A stage cue is its own reason. The
+ * debounce (cueDebounce.ts) asks for the same reason twice in a row before
+ * any of these is shown.
+ */
+export type PaperGateReason =
+  "edge-covered" | "paper-curled" | PaperStageCueCode;
 
 export function paperGateReason(code: CueCode): PaperGateReason | null {
   if (code === "paper-curled") return "paper-curled";
+  if (isPaperStageCueCode(code)) return code;
   return PAPER_GATE_CUE_CODES.includes(code) ? "edge-covered" : null;
 }
 
@@ -132,6 +189,9 @@ export function cueMessage(
   mode: CueCalibrationMode,
   locale: Locale,
 ): string {
+  if (isPaperStageCueCode(code)) {
+    return paperStageLines(STAGE_OF_CUE[code], locale).live;
+  }
   const table = cameraCuesCopy(locale);
   return (mode === "printed-sheet" ? table.sheet : table.paper)[CUE_KEYS[code]];
 }
@@ -213,6 +273,12 @@ export interface CueInput {
    * from the generic "point the camera" cue to a more specific one.
    */
   readonly msSinceLastDetection: number;
+  /**
+   * Where the paper detector stopped on this sample when it found no sheet
+   * (`SheetQuadDetection.failureStage`, scan S2). Omit where there is none
+   * (the printed sheet): the cue is then exactly what it was before.
+   */
+  readonly paperStage?: PaperDetectionStage | null;
 }
 
 /**
@@ -227,6 +293,10 @@ export function pickCue(
   locale: Locale,
 ): Cue {
   if (input.cornersSeen <= 0) {
+    // Where the detector stopped, when that step has words of its own; the
+    // "point the camera" cues otherwise.
+    const stageCode = cueCodeForPaperStage(input.paperStage);
+    if (stageCode) return cue(stageCode, mode, locale);
     if (
       input.msSinceLastDetection >
       CAMERA_CONSTANTS.noDetection.placePaperTimeoutMs

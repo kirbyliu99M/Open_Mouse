@@ -698,6 +698,7 @@ async function runPaperEdgePipeline(
       sideCoverages: quad.sideCoverages ?? null,
       worstSide: paperWorstSide(quad.corners, quad.sideCoverages),
       gateFailures: [],
+      failureStage: quad.failureStage ?? null,
     };
     // The overlay is always in the whole decoded photo's pixels.
     const overlayBase = {
@@ -708,7 +709,12 @@ async function runPaperEdgePipeline(
     };
 
     if (!quad.corners) {
-      const failure = checkPaperFound(quad.paperRegionFound) ??
+      // With the step the detector stopped at (scan S2): the words name it,
+      // the code and whether the photo fails stay what they were.
+      const failure = checkPaperFound(
+        quad.paperRegionFound,
+        quad.failureStage,
+      ) ??
         checkPaperCornersSeen(quad.cornersSeen) ?? {
           code: "PAPER_NOT_FOUND" as const,
           message:

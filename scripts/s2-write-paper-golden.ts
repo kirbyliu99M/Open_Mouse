@@ -8,6 +8,7 @@
  * for a change that is meant to move these numbers.
  *
  *   npx tsx scripts/s2-write-paper-golden.ts
+ *   npx prettier --write tests/unit/fixtures/s2-paper-golden.json
  */
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";

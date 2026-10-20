@@ -24,6 +24,10 @@
 import { HAND_POSE_BUCKETS } from "@/lib/contracts/analytics";
 import type { HandPoseGrade } from "../photo/handFlatness";
 import type { PipelineResult } from "../photo/pipeline";
+import {
+  isPaperDetectionStage,
+  type PaperDetectionStage,
+} from "../paper/detectionStage";
 import { ATTEMPT_LOG_KEY, type StorageLike } from "./easyScanPreferences";
 import { aspectOfSize, compareFov } from "./previewConstraints";
 
@@ -109,6 +113,13 @@ export interface AttemptRecord {
     readonly worstSide: "top" | "bottom" | "left" | "right" | null;
     /** The paper gates that failed, whether or not the result reported them first. */
     readonly gateFailures: readonly string[];
+    /**
+     * Where the paper detector stopped when it found no sheet (scan S2,
+     * candidate), one of `PAPER_DETECTION_STAGES`; `null` when a sheet was
+     * found, and in a record from before it was kept. Anything else read back
+     * is dropped to `null`.
+     */
+    readonly failureStage: PaperDetectionStage | null;
   } | null;
   /** Laplacian variance of the analysed photo. */
   readonly sharpness: number | null;
@@ -345,6 +356,9 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
           gateFailures: cleanList(paper.gateFailures, MAX_CODES, (item) =>
             cleanString(item, MAX_CODE_LENGTH),
           ),
+          failureStage: isPaperDetectionStage(paper.failureStage)
+            ? paper.failureStage
+            : null,
         }
       : null,
     sharpness: cleanNumber(raw.sharpness, 2),
@@ -766,6 +780,8 @@ export function describeAttempt(record: AttemptRecord): string {
       `paper ${pct(record.paper.widthFraction)}×${pct(record.paper.heightFraction)}`,
       `resid ${record.paper.edgeFitResidualMm ?? "?"} mm`,
     );
+  if (record.paper?.failureStage)
+    parts.push(`stage ${record.paper.failureStage}`);
   if (record.paper?.sideCoverages)
     parts.push(
       `edge ${record.paper.worstSide ?? "?"} worst · cov ${record.paper.sideCoverages.join("/")}`,

@@ -20,6 +20,10 @@ import {
 import type { Point2 } from "../geometry/homography";
 import type { SheetLayout } from "../sheet/layout";
 import { HAND_BUTTON_FIX_INSTRUCTION, type IssueDetail } from "./issue-detail";
+import {
+  paperStageLines,
+  type PaperDetectionStage,
+} from "../paper/detectionStage";
 
 export type GateFailureCode =
   | "MARKERS_MISSING"
@@ -241,8 +245,25 @@ export function checkCardScale(
  * message than "we couldn't find a sheet of paper at all" (2026-09-25 PR
  * #59 review, M2).
  */
-export function checkPaperFound(paperRegionFound: boolean): GateFailure | null {
+export function checkPaperFound(
+  paperRegionFound: boolean,
+  /**
+   * Where the detector stopped (`SheetQuadDetection.failureStage`, scan S2,
+   * candidate). With it, the message names that step in "may" words and the
+   * stage travels as `detail` for the other language; without it (an older
+   * caller, the live paper gate) the failure is exactly what it was. It never
+   * changes WHETHER this fails.
+   */
+  stage?: PaperDetectionStage,
+): GateFailure | null {
   if (paperRegionFound) return null;
+  if (stage) {
+    return {
+      code: "PAPER_NOT_FOUND",
+      message: paperStageLines(stage, "en").retake,
+      detail: { kind: "paperStage", stage },
+    };
+  }
   return {
     code: "PAPER_NOT_FOUND",
     message:
