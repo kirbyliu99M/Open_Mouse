@@ -2,9 +2,7 @@ import { fitPreferencesSchema } from "../../lib/contracts/fit";
 import { similarResponseSchema } from "../../lib/contracts/recommend";
 import { scanSubmitResponseSchema } from "../../lib/contracts/routes";
 import { UNKNOWN_IP_KEY, resolveClientIp } from "../analysis/ip";
-import { DEFAULT_ENGINE } from "../fit/coefficients";
-import { excludeReason } from "../fit/exclusions";
-import { excludeReasonV1 } from "../fit/exclusions-v1";
+import { excludeReasonForEngine, resolveFitEngine } from "../fit/engine";
 import { listedOnly } from "../fit/listed";
 import type { FitRepo } from "../fit/repo";
 import type { CatalogueMouse } from "../fit/types";
@@ -63,16 +61,20 @@ const DEFAULT_PREFERENCES = fitPreferencesSchema.parse({});
 
 /**
  * Whether the fit leaves this mouse out for a person with this hand. It asks
- * the engine `DEFAULT_ENGINE` names, through that engine's own rule
- * (`excludeReason` for v0, `excludeReasonV1` for v1), so a change to the switch
- * or to a rule moves this route with the fit and no rule is copied here.
+ * the engine `resolveFitEngine()` names (the `FIT_ENGINE` variable, v1 when
+ * unset), through that engine's own rule (`excludeReasonForEngine`), so a
+ * change to the switch or to a rule moves this route with the fit and no rule
+ * is copied here.
  */
 function fitExcludes(mouse: CatalogueMouse, hand: "left" | "right"): boolean {
-  const reason =
-    DEFAULT_ENGINE === "v1"
-      ? excludeReasonV1(mouse, hand, DEFAULT_PREFERENCES)
-      : excludeReason(mouse, hand, DEFAULT_PREFERENCES);
-  return reason !== null;
+  return (
+    excludeReasonForEngine(
+      resolveFitEngine(),
+      mouse,
+      hand,
+      DEFAULT_PREFERENCES,
+    ) !== null
+  );
 }
 
 /**

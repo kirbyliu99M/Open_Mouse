@@ -13,7 +13,7 @@ import {
   type Filters,
 } from "@/lib/results/filters";
 import { clampCount } from "@/client/analytics/props";
-import { POOR_FIT_THRESHOLD } from "@/components/results/fitNotice";
+import { poorFitField } from "@/components/results/fitNotice";
 import {
   filterSelectionProps,
   filtersChanged,
@@ -115,7 +115,7 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
       ...resultsPageFields(card.displayRank, view.active),
       mouse: card.entry.mouse.slug,
       overallRank: card.overallRank,
-      poorFit: card.entry.total < POOR_FIT_THRESHOLD,
+      ...poorFitField(response, card.entry.total),
     });
     // Later filter changes on the page are `filter_applied`, not a new view.
     // eslint-disable-next-line react-hooks/exhaustive-deps

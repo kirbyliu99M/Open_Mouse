@@ -8,9 +8,8 @@ import type {
 import type { ScanRepo } from "../scans/repo";
 import type { FitRepo } from "./repo";
 import { buildFitResultRows } from "./rows";
-import { scoreFitDefault, storedNullScore } from "./engine";
+import { resolveFitEngine, scoreFitDefault, storedNullScore } from "./engine";
 import { scoringMeasurements } from "./scoring-measurements";
-import { DEFAULT_ENGINE } from "./coefficients";
 import { listedOnly } from "./listed";
 import { withFilterFacts } from "./filter-facts";
 import { withPhotos } from "./photos";
@@ -130,7 +129,7 @@ export async function loadOwnedFit(
       .filter((m): m is typeof m & { id: string } => m.id !== undefined)
       .map((m) => [m.slug, m.id] as const),
   );
-  const storedNull = storedNullScore(DEFAULT_ENGINE, catalogue);
+  const storedNull = storedNullScore(resolveFitEngine(), catalogue);
   const rows = buildFitResultRows(
     scanId,
     engineOutput.engineVersion,

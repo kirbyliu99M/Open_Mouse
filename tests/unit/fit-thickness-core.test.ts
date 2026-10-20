@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FitPreferences } from "../../src/lib/contracts/fit";
 import { fitPreferencesSchema } from "../../src/lib/contracts/fit";
+import {
+  ENGINE_VERSION_V1,
+  ENGINE_VERSION_V3,
+  THICKNESS_HEIGHT_SHIFT_MM,
+  THICKNESS_HEIGHT_SHIFT_MM_V3,
+} from "../../src/server/fit/coefficients";
+import { resolveFitEngine } from "../../src/server/fit/engine";
 import type { OwnedScan } from "../../src/server/scans/repo";
 import {
   createFakeFitRepo,
@@ -109,11 +116,20 @@ describe("loadOwnedFit passes the palm-thickness answer to the engine", () => {
       { ...sampleOwnedScan, palmThicknessStated: "medium" },
       noPrefs(),
     );
+    // The shift's direction belongs to the engine the route runs (FIT_ENGINE):
+    // v1 raises the height target for a thick palm, v3 lowers it.
+    const v3 = resolveFitEngine() === "v3";
+    const shift = v3
+      ? THICKNESS_HEIGHT_SHIFT_MM_V3.thick
+      : THICKNESS_HEIGHT_SHIFT_MM.thick;
+    expect(Math.abs(shift)).toBe(1.5);
     expect(thick.targets.heightMm).toBeCloseTo(
-      skipped.targets.heightMm + 1.5,
+      skipped.targets.heightMm + shift,
       9,
     );
     expect(medium).toEqual(skipped);
-    expect(skipped.engineVersion).toBe("fit-v1-candidate.3");
+    expect(skipped.engineVersion).toBe(
+      v3 ? ENGINE_VERSION_V3 : ENGINE_VERSION_V1,
+    );
   });
 });

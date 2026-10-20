@@ -590,11 +590,13 @@
   line-height: 1.5;
 }
 
-.results-fitNotice {
+.results-fitNotice,
+.results-coverageNotice {
   line-height: 1.5;
 }
 
 .results-fitNotice,
+.results-coverageNotice,
 .results-handNotice {
   color: #b5b5bd;
 }
@@ -1501,6 +1503,7 @@
 .results-disclosure-hint:lang(zh-TW),
 :lang(zh-TW) > .results-disclosure-hint,
 .results-handNotice:lang(zh-TW),
+.results-coverageNotice:lang(zh-TW),
 .results-fitNotice:lang(zh-TW) {
   line-height: 1.6;
 }
@@ -1644,6 +1647,7 @@
   .results-subscoreBar-reason,
   .results-sizeNotice,
   .results-fitNotice,
+  .results-coverageNotice,
   .results-handNotice {
     color: var(--text-secondary);
   }

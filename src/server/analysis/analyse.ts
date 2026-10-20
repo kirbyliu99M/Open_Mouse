@@ -258,21 +258,30 @@ function promptData(input: AnalysisInput, locale: Locale) {
  */
 export function buildPrompt(input: AnalysisInput): string {
   if (input.locale === "zh-TW") return buildPromptZhTw(input);
+  const unscored = input.scoreMode === "unscored";
   const lines = [
     "You are writing a short analysis of a mouse-fit ranking for a user, from the JSON data below.",
     "Explain how the top pick will feel to use for this hand. Do not just restate the scores.",
     "Rules:",
     '- Every number you write MUST already appear in the JSON data. Never compute, estimate, round differently, or invent a number. Number words count as numbers (for example "two" or "half").',
-    '- Anchor on the wording in the data: each top pick has a "meaning" for its overall band, and each sub-score has an "impact" sentence. Say what they say, in plain words of your own, and do not add claims they do not make.',
-    '- "headline": one short sentence on how the top pick will feel overall, starting from its band meaning.',
+    unscored
+      ? '- Anchor on the wording in the data: each sub-score has an "impact" sentence. Say what it says, in plain words of your own, and do not add claims it does not make. The data carries no overall score and no overall grade for this hand: never state or imply one.'
+      : '- Anchor on the wording in the data: each top pick has a "meaning" for its overall band, and each sub-score has an "impact" sentence. Say what they say, in plain words of your own, and do not add claims they do not make.',
+    unscored
+      ? '- "headline": one short sentence saying that the top pick is the mouse in the catalogue closest to this hand, and what stands out about how it will feel, taken from its sub-scores. Do not grade it.'
+      : '- "headline": one short sentence on how the top pick will feel overall, starting from its band meaning.',
     '- "whyTopPick": one or two short sentences on the one or two things that matter most for this hand and this mouse, taken from the sub-scores with the most to say, and what to expect when using it.',
-    '- "tradeoffs" (up to three): what may take getting used to, taken from the sub-scores in a lower band.',
+    unscored
+      ? '- "tradeoffs" (up to three): what may take getting used to, taken from the sub-score impact sentences that describe a mismatch.'
+      : '- "tradeoffs" (up to three): what may take getting used to, taken from the sub-scores in a lower band.',
     '- "whatToAvoid" (up to two): what to look for in another mouse, or an excluded mouse and why it was left out. Name a mouse only if it is in the data.',
     '- "caveats": include one short line saying this is an estimate from the hand measurements, using the "estimateNote" wording as written or close to it.',
     '- Keep every line short. Describe use experience only (reach, grip, where the palm and fingers rest, how a long session may feel), with "may" and "tends to". Never state a certainty.',
     "- Do not say how accurate or reliable the estimate is, and do not promise an outcome.",
     "- Do not compare with other people, other users' scores, averages, or percentiles.",
-    '- Do not grade the fit in your own words (no "good fit", "bad fit", "excellent", "poor", "high score", "low score"). Use only the band meaning and impact wording supplied.',
+    unscored
+      ? '- Do not grade or score the fit in your own words (no "good fit", "bad fit", "best fit", "excellent", "poor", "high score", "low score"), and do not say how well this hand matches. Use only the impact wording supplied.'
+      : '- Do not grade the fit in your own words (no "good fit", "bad fit", "excellent", "poor", "high score", "low score"). Use only the band meaning and impact wording supplied.',
     "- Write plainly for someone who has not seen the JSON.",
     "- Never mention internal identifiers, reason codes, band names, or version strings. Describe the facts in plain language.",
     "- If a grip style was stated, describe it as the user's choice, not a prediction.",
@@ -281,6 +290,16 @@ export function buildPrompt(input: AnalysisInput): string {
     "- Describe only shape facts and how they affect use, such as vertical grip, taller hump, or wider shell. Never repeat vendor marketing copy about wrist health.",
     '- For an asymmetric, right-hand sculpted shape, say "asymmetric right-hand shape", not "ergonomic".',
   ];
+  if (unscored) {
+    lines.push(
+      '- This hand is outside the range of sizes the catalogue covers, so the picks are the catalogue mice closest to it, for reference only. Say that once, in plain words and without any number, in "whyTopPick" or "caveats".',
+    );
+  }
+  if (input.targetsPersonallyAdjusted) {
+    lines.push(
+      "- The target sizes in the data already include an adjustment from mice the person said they own. Describe them as the user's own adjusted targets, never as taken from the hand measurements alone.",
+    );
+  }
   if (isLowConfidence(input)) {
     lines.push(
       '- The top pick has low confidence: some shape descriptors it depends on are not classified yet. Say explicitly that the ranking and descriptors are provisional, and the "caveats" array must mention it.',
@@ -298,22 +317,31 @@ export function buildPrompt(input: AnalysisInput): string {
  * deliberately carries none of that check's markers (see `./provisional`).
  */
 function buildPromptZhTw(input: AnalysisInput): string {
+  const unscored = input.scoreMode === "unscored";
   const lines = [
     "你要根據下方的 JSON 資料，為使用者寫一段簡短的滑鼠合手度排名分析。",
     "請用繁體中文（台灣用語）寫出每一個欄位。滑鼠的品牌與型號保持原文，不要翻譯。",
     "說明排名第一的滑鼠用起來會是什麼感覺，不要只是重述分數。",
     "規則：",
     "- 你寫出的每一個數字都必須已經出現在 JSON 資料中。不可計算、估算、換一種方式四捨五入或自創數字。數字的中文寫法也算數字（例如「兩」「三成」「一半」「百分之五十」）。",
-    "- 以資料中的文字為準：每個排名靠前的滑鼠都有整體等級的「meaning」，每個子分數都有一句「impact」。用你自己的白話說出它們的意思，不要加上它們沒有說的內容。",
-    '- "headline"：一句簡短的話，從整體等級的 meaning 出發，說明排名第一的滑鼠整體用起來的感覺。',
+    unscored
+      ? "- 以資料中的文字為準：每個子分數都有一句「impact」。用你自己的白話說出它的意思，不要加上它沒有說的內容。這隻手的資料沒有整體分數，也沒有整體等級：不可寫出、也不可暗示任何整體分數或等級。"
+      : "- 以資料中的文字為準：每個排名靠前的滑鼠都有整體等級的「meaning」，每個子分數都有一句「impact」。用你自己的白話說出它們的意思，不要加上它們沒有說的內容。",
+    unscored
+      ? '- "headline"：一句簡短的話，說明排名第一的滑鼠是目錄中與這隻手最接近的一支，並從它的子分數說明整體用起來有什麼特別之處。不要替它打分或定等級。'
+      : '- "headline"：一句簡短的話，從整體等級的 meaning 出發，說明排名第一的滑鼠整體用起來的感覺。',
     '- "whyTopPick"：一到兩句簡短的話，從最值得一提的子分數，說明對你的手和這支滑鼠最重要的一兩件事，以及使用時可以預期什麼。',
-    '- "tradeoffs"（最多三項）：可能需要適應的地方，取自等級較低的子分數。',
+    unscored
+      ? '- "tradeoffs"（最多三項）：可能需要適應的地方，取自描述不吻合之處的子分數 impact。'
+      : '- "tradeoffs"（最多三項）：可能需要適應的地方，取自等級較低的子分數。',
     '- "whatToAvoid"（最多兩項）：挑選其他滑鼠時要留意什麼，或說明某支被排除的滑鼠為何被排除。只能提到資料中出現的滑鼠。',
     '- "caveats"：包含一句簡短的話，說明這是依手部尺寸做的估算，用資料中「estimateNote」的說法，或相近的說法。',
     "- 每一句都要簡短。只描述使用感受（搆得到的距離、握法、手掌與手指放哪裡、長時間使用可能的感覺），用「可能」「容易」「往往」這類語氣，絕不用肯定、斷定的說法。",
     "- 不要說這個估算有多準確或多可靠，也不要承諾任何結果。",
     "- 不要和其他人、其他使用者的分數、平均值或百分位數比較。",
-    "- 不要用自己的話替合手程度打分（不要寫「很適合」「不適合」「很棒」「很差」「高分」「低分」）。只用資料提供的等級說明（meaning）與 impact 的說法。",
+    unscored
+      ? "- 不要用自己的話替合手程度打分或定等級（不要寫「很適合」「不適合」「最適合」「很棒」「很差」「高分」「低分」），也不要說這隻手和滑鼠有多吻合。只用資料提供的 impact 的說法。"
+      : "- 不要用自己的話替合手程度打分（不要寫「很適合」「不適合」「很棒」「很差」「高分」「低分」）。只用資料提供的等級說明（meaning）與 impact 的說法。",
     "- 用平實的話寫，讓沒看過 JSON 的人也看得懂。",
     "- 不要提到內部識別碼、原因代碼、等級代號（例如 very_good）或版本字串。用白話描述事實。",
     "- 如果資料中有使用者指定的握法，要寫成使用者自己的選擇，不是預測。",
@@ -323,6 +351,16 @@ function buildPromptZhTw(input: AnalysisInput): string {
     "- 滑鼠背部最高的隆起處（英文 hump）一律稱為「駝峰」。",
     "- 對於不對稱的右手造型，寫「偏向右手的不對稱造型」，不要寫「人體工學」。",
   ];
+  if (unscored) {
+    lines.push(
+      '- 這隻手超出目前目錄涵蓋的尺寸範圍，所以列出的是目錄中與它最接近的滑鼠，僅供參考。請在 "whyTopPick" 或 "caveats" 中用白話說明一次，不要帶任何數字。',
+    );
+  }
+  if (input.targetsPersonallyAdjusted) {
+    lines.push(
+      "- 資料中的理想尺寸已經加入依使用者自己持有的滑鼠所做的調整。請把它們寫成使用者個人調整後的目標，不要寫成只依手部測量得出。",
+    );
+  }
   if (isLowConfidence(input)) {
     lines.push(
       '- 排名第一的滑鼠信心偏低：它所依據的部分形狀描述尚未分類。請明確用「暫定」這個詞，說明這份排名與形狀描述是暫定的，而且 "caveats" 陣列中必須提到。',
@@ -424,6 +462,71 @@ function describeReasons(
 }
 
 /**
+ * Candidate wording (未拍板) for the unscored mode, the hand being outside the
+ * catalogue's length range: no band, no meaning, no grade word, no digit. The
+ * mouse is "the closest in the catalogue", which is what the ranking says.
+ */
+const UNSCORED_TEXT = {
+  en: {
+    headline: (name: string) =>
+      `The closest mouse in the catalogue to your hand is ${name}.`,
+    outOfRange:
+      "Your hand is outside the range of sizes the catalogue covers, so this is a reference only.",
+    noReasons:
+      "See the details below for how its length, width and height compare with the sizes you need.",
+    separator: " ",
+    exclusion: (name: string, why: string) => `${name}: ${why}.`,
+    adjusted:
+      "Your target sizes include an adjustment from the mice you said you own.",
+  },
+  "zh-TW": {
+    headline: (name: string) => `目錄中與你的手最接近的是 ${name}。`,
+    outOfRange: "你的手型超出目前目錄涵蓋的尺寸範圍，這份結果僅供參考。",
+    noReasons: "長度、寬度、高度和你需要的尺寸差多少，請看下方的詳細資料。",
+    separator: "",
+    exclusion: (name: string, why: string) => `${name}：${why}。`,
+    adjusted: "你的理想尺寸已加入依你持有的滑鼠所做的調整。",
+  },
+} as const;
+
+/**
+ * The unscored fallback: the top pick named as the closest mouse in the
+ * catalogue, then only its sub-score impact sentences. Never a band, a
+ * meaning, a total or a grade word; every sentence is from `fit-bands.ts` or
+ * `UNSCORED_TEXT` and carries no digit.
+ */
+function unscoredFallback(
+  input: AnalysisInput,
+  top: AnalysisInputEntry,
+  positives: string[],
+  tradeoffs: string[],
+  locale: Locale,
+): AnalysisOutput {
+  const text = UNSCORED_TEXT[locale];
+  const exclusions = locale === "zh-TW" ? EXCLUSION_TEXT_ZH_TW : EXCLUSION_TEXT;
+  const caveats: string[] = [text.outOfRange];
+  if (input.targetsPersonallyAdjusted) caveats.push(text.adjusted);
+  if (top.lowConfidence) {
+    caveats.push(
+      locale === "zh-TW" ? PROVISIONAL_NOTE_ZH_TW : PROVISIONAL_NOTE,
+    );
+  }
+  caveats.push(input.estimateNote);
+  return {
+    headline: text.headline(`${top.brand} ${top.model}`),
+    whyTopPick:
+      positives.length > 0 ? positives.join(text.separator) : text.noReasons,
+    tradeoffs,
+    whatToAvoid: input.excluded
+      .map(({ brand, model, reason }) =>
+        text.exclusion(`${brand} ${model}`, exclusions[reason]),
+      )
+      .slice(0, 2),
+    caveats,
+  };
+}
+
+/**
  * Deterministic, non-LLM answer built purely from what is already in the
  * input: the top pick's band meaning and the impact sentences of its reason
  * codes, so the fallback reads in use-experience terms like the prompt asks
@@ -446,6 +549,9 @@ export function buildFallbackOutput(input: AnalysisInput): AnalysisOutput {
   }
   const positives = describeReasons(top, POSITIVE_REASON_CODES, 2);
   const tradeoffs = describeReasons(top, NEGATIVE_REASON_CODES, 3);
+  if (input.scoreMode === "unscored") {
+    return unscoredFallback(input, top, positives, tradeoffs, "en");
+  }
   // A `poor` top pick is still rank 1, but "the top match" next to "look at
   // other mice first" contradicts itself. It says what the results page says
   // ("None of these fits your hand well. The closest is below."), with the
@@ -489,6 +595,9 @@ function buildFallbackOutputZhTw(input: AnalysisInput): AnalysisOutput {
   }
   const positives = describeReasons(top, POSITIVE_REASON_CODES, 2);
   const tradeoffs = describeReasons(top, NEGATIVE_REASON_CODES, 3);
+  if (input.scoreMode === "unscored") {
+    return unscoredFallback(input, top, positives, tradeoffs, "zh-TW");
+  }
   const headline =
     top.band === "poor"
       ? `這幾款都不太適合你的手，最接近的是 ${top.brand} ${top.model}。`

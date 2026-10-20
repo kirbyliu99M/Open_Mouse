@@ -15,6 +15,7 @@ export function OtherPicks({
   cards,
   language,
   filtering = false,
+  showScores = true,
   hrefFor,
   onSelect,
   onPick,
@@ -23,6 +24,11 @@ export function OtherPicks({
   language: Locale;
   /** The list is filtered: the heading says so and each card shows its overall rank when it differs. */
   filtering?: boolean;
+  /**
+   * False while the hand is outside the catalogue's length range: the cards
+   * keep their order but carry no score (the contract's hard rule).
+   */
+  showScores?: boolean;
   hrefFor?: (card: FilteredCard) => string;
   /** Called with the card's place in the list (the filtered one). */
   onSelect?: (displayRank: number) => void;
@@ -56,16 +62,23 @@ export function OtherPicks({
               <span className="results-card-brand">{entry.mouse.brand}</span>
               <span className="results-card-model">{entry.mouse.model}</span>
               <VariantsLine variants={card.variants} language={language} />
-              <span className="results-card-score results-tabularNum">
-                <strong>{entry.total}</strong>
-                <span> {copy.outOf}</span>
-                {filtering && card.overallRank !== card.displayRank && (
-                  <span className="results-card-overall">
-                    {" "}
-                    {copy.filter.overallRank(card.overallRank)}
-                  </span>
-                )}
-              </span>
+              {(showScores ||
+                (filtering && card.overallRank !== card.displayRank)) && (
+                <span className="results-card-score results-tabularNum">
+                  {showScores && (
+                    <>
+                      <strong>{entry.total}</strong>
+                      <span> {copy.outOf}</span>
+                    </>
+                  )}
+                  {filtering && card.overallRank !== card.displayRank && (
+                    <span className="results-card-overall">
+                      {" "}
+                      {copy.filter.overallRank(card.overallRank)}
+                    </span>
+                  )}
+                </span>
+              )}
             </>
           );
           return (

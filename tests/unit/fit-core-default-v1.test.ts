@@ -1,5 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { fitPreferencesSchema } from "../../src/lib/contracts/fit";
+import {
+  ENGINE_VERSION_V1,
+  ENGINE_VERSION_V3,
+} from "../../src/server/fit/coefficients";
+import { resolveFitEngine } from "../../src/server/fit/engine";
 import { computePriors } from "../../src/server/fit/priors";
 import { loadOwnedFit } from "../../src/server/fit/core";
 import type { CatalogueMouse } from "../../src/server/fit/types";
@@ -10,8 +15,13 @@ import {
   sampleOwnedScan,
 } from "./fixtures/fake-fit-deps";
 
-// No mock of DEFAULT_ENGINE anywhere in this file: it runs whatever the
-// shipped default is (v1 since 2026-10-10).
+// No mock of the engine anywhere in this file: it runs whatever FIT_ENGINE
+// resolves to (v1 when unset, the shipped default since 2026-10-10). The v1
+// version string is therefore only asserted when the variable is not "v3".
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 const SCAN_ID = "5f0c6f7e-1c2d-4b8a-9d3e-2a1b0c9d8e7f";
 const NOW = () => new Date("2026-10-10T00:00:00Z");
@@ -44,13 +54,28 @@ async function run(prefs = fitPreferencesSchema.parse({})) {
 }
 
 describe("loadOwnedFit under the shipped default engine", () => {
-  it("runs fit-v1-candidate.3 and sends a hand type", async () => {
+  const expectedVersion =
+    resolveFitEngine() === "v3" ? ENGINE_VERSION_V3 : ENGINE_VERSION_V1;
+
+  it("runs the engine FIT_ENGINE names (v1 when unset) and sends a hand type", async () => {
     const { fit, rows } = await run();
-    expect(fit.engineVersion).toBe("fit-v1-candidate.3");
+    expect(fit.engineVersion).toBe(expectedVersion);
     expect(fit.handType).toBeDefined();
-    expect(rows.every((r) => r.engineVersion === "fit-v1-candidate.3")).toBe(
-      true,
-    );
+    expect(rows.every((r) => r.engineVersion === expectedVersion)).toBe(true);
+  });
+
+  it("runs v1 when FIT_ENGINE is unset or not a valid value", async () => {
+    for (const value of ["", "v9"]) {
+      vi.stubEnv("FIT_ENGINE", value);
+      expect((await run()).fit.engineVersion).toBe(ENGINE_VERSION_V1);
+    }
+  });
+
+  it("runs v3 and stores v3 rows when FIT_ENGINE=v3", async () => {
+    vi.stubEnv("FIT_ENGINE", "v3");
+    const { fit, rows } = await run();
+    expect(fit.engineVersion).toBe(ENGINE_VERSION_V3);
+    expect(rows.every((r) => r.engineVersion === ENGINE_VERSION_V3)).toBe(true);
   });
 
   it("carries gripStyle.weights when no grip is stated, and none when one is", async () => {

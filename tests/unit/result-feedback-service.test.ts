@@ -5,7 +5,7 @@
  * second rating of a scan, and what is and is not in a response or a log line.
  * The SQL is in result-feedback-db.test.ts.
  */
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   RESULT_FEEDBACK_NOTICE_VERSION,
   resultFeedbackSnapshotSchema,
@@ -114,8 +114,15 @@ describe("buildSnapshot", () => {
     expect(snapshot.handSize).toBe(out.handType?.size ?? null);
     expect(snapshot.handWidth).toBe(out.handType?.width ?? null);
     const ranked = groupShells(out.results, sampleCatalogue).slice(0, 3);
+    // The band is the engine's `bandOf(total)`, or null when the engine says
+    // the hand is outside the catalogue's length range (v3 on this small
+    // sample catalogue can; v1 never does).
+    const outOfRange = out.coverage?.lengthOutOfRange === true;
     expect(snapshot.topMice).toEqual(
-      ranked.map((e) => ({ slug: e.mouse.slug, band: bandOf(e.total) })),
+      ranked.map((e) => ({
+        slug: e.mouse.slug,
+        band: outOfRange ? null : bandOf(e.total),
+      })),
     );
     expect(snapshot.topMice.length).toBeLessThanOrEqual(3);
   });
@@ -147,6 +154,65 @@ describe("buildSnapshot", () => {
     );
     expect(text).not.toMatch(/Mm|mm"/);
     expect(text).not.toContain("180");
+  });
+});
+
+describe("buildSnapshot, hand outside the catalogue's length range (M4)", () => {
+  // A hand far longer than any mouse in the sample catalogue; only a v2 or v3
+  // engine reports coverage, so FIT_ENGINE=v3 here.
+  const longHand: OwnedScan = {
+    ...sampleOwnedScan,
+    measurements: {
+      handLengthMm: 250,
+      palmLengthMm: 140,
+      palmWidthMm: 87.5,
+    },
+  };
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("writes a null band for every top mouse instead of throwing", () => {
+    vi.stubEnv("FIT_ENGINE", "v3");
+    const snapshot = buildSnapshot(longHand, sampleCatalogue);
+    expect(resultFeedbackSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+    expect(snapshot.engineVersion).toBe("fit-v3.0-candidate.0");
+    expect(snapshot.topMice.length).toBeGreaterThan(0);
+    for (const mouse of snapshot.topMice) expect(mouse.band).toBeNull();
+    // The order is still the engine's.
+    const out = scoreFitDefault(
+      longHand.measurements,
+      sampleCatalogue,
+      fitPreferencesSchema.parse({}),
+      "right",
+    );
+    expect(out.coverage?.lengthOutOfRange).toBe(true);
+    expect(snapshot.topMice.map((m) => m.slug)).toEqual(
+      groupShells(out.results, sampleCatalogue)
+        .slice(0, 3)
+        .map((e) => e.mouse.slug),
+    );
+  });
+
+  it("the same scan under v1 (no coverage) keeps real bands", () => {
+    vi.stubEnv("FIT_ENGINE", "");
+    const snapshot = buildSnapshot(longHand, sampleCatalogue);
+    for (const mouse of snapshot.topMice) expect(mouse.band).not.toBeNull();
+  });
+
+  it("a rating of that scan is stored, not a 500", async () => {
+    vi.stubEnv("FIT_ENGINE", "v3");
+    const t = setup({ userId: "user-1", scan: longHand });
+    const res = await handleResultFeedbackSubmission(
+      post(validBody, IP),
+      SCAN_ID,
+      t.deps,
+    );
+    expect(res.status).toBe(201);
+    expect(t.writes).toHaveLength(1);
+    expect(t.writes[0]!.snapshot.topMice.every((m) => m.band === null)).toBe(
+      true,
+    );
   });
 });
 

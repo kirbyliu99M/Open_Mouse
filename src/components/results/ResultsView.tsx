@@ -134,7 +134,12 @@ export function ResultsView({
   const search = serializeFilters(filters);
 
   const hand = handTypeLabel(response.handType, language);
-  const band = entry ? bandOf(entry.total) : null;
+  // The hand is longer (or shorter) than every ranked mouse: `total` is then
+  // the value the engine sorted by against the catalogue's edge, not a
+  // distance to this hand (contract, `fitCoverageSchema`). The order stays;
+  // no number and no band is drawn anywhere on the page.
+  const scoresHidden = response.coverage?.lengthOutOfRange === true;
+  const band = entry && !scoresHidden ? bandOf(entry.total) : null;
   const picks = card ? viewOtherPicks(view, card.displayRank) : [];
   // The page about the first place of the list the person sees.
   const isMain = card?.displayRank === 1;
@@ -178,7 +183,17 @@ export function ResultsView({
 
   const content = (
     <>
-      {isMain && entry && entry.total < POOR_FIT_THRESHOLD && (
+      {/* Out of the catalogue's range the notice is about coverage and shows
+          on every page of the list; it never depends on `total`. */}
+      {scoresHidden && entry && (
+        <p
+          className="results-coverageNotice"
+          data-direction={response.coverage?.direction ?? "partial"}
+        >
+          {copy.coverageNotice[response.coverage?.direction ?? "partial"]}
+        </p>
+      )}
+      {isMain && entry && !scoresHidden && entry.total < POOR_FIT_THRESHOLD && (
         <p className="results-fitNotice">{copy.fitNotice}</p>
       )}
 
@@ -254,10 +269,14 @@ export function ResultsView({
                     <p className="results-oneLeft">{copy.filter.oneLeft}</p>
                   )}
                 </div>
-                <p className="results-score-total results-tabularNum">
-                  <span className="results-score-value">{entry.total}</span>
-                  <span className="results-score-label">{copy.scoreLabel}</span>
-                </p>
+                {!scoresHidden && (
+                  <p className="results-score-total results-tabularNum">
+                    <span className="results-score-value">{entry.total}</span>
+                    <span className="results-score-label">
+                      {copy.scoreLabel}
+                    </span>
+                  </p>
+                )}
               </div>
 
               {/* A full-width row under the score: the fit-band chip on the left,
@@ -403,6 +422,7 @@ export function ResultsView({
         cards={picks}
         language={language}
         filtering={filtering}
+        showScores={!scoresHidden}
         hrefFor={
           scanId
             ? (c) => pathForEntry(scanId, c.entry, search, c.displayRank)
@@ -441,6 +461,7 @@ export function ResultsView({
         hand={response.hand}
         language={language}
         filtering={filtering}
+        showScores={!scoresHidden}
         onOpened={analytics ? () => emit("other_mice_opened", {}) : undefined}
       />
 

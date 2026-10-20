@@ -4,7 +4,7 @@
  * EngineId fails at the type level and at run time (no silent fall-through
  * to v0); and the default engine stays v1.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   GRIP_STYLES,
   SUBSCORES,
@@ -17,6 +17,7 @@ import {
   UNKNOWN_PRIOR_SCORE,
 } from "../../src/server/fit/coefficients";
 import {
+  resolveFitEngine,
   scoreFitDefault,
   scoreWithEngine,
   storedNullScore,
@@ -96,33 +97,37 @@ describe("T8: storedNullScore", () => {
 });
 
 describe("T8: the default engine", () => {
-  it("stays v1 until the gate in the contract is met", () => {
-    expect(
-      DEFAULT_ENGINE,
-      [
-        "DEFAULT_ENGINE must stay 'v1' (build spec rev2 §0.2, contract gate on `coverage`).",
-        "Before it may become 'v2', all of this has to be done and decided:",
-        "1. Results page: while coverage.lengthOutOfRange is true, show no numeric score and no band (results[].total).",
-        "2. Excluded list: hide excluded[].total of a wrong_hand mouse under the same condition.",
-        "3. Share card: src/components/results/share/input.ts must not put total / bandLabel on the card then.",
-        "4. Analysis input: src/server/analysis/input.ts must not send topPicks total / band / sub-score params then.",
-        "5. Neither coverage nor rankStability may enter the analysis input, the share card input or the numeral allow-list.",
-        "6. src/server/recommend/service.ts fitExcludes(): `DEFAULT_ENGINE === 'v1'` sends any other id to v0's excludeReason; make it handle 'v2'.",
-        "7. core.ts: decide whether attachRankStability runs, after scoreFitDefault and before groupShells (never group twice).",
-        "8. src/server/result-feedback/snapshot.ts runs scoreFitDefault -> groupShells -> bandOf(entry.total) and stores the band in the feedback snapshot: no band while coverage.lengthOutOfRange is true.",
-        "9. core.ts writes fit_results.totalScore from results[].total: out of range that is the ranking value, not a fit score; decide what is stored.",
-        "10. The analysis route runs loadOwnedFit again: once rank stability is wired into it, its cost (about 0.5-0.8 s per call today) is paid twice; decide where it runs.",
-        "11. The results page's brand / shape filters change which cards are 'the top 5'; rankStability is computed on the unfiltered list.",
-        "12. The banner and stability copy (V2-COPY-DRAFTS-2026-10-18.md) approved; the contract deployed before the engine.",
-        "13. Kirby's decision recorded (v2 is a candidate, 未拍板).",
-      ].join("\n"),
-    ).toBe("v1");
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
-  it("the route's engine is v1 and emits none of the v2 fields", () => {
+  // This used to pin DEFAULT_ENGINE with the list of 13 things that had to
+  // happen before v2 or v3 could be the default. Items 1-4, 6 and 8 (results
+  // page, excluded list, share card, analysis input, fitExcludes, feedback
+  // snapshot) are the consumer commits of branch v31-consumers-2026-10-20;
+  // items 5, 7 and 9-13 are unchanged decisions (Kirby / Claude). What stays
+  // pinned: nothing but the environment variable moves the engine off v1, and
+  // the variable's default is v1.
+  it("falls back to v1: unset, empty, or a value that is not v1, v2 or v3", () => {
+    expect(DEFAULT_ENGINE).toBe("v1");
+    for (const value of ["", "v0", "v9", "candidate"]) {
+      vi.stubEnv("FIT_ENGINE", value);
+      expect(resolveFitEngine()).toBe("v1");
+    }
+  });
+
+  it("the route's engine is v1 when FIT_ENGINE is unset and emits none of the v2 fields", () => {
+    vi.stubEnv("FIT_ENGINE", "");
     const out = scoreFitDefault(m, seedCatalogue, prefs, "right");
     expect(out.engineVersion).toBe(ENGINE_VERSION_V1);
     expect(out).not.toHaveProperty("coverage");
     expect(out.results.some((e) => "rankStability" in e)).toBe(false);
+  });
+
+  it("FIT_ENGINE=v2 runs the v2 candidate through the route's entry point", () => {
+    vi.stubEnv("FIT_ENGINE", "v2");
+    const out = scoreFitDefault(m, seedCatalogue, prefs, "right");
+    expect(out.engineVersion).toBe(ENGINE_VERSION_V2);
+    expect(out.coverage?.lengthOutOfRange).toBe(true);
   });
 });

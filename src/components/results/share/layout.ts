@@ -86,9 +86,13 @@ export interface ShareCardInput {
   handType?: HandType;
   brand: string;
   model: string;
-  /** The fit total, 0 to 100, from the fit response. */
-  total: number;
-  /** The band's name in `lang`, or null when none applies. */
+  /**
+   * The fit total, 0 to 100, from the fit response; null when the hand is
+   * outside the catalogue's length range (no number is drawn then, and the
+   * title says "closest" instead of "best fit").
+   */
+  total: number | null;
+  /** The band's name in `lang`, or null when none applies (always null with no total). */
   bandLabel: string | null;
   /** A site-relative path that has already loaded, or null for the silhouette. */
   photoSrc: string | null;
@@ -282,9 +286,15 @@ export function layoutShareCard(
   });
 
   // Result block: label, brand, model, band on the left; the score on the right.
-  const scoreText = String(input.total);
-  const scoreWidth = measure(scoreText, SCORE_FONT);
-  const columnWidth = Math.max(240, CONTENT_WIDTH - scoreWidth - 48);
+  // With no total (out of the catalogue's range) the left column takes the
+  // whole width and no band is drawn either, whatever `bandLabel` says.
+  const scoreText = input.total === null ? null : String(input.total);
+  const bandLabel = scoreText === null ? null : input.bandLabel;
+  const scoreWidth = scoreText === null ? 0 : measure(scoreText, SCORE_FONT);
+  const columnWidth =
+    scoreText === null
+      ? CONTENT_WIDTH
+      : Math.max(240, CONTENT_WIDTH - scoreWidth - 48);
   const labelFont = f(36, 400);
   const brandFont = f(38, 400);
   // The largest size that keeps the name on one line; failing that, the
@@ -314,15 +324,16 @@ export function layoutShareCard(
   const labelH = labelFont.size * LINE;
   const brandH = brandFont.size * LINE;
   const modelH = modelLines.length * modelFont.size * LINE;
-  const bandH = input.bandLabel ? 16 + bandFont.size * LINE : 0;
+  const bandH = bandLabel ? 16 + bandFont.size * LINE : 0;
   const leftH = labelH + 28 + brandH + 4 + modelH + bandH;
-  const scoreH = SCORE_FONT.size * 0.82 + 12 + 36 * LINE;
+  const scoreH =
+    scoreText === null ? 0 : SCORE_FONT.size * 0.82 + 12 + 36 * LINE;
   const resultH = Math.max(leftH, labelH + 28 + scoreH);
   const resultTop = footerTop - 72 - resultH;
 
   let y = resultTop;
   text(
-    copy.topPickLabel,
+    scoreText === null ? copy.closestPickLabel : copy.topPickLabel,
     CARD_PADDING,
     y + labelFont.size,
     labelFont,
@@ -342,33 +353,35 @@ export function layoutShareCard(
     text(line, CARD_PADDING, y + modelFont.size, modelFont, "primary");
     y += modelFont.size * LINE;
   }
-  if (input.bandLabel) {
+  if (bandLabel) {
     y += 16;
     text(
-      fitLine(input.bandLabel, columnWidth, bandFont, measure),
+      fitLine(bandLabel, columnWidth, bandFont, measure),
       CARD_PADDING,
       y + bandFont.size,
       bandFont,
       "accent",
     );
   }
-  const scoreBaseline = brandTop + SCORE_FONT.size * 0.82;
-  text(
-    scoreText,
-    CARD_WIDTH - CARD_PADDING,
-    scoreBaseline,
-    SCORE_FONT,
-    "primary",
-    "right",
-  );
-  text(
-    fitLine(copy.scoreLabel, 360, f(36, 400), measure),
-    CARD_WIDTH - CARD_PADDING,
-    scoreBaseline + 12 + 36,
-    f(36, 400),
-    "secondary",
-    "right",
-  );
+  if (scoreText !== null) {
+    const scoreBaseline = brandTop + SCORE_FONT.size * 0.82;
+    text(
+      scoreText,
+      CARD_WIDTH - CARD_PADDING,
+      scoreBaseline,
+      SCORE_FONT,
+      "primary",
+      "right",
+    );
+    text(
+      fitLine(copy.scoreLabel, 360, f(36, 400), measure),
+      CARD_WIDTH - CARD_PADDING,
+      scoreBaseline + 12 + 36,
+      f(36, 400),
+      "secondary",
+      "right",
+    );
+  }
 
   // Photo: whatever is left between the header and the result block.
   const gap = hasHeader ? 48 : 0;

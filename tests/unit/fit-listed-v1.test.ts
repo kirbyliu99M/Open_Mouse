@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fitPreferencesSchema } from "../../src/lib/contracts/fit";
 import { DEFAULT_ENGINE } from "../../src/server/fit/coefficients";
 import { loadOwnedFit } from "../../src/server/fit/core";
@@ -44,6 +44,15 @@ const hidden: CatalogueMouse = {
 };
 
 describe("loadOwnedFit under fit-v1 with an unlisted row", () => {
+  // The mocked DEFAULT_ENGINE is what the route runs when FIT_ENGINE is not
+  // set; a runner that exports FIT_ENGINE must not override it.
+  beforeEach(() => {
+    vi.stubEnv("FIT_ENGINE", "");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("runs v1", () => {
     expect(DEFAULT_ENGINE).toBe("v1");
   });

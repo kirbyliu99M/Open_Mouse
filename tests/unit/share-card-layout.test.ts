@@ -168,6 +168,70 @@ describe("layoutShareCard: the standard card", () => {
   });
 });
 
+describe("layoutShareCard: no score (the hand is outside the catalogue's range)", () => {
+  const NO_SCORE: ShareCardInput = { ...BASE, total: null, bandLabel: null };
+
+  it.each(["zh-TW", "en"] as const)(
+    'draws no number, no score label and no band, and says "closest" (%s)',
+    (lang) => {
+      const copy = shareCardCopy(lang);
+      const all = texts(
+        layoutShareCard({ ...NO_SCORE, lang }, measure).ops,
+      ).map((o) => o.text);
+      expect(all).not.toContain(copy.scoreLabel);
+      expect(all).not.toContain(copy.topPickLabel);
+      expect(all).toContain(copy.closestPickLabel);
+      expect(all).toContain("Logitech");
+      expect(all).toContain("G Pro X Superlight 2c");
+      for (const text of all) {
+        if (text.includes("Superlight")) continue;
+        expect(text, text).not.toMatch(/\d/);
+      }
+    },
+  );
+
+  it("never draws a band even when a caller passes one without a total", () => {
+    const all = texts(
+      layoutShareCard({ ...NO_SCORE, bandLabel: "適合你" }, measure).ops,
+    ).map((o) => o.text);
+    expect(all).not.toContain("適合你");
+  });
+
+  it("stays balanced: inside the margins, the result block above the footer, the photo no smaller than the minimum", () => {
+    for (const handType of [HAND, undefined]) {
+      for (const m of [measure, fakeMeasure(0.55, 1.9)]) {
+        const layout = layoutShareCard({ ...NO_SCORE, handType }, m);
+        expect(layout.photoBox.h).toBeGreaterThanOrEqual(MIN_PHOTO_HEIGHT);
+        for (const o of texts(layout.ops)) {
+          const [left, right] = edges(o, m);
+          expect(left, o.text).toBeGreaterThanOrEqual(CARD_PADDING - 0.5);
+          expect(right, o.text).toBeLessThanOrEqual(
+            CARD_WIDTH - CARD_PADDING + 0.5,
+          );
+          expect(o.baseline, o.text).toBeLessThan(CARD_HEIGHT - CARD_PADDING);
+        }
+        const pick = texts(layout.ops).find(
+          (o) => o.text === shareCardCopy("zh-TW").closestPickLabel,
+        )!;
+        expect(layout.photoBox.y + layout.photoBox.h).toBeLessThan(
+          pick.baseline,
+        );
+      }
+    }
+  });
+
+  it("gives the model name the full width: a long name that needed two lines beside a score needs fewer here", () => {
+    const model = "Razer DeathAdder V3 Pro Wireless Ergonomic Edition";
+    const withScore = texts(
+      layoutShareCard({ ...BASE, model }, measure).ops,
+    ).filter((o) => o.font.weight === 700 && o.text !== "適合你");
+    const without = texts(
+      layoutShareCard({ ...NO_SCORE, model }, measure).ops,
+    ).filter((o) => o.font.weight === 700);
+    expect(without.length).toBeLessThanOrEqual(withScore.length);
+  });
+});
+
 describe("layoutShareCard: long names", () => {
   const LONG =
     "Pro X Superlight 2 DEX Lightspeed Wireless Gaming Mouse Special Edition";
