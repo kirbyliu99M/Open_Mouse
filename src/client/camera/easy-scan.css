@@ -1651,6 +1651,14 @@ main.easyScanShell {
     opacity: 1;
   }
 }
+/* A failed analysis: the loader stays on the failure sheet, stopped and
+   dimmed, above the retry (scan S2, candidate). */
+.particleLoader.easyFailedLoader {
+  padding: 0 0 0.5rem;
+}
+.easyFailedLoader .particleLoader-canvas {
+  width: min(28vw, 6rem);
+}
 @media (prefers-reduced-transparency: reduce) {
   .easyProcessingLoader {
     background: #060709;

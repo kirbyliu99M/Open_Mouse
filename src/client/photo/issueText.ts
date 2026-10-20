@@ -16,6 +16,7 @@ import type { Locale } from "../../lib/contracts/locale";
 import { scanCommonCopy } from "../../lib/copy/scan-common";
 import type { IssueDetail } from "./issue-detail";
 import { scanIssuesCopy } from "../../lib/copy/scan-issues";
+import { paperStageLines } from "../paper/detectionStage";
 
 export interface IssueLike {
   readonly code: string;
@@ -48,7 +49,11 @@ export function issueText(issue: IssueLike, locale: Locale): string {
     case "CARD_SCALE_MISMATCH":
       return words.cardScaleMismatch;
     case "PAPER_NOT_FOUND":
-      return words.paperNotFound;
+      // Where the detector stopped, when the photo said (scan S2); an older
+      // record without it keeps the plain line.
+      return issue.detail?.kind === "paperStage"
+        ? paperStageLines(issue.detail.stage, locale).retake
+        : words.paperNotFound;
     case "PAPER_CORNER_HIDDEN":
       return words.paperCornerHidden;
     case "PAPER_EDGE_HIDDEN":

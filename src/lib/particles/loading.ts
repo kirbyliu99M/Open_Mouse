@@ -220,6 +220,19 @@ export function loaderStatusText(
   return input.arrival.ok ? status.done : "";
 }
 
+/**
+ * The loader to keep on a failure screen (scan S2, 2026-10-21, candidate):
+ * the photo's own loader once its answer was a failure, so the ring stays
+ * where it stopped, dimmed, the cloud breathed out, above the retry (the
+ * results page's `failedLoader` does the same); `null` while it waits, after
+ * an ok answer, or with no loader. Pure.
+ */
+export function failedLoaderInput(
+  input: LoaderInput | null,
+): LoaderInput | null {
+  return input && input.arrival !== null && !input.arrival.ok ? input : null;
+}
+
 /** The wait's value at `now`, before any answer: the time curve or the steps. */
 export function waitingProgress(input: LoaderInput, now: number): number {
   if (input.steps === null) return timeProgress(now - input.startedAt);

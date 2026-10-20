@@ -9,6 +9,7 @@
 import { computeQuadSkew } from "../camera/quad";
 import { screenSideOfPaperSide, type PaperSide } from "../camera/paperGate";
 import { lowestCoverageSide } from "../paper/detect";
+import type { PaperDetectionStage } from "../paper/detectionStage";
 import type { FrameSize, PixelRect } from "../camera/visibleView";
 import type { HandFlatness } from "./handFlatness";
 
@@ -67,6 +68,13 @@ export interface PaperDiagnostics {
    * this still says whether the sheet would have passed.
    */
   readonly gateFailures: readonly string[];
+  /**
+   * Where the paper detector stopped when it found no sheet (scan S2,
+   * 2026-10-21, candidate): one of `PAPER_DETECTION_STAGES`; `null` when a
+   * sheet was found, and absent where nothing set it (hand-built diagnostics
+   * in tests). A step of the algorithm, not a proven cause.
+   */
+  readonly failureStage?: PaperDetectionStage | null;
 }
 
 export interface HandDiagnostics {

@@ -28,6 +28,7 @@ const EXPECTED_MODULES = [
   "manualEntry.ts",
   "mice-page.ts",
   "nav.ts",
+  "paper-stage.ts",
   "privacy.ts",
   "questionnaire.ts",
   "result-feedback.ts",

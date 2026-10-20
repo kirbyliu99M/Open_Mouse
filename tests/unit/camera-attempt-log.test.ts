@@ -156,6 +156,8 @@ describe("buildAttemptRecord", () => {
       sideCoverages: [0.225, 0.9, 1, 0.712],
       worstSide: "top",
       gateFailures: ["PAPER_CURLED"],
+      // A found sheet: no detector stage (scan S2).
+      failureStage: null,
     });
     expect(r.sharpness).toBe(142.35);
   });
@@ -1575,6 +1577,7 @@ describe("which edge was hidden: the paper block's sideCoverages and worstSide (
     expect(Object.keys(record().paper!).sort()).toEqual([
       "cornersSeen",
       "edgeFitResidualMm",
+      "failureStage",
       "gateFailures",
       "heightFraction",
       "maxAngleDeviationDeg",

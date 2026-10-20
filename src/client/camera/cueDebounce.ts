@@ -17,7 +17,8 @@
  *   covered" text goes up, not a side name, so a side that flips cannot keep
  *   the screen on an old cue. Another reason or any other cue in between
  *   starts the count again. The first sample with nothing on screen is held
- *   the same way.
+ *   the same way. The four detector-stage cues (scan S2) are one reason the
+ *   same way; samples that name different stages put up "no-corners".
  *
  * Pure: the caller keeps the state and passes the sample's code and the time.
  * It debounces the WORDS only; the ring reducer reads the raw sample.
@@ -69,6 +70,9 @@ function adopt(code: CueCode, nowMs: number): CueDebounceState {
 const GENERIC_FOR_REASON: Record<PaperGateReason, CueCode> = {
   "edge-covered": "edge-covered",
   "paper-curled": "paper-curled",
+  // The detector-stage cues (scan S2): samples that name different stages
+  // fall back to the plain no-paper text, as covered sides do to "edge-covered".
+  "paper-stage": "no-corners",
 };
 
 /** The state after one sample whose (raw) cue code is `sample`. */

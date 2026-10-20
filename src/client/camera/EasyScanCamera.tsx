@@ -233,6 +233,7 @@ import { loadingCopy } from "../../lib/copy/loading";
 import {
   LOADING_TIMING,
   loaderTimeline,
+  failedLoaderInput,
   photoStagesFor,
   photoStepCount,
   stepsDone,
@@ -542,6 +543,10 @@ export default function EasyScanCamera({
         : null,
     [photoLoader],
   );
+  // A photo whose analysis failed: its loader stays on the failure sheet,
+  // stopped and dimmed, above the retry (scan S2; like the results page's
+  // failedLoader). `null` otherwise.
+  const failedPhotoLoader = failedLoaderInput(photoLoaderInput);
   const [pageUrl, setPageUrl] = useState("");
   const [userLengthMm, setUserLengthMm] = useState<number | null>(null);
   const [lengthStep, setLengthStep] = useState(false);
@@ -1927,6 +1932,11 @@ export default function EasyScanCamera({
           // The photo's own paper gate, on this detection: no second
           // detector run (paperGate.ts).
           paperGate: evaluateLivePaperGate(detection, paperSizeRef.current),
+          // Where the detector stopped, from the same detection (scan S2):
+          // nothing is computed again for it.
+          paperStage: detection.failureStage ?? null,
+          // No stage cue before the sheet was ever found (cues.ts).
+          sheetSeenYet: firstSheetSeenAtRef.current !== null,
           msSinceLastDetection,
         },
         "paper-edge",
@@ -3027,6 +3037,13 @@ export default function EasyScanCamera({
             </>
           ) : (
             <>
+              {failedPhotoLoader && (
+                <ParticleLoader
+                  className="easyFailedLoader"
+                  input={failedPhotoLoader}
+                  status={loaderWords}
+                />
+              )}
               <p
                 className="easySheetTitle easySheetTitleError"
                 ref={sheetTitleRef}
