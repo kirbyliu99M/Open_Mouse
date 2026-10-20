@@ -105,7 +105,10 @@ describe("POST /api/scans 400 issues for a calibration union", () => {
 });
 
 describe("paper-edge cornersSource (V3.2 candidate)", () => {
-  const { edgeFitResidualMm: _r, minSideCoverage: _c, ...bare } = paperEdge;
+  // The paper-edge body without its two edge numbers.
+  const bare: Record<string, unknown> = { ...paperEdge };
+  delete bare.edgeFitResidualMm;
+  delete bare.minSideCoverage;
   const ok = (c: unknown) => scanSubmissionSchema.safeParse(body(c)).success;
 
   it("treats an absent cornersSource as auto and still needs both edge numbers", () => {
