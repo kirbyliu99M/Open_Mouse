@@ -30,6 +30,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useReducer,
   useRef,
   useState,
@@ -227,6 +228,17 @@ import { failureOffersLengthEdit, noPaperEntryLabel } from "./noPaperEntry";
 import { freshLiveLoopSampling, sampleElapsedMs } from "./liveLoop";
 import { DetectorProgress } from "./DetectorProgress";
 import { measuredSheetNumbers } from "../photo/unverified-note";
+import { ParticleLoader } from "../../components/loading/ParticleLoader";
+import { loadingCopy } from "../../lib/copy/loading";
+import {
+  LOADING_TIMING,
+  loaderTimeline,
+  photoStagesFor,
+  photoStepCount,
+  stepsDone,
+  type LoaderInput,
+  type PhotoStage,
+} from "../../lib/particles/loading";
 import "../../app/scan/scan.css";
 import "./camera.css";
 import "./easy-scan.css";
@@ -502,6 +514,34 @@ export default function EasyScanCamera({
   localeRef.current = locale;
   const common = scanCommonCopy(locale);
   const easy = easyScanCopy(locale);
+  const loaderWords = loadingCopy(locale).photo;
+  // The particle loader over the photo while it is analysed (V3.2 U1,
+  // candidate): which run it belongs to, the steps that run reports
+  // (`onStage`) and, once it is here, the answer.
+  const [photoLoader, setPhotoLoader] = useState<{
+    runId: number;
+    startedAt: number;
+    stages: readonly PhotoStage[];
+    reached: readonly PhotoStage[];
+    lastAt: number | null;
+    arrival: { at: number; ok: boolean } | null;
+  } | null>(null);
+  const photoLoaderInput = useMemo<LoaderInput | null>(
+    () =>
+      photoLoader
+        ? {
+            startedAt: photoLoader.startedAt,
+            minMs: LOADING_TIMING.MIN_DISPLAY_PHOTO_MS,
+            steps: {
+              total: photoStepCount(photoLoader.stages),
+              done: stepsDone(photoLoader.stages, new Set(photoLoader.reached)),
+              lastAt: photoLoader.lastAt,
+            },
+            arrival: photoLoader.arrival,
+          }
+        : null,
+    [photoLoader],
+  );
   const [pageUrl, setPageUrl] = useState("");
   const [userLengthMm, setUserLengthMm] = useState<number | null>(null);
   const [lengthStep, setLengthStep] = useState(false);
@@ -1181,6 +1221,44 @@ export default function EasyScanCamera({
         liveWait: liveWaitBucket(captureInfoRef.current?.liveWaitMs),
       });
       setResult({ kind: "processing", previewUrl });
+      // The loader (V3.2 U1): it appears now, follows the steps this run
+      // reports, and holds the answer back until it has been on screen for
+      // the minimum time (and, for a measured hand, filled and faded).
+      const loaderStartedAt = performance.now();
+      setPhotoLoader({
+        runId,
+        startedAt: loaderStartedAt,
+        stages: photoStagesFor(
+          paperUsed === "none" ? "user-length" : "paper-edge",
+        ),
+        reached: [],
+        lastAt: null,
+        arrival: null,
+      });
+      const onStage = (stage: PhotoStage) => {
+        const at = performance.now();
+        setPhotoLoader((prev) =>
+          prev && prev.runId === runId
+            ? { ...prev, reached: [...prev.reached, stage], lastAt: at }
+            : prev,
+        );
+      };
+      const holdLoader = async (ok: boolean) => {
+        const arrivedAt = performance.now();
+        setPhotoLoader((prev) =>
+          prev && prev.runId === runId
+            ? { ...prev, arrival: { at: arrivedAt, ok } }
+            : prev,
+        );
+        const { doneAt } = loaderTimeline(
+          loaderStartedAt,
+          arrivedAt,
+          LOADING_TIMING.MIN_DISPLAY_PHOTO_MS,
+          ok,
+        );
+        const wait = doneAt - performance.now();
+        if (wait > 0) await new Promise<void>((done) => setTimeout(done, wait));
+      };
       // Answers belong to the photo they followed.
       dispatchAnswers({ type: "reset" });
       // What this analysis was started with, for both ways it can end: a later
@@ -1193,6 +1271,7 @@ export default function EasyScanCamera({
           hand: handChipRef.current.hand,
           handExplicit: handChipRef.current.locked,
           handednessFixInstruction: HAND_BUTTON_FIX_INSTRUCTION,
+          onStage,
           calibration:
             userLengthRef.current !== null
               ? { method: "user-length", handLengthMm: userLengthRef.current }
@@ -1218,6 +1297,8 @@ export default function EasyScanCamera({
               : undefined,
         });
         void logAttempt(info, { kind: "result", result: pipelineResult });
+        if (runId !== runIdRef.current) return;
+        await holdLoader(pipelineResult.status === "ok");
         if (runId !== runIdRef.current) return;
         if (manualActiveRef.current) {
           // The form opened while this was analysed: its result must not open
@@ -1311,6 +1392,8 @@ export default function EasyScanCamera({
           code: detectorFailed ? "DETECTOR_LOAD_FAILED" : "PROCESSING_FAILED",
           message: error instanceof Error ? error.message : "",
         });
+        if (runId !== runIdRef.current) return;
+        await holdLoader(false);
         if (runId !== runIdRef.current) return;
         if (manualActiveRef.current) {
           URL.revokeObjectURL(previewUrl);
@@ -2856,10 +2939,12 @@ export default function EasyScanCamera({
         }
       />
 
-      {result.kind === "processing" && (
-        <p className="easyProcessingPill" aria-live="polite">
-          {easy.measuring}
-        </p>
+      {result.kind === "processing" && photoLoaderInput && (
+        <ParticleLoader
+          className="easyProcessingLoader"
+          input={photoLoaderInput}
+          status={loaderWords}
+        />
       )}
 
       {(result.kind === "measured" || result.kind === "gateFailure") && (

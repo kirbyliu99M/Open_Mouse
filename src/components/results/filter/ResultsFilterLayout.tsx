@@ -15,6 +15,7 @@ import {
   type Filters,
 } from "@/lib/results/filters";
 import type { FilterChangeSource } from "@/lib/results/analyticsEvents";
+import { filtersBesideToggle } from "@/lib/results/shapeToggle";
 import { FilterChips } from "./FilterChips";
 import { FilterFacets } from "./FilterFacets";
 import { FilterFocusContext } from "./FilterFocus";
@@ -97,6 +98,7 @@ export function ResultsFilterLayout({
   onSheetOpened,
   lead,
   shells = "switch",
+  besideToggle = false,
   children,
 }: {
   /** What the option counts and the brand list describe. */
@@ -117,11 +119,16 @@ export function ResultsFilterLayout({
   onSheetOpened?: () => void;
   /**
    * Optional content that comes first: above the filter bar on a phone, at the
-   * top of the content column beside the sidebar (the all-mice page's search).
-   * The results page passes none.
+   * top of the content column beside the sidebar (the all-mice page's search;
+   * the results page's shape toggle, V3.2 U1).
    */
   lead?: ReactNode;
   shells?: "switch" | "both";
+  /**
+   * The shape toggle is in `lead` (the results page, V3.2 U1): the shape it
+   * shows is left out of the chips and the button's count.
+   */
+  besideToggle?: boolean;
   children: ReactNode;
 }) {
   const wide = useWideLayout();
@@ -159,7 +166,9 @@ export function ResultsFilterLayout({
     if (wide) setSheetOpen(false);
   }, [wide]);
 
-  const chosen = selectedCount(filters);
+  const chosen = selectedCount(
+    besideToggle ? filtersBesideToggle(filters) : filters,
+  );
 
   const sidebar = (key: string) => (
     <aside
@@ -184,6 +193,7 @@ export function ResultsFilterLayout({
         filters={filters}
         language={language}
         onChange={(next) => onChange(next, "chips")}
+        besideToggle={besideToggle}
       />
       <FilterFacets
         response={response}
@@ -221,6 +231,7 @@ export function ResultsFilterLayout({
           filters={filters}
           language={language}
           onChange={(next) => onChange(next, "chips")}
+          besideToggle={besideToggle}
         />
       </div>
       {!sheetOpen && <FilterStatus count={count} language={language} />}

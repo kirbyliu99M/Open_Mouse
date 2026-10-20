@@ -639,6 +639,30 @@
   max-width: 44rem;
   margin-inline: auto;
 }
+/* The particle loader (V3.2 U1, candidate): a failed fit keeps it, smaller,
+   above the error. The results fade in once it has gone (opacity only). */
+.results-page-failedLoader {
+  padding: 1rem 0 1.5rem;
+}
+.results-page-failedLoader .particleLoader-canvas {
+  width: min(44vw, 10rem);
+}
+.resultsMain.results-entered {
+  animation: results-enter 200ms ease-out;
+}
+@keyframes results-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media print {
+  .resultsMain.results-entered {
+    animation: none;
+  }
+}
 
 /* Top bar: back link, site name (wide only), share spot. */
 .results-topBar {

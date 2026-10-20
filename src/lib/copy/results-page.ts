@@ -20,6 +20,7 @@ import type {
   SizeOption,
   WeightOption,
 } from "../results/filters";
+import type { ShapeSegment } from "../results/shapeToggle";
 import type { Locale } from "../../lib/contracts/locale";
 
 export interface ResultsPageCopy {
@@ -118,6 +119,11 @@ export interface ResultsPageCopy {
   excludedSeparator: string;
   /** The results-page filter (FILTER-1). Every string is a candidate. */
   filter: FilterCopy;
+  /**
+   * The shape toggle above the filter button (V3.2 U1). Every string is a
+   * candidate (未拍板, Claude's draft from the 2026-10-21 design).
+   */
+  shapeToggle: ShapeToggleCopy;
   /** Click the big photo to enlarge it (candidate, 2026-10-11). */
   photoZoom: {
     /** Accessible name of the photo button, with the mouse named. */
@@ -186,6 +192,19 @@ export interface FilterCopy {
   /** The share button and its note while filtering. */
   shareOverall: string;
   shareNote: string;
+}
+
+/** Words of the 「綜合｜左右對稱｜人體工學」 toggle (V3.2 U1, candidate / 未拍板). */
+export interface ShapeToggleCopy {
+  /** The toggle's accessible name. */
+  label: string;
+  segment: Record<ShapeSegment, string>;
+  /** The large card's place when the shape is the only filter: 「人體工學第 1 名」. */
+  segmentRank: (n: number, segment: string) => string;
+  /** Under a shape that has only a few mice, all of them on the page. */
+  fewNote: (n: number, segment: string) => string;
+  /** The note's way back to 「綜合」. */
+  seeOverall: string;
 }
 
 const NBSP = " ";
@@ -311,6 +330,18 @@ export const zhTW: ResultsPageCopy = {
     analysisHide: "收起分析",
     shareOverall: "分享總排名第 1 名",
     shareNote: "篩選中，分享圖仍放總排名第 1 名",
+  },
+  shapeToggle: {
+    label: "滑鼠形狀",
+    segment: {
+      overall: "綜合",
+      symmetrical: "左右對稱",
+      ergonomic: "人體工學",
+    },
+    segmentRank: (n, segment) => `${segment}第 ${n} 名`,
+    fewNote: (n, segment) =>
+      `目前符合的${segment}款只有 ${n} 款，全部列在這裡。`,
+    seeOverall: "看綜合排序",
   },
   photoZoom: {
     enlarge: (name) => `放大照片：${name}`,
@@ -465,6 +496,18 @@ export const en: ResultsPageCopy = {
     analysisHide: "Hide analysis",
     shareOverall: "Share the overall #1",
     shareNote: "While filtering, the share image still shows the overall #1",
+  },
+  shapeToggle: {
+    label: "Mouse shape",
+    segment: {
+      overall: "Overall",
+      symmetrical: "Symmetrical",
+      ergonomic: "Ergonomic",
+    },
+    segmentRank: (n, segment) => `#${n} ${segment.toLowerCase()}`,
+    fewNote: (n, segment) =>
+      `Only ${n} ${segment.toLowerCase()} mice match right now. They are all listed here.`,
+    seeOverall: "See the overall ranking",
   },
   photoZoom: {
     enlarge: (name) => `Enlarge photo: ${name}`,

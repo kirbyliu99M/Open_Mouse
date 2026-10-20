@@ -40,6 +40,13 @@ import { TopBar } from "@/components/nav/TopBar";
 import { DeleteScanAction } from "@/components/results/DeleteScanAction";
 import { useLocale } from "@/client/i18n/LocaleProvider";
 import { resultsScreensCopy } from "@/lib/copy/results-screens";
+import { loadingCopy } from "@/lib/copy/loading";
+import { ParticleLoader } from "@/components/loading/ParticleLoader";
+import {
+  LOADING_TIMING,
+  loaderTimeline,
+  type LoaderInput,
+} from "@/lib/particles/loading";
 import type { Locale } from "@/lib/contracts/locale";
 import type { RESCAN_STATES } from "@/lib/contracts/analytics";
 import "@/components/results/results.css";
@@ -120,6 +127,12 @@ export function useResultsScan(): ResultsScan {
  *  - 429 on the analysis alone -> handled inside `AnalysisSlot`; the
  *    ranking above stays visible and unaffected
  *
+ * While the fit loads, the page shows the particle loader (V3.2 U1,
+ * candidate): its ring follows the time curve, and the answer is held back
+ * until the loader has been on screen for `MIN_DISPLAY_FIT_MS` and has filled
+ * and faded (`loaderTimeline`). A failure stops the ring, dimmed, above the
+ * error and its retry.
+ *
  * `anonymous` (issue #42) is decided server-side by `layout.tsx` (it calls
  * `auth()`), never guessed client-side: it gates the "Delete this scan now"
  * action, which a signed-in caller never sees at all — they manage scans on
@@ -145,6 +158,17 @@ export function ResultsScanProvider({
   );
   const language = useLocale();
   const copy = resultsScreensCopy(language);
+  const loaderWords = loadingCopy(language).fit;
+  // The loader of the current fit request: when it appeared and, once it is
+  // here, when the answer came and whether it was a result.
+  const [loader, setLoader] = useState<LoaderInput>(() => ({
+    // Replaced by the fit effect's own start; this only covers the frames
+    // before it runs.
+    startedAt: typeof performance === "undefined" ? 0 : performance.now(),
+    minMs: LOADING_TIMING.MIN_DISPLAY_FIT_MS,
+    steps: null,
+    arrival: null,
+  }));
   // The locale the next analysis request is made in (the server answers in the
   // visitor's cookie locale, so a request is "in" the locale current when sent).
   const languageRef = useRef(language);
@@ -233,6 +257,14 @@ export function ResultsScanProvider({
 
   useEffect(() => {
     let cancelled = false;
+    let reveal: ReturnType<typeof setTimeout> | undefined;
+    const startedAt = performance.now();
+    setLoader({
+      startedAt,
+      minMs: LOADING_TIMING.MIN_DISPLAY_FIT_MS,
+      steps: null,
+      arrival: null,
+    });
     // Ask for the links of the mouse the page will show now, so they are
     // usually in the cache by the first paint: the detail page's mouse at once
     // (in parallel with the fit), the overall #1 as soon as the fit is here.
@@ -247,20 +279,45 @@ export function ResultsScanProvider({
         () => fetchFitResult(scanId, PREFERENCES),
       );
       if (cancelled) return;
-      if (outcome.status === "ready") {
+      const arrivedAt = performance.now();
+      const ok = outcome.status === "ready";
+      if (ok) {
         const top = outcome.response.results[0];
         if (top && !routeSlugRef.current) prefetchMouseLinks(top.mouse.slug);
-        // The ready `results_page_viewed` is sent by the page that renders
-        // (`ResultsRankClient`): its fields need the header card.
-        setPageState({ kind: "ready", response: outcome.response });
-      } else {
-        track("results_page_viewed", { state: outcome.status });
-        setPageState({ kind: outcome.status });
       }
+      setLoader({
+        startedAt,
+        minMs: LOADING_TIMING.MIN_DISPLAY_FIT_MS,
+        steps: null,
+        arrival: { at: arrivedAt, ok },
+      });
+      // Shown once the loader is done: at least the minimum time on screen,
+      // then (for a result) the fill and the fade.
+      const { doneAt } = loaderTimeline(
+        startedAt,
+        arrivedAt,
+        LOADING_TIMING.MIN_DISPLAY_FIT_MS,
+        ok,
+      );
+      reveal = setTimeout(
+        () => {
+          if (cancelled) return;
+          if (outcome.status === "ready") {
+            // The ready `results_page_viewed` is sent by the page that renders
+            // (`ResultsRankClient`): its fields need the header card.
+            setPageState({ kind: "ready", response: outcome.response });
+          } else {
+            track("results_page_viewed", { state: outcome.status });
+            setPageState({ kind: outcome.status });
+          }
+        },
+        Math.max(0, doneAt - performance.now()),
+      );
     })();
 
     return () => {
       cancelled = true;
+      if (reveal !== undefined) clearTimeout(reveal);
       analysisRunRef.current += 1;
     };
     // `attempt` is part of the request's identity and retriggers this effect
@@ -311,6 +368,17 @@ export function ResultsScanProvider({
     ],
   );
 
+  // A failed fit: the loader's ring stays where it stopped, dimmed, above the
+  // error (only after a real request; a scan deleted here has none).
+  const failedLoader =
+    loader.arrival && !loader.arrival.ok ? (
+      <ParticleLoader
+        className="results-page-failedLoader"
+        input={loader}
+        status={loaderWords}
+      />
+    ) : null;
+
   if (pageState.kind === "loading") {
     return (
       <main className="resultsMain">
@@ -320,9 +388,11 @@ export function ResultsScanProvider({
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
         />
-        <p className="results-page-status" role="status">
-          {copy.loading}
-        </p>
+        <ParticleLoader
+          className="results-page-status"
+          input={loader}
+          status={loaderWords}
+        />
       </main>
     );
   }
@@ -336,6 +406,7 @@ export function ResultsScanProvider({
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
         />
+        {failedLoader}
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">{copy.eyebrow}</p>
           <h1>{copy.notFound.title}</h1>
@@ -366,6 +437,7 @@ export function ResultsScanProvider({
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
         />
+        {failedLoader}
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">{copy.eyebrow}</p>
           <h1>{copy.rateLimited.title}</h1>
@@ -387,6 +459,7 @@ export function ResultsScanProvider({
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
         />
+        {failedLoader}
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">{copy.eyebrow}</p>
           <h1>{copy.networkError.title}</h1>
@@ -408,6 +481,7 @@ export function ResultsScanProvider({
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
         />
+        {failedLoader}
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">{copy.eyebrow}</p>
           <h1>{copy.serverError.title}</h1>
@@ -447,7 +521,7 @@ export function ResultsScanProvider({
 
   return (
     <ResultsScanContext.Provider value={scan}>
-      <main className="resultsMain">
+      <main className="resultsMain results-entered">
         {children}
         {anonymous && (
           <DeleteScanAction

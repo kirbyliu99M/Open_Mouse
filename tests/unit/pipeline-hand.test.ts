@@ -42,6 +42,7 @@ import {
   type RunPhotoPipelineInput,
 } from "../../src/client/photo/pipeline";
 import { computeSheetLayout } from "../../src/client/sheet/layout";
+import { photoStagesFor } from "../../src/lib/particles/loading";
 import { ID1_CARD_MM, SHEET } from "../../src/lib/contracts/measurement";
 
 const S = 3; // px per mm
@@ -284,5 +285,98 @@ describe.each(CALIBRATIONS)("$name pipeline", ({ calibration }) => {
     expect(result.errors.map((e) => e.code)).not.toContain(
       "HANDEDNESS_MISMATCH",
     );
+  });
+});
+
+/**
+ * `onStage` (V3.2 U1): the loader's ring follows the real steps. Each run
+ * reports its steps in `photoStagesFor`'s order, and a listener, present,
+ * absent or throwing, changes nothing about the result or the detector calls.
+ */
+const STAGE_RUNS = [
+  { name: "printed sheet", calibration: undefined, method: "printed-sheet" },
+  {
+    name: "blank paper",
+    calibration: { method: "paper-edge", paperSize: "a4" },
+    method: "paper-edge",
+  },
+  {
+    name: "typed hand length",
+    calibration: { method: "user-length", handLengthMm: 190 },
+    method: "user-length",
+  },
+] as const satisfies readonly {
+  name: string;
+  calibration: CalibrationInput | undefined;
+  method: Parameters<typeof photoStagesFor>[0];
+}[];
+
+describe.each(STAGE_RUNS)(
+  "$name pipeline: onStage",
+  ({ calibration, method }) => {
+    it("reports its steps once each, in photoStagesFor's order", async () => {
+      arrange("right");
+      const seen: string[] = [];
+      const result = await run(calibration, {
+        handExplicit: true,
+        onStage: (stage) => seen.push(stage),
+      });
+      expect(result.status).toBe("ok");
+      expect(seen).toEqual([...photoStagesFor(method)]);
+    });
+
+    it("a listener that throws changes neither the result nor the detector calls", async () => {
+      arrange("right");
+      const plain = await run(calibration, { handExplicit: true });
+      const plainHandCalls = vi.mocked(detectHandLandmarks).mock.calls.length;
+      const plainPaperCalls = vi.mocked(detectPaperQuad).mock.calls.length;
+
+      vi.clearAllMocks();
+      arrange("right");
+      const listened = await run(calibration, {
+        handExplicit: true,
+        onStage: () => {
+          throw new Error("the loader broke");
+        },
+      });
+      expect(vi.mocked(detectHandLandmarks).mock.calls.length).toBe(
+        plainHandCalls,
+      );
+      expect(vi.mocked(detectPaperQuad).mock.calls.length).toBe(
+        plainPaperCalls,
+      );
+      expect(plainHandCalls).toBe(1);
+      // Timings differ run to run; everything else is the same.
+      const strip = (r: unknown) =>
+        JSON.parse(
+          JSON.stringify(r, (key, value) =>
+            /Ms$/.test(key) && typeof value === "number" ? 0 : value,
+          ),
+        );
+      expect(strip(listened)).toEqual(strip(plain));
+    });
+  },
+);
+
+describe("blank paper pipeline: onStage when no sheet is found", () => {
+  it("still reports the paper step (it was looked for) and then stops", async () => {
+    arrange("right");
+    vi.mocked(detectPaperQuad).mockReturnValue({
+      corners: null,
+      cornersSeen: 0,
+      cornersFound: [false, false, false, false],
+      partialCorners: [null, null, null, null],
+      minSideCoverage: 0,
+      edgeFitResidualPx: null,
+      worstSideIndex: null,
+      paperRegionFound: false,
+    } as never);
+    const seen: string[] = [];
+    const result = await run(
+      { method: "paper-edge", paperSize: "a4" },
+      { handExplicit: true, onStage: (stage) => seen.push(stage) },
+    );
+    expect(result.status).toBe("error");
+    expect(seen.slice(0, 2)).toEqual(["decoded", "paper"]);
   });
 });
