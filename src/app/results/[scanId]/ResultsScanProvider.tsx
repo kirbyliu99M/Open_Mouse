@@ -26,9 +26,11 @@ import {
 } from "@/lib/results/requests";
 import {
   parseStoredManualEntry,
+  parseStoredPaperAdjusted,
   parseStoredUserLength,
   resultLengthKey,
   resultManualEntryKey,
+  resultPaperAdjustedKey,
   type StoredManualEntry,
 } from "@/components/results/userLengthDisclosure";
 import { prefetchMouseLinks } from "@/components/results/mouseLinksStore";
@@ -91,6 +93,8 @@ export interface ResultsScan {
   enteredLength: number | null;
   /** The hand length and width the user typed instead of scanning (manual entry), when that is how the scan was made. */
   enteredManual: StoredManualEntry | null;
+  /** V3.2 F2 (candidate): the paper frame was placed or moved by hand (read from this browser). */
+  paperAdjusted: boolean;
   analysisState: AnalysisState;
   /**
    * Ask for the written analysis. Only the main page (rank 1) gets a request
@@ -165,6 +169,7 @@ export function ResultsScanProvider({
   const [enteredManual, setEnteredManual] = useState<StoredManualEntry | null>(
     null,
   );
+  const [paperAdjusted, setPaperAdjusted] = useState(false);
   const language = useLocale();
   const copy = resultsScreensCopy(language);
   const loaderWords = loadingCopy(language).fit;
@@ -198,9 +203,15 @@ export function ResultsScanProvider({
           localStorage.getItem(resultManualEntryKey(scanId)),
         ),
       );
+      setPaperAdjusted(
+        parseStoredPaperAdjusted(
+          localStorage.getItem(resultPaperAdjustedKey(scanId)),
+        ),
+      );
     } catch {
       setEnteredLength(null);
       setEnteredManual(null);
+      setPaperAdjusted(false);
     }
   }, [scanId]);
 
@@ -407,6 +418,7 @@ export function ResultsScanProvider({
             language,
             enteredLength,
             enteredManual,
+            paperAdjusted,
             analysisState,
             requestAnalysis,
             retryAnalysis,
@@ -420,6 +432,7 @@ export function ResultsScanProvider({
       language,
       enteredLength,
       enteredManual,
+      paperAdjusted,
       analysisState,
       requestAnalysis,
       retryAnalysis,

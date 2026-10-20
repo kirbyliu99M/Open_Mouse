@@ -1664,3 +1664,313 @@ main.easyScanShell {
     background: #060709;
   }
 }
+
+/* ── 手動調整邊框 (V3.2 F2, candidate, 未拍板) ─────────────────────────────
+   A full-screen modal over the frozen photo. The same dark tokens and white
+   pill as the result sheet; the measurement motif (a thin frame, end-tick
+   style crosshair) instead of glow. Handles are 48 px targets with an 18 px
+   ring (PAPER_ADJUST_LAYOUT in paperAdjustState.ts says the same numbers). */
+.paperAdjust {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  max-height: 100%;
+  margin: 0;
+  padding: calc(0.75rem + env(safe-area-inset-top)) 0
+    calc(0.75rem + env(safe-area-inset-bottom));
+  border: 0;
+  background: var(--bg);
+  color: var(--text-primary);
+  /* At a large text size the buttons may not fit under the photo: the screen
+     scrolls (the photo itself takes the pointer and never scrolls it). */
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.paperAdjust[open] {
+  display: flex;
+  flex-direction: column;
+}
+.paperAdjust::backdrop {
+  background: var(--bg);
+}
+.paperAdjustHeader {
+  padding: 0 1rem 0.5rem;
+}
+.paperAdjustHeader h2 {
+  margin: 0;
+  font-size: 1.125rem;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+.paperAdjustHeader h2:focus {
+  outline: none;
+}
+.paperAdjustHeader h2:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+}
+.paperAdjustHint {
+  margin: 0.25rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+.paperAdjustStage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 12rem;
+  /* The photo is inset by half a handle inside it (fitPhoto), so a corner at
+     the photo's edge keeps its whole target. */
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.paperAdjustStage[data-marking="true"] {
+  cursor: crosshair;
+}
+.paperAdjustPhoto {
+  position: absolute;
+  max-width: none;
+  pointer-events: none;
+}
+.paperAdjustFrame {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.paperAdjustFrame polygon {
+  fill: color-mix(in srgb, var(--accent-text) 10%, transparent);
+  stroke: var(--accent-text);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.paperAdjustEdgeLine {
+  stroke: var(--text-primary);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 5;
+}
+.paperAdjustEdgePoint {
+  fill: var(--text-primary);
+  stroke: var(--bg);
+  stroke-width: 2;
+}
+.paperAdjustHandle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 48px;
+  height: 48px;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+  display: grid;
+  place-items: center;
+}
+.paperAdjustHandle:active {
+  cursor: grabbing;
+}
+.paperAdjustDot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-text);
+  background: var(--bg);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.6);
+  transition: transform 120ms ease-out;
+}
+/* A corner placed: a filled ring. Still a starting guess: hollow and dashed. */
+.paperAdjustHandle[data-placed="true"] .paperAdjustDot {
+  background: var(--accent-text);
+}
+.paperAdjustHandle[data-placed="false"] .paperAdjustDot {
+  border-style: dashed;
+  border-color: var(--text-primary);
+}
+.paperAdjustHandle[data-selected="true"] .paperAdjustDot {
+  transform: scale(1.25);
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 4px var(--text-primary);
+}
+.paperAdjustHandle[data-hidden-corner="true"] .paperAdjustDot {
+  background: transparent;
+  border-style: dotted;
+}
+.paperAdjustHandle:focus {
+  outline: none;
+}
+.paperAdjustHandle:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+.paperAdjustMagnifier {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid var(--text-primary);
+  background-color: var(--bg);
+  background-repeat: no-repeat;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.5);
+  pointer-events: none;
+  overflow: hidden;
+}
+/* The crosshair: two hairlines with a gap at the centre, so the corner itself
+   is never covered by the mark that points at it. */
+.paperAdjustCross,
+.paperAdjustCross::before,
+.paperAdjustCross::after {
+  position: absolute;
+  inset: 0;
+}
+.paperAdjustCross::before,
+.paperAdjustCross::after {
+  content: "";
+  margin: auto;
+  background:
+    linear-gradient(var(--accent-text), var(--accent-text)) top / 100% 42%
+      no-repeat,
+    linear-gradient(var(--accent-text), var(--accent-text)) bottom / 100% 42%
+      no-repeat;
+}
+.paperAdjustCross::before {
+  width: 1.5px;
+  height: 60%;
+}
+.paperAdjustCross::after {
+  width: 60%;
+  height: 1.5px;
+  background:
+    linear-gradient(var(--accent-text), var(--accent-text)) left / 42% 100%
+      no-repeat,
+    linear-gradient(var(--accent-text), var(--accent-text)) right / 42% 100%
+      no-repeat;
+}
+.paperAdjustStatus {
+  min-height: 1.6em;
+  margin: 0.5rem 1rem 0;
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+.paperAdjustTools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  padding: 0.25rem 1rem 0;
+}
+.paperAdjustTool {
+  min-height: 44px;
+  padding: 0 0.875rem;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+.paperAdjustTool[aria-pressed="true"] {
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
+  border-color: var(--button-primary-bg);
+}
+.paperAdjustTool:active {
+  background: var(--hairline);
+}
+.paperAdjustTool:focus-visible,
+.paperAdjustCancel:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+}
+.paperAdjustActions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem 0;
+}
+.paperAdjustConfirm {
+  width: 100%;
+}
+.paperAdjustConfirm[aria-disabled="true"] {
+  opacity: var(--button-primary-disabled-opacity);
+  cursor: not-allowed;
+}
+.paperAdjustConfirm[aria-disabled="true"]:active {
+  transform: none;
+  background: var(--button-primary-bg);
+}
+.paperAdjustCancel {
+  min-height: 44px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  cursor: pointer;
+}
+/* Wide screens: the buttons side by side under a bounded column. */
+@media (min-width: 720px) {
+  .paperAdjustHeader,
+  .paperAdjustStatus,
+  .paperAdjustTools,
+  .paperAdjustActions {
+    width: min(100% - 2rem, 40rem);
+    margin-inline: auto;
+    padding-inline: 0;
+  }
+  .paperAdjustActions {
+    flex-direction: row-reverse;
+    justify-content: flex-start;
+  }
+  .paperAdjustConfirm {
+    width: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .paperAdjustDot {
+    transition: none;
+  }
+}
+@media (prefers-contrast: more) {
+  .paperAdjustDot,
+  .paperAdjustMagnifier {
+    border-width: 3px;
+  }
+  .paperAdjustCancel {
+    border-color: currentColor;
+  }
+}
+/* The measured sheet's one line after a frame placed by hand. */
+.easySheetAdjustedNote {
+  margin: 0.25rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+/* The failure sheet's secondary action (the same text-link look as 修改數字). */
+.easyAdjustFrameButton {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 0.5rem;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font: inherit;
+  cursor: pointer;
+}
+.easyAdjustFrameButton:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+}

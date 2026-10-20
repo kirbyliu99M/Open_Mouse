@@ -320,6 +320,32 @@ describe("a placed frame through the real pipeline", () => {
   });
 });
 
+describe("photos never leave the browser", () => {
+  it("a run with a placed frame makes no request, and its submission holds no picture", async () => {
+    arrange(null);
+    const fetchSpy = vi.fn();
+    const beacon = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    vi.stubGlobal("navigator", { sendBeacon: beacon });
+    const r = ok(
+      await run({
+        manualPaperCorners: { corners: PAPER_FULL, source: "manual" },
+      }),
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(beacon).not.toHaveBeenCalled();
+    const body = JSON.stringify(r.submission);
+    expect(body).not.toMatch(/blob:|data:|base64|image\//i);
+    expect(Object.keys(r.submission).sort()).toEqual([
+      "calibration",
+      "hand",
+      "measurementModelVersion",
+      "measurements",
+    ]);
+    vi.unstubAllGlobals();
+  });
+});
+
 describe("a sheet found without all four corners", () => {
   it("reports the corners it could work out, in the whole photo's pixels, for the adjustment's start", async () => {
     arrange(CROP);

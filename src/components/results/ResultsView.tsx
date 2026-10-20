@@ -104,6 +104,7 @@ export function ResultsView({
   onResultChanged,
   enteredLengthMm = null,
   enteredManual = null,
+  paperAdjusted = false,
   showViewer = false,
   scanId,
   onSelectRank,
@@ -135,6 +136,11 @@ export function ResultsView({
    * never stack.
    */
   enteredManual?: StoredManualEntry | null;
+  /**
+   * V3.2 F2 (candidate): the scan's paper frame was placed or moved by hand.
+   * One line in the cautions about how the scan was made.
+   */
+  paperAdjusted?: boolean;
   /** Mount the 3D size illustration (real scans only). */
   showViewer?: boolean;
   /** A real scan: the other picks link to its routes. Absent in the demo. */
@@ -396,6 +402,14 @@ export function ResultsView({
                     formatCentimetres(enteredManual.handLengthMm),
                     formatCentimetres(enteredManual.handWidthMm),
                   )}
+                </p>
+              )}
+              {paperAdjusted && (
+                <p
+                  className="results-handNotice"
+                  data-testid="results-paper-adjusted"
+                >
+                  {copy.paperAdjustedNotice}
                 </p>
               )}
               {/* The hand comes from the fit response (#62), not from browser

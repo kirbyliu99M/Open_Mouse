@@ -4,7 +4,9 @@
  *
  *  - a typed hand length (`user-length`): `resultLengthKey`, the length;
  *  - a typed hand length and width (`manual-entry`): `resultManualEntryKey`,
- *    the pair as JSON.
+ *    the pair as JSON;
+ *  - a paper frame placed or moved by hand (`paper-edge` with `cornersSource`
+ *    adjusted or manual, V3.2 F2): `resultPaperAdjustedKey`, "1".
  *
  * Each calibration method writes its own key and no other; a scan measured
  * from a photo writes none, and a failed send writes nothing. Pure of React so
@@ -15,6 +17,7 @@ import type { ScanSubmission } from "../../lib/contracts/measurement";
 import {
   resultLengthKey,
   resultManualEntryKey,
+  resultPaperAdjustedKey,
   serializeManualEntry,
 } from "../../components/results/userLengthDisclosure";
 import { submitScan, type SubmitScanOutcome } from "./submitScan";
@@ -41,6 +44,11 @@ export function rememberScanDisclosures(
           handWidthMm: calibration.handWidthMm,
         }),
       );
+    } else if (
+      calibration.method === "paper-edge" &&
+      (calibration.cornersSource ?? "auto") !== "auto"
+    ) {
+      storage.setItem(resultPaperAdjustedKey(scanId), "1");
     }
   } catch {
     // Storage may be disabled; the results stay available without the note.

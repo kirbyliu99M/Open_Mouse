@@ -37,6 +37,21 @@ export function resultManualEntryKey(scanId: string): string {
   return `open-mouse:manual-entry:${scanId}`;
 }
 
+/**
+ * V3.2 F2 (candidate): set for a scan whose paper frame the person placed or
+ * moved by hand (`cornersSource` adjusted or manual), so the results page can
+ * say so. Kept per scan in this browser, like the two keys above; the value is
+ * only "1".
+ */
+export function resultPaperAdjustedKey(scanId: string): string {
+  return `open-mouse:paper-adjusted:${scanId}`;
+}
+
+/** Whether the stored value says the frame was adjusted; anything else is false. */
+export function parseStoredPaperAdjusted(raw: string | null): boolean {
+  return raw === "1";
+}
+
 export interface StoredManualEntry {
   readonly handLengthMm: number;
   readonly handWidthMm: number;
@@ -132,6 +147,7 @@ export function clearScanDisclosures(
   for (const scanId of scanIds) {
     storage.removeItem(resultLengthKey(scanId));
     storage.removeItem(resultManualEntryKey(scanId));
+    storage.removeItem(resultPaperAdjustedKey(scanId));
     // Legacy key, no longer written (see handDisclosure.ts).
     storage.removeItem(resultHandKey(scanId));
   }
