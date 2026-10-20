@@ -60,7 +60,7 @@ describe("pinned numbers", () => {
     expect(MAX_RATED_MICE).toBe(5);
     expect(HOME_TOP_MICE_COUNT).toBe(3);
     expect(MAX_SIMILAR_MICE).toBe(5);
-    expect(SIMILAR_MIN_PEOPLE).toBe(2);
+    expect(SIMILAR_MIN_PEOPLE).toBe(5);
     expect(CONTRIBUTION_BIN_MM).toBe(5);
   });
 
@@ -604,12 +604,12 @@ describe("similarResponseSchema", () => {
   });
 
   it("is never one person's answer", () => {
-    expect(similar({ ...available, neighbours: 1 })).toBe(false);
+    expect(similar({ ...available, neighbours: 4 })).toBe(false);
     expect(
-      similar({ ...available, neighbours: 2, mice: [{ ...mouse, raters: 1 }] }),
+      similar({ ...available, neighbours: 5, mice: [{ ...mouse, raters: 4 }] }),
     ).toBe(false);
     expect(
-      similar({ ...available, neighbours: 2, mice: [{ ...mouse, raters: 2 }] }),
+      similar({ ...available, neighbours: 5, mice: [{ ...mouse, raters: 5 }] }),
     ).toBe(true);
   });
 
