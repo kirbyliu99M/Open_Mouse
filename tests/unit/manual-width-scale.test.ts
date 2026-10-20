@@ -199,8 +199,11 @@ describe("the real catalogue, typed 190 x 85 mm, claw, medium thickness", () => 
   // The baseline ("what the engine saw before the conversion") is scored with
   // an explicit engine, so it does not move with FIT_ENGINE; the conversion
   // itself runs through the route, which follows FIT_ENGINE. Rank 1 is v1's;
-  // v3's wider grip target puts the same mouse at BEFORE_RANK.v3.
-  const BEFORE_RANK = { v1: 1, v3: 3 } as const;
+  // v3's wider grip target puts the same mouse at BEFORE_RANK.v3. It was 3
+  // until A1-06: v3's grip-width error spread then followed v3's own 1.00
+  // factor (6.403124 mm instead of v1's 6.114769), which puts this mouse back
+  // at the top, as in v1.
+  const BEFORE_RANK = { v1: 1, v3: 1 } as const;
   afterEach(() => {
     vi.unstubAllEnvs();
   });
