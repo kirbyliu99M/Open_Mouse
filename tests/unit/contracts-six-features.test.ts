@@ -69,7 +69,7 @@ describe("pinned numbers", () => {
   });
 
   it("names the consent version the free-text survey needs (candidate)", () => {
-    expect(SURVEY_CONSENT_VERSION).toBe("survey-consent-v2-draft");
+    expect(SURVEY_CONSENT_VERSION).toBe("survey-consent-v3-draft");
   });
 });
 

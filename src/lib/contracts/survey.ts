@@ -91,10 +91,13 @@ import { GRIP_STYLES } from "./fit";
 /**
  * Version of the consent text the person ticked. Bump it when the copy changes.
  * v2 (candidate): the survey gained free text, so the consent copy changed.
+ * v3 (candidate, 2026-10-21): the "kept" paragraph now says that, for a
+ * signed-in person, the rated mice also fine-tune their own results (the v3
+ * engine's automatic calibration; Kirby approved that use on 2026-10-20).
  * The server stores the version it was given; nothing is migrated by this
  * contract, and a v1 body is refused.
  */
-export const SURVEY_CONSENT_VERSION = "survey-consent-v2-draft";
+export const SURVEY_CONSENT_VERSION = "survey-consent-v3-draft";
 
 /** A contributed hand profile is rounded down to this many millimetres. */
 export const CONTRIBUTION_BIN_MM = 5;
