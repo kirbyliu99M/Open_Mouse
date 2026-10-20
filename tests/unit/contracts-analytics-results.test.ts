@@ -31,6 +31,10 @@ describe("results-page events (2026-10-13)", () => {
           poorFit: false,
         },
       ],
+      [
+        "results_page_viewed",
+        { state: "ready", ...PAGE, mouse: SLUG, overallRank: 1 },
+      ],
       ["results_page_viewed", { state: "serverError" }],
       ["purchase_links_shown", { ...PAGE, mouse: SLUG, count: 4 }],
       [
