@@ -70,7 +70,8 @@ export const analysisPath = (scanId: string): string =>
 
 /**
  * `DELETE` — deletes **this one scan**: its `scans` row, which cascades to
- * its `scan_measurements`, `fit_results` and `analysis_cache` rows (the
+ * its `scan_measurements`, `fit_results` (older rows only: none are written
+ * since 2026-10-20) and `analysis_cache` rows (the
  * cached model prose, bound to this scan since migration 0005). Nothing else. Other scans
  * in the same session, and the session itself (even if now empty), are
  * untouched: a person who made scans A and B and deletes B still has A.

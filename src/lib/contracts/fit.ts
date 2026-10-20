@@ -437,6 +437,13 @@ export const fitFeelSchema = z
  *
  * Privacy: the server uses references for this request only and stores none
  * of them; storing them needs Kirby's decision and a consented table.
+ *
+ * Automatic references (Kirby, 2026-10-20, candidate): when a request sends no
+ * `references`, a v3 engine serving a signed-in person may build them on the
+ * server from that person's own survey ratings (a catalogue mouse rated 4 or 5
+ * gives "just right" for each dimension it has no pain point on), and only
+ * calibrates when at least two of them would be used. They are read for that
+ * request and stored nowhere else.
  */
 export const fitReferenceSchema = z
   .strictObject({
