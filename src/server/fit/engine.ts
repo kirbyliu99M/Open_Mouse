@@ -14,6 +14,7 @@ import { computePriors } from "./priors";
 import { scoreFit } from "./score";
 import { scoreFitV1 } from "./score-v1";
 import { scoreFitV2 } from "./score-v2-candidate";
+import { scoreFitV3 } from "./score-v3-candidate";
 import type { CatalogueMouse } from "./types";
 
 /**
@@ -29,6 +30,7 @@ function unknownEngine(engine: never): never {
  * Runs the named engine. `scoreFitDefault` passes `DEFAULT_ENGINE`; tests pass
  * "v1" or "v2" to exercise a candidate path without flipping the switch.
  *
+ * "v3" is the fit-v3.0 candidate (score-v3-candidate.ts), on the same terms.
  * "v2" is the fit-v2.0 candidate (score-v2-candidate.ts) with its default
  * options, for tests and explicit opt-in only. It does not attach rank
  * stability (`attachRankStability` is a separate step).
@@ -59,6 +61,14 @@ export function scoreWithEngine(
         hand,
         computePriors(catalogue),
       );
+    case "v3":
+      return scoreFitV3(
+        measurements,
+        catalogue,
+        prefs,
+        hand,
+        computePriors(catalogue),
+      );
     default:
       return unknownEngine(engine);
   }
@@ -66,7 +76,7 @@ export function scoreWithEngine(
 
 /**
  * What a null sub-score is stored as in `fit_results` under the named engine,
- * for the grip the response used: v0 stores `UNKNOWN_PRIOR_SCORE`; v1 and v2
+ * for the grip the response used: v0 stores `UNKNOWN_PRIOR_SCORE`; v1, v2 and v3
  * store the catalogue-mean prior their total used.
  */
 export function storedNullScore(
@@ -77,7 +87,8 @@ export function storedNullScore(
     case "v0":
       return () => UNKNOWN_PRIOR_SCORE;
     case "v1":
-    case "v2": {
+    case "v2":
+    case "v3": {
       const priors = computePriors(catalogue);
       return (subscore, grip) => priors[subscore][grip];
     }

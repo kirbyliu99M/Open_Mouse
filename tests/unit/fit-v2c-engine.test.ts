@@ -55,13 +55,13 @@ describe("T8: scoreWithEngine", () => {
 
   it("an unknown id fails at the type level and at run time", () => {
     expect(() =>
-      // @ts-expect-error "v3" is not an EngineId
-      scoreWithEngine("v3", m, seedCatalogue, prefs, "right"),
-    ).toThrow(/Unknown fit engine: v3/);
+      // @ts-expect-error "v9" is not an EngineId
+      scoreWithEngine("v9", m, seedCatalogue, prefs, "right"),
+    ).toThrow(/Unknown fit engine: v9/);
     expect(() =>
-      // @ts-expect-error "v3" is not an EngineId
-      storedNullScore("v3", seedCatalogue),
-    ).toThrow(/Unknown fit engine: v3/);
+      // @ts-expect-error "v9" is not an EngineId
+      storedNullScore("v9", seedCatalogue),
+    ).toThrow(/Unknown fit engine: v9/);
   });
 });
 
