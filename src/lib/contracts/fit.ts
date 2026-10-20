@@ -199,7 +199,77 @@ export const fitEntrySchema = z.strictObject({
       }),
     )
     .optional(),
+  /**
+   * 2026-10-18 (fit-v2.0 candidate, 未拍板): the share of resampled inputs,
+   * 0 to 1, under which this entry stays in the top 5. The engine perturbs the
+   * measured hand length and palm width by their assumed measurement noise
+   * (v1's σ_meas, 6 mm and 4 mm, which nobody has validated), re-ranks, and
+   * counts. It says how much the ranking would move if the measurement moved;
+   * it is NOT a probability that the mouse fits, and no copy may call it that
+   * (no "match chance", no "confidence"). Only the first 10 entries carry it,
+   * and only a v2 engine fills it.
+   *
+   * Hard rule 2: not part of the analysis input; `toInputEntry` picks fields
+   * by name and must keep leaving it out, and its numbers stay out of the
+   * numeral allow-list. Optional until a v2 engine fills it.
+   */
+  rankStability: z.number().min(0).max(1).optional(),
 });
+
+/**
+ * 2026-10-18 (fit-v2.0 candidate, 未拍板): how the hand's length target sits
+ * against the length range of the mice this response ranked. Only a v2 engine
+ * fills it; v0 and v1 responses never carry it.
+ *
+ * What it means: when the length target of any grip in play falls outside
+ * [min, max] of the ranked mice's lengths, the engine ranks against the
+ * nearest edge of that range (a "clamp") instead of the true target.
+ * `lengthOutOfRange` is true then. `usedGripLengthTargetMm` is the true,
+ * unclamped length target of the grip used (the same number as
+ * `targets.lengthMm`), and `catalogueLengthRangeMm` is [min, max] of the ranked
+ * lengths (the two may be equal when one mouse is ranked). When nothing is
+ * rankable (an empty catalogue, or every mouse excluded) the engine leaves the
+ * whole block out.
+ *
+ * `direction` is "above" or "below" when the grip USED is clamped, and null
+ * otherwise: a blended, unstated grip can have a clamped palm target while the
+ * used (arg-max) grip is not, so `direction` null with `lengthOutOfRange` true
+ * is valid.
+ *
+ * Hard rule for every consumer: while `lengthOutOfRange` is true, never show a
+ * numeric score or a band. The ranking ORDER is meaningful; `total` is not, it
+ * is the value the engine sorted by against an edge of the catalogue, not a
+ * distance to this person's hand. That covers `results[].total`, the
+ * `excluded[].total` of a wrong-hand mouse, the results page, the share card
+ * (`share/input.ts`: `total`, `bandLabel`) and the analysis input
+ * (`src/server/analysis/input.ts`: `total`, `band`, and sub-score `params`).
+ * The engine keeps `subscores` (scores, reason codes, params) on the TRUE
+ * target, so they stay honest; they will not average to `total` here.
+ *
+ * Gate: until every consumer above handles `coverage`, a v2 engine must not
+ * become `DEFAULT_ENGINE` nor be wired into those paths (a test pins the
+ * default). Facts only: hard rule 2 applies, so nothing here may enter the
+ * analysis input or the share card input, or the analysis numeral allow-list.
+ *
+ * Rollout: this contract ships and deploys before any engine that fills it.
+ * Clients parse the response with a strict schema, so a client from before
+ * this change refuses a response that carries these keys.
+ */
+export const fitCoverageSchema = z
+  .strictObject({
+    lengthOutOfRange: z.boolean(),
+    direction: z.enum(["above", "below"]).nullable(),
+    usedGripLengthTargetMm: z.number().finite(),
+    catalogueLengthRangeMm: z.tuple([z.number().finite(), z.number().finite()]),
+  })
+  .refine((c) => c.catalogueLengthRangeMm[0] <= c.catalogueLengthRangeMm[1], {
+    message: "range minimum must not exceed its maximum",
+    path: ["catalogueLengthRangeMm"],
+  })
+  .refine((c) => c.direction === null || c.lengthOutOfRange, {
+    message: "a direction needs lengthOutOfRange to be true",
+    path: ["direction"],
+  });
 
 export const fitResponseSchema = z.strictObject({
   scanId: z.string().uuid(),
@@ -282,6 +352,8 @@ export const fitResponseSchema = z.strictObject({
       }),
   ),
   results: z.array(fitEntrySchema),
+  /** fit-v2.0 candidate: see `fitCoverageSchema`. Optional until a v2 engine fills it. */
+  coverage: fitCoverageSchema.optional(),
 });
 
 /**
@@ -309,4 +381,5 @@ export const fitPreferencesSchema = z.strictObject({
 export type FitEntry = z.infer<typeof fitEntrySchema>;
 export type HandType = NonNullable<FitResponse["handType"]>;
 export type FitResponse = z.infer<typeof fitResponseSchema>;
+export type FitCoverage = z.infer<typeof fitCoverageSchema>;
 export type FitPreferences = z.infer<typeof fitPreferencesSchema>;
