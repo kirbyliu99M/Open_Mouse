@@ -5,7 +5,11 @@ import {
   type ResultFeedbackSnapshot,
 } from "../../lib/contracts/result-feedback";
 import { bandOf } from "../../lib/fit/bands";
-import { scoreFitDefault } from "../fit/engine";
+import {
+  surveyReferencesFor,
+  type SurveyReferenceSource,
+} from "../fit/auto-calibration";
+import { resolveFitEngine, scoreFitDefault } from "../fit/engine";
 import { listedOnly } from "../fit/listed";
 import { scoringMeasurements } from "../fit/scoring-measurements";
 import { groupShells } from "../fit/shell-groups";
@@ -20,7 +24,10 @@ const EMPTY_PREFERENCES = fitPreferencesSchema.parse({});
  * It is a fresh run of the default engine on the scan's stored measurements
  * with empty preferences, the same inputs `loadOwnedFit` gives an empty fit
  * request (the scan's stated grip and palm thickness, no override), listed
- * mice only, same-shell entries grouped as the fit route groups them, and a
+ * mice only, and, for a signed-in person under the v3 engine, the same
+ * automatic survey calibration (`surveyReferencesFor`: same source, same
+ * threshold; the request has no references, so the survey is read, and a
+ * signed-out caller reads nothing), same-shell entries grouped as the fit route groups them, and a
  * typed hand width scored on the scan's scale (`scoringMeasurements`, as in
  * `loadOwnedFit`, so the snapshot matches the page). Nothing
  * is read from `fit_results` (the fit request no longer writes it either).
@@ -33,16 +40,28 @@ const EMPTY_PREFERENCES = fitPreferencesSchema.parse({});
  * evidence. The result is parsed with the contract's schema, so a value
  * outside its lists throws instead of being stored.
  */
-export function buildSnapshot(
+export async function buildSnapshot(
   scan: OwnedScan,
   catalogue: readonly CatalogueMouse[],
-): ResultFeedbackSnapshot {
+  calibration: {
+    userId: string | null;
+    source: SurveyReferenceSource | undefined;
+  } = { userId: null, source: undefined },
+): Promise<ResultFeedbackSnapshot> {
   const listed = listedOnly(catalogue);
+  const surveyReferences = await surveyReferencesFor({
+    engine: resolveFitEngine(),
+    userId: calibration.userId,
+    prefs: EMPTY_PREFERENCES,
+    catalogue: listed,
+    source: calibration.source,
+  });
   const engineOutput = scoreFitDefault(
     scoringMeasurements(scan.measurements, scan.calibrationMethod),
     listed,
     {
       ...EMPTY_PREFERENCES,
+      ...(surveyReferences ? { references: surveyReferences } : {}),
       gripStyle: scan.gripStyleStated ?? undefined,
       palmThickness: scan.palmThicknessStated ?? undefined,
     },

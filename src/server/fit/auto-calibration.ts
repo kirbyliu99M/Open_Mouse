@@ -142,6 +142,14 @@ export async function surveyReferencesFor(args: {
   if (engine !== "v3" || userId === null || source === undefined) {
     return undefined;
   }
+  // `references: []` is NOT "no references": it is the request saying "calibrate
+  // with nothing" (a caller's own choice, e.g. a test or a person who wants the
+  // plain result), so it keeps the survey unread, the same as a non-empty list.
+  // Only an absent field means "not given". Nothing in the product sends `[]`
+  // today: the results page posts `{}` (ResultsScanProvider's PREFERENCES), and
+  // no client code names `references` at all (grep, 2026-10-20). Keep it so; a
+  // client that defaults the field to `[]` would switch the calibration off for
+  // everyone it serves.
   if (prefs.references !== undefined) return undefined;
   const references = autoCalibrationReferences(
     await source.loadRatings(userId),

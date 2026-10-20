@@ -28,6 +28,7 @@ import {
 import { loadOwnedFit } from "../../src/server/fit/core";
 import { baseTargetsV3 } from "../../src/server/fit/score-v3-candidate";
 import { computeFitForScan } from "../../src/server/fit/service";
+import { buildSnapshot } from "../../src/server/result-feedback/snapshot";
 import type { CatalogueMouse } from "../../src/server/fit/types";
 import {
   createFakeFitRepo,
@@ -563,5 +564,109 @@ describe("POST /api/scans/{scanId}/fit with the survey", () => {
     expect(loadRatings).toHaveBeenCalledTimes(1);
     expect(await call(null)).not.toHaveProperty("calibration");
     expect(loadRatings).toHaveBeenCalledTimes(1);
+  });
+});
+
+// --- the feedback snapshot ------------------------------------------------------------
+
+describe("the result-feedback snapshot with the survey", () => {
+  const ratings = [rated(G), rated(B)];
+  const sourceOf = (rows: SurveyRatingForCalibration[] = ratings) => {
+    const loadRatings = vi.fn<SurveyReferenceSource["loadRatings"]>(
+      async () => rows,
+    );
+    return {
+      source: { loadRatings } satisfies SurveyReferenceSource,
+      loadRatings,
+    };
+  };
+  const fitTopSlugs = async (
+    userId: string | null,
+    source?: SurveyReferenceSource,
+  ) => {
+    const result = await loadOwnedFit(
+      SCAN_ID,
+      { userId, cookieSessionId: "c" },
+      NO_PREFS,
+      {
+        scanRepo: createFakeScanRepo(vi.fn(async () => sampleOwnedScan)),
+        fitRepo: createFakeFitRepo(catalogue).repo,
+        surveyReferences: source,
+        now: NOW,
+      },
+    );
+    if (result.status !== "ok") throw new Error("unreachable");
+    return {
+      slugs: result.fit.results.slice(0, 3).map((e) => e.mouse.slug),
+      calibrated: result.fit.calibration !== undefined,
+    };
+  };
+
+  it("v3, signed in, two usable ratings: the first three are the fit response's first three, and the survey was read", async () => {
+    vi.stubEnv("FIT_ENGINE", "v3");
+    const { source, loadRatings } = sourceOf();
+    const fit = await fitTopSlugs("user-1", source);
+    expect(fit.calibrated).toBe(true);
+    const snapshot = await buildSnapshot(sampleOwnedScan, catalogue, {
+      userId: "user-1",
+      source,
+    });
+    expect(snapshot.topMice.map((m) => m.slug)).toEqual(fit.slugs);
+    expect(loadRatings).toHaveBeenCalledTimes(2);
+    expect(loadRatings).toHaveBeenLastCalledWith("user-1");
+  });
+
+  it("the snapshot is the calibrated result, not the plain one: the same ratings move its engine run", async () => {
+    vi.stubEnv("FIT_ENGINE", "v3");
+    const plain = await buildSnapshot(sampleOwnedScan, catalogue);
+    const { source } = sourceOf();
+    const calibrated = await buildSnapshot(sampleOwnedScan, catalogue, {
+      userId: "user-1",
+      source,
+    });
+    // On this small catalogue the order may not change, so compare against the
+    // fit response of each: the snapshot follows whichever the page shows.
+    const plainFit = await fitTopSlugs("user-1");
+    const calibratedFit = await fitTopSlugs("user-1", source);
+    expect(plain.topMice.map((m) => m.slug)).toEqual(plainFit.slugs);
+    expect(calibrated.topMice.map((m) => m.slug)).toEqual(calibratedFit.slugs);
+  });
+
+  it("not signed in: the survey is not read, and the snapshot equals the signed-out fit's first three", async () => {
+    vi.stubEnv("FIT_ENGINE", "v3");
+    const { source, loadRatings } = sourceOf();
+    const snapshot = await buildSnapshot(sampleOwnedScan, catalogue, {
+      userId: null,
+      source,
+    });
+    expect(loadRatings).not.toHaveBeenCalled();
+    expect(snapshot.topMice.map((m) => m.slug)).toEqual(
+      (await fitTopSlugs(null)).slugs,
+    );
+  });
+
+  it("not v3, or too few ratings, or no source: the survey is not used", async () => {
+    const { source, loadRatings } = sourceOf();
+    vi.stubEnv("FIT_ENGINE", "v1");
+    await buildSnapshot(sampleOwnedScan, catalogue, {
+      userId: "user-1",
+      source,
+    });
+    expect(loadRatings).not.toHaveBeenCalled();
+    vi.stubEnv("FIT_ENGINE", "v3");
+    const one = sourceOf([rated(G)]);
+    const plain = await buildSnapshot(sampleOwnedScan, catalogue);
+    expect(
+      await buildSnapshot(sampleOwnedScan, catalogue, {
+        userId: "user-1",
+        source: one.source,
+      }),
+    ).toEqual(plain);
+    expect(
+      await buildSnapshot(sampleOwnedScan, catalogue, {
+        userId: "user-1",
+        source: undefined,
+      }),
+    ).toEqual(plain);
   });
 });

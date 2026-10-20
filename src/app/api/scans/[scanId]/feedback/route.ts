@@ -1,6 +1,7 @@
 import { auth } from "../../../../../auth";
 import { createDrizzleRateLimiter } from "../../../../../server/analysis/drizzle-rate-limiter";
 import { createDrizzleFitRepo } from "../../../../../server/fit/drizzle-repo";
+import { createDrizzleSurveyReferenceSource } from "../../../../../server/fit/survey-reference-source";
 import { createDrizzleResultFeedbackRepo } from "../../../../../server/result-feedback/drizzle-repo";
 import {
   handleResultFeedbackStatus,
@@ -23,6 +24,7 @@ function deps(op: "submit" | "status"): ResultFeedbackDeps {
     scanRepo: createDrizzleScanRepo(),
     fitRepo: createDrizzleFitRepo(),
     feedbackRepo: createDrizzleResultFeedbackRepo(),
+    surveyReferences: createDrizzleSurveyReferenceSource(),
     limiter: createDrizzleRateLimiter(
       op === "status"
         ? {

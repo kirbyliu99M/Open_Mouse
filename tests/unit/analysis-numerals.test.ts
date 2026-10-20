@@ -14,6 +14,7 @@ import {
   normalizeVulgarFractions,
   stringTokens,
   surroundingToken,
+  withoutDisplayNames,
 } from "../../src/server/analysis/numerals";
 
 describe("collectNumbers", () => {
@@ -1182,5 +1183,145 @@ describe("a no-break space between a number and its unit", () => {
     expect(
       findUnknownNumeral(`the g502${NBSP}X is 84${NBSP}mm`, allowed, exempt),
     ).toBe(502);
+  });
+});
+
+describe("findUnknownNumeral with exemptNames (a number inside a real display name)", () => {
+  const allowed = new Set([84]);
+  const brand = "Logitech";
+  const names = (...models: string[]) =>
+    models.flatMap((m) => [`${brand} ${m}`, m]);
+  const tokens = (...models: string[]) =>
+    new Set([
+      ...stringTokens(brand),
+      ...models.flatMap((m) => [...stringTokens(m)]),
+    ]);
+
+  it("the bare '2' in 'Superlight 2' is a number without the name list and not with it", () => {
+    const model = "G Pro X Superlight 2";
+    const text = "The G Pro X Superlight 2 fits your hand.";
+    expect(findUnknownNumeral(text, allowed, tokens(model))).toBe(2);
+    expect(
+      findUnknownNumeral(text, allowed, tokens(model), names(model)),
+    ).toBeNull();
+  });
+
+  it("takes the brand + model form, in any case and with any run of spaces", () => {
+    const model = "G Pro X Superlight 2";
+    for (const text of [
+      "Logitech G Pro X Superlight 2 is the top match.",
+      "logitech g pro x superlight 2 is the top match.",
+      "Logitech  G Pro X\nSuperlight   2 is the top match.",
+      "Logitech G Pro X Superlight 2是最符合你手型的選擇。",
+      "最符合的是 Logitech G Pro X Superlight 2。",
+    ]) {
+      expect(
+        findUnknownNumeral(text, allowed, tokens(model), names(model)),
+      ).toBeNull();
+    }
+  });
+
+  it("'MX Master 3S' and 'Viper V3 Pro' (letters and digits together) work with and without the list", () => {
+    for (const model of ["MX Master 3S", "Viper V3 Pro"]) {
+      const text = `Consider the ${model} instead.`;
+      expect(findUnknownNumeral(text, allowed, tokens(model))).toBeNull();
+      expect(
+        findUnknownNumeral(text, allowed, tokens(model), names(model)),
+      ).toBeNull();
+    }
+    // A name that is not in the list is still checked.
+    expect(
+      findUnknownNumeral(
+        "Consider the Viper V3 Pro.",
+        allowed,
+        new Set(),
+        names("MX Master 3S"),
+      ),
+    ).toBe(3);
+  });
+
+  it("what follows the name is still checked: 'Superlight 2 85 分' leaves the 85", () => {
+    const model = "G Pro X Superlight 2";
+    expect(
+      findUnknownNumeral(
+        "G Pro X Superlight 2 85 分",
+        new Set([84]),
+        tokens(model),
+        names(model),
+      ),
+    ).toBe(85);
+    expect(
+      findUnknownNumeral(
+        "G Pro X Superlight 2 84 分",
+        new Set([84]),
+        tokens(model),
+        names(model),
+      ),
+    ).toBeNull();
+  });
+
+  it("a standalone 2 outside the name is still refused", () => {
+    const model = "G Pro X Superlight 2";
+    for (const text of [
+      "The G Pro X Superlight 2 leaves 2 mm of clearance.",
+      "A 2 mm gap beside the Logitech G Pro X Superlight 2.",
+      "兩側各留 2 mm，Logitech G Pro X Superlight 2 很合適。",
+      "G Pro X Superlight 2 and G Pro X Superlight 2 2 mm",
+    ]) {
+      expect(
+        findUnknownNumeral(text, allowed, tokens(model), names(model)),
+      ).toBe(2);
+    }
+  });
+
+  it("the name must stand alone: a longer number or a decimal after it is not the name", () => {
+    const model = "G Pro X Superlight 2";
+    expect(
+      findUnknownNumeral(
+        "G Pro X Superlight 25",
+        allowed,
+        tokens(model),
+        names(model),
+      ),
+    ).toBe(25);
+    expect(
+      findUnknownNumeral(
+        "G Pro X Superlight 2.5",
+        allowed,
+        tokens(model),
+        names(model),
+      ),
+    ).toBe(2.5);
+    expect(
+      findUnknownNumeral(
+        "XG Pro X Superlight 2",
+        allowed,
+        tokens(model),
+        names(model),
+      ),
+    ).toBe(2);
+  });
+
+  it("a bare number is never a name, and the shorter model of two overlapping names still works", () => {
+    expect(
+      findUnknownNumeral("It has 2 buttons.", allowed, new Set(), [
+        "2",
+        "  2 ",
+      ]),
+    ).toBe(2);
+    expect(
+      withoutDisplayNames(
+        "Logitech G Pro X Superlight 2!",
+        names("G Pro X Superlight 2"),
+      ).trim(),
+    ).toBe("!");
+    expect(
+      withoutDisplayNames("MX Master 3 and MX Master 3S", [
+        "MX Master 3",
+        "MX Master 3S",
+      ])
+        .replace(/\s+/g, " ")
+        .trim(),
+    ).toBe("and");
   });
 });

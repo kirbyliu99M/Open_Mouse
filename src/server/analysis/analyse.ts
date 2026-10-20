@@ -186,6 +186,21 @@ function collectExemptTokens(input: AnalysisInput): Set<string> {
   return out;
 }
 
+/**
+ * The full display names the model may write: "brand model" and the model
+ * alone, for the same mice as `collectExemptTokens`. A number that belongs to
+ * a real name ("G Pro X Superlight 2") is not a quantity, and
+ * `findUnknownNumeral` takes the name out before it checks (see
+ * `withoutDisplayNames`).
+ */
+export function collectExemptNames(input: AnalysisInput): string[] {
+  const out: string[] = [];
+  for (const entry of [...input.topPicks, ...promptExcluded(input)]) {
+    out.push(`${entry.brand} ${entry.model}`, entry.model);
+  }
+  return out;
+}
+
 function isLowConfidence(input: AnalysisInput): boolean {
   const top = input.topPicks[0];
   return top !== undefined && top.lowConfidence;
@@ -416,6 +431,7 @@ function findViolation(
   input: AnalysisInput,
   allowedNumbers: ReadonlySet<number>,
   exemptTokens: ReadonlySet<string>,
+  exemptNames: readonly string[],
 ): string | null {
   const fields = [
     candidate.headline,
@@ -427,7 +443,12 @@ function findViolation(
   for (const text of fields) {
     const medicalTerm = findMedicalClaimTerm(text);
     if (medicalTerm !== null) return `medical claim: ${medicalTerm}`;
-    const unknown = findUnknownNumeral(text, allowedNumbers, exemptTokens);
+    const unknown = findUnknownNumeral(
+      text,
+      allowedNumbers,
+      exemptTokens,
+      exemptNames,
+    );
     if (unknown !== null) return String(unknown);
   }
   if (isLowConfidence(input)) {
@@ -647,6 +668,7 @@ export async function analyse(
 
   const allowedNumbers = allowedPromptNumbers(input);
   const exemptTokens = collectExemptTokens(input);
+  const exemptNames = collectExemptNames(input);
   const basePrompt = buildPrompt(input);
   let prompt = basePrompt;
   // One deadline for the whole request: a retry does not get a fresh 20 s.
@@ -733,6 +755,7 @@ export async function analyse(
       input,
       allowedNumbers,
       exemptTokens,
+      exemptNames,
     );
     if (violation === null) return { output: result.data, source: "model" };
     prompt = retryPrompt(basePrompt, violation, locale);

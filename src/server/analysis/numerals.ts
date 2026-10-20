@@ -880,6 +880,44 @@ function findUnreadNumeralChar(text: string): string | null {
   return null;
 }
 
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Takes the input's own full display names (brand + model, or the model alone)
+ * out of `text`, so a standalone number that is part of a real name ("G Pro X
+ * Superlight 2") is not read as a quantity the input lacks. `exemptTokens`
+ * cannot cover it: a bare "2" has no letter in it (see `isExemptToken`).
+ *
+ * Narrow on purpose:
+ * - the whole name must be there: longest names first, any case, any run of
+ *   whitespace between its words;
+ * - it must stand alone: not glued to a letter or digit before it, and not
+ *   followed by a letter, a digit or a decimal fraction ("Superlight 2" does
+ *   not match inside "Superlight 25" or "Superlight 2.5");
+ * - a name with no letter in it is ignored, so it can never exempt a number;
+ * - what follows the name is still checked ("Superlight 2 85 分" leaves 85).
+ * The name is replaced by a space, so the text on both sides stays apart.
+ */
+export function withoutDisplayNames(
+  text: string,
+  names: readonly string[],
+): string {
+  const usable = [...new Set(names.map((n) => n.trim()))]
+    .filter((n) => /[A-Za-z]/.test(n))
+    .sort((a, b) => b.length - a.length);
+  let out = text;
+  for (const name of usable) {
+    const body = name.split(/\s+/).map(escapeRegExp).join("\\s+");
+    out = out.replace(
+      new RegExp(`(?<![A-Za-z0-9])${body}(?![A-Za-z0-9]|\\.\\d)`, "gi"),
+      " ",
+    );
+  }
+  return out;
+}
+
 /**
  * Returns the first numeral in `text` that isn't in `allowed`, or null if
  * every numeral — digit, Unicode-digit, spelled-out (English or Chinese), or
@@ -895,13 +933,22 @@ function findUnreadNumeralChar(text: string): string | null {
  * misread as new numbers once a digit run glued to a letter is otherwise
  * extracted (see the comment above `matchDigitNumerals`, Finding 1). Omit it
  * to check every digit run unconditionally.
+ *
+ * `exemptNames` — the input's full display names ("Logitech G Pro X
+ * Superlight 2", "G Pro X Superlight 2") — are taken out of the text first
+ * (`withoutDisplayNames`), so a number that is part of a real name does not
+ * count as a new one. Nothing else is loosened. Omit it to check the whole text.
  */
 export function findUnknownNumeral(
   text: string,
   allowed: ReadonlySet<number>,
   exemptTokens: ReadonlySet<string> = new Set(),
+  exemptNames: readonly string[] = [],
 ): number | null {
-  const scored = withoutOutOf100Scores(text, allowed);
+  const scored = withoutOutOf100Scores(
+    withoutDisplayNames(text, exemptNames),
+    allowed,
+  );
   for (const token of [
     ...matchDigitNumerals(scored, exemptTokens),
     ...extractWordNumerals(scored),

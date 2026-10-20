@@ -158,9 +158,12 @@ describe("loadOwnedFit scores a typed width on the scan's scale", () => {
 });
 
 describe("buildSnapshot scores a typed width on the scan's scale", () => {
-  it("a typed 85 mm and a printed-sheet 65.45 mm give the same top mice", () => {
-    const typed = buildSnapshot(scan(TYPED_WIDTH, "manual-entry"), catalogue);
-    const scanned = buildSnapshot(
+  it("a typed 85 mm and a printed-sheet 65.45 mm give the same top mice", async () => {
+    const typed = await buildSnapshot(
+      scan(TYPED_WIDTH, "manual-entry"),
+      catalogue,
+    );
+    const scanned = await buildSnapshot(
       scan(SCANNED_WIDTH, "printed-sheet"),
       catalogue,
     );
@@ -172,9 +175,9 @@ describe("buildSnapshot scores a typed width on the scan's scale", () => {
     expect(scanned.calibrationMethod).toBe("printed-sheet");
   });
 
-  it("does not change the scan it is given", () => {
+  it("does not change the scan it is given", async () => {
     const owned = scan(TYPED_WIDTH, "manual-entry");
-    buildSnapshot(owned, catalogue);
+    await buildSnapshot(owned, catalogue);
     expect(owned.measurements.palmWidthMm).toBe(85);
   });
 });

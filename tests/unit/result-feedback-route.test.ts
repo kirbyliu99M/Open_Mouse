@@ -26,6 +26,10 @@ vi.mock("../../src/server/scans/drizzle-repo", () => ({
 vi.mock("../../src/server/fit/drizzle-repo", () => ({
   createDrizzleFitRepo: () => ({ loadCatalogue: async () => sampleCatalogue }),
 }));
+const loadRatings = vi.fn<(userId: string) => Promise<never[]>>(async () => []);
+vi.mock("../../src/server/fit/survey-reference-source", () => ({
+  createDrizzleSurveyReferenceSource: () => ({ loadRatings }),
+}));
 vi.mock("../../src/server/result-feedback/drizzle-repo", () => ({
   createDrizzleResultFeedbackRepo: (): ResultFeedbackRepo => {
     if (buildError) throw buildError;
@@ -91,6 +95,7 @@ beforeEach(() => {
   allow.mockReturnValue(true);
   createDrizzleRateLimiter.mockClear();
   findOwnedScan.mockClear();
+  loadRatings.mockClear();
   buildError = null;
   rated = false;
   stored.length = 0;
@@ -111,6 +116,22 @@ describe("/api/scans/{id}/feedback route", () => {
       SCAN_ID,
       expect.objectContaining({ userId: "user-1" }),
     );
+  });
+
+  it("POST wires the survey source: v3 + signed in reads the caller's own ratings, signed out reads nothing", async () => {
+    vi.stubEnv("FIT_ENGINE", "v3");
+    try {
+      auth.mockResolvedValue(null);
+      expect((await POST(post(), context())).status).toBe(201);
+      expect(loadRatings).not.toHaveBeenCalled();
+      rated = false;
+      auth.mockResolvedValue({ user: { id: "user-1" } });
+      expect((await POST(post(), context())).status).toBe(201);
+      expect(loadRatings).toHaveBeenCalledTimes(1);
+      expect(loadRatings).toHaveBeenCalledWith("user-1");
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("POST is 409 the second time, GET then says answered", async () => {

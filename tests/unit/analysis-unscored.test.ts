@@ -13,6 +13,7 @@ import {
   analyse,
   buildFallbackOutput,
   buildPrompt,
+  collectExemptNames,
 } from "../../src/server/analysis/analyse";
 import {
   ANALYSIS_PROMPT_VERSION,
@@ -210,20 +211,11 @@ describe("the unscored fallback", () => {
       expect(text).not.toContain(String(TOTAL));
       expect(findMedicalClaimTerm(text)).toBeNull();
       const allowed = collectNumbers(input);
-      // The product name is not a quantity: take it out before the check (a
-      // bare "2" in "Superlight 2" is not covered by the name exemption, which
-      // needs a letter in the token; before the params left the input, a
-      // param that happened to equal 2 let it through).
-      const names = input.topPicks.flatMap((e) => [
-        `${e.brand} ${e.model}`,
-        e.model,
-      ]);
+      // The text is checked as written, product name included: the "2" in
+      // "Superlight 2" is part of the input's own display name.
+      const names = collectExemptNames(input);
       for (const part of text.split("\n")) {
-        const quantities = names.reduce(
-          (acc, name) => acc.split(name).join(""),
-          part,
-        );
-        expect(findUnknownNumeral(quantities, allowed, new Set())).toBeNull();
+        expect(findUnknownNumeral(part, allowed, new Set(), names)).toBeNull();
       }
       // It names the top pick as the closest in the catalogue.
       expect(out.headline).toContain("G Pro X Superlight 2");

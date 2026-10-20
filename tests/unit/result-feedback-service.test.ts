@@ -100,8 +100,8 @@ const get = (headers: Record<string, string> = {}) =>
   new Request("http://localhost/api/scans/x/feedback", { headers });
 
 describe("buildSnapshot", () => {
-  it("is a fresh default-engine run with empty preferences, parsed by the contract", () => {
-    const snapshot = buildSnapshot(sampleOwnedScan, sampleCatalogue);
+  it("is a fresh default-engine run with empty preferences, parsed by the contract", async () => {
+    const snapshot = await buildSnapshot(sampleOwnedScan, sampleCatalogue);
     const out = scoreFitDefault(
       sampleOwnedScan.measurements,
       sampleCatalogue,
@@ -127,8 +127,8 @@ describe("buildSnapshot", () => {
     expect(snapshot.topMice.length).toBeLessThanOrEqual(3);
   });
 
-  it("uses the stated grip, the stated palm thickness and the calibration method of the scan", () => {
-    const snapshot = buildSnapshot(
+  it("uses the stated grip, the stated palm thickness and the calibration method of the scan", async () => {
+    const snapshot = await buildSnapshot(
       {
         ...sampleOwnedScan,
         gripStyleStated: "fingertip",
@@ -142,15 +142,15 @@ describe("buildSnapshot", () => {
     expect(snapshot.calibrationMethod).toBe("manual-entry");
   });
 
-  it("calls a scan with no calibration method printed-sheet and no stated thickness null", () => {
-    const snapshot = buildSnapshot(sampleOwnedScan, sampleCatalogue);
+  it("calls a scan with no calibration method printed-sheet and no stated thickness null", async () => {
+    const snapshot = await buildSnapshot(sampleOwnedScan, sampleCatalogue);
     expect(snapshot.calibrationMethod).toBe("printed-sheet");
     expect(snapshot.palmThicknessStated).toBeNull();
   });
 
-  it("holds no millimetre value", () => {
+  it("holds no millimetre value", async () => {
     const text = JSON.stringify(
-      buildSnapshot(sampleOwnedScan, sampleCatalogue),
+      await buildSnapshot(sampleOwnedScan, sampleCatalogue),
     );
     expect(text).not.toMatch(/Mm|mm"/);
     expect(text).not.toContain("180");
@@ -172,9 +172,9 @@ describe("buildSnapshot, hand outside the catalogue's length range (M4)", () => 
     vi.unstubAllEnvs();
   });
 
-  it("writes a null band for every top mouse instead of throwing", () => {
+  it("writes a null band for every top mouse instead of throwing", async () => {
     vi.stubEnv("FIT_ENGINE", "v3");
-    const snapshot = buildSnapshot(longHand, sampleCatalogue);
+    const snapshot = await buildSnapshot(longHand, sampleCatalogue);
     expect(resultFeedbackSnapshotSchema.parse(snapshot)).toEqual(snapshot);
     expect(snapshot.engineVersion).toBe("fit-v3.0-candidate.0");
     expect(snapshot.topMice.length).toBeGreaterThan(0);
@@ -194,9 +194,9 @@ describe("buildSnapshot, hand outside the catalogue's length range (M4)", () => 
     );
   });
 
-  it("the same scan under v1 (no coverage) keeps real bands", () => {
+  it("the same scan under v1 (no coverage) keeps real bands", async () => {
     vi.stubEnv("FIT_ENGINE", "");
-    const snapshot = buildSnapshot(longHand, sampleCatalogue);
+    const snapshot = await buildSnapshot(longHand, sampleCatalogue);
     for (const mouse of snapshot.topMice) expect(mouse.band).not.toBeNull();
   });
 
@@ -239,7 +239,7 @@ describe("POST feedback", () => {
       markedAt: NOW,
     });
     expect(t.writes[0]!.snapshot).toEqual(
-      buildSnapshot(sampleOwnedScan, sampleCatalogue),
+      await buildSnapshot(sampleOwnedScan, sampleCatalogue),
     );
   });
 

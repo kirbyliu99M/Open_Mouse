@@ -5,6 +5,7 @@ import {
 } from "../../lib/contracts/result-feedback";
 import { scanSubmitResponseSchema } from "../../lib/contracts/routes";
 import { UNKNOWN_IP_KEY, resolveClientIp } from "../analysis/ip";
+import type { SurveyReferenceSource } from "../fit/auto-calibration";
 import type { FitRepo } from "../fit/repo";
 import { log } from "../log";
 import { BodyTooLargeError, readLimitedBody } from "../scans/body-limit";
@@ -43,6 +44,11 @@ export interface ResultFeedbackDeps {
   /** The catalogue as the fit route loads it, for the snapshot's engine run. */
   fitRepo: Pick<FitRepo, "loadCatalogue">;
   feedbackRepo: ResultFeedbackRepo;
+  /**
+   * Where a signed-in person's survey ratings come from, so the snapshot gets
+   * the same automatic calibration the fit response has. Absent: none.
+   */
+  surveyReferences?: SurveyReferenceSource;
   /**
    * Per-IP limit. Required, not defaulted: a route that forgets it must fail
    * to compile rather than ship unlimited.
@@ -135,7 +141,11 @@ export async function handleResultFeedbackSubmission(
     }
     const body = parsed.data;
 
-    const snapshot = buildSnapshot(scan, await deps.fitRepo.loadCatalogue());
+    const snapshot = await buildSnapshot(
+      scan,
+      await deps.fitRepo.loadCatalogue(),
+      { userId, source: deps.surveyReferences },
+    );
 
     const outcome = await deps.feedbackRepo.recordFeedback({
       scanId,
