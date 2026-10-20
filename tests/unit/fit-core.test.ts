@@ -4,6 +4,7 @@ import {
   fitResponseSchema,
 } from "../../src/lib/contracts/fit";
 import { loadOwnedFit } from "../../src/server/fit/core";
+import { fingerprintOfFit } from "../../src/server/fit/fingerprint";
 import { scoreFitDefault } from "../../src/server/fit/engine";
 import {
   createFakeFitRepo,
@@ -282,7 +283,11 @@ describe("loadOwnedFit — a successful fit", () => {
     expect(result.fit.results.map((e) => e.mouse.imageUrl)).toEqual(
       result.fit.results.map(() => null),
     );
-    expect({ ...result.fit, results: withoutFacts }).toEqual({
+    // The V3.2 F1 fingerprint (candidate) is a hash of the ranking, not a
+    // number anyone sees: it is checked on its own, then taken off too.
+    const { resultFingerprint, ...rest } = result.fit;
+    expect(resultFingerprint).toBe(fingerprintOfFit(result.fit));
+    expect({ ...rest, results: withoutFacts }).toEqual({
       scanId: SCAN_ID,
       ...expected,
     });

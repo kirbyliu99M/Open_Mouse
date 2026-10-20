@@ -149,6 +149,7 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
       showViewer={RESULTS_VIEWER_ENABLED}
       analysisState={scan.analysisState}
       onRetryAnalysis={scan.retryAnalysis}
+      onResultChanged={scan.refreshFit}
       analytics={analytics}
       filters={filters}
       // The detail page reads the filter it was opened with and has no filter

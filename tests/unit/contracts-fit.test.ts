@@ -519,8 +519,16 @@ describe("fit-v3 candidate: references and calibration", () => {
 
 describe("resultFingerprintSchema (V3.2 candidate)", () => {
   it("takes sixteen lower-case hex characters and nothing else", () => {
-    expect(resultFingerprintSchema.safeParse("0123456789abcdef").success).toBe(true);
-    for (const bad of ["0123456789ABCDEF", "0123456789abcde", "0123456789abcdef0", "g123456789abcdef", ""])
+    expect(resultFingerprintSchema.safeParse("0123456789abcdef").success).toBe(
+      true,
+    );
+    for (const bad of [
+      "0123456789ABCDEF",
+      "0123456789abcde",
+      "0123456789abcdef0",
+      "g123456789abcdef",
+      "",
+    ])
       expect(resultFingerprintSchema.safeParse(bad).success).toBe(false);
   });
 });

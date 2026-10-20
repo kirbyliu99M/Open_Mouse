@@ -15,6 +15,7 @@ import {
   RESULT_FEEDBACK_AUTOCLOSE_MS,
   RESULT_FEEDBACK_TICK_MS,
   addVisibleTime,
+  afterSend,
   buildSubmission,
   canPageScroll,
   dismissedEventDue,
@@ -51,11 +52,24 @@ export function ResultFeedbackSheet({
   scanId,
   language,
   emit,
+  resultFingerprint,
+  onResultChanged,
 }: {
   scanId: string;
   language: Locale;
   /** The results page's emitter (real pages only); it adds the page fields. */
   emit?: ResultsEmit;
+  /**
+   * V3.2 F1 (candidate): the fingerprint of the ranking on screen, sent with
+   * the rating. Absent: no header (the server behaves as before).
+   */
+  resultFingerprint?: string;
+  /**
+   * Called when the server answers 412 (the ranking changed): the page fetches
+   * the new ranking. The sheet keeps the stars and the comment, says why, and
+   * waits for the person to send again; it never sends by itself.
+   */
+  onResultChanged?: () => void;
 }) {
   const copy = resultFeedbackCopy(language);
   const markerRef = useRef<HTMLDivElement>(null);
@@ -242,24 +256,26 @@ export function ResultFeedbackSheet({
     }
     setFailure(null);
     setPhase("sending");
-    const result = await sendFeedback(scanId, built.body);
+    const result = await sendFeedback(
+      scanId,
+      built.body,
+      undefined,
+      resultFingerprint,
+    );
+    const next = afterSend(result);
+    if (next.markDone) markFeedbackDone(scanId);
     if (result.ok) {
-      markFeedbackDone(scanId);
       const event = submittedEvent({
         stars: built.body.stars,
         comment: built.body.comment,
       });
       emit?.(event.name, event.props);
-      setPhase("thanks");
-      return;
     }
-    if (result.reason === "conflict") {
-      markFeedbackDone(scanId);
-      setPhase("already");
-      return;
-    }
-    setFailure(result.reason);
-    setPhase("form");
+    setFailure(next.failure);
+    setPhase(next.phase);
+    // 412: nothing was stored. Fetch the ranking that is now true and let the
+    // person look at it before sending again (never sent automatically).
+    if (next.refetchFit) onResultChanged?.();
   };
 
   // Thanks closes itself. After "thanks" or "already sent" the submit button

@@ -6,6 +6,11 @@ import type { ScanRepo } from "../scans/repo";
 import type { SurveyReferenceSource } from "../fit/auto-calibration";
 import { loadOwnedFit, type LoadOwnedFitResult } from "../fit/core";
 import type { FitRepo } from "../fit/repo";
+import {
+  STALE_RESULT_ERROR,
+  fingerprintMismatch,
+  fingerprintOfFit,
+} from "../fit/fingerprint";
 import type { AnalysisRequestDeps } from "./handler";
 import { handleAnalysisRequest } from "./handler";
 import { resolveClientIp } from "./ip";
@@ -52,11 +57,12 @@ export interface AnalysisServiceDeps {
  * used, so the server analyses exactly the ranking the user is looking
  * at — `routes.ts`), resolves the caller's identity (signed-in user id +
  * anonymous session cookie for ownership, caller IP for the rate limit),
- * and maps the result to 200 / 400 / 404 / 413 / 429 / 500 — every response
+ * and maps the result to 200 / 400 / 404 / 412 / 413 / 429 / 500 — every response
  * carrying `cache-control: no-store`.
  *
  * Order: oversized body (413) → invalid preferences (400) → ownership via
- * `loadOwnedFit` (404, or an internal failure → 500) → rate limit + cache +
+ * `loadOwnedFit` (404, or an internal failure → 500) → a stale
+ * `x-result-fingerprint` header (412, V3.2 F1) → rate limit + cache +
  * analyse via `handleAnalysisRequest` (429, or 200) → a final
  * `analysisResponseSchema` check on any 200 body before it is returned
  * (hard rule: a schema failure is a 500, never a malformed 200 — AGENTS.md
@@ -123,6 +129,20 @@ export async function computeAnalysisForScan(
 
   if (fitResult.status === "not_found") {
     return json(404, { error: "Scan not found." });
+  }
+
+  // V3.2 F1 (candidate): the page sent the fingerprint of the ranking it
+  // shows and the fit just recomputed is a different one (the survey changed
+  // in another tab, or the engine did). 412, before the rate limit, the cache
+  // and the model: nothing is read from or written to the cache, no model call
+  // is made and neither limiter is charged. No header: unchanged.
+  if (
+    fingerprintMismatch(
+      request.headers,
+      fitResult.fit.resultFingerprint ?? fingerprintOfFit(fitResult.fit),
+    )
+  ) {
+    return json(412, { error: STALE_RESULT_ERROR });
   }
 
   const rateLimitKey = resolveClientIp(request.headers);

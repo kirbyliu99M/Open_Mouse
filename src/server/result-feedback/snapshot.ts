@@ -13,6 +13,7 @@ import { resolveFitEngine, scoreFitDefault } from "../fit/engine";
 import { listedOnly } from "../fit/listed";
 import { scoringMeasurements } from "../fit/scoring-measurements";
 import { groupShells } from "../fit/shell-groups";
+import { fingerprintOfFit } from "../fit/fingerprint";
 import type { CatalogueMouse } from "../fit/types";
 import type { OwnedScan } from "../scans/repo";
 
@@ -48,6 +49,24 @@ export async function buildSnapshot(
     source: SurveyReferenceSource | undefined;
   } = { userId: null, source: undefined },
 ): Promise<ResultFeedbackSnapshot> {
+  return (await buildSnapshotAndFingerprint(scan, catalogue, calibration))
+    .snapshot;
+}
+
+/**
+ * `buildSnapshot`, plus the V3.2 F1 fingerprint (candidate) of the same engine
+ * run (`../fit/fingerprint.ts`): the ranking the snapshot records, which is the
+ * ranking an empty-preferences fit request shows (the results page sends `{}`).
+ * The fingerprint is not part of the snapshot and is never stored.
+ */
+export async function buildSnapshotAndFingerprint(
+  scan: OwnedScan,
+  catalogue: readonly CatalogueMouse[],
+  calibration: {
+    userId: string | null;
+    source: SurveyReferenceSource | undefined;
+  } = { userId: null, source: undefined },
+): Promise<{ snapshot: ResultFeedbackSnapshot; resultFingerprint: string }> {
   const listed = listedOnly(catalogue);
   const surveyReferences = await surveyReferencesFor({
     engine: resolveFitEngine(),
@@ -69,7 +88,7 @@ export async function buildSnapshot(
   );
   const ranked = groupShells(engineOutput.results, listed);
   const outOfRange = engineOutput.coverage?.lengthOutOfRange === true;
-  return resultFeedbackSnapshotSchema.parse({
+  const snapshot = resultFeedbackSnapshotSchema.parse({
     engineVersion: engineOutput.engineVersion,
     handSize: engineOutput.handType?.size ?? null,
     handWidth: engineOutput.handType?.width ?? null,
@@ -88,4 +107,8 @@ export async function buildSnapshot(
       return { slug: entry.mouse.slug, band };
     }),
   });
+  return {
+    snapshot,
+    resultFingerprint: fingerprintOfFit({ ...engineOutput, results: ranked }),
+  };
 }

@@ -18,6 +18,7 @@ import { withFilterFacts } from "./filter-facts";
 import { withPhotos } from "./photos";
 import mouseMediaFile from "../../data/mouse-media.json";
 import { groupShells } from "./shell-groups";
+import { fingerprintOfFit } from "./fingerprint";
 
 const scanIdSchema = z.string().uuid();
 
@@ -137,7 +138,15 @@ export async function loadOwnedFit(
     withFilterFacts(groupShells(engineOutput.results, catalogue), catalogue),
     mouseMediaFile,
   );
-  const response = { scanId, ...engineOutput, results };
+  // V3.2 F1 (candidate): the fingerprint of exactly this ranking, so analysis
+  // and feedback can refuse a request made for a ranking that is no longer it.
+  // Every route that answers with or recomputes a fit comes through here.
+  const response = {
+    scanId,
+    ...engineOutput,
+    resultFingerprint: fingerprintOfFit({ ...engineOutput, results }),
+    results,
+  };
 
   const validated = fitResponseSchema.safeParse(response);
   if (!validated.success) {

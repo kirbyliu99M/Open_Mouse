@@ -15,6 +15,7 @@ import { useParams } from "next/navigation";
 import type { FitResponse } from "@/lib/contracts/fit";
 import type { AnalysisState } from "@/components/results/analysisState";
 import {
+  analyseShownRanking,
   fetchAnalysisResult,
   fetchFitResult,
   type FitOutcome,
@@ -95,6 +96,11 @@ export interface ResultsScan {
    */
   requestAnalysis: (isMainPage: boolean) => void;
   retryAnalysis: () => void;
+  /**
+   * V3.2 F1 (candidate): fetch the fit again and put the new ranking on screen
+   * in place (no loader), after the server said the one shown is stale (412).
+   */
+  refreshFit: () => void;
   /** The sender the results pages use for their events (`track`). */
   analytics: ResultsAnalytics;
 }
@@ -201,14 +207,57 @@ export function ResultsScanProvider({
   const analysisRunRef = useRef(0);
   // Whether the analysis was asked for already, for this fit.
   const analysisStartedRef = useRef(false);
+  // The fit on screen, read by requests that must say which ranking they are
+  // about (V3.2 F1: the `x-result-fingerprint` header).
+  const shownFitRef = useRef<FitResponse | null>(null);
+  shownFitRef.current = pageState.kind === "ready" ? pageState.response : null;
+  // Bumped by the fit effect's cleanup: an in-place refresh started for an
+  // earlier scan or attempt must not put its answer on screen.
+  const fitGenerationRef = useRef(0);
+  // One in-place refresh at a time (analysis and feedback may both hear 412).
+  const refreshInflightRef = useRef<Promise<FitResponse | null> | null>(null);
+
+  /**
+   * V3.2 F1 (candidate): the server says the ranking on screen is stale. Fetch
+   * the fit again and, when it comes, show it in place (the page stays; no
+   * loader). Resolves to the new fit, or null when it could not be fetched
+   * (the old ranking stays on screen).
+   */
+  const refreshFitNow = useCallback((): Promise<FitResponse | null> => {
+    if (refreshInflightRef.current) return refreshInflightRef.current;
+    const generation = fitGenerationRef.current;
+    const request = (async () => {
+      const outcome = await fetchFitResult(scanId, PREFERENCES);
+      if (generation !== fitGenerationRef.current) return null;
+      if (outcome.status !== "ready") return null;
+      shownFitRef.current = outcome.response;
+      setPageState({ kind: "ready", response: outcome.response });
+      return outcome.response;
+    })();
+    refreshInflightRef.current = request;
+    const forget = () => {
+      if (refreshInflightRef.current === request)
+        refreshInflightRef.current = null;
+    };
+    request.then(forget, forget);
+    return request;
+  }, [scanId]);
 
   const runAnalysis = useCallback(async () => {
     analysisStartedRef.current = true;
     analysisLanguageRef.current = languageRef.current;
     const run = ++analysisRunRef.current;
     setAnalysisState({ status: "loading" });
-    const outcome = await fetchAnalysisResult(scanId, PREFERENCES);
-    if (run !== analysisRunRef.current) return;
+    // Sent with the fingerprint of the ranking on screen; a 412 refetches the
+    // fit once and asks again (V3.2 F1, `analyseShownRanking`).
+    const outcome = await analyseShownRanking({
+      resultFingerprint: shownFitRef.current?.resultFingerprint,
+      fetchAnalysis: (fingerprint) =>
+        fetchAnalysisResult(scanId, PREFERENCES, fetch, fingerprint),
+      refreshFit: refreshFitNow,
+      stillWanted: () => run === analysisRunRef.current,
+    });
+    if (outcome === null || run !== analysisRunRef.current) return;
     if (outcome.status === "ready") {
       track("analysis_shown", {
         outcome: outcome.response.source === "fallback" ? "fallback" : "model",
@@ -218,10 +267,19 @@ export function ResultsScanProvider({
       track("analysis_shown", { outcome: "error" });
       setAnalysisState({ status: "rateLimited" });
     } else {
+      // networkError, serverError, and a 412 that a refetch did not resolve.
       track("analysis_shown", { outcome: "error" });
       setAnalysisState({ status: "error" });
     }
-  }, [scanId]);
+  }, [scanId, refreshFitNow]);
+
+  // The feedback sheet heard 412: show the new ranking, and when the written
+  // analysis was already asked for, ask again so it is about that ranking.
+  const refreshFit = useCallback(() => {
+    void refreshFitNow().then((fresh) => {
+      if (fresh && analysisStartedRef.current) void runAnalysis();
+    });
+  }, [refreshFitNow, runAnalysis]);
 
   // The written analysis follows the language switch: once it was asked for,
   // a new locale asks again (the server keeps one per locale, so going back is
@@ -319,6 +377,8 @@ export function ResultsScanProvider({
       cancelled = true;
       if (reveal !== undefined) clearTimeout(reveal);
       analysisRunRef.current += 1;
+      fitGenerationRef.current += 1;
+      refreshInflightRef.current = null;
     };
     // `attempt` is part of the request's identity and retriggers this effect
   }, [scanId, attempt]);
@@ -352,6 +412,7 @@ export function ResultsScanProvider({
             analysisState,
             requestAnalysis,
             retryAnalysis,
+            refreshFit,
             analytics,
           }
         : null,
@@ -364,6 +425,7 @@ export function ResultsScanProvider({
       analysisState,
       requestAnalysis,
       retryAnalysis,
+      refreshFit,
       analytics,
     ],
   );
