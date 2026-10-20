@@ -325,9 +325,22 @@ export const fitCalibrationSchema = z.strictObject({
   }),
 });
 
+/**
+ * V3.2 (candidate, 未拍板; Kirby 2026-10-21): identifies the ranking a fit
+ * response shows, so a later analysis or feedback request can say which one
+ * the person was looking at (see `RESULT_FINGERPRINT_HEADER` in routes.ts).
+ * Sixteen lower-case hex characters of a hash over the engine version, the
+ * scored/unscored mode, the targets the engine used (to 0.1 mm) and the order
+ * of the first places. It carries no survey answer and no measurement: it can
+ * be compared, never read back.
+ */
+export const resultFingerprintSchema = z.string().regex(/^[0-9a-f]{16}$/);
+
 export const fitResponseSchema = z.strictObject({
   scanId: z.string().uuid(),
   engineVersion: z.string(),
+  /** V3.2 candidate: see `resultFingerprintSchema`. Optional while engines roll out. */
+  resultFingerprint: resultFingerprintSchema.optional(),
   /** The hand this scan measured — the one exclusions and disclosures use (#62). */
   hand: z.enum(["left", "right"]),
   gripStyle: z.strictObject({
