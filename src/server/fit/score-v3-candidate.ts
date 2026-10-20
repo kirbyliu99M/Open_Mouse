@@ -194,7 +194,13 @@ export function gripStateV3(
     baseTargets,
     calibration: result?.calibration ?? null,
     trueTargets,
-    ranking: { used, weights, gripsInPlay, targetsByGrip: rankingTargets },
+    ranking: {
+      used,
+      weights,
+      gripsInPlay,
+      targetsByGrip: rankingTargets,
+      gripWidthFactor: GRIP_WIDTH_FACTOR_V3,
+    },
     clamped,
     clampApplied: range !== null,
   };
@@ -253,6 +259,7 @@ export function scoreFitV3(
     weights: { palm: 0, claw: 0, fingertip: 0, [used]: 1 },
     gripsInPlay: [used],
     targetsByGrip: trueTargets,
+    gripWidthFactor: GRIP_WIDTH_FACTOR_V3,
   };
   const results = ranked.map(({ mouse, score }, i) =>
     toFitEntryV1(

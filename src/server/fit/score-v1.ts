@@ -71,10 +71,11 @@ function subscoresFor(
   targets: FitTargets,
   grip: GripStyle,
   prefs: FitPreferences,
+  gripWidthFactor?: number,
 ): Subscores {
   return {
     length: scoreLengthV1(mouse, targets.lengthMm, grip),
-    gripWidth: scoreGripWidthV1(mouse, targets.gripWidthMm),
+    gripWidth: scoreGripWidthV1(mouse, targets.gripWidthMm, gripWidthFactor),
     heightHump: scoreHeightHumpV1(mouse, targets.heightMm, grip),
     frontFlare: scoreFrontFlare(mouse, grip),
     thumb: scoreThumb(mouse, grip),
@@ -126,6 +127,12 @@ export interface GripContext {
   /** The grips with weight above zero. */
   gripsInPlay: readonly GripStyle[];
   targetsByGrip: Record<GripStyle, FitTargets>;
+  /**
+   * The palm-width factor the targets were made with, which the grip-width
+   * error spread follows (A1-06). Absent means v1/v2's `GRIP_WIDTH_FACTOR`;
+   * v3 sets `GRIP_WIDTH_FACTOR_V3`.
+   */
+  gripWidthFactor?: number;
 }
 
 export interface MouseScoreV1 {
@@ -155,7 +162,13 @@ export function scoreMouseV1(
   let usedSubscores: Subscores | null = null;
   let usedConfidence = 0;
   for (const g of grips.gripsInPlay) {
-    const subs = subscoresFor(mouse, grips.targetsByGrip[g], g, prefs);
+    const subs = subscoresFor(
+      mouse,
+      grips.targetsByGrip[g],
+      g,
+      prefs,
+      grips.gripWidthFactor,
+    );
     const t = totalFor(subs, priors, g);
     totalRaw += grips.weights[g] * t.total;
     if (g === grips.used) {
