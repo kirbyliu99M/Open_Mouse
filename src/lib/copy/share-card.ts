@@ -81,7 +81,7 @@ export const en: ShareCardCopy = {
   sentence: (t) =>
     `Suits a mouse of ${sizeLengthEn[t.size]} length and ${widthGripEn[t.width]} grip width.`,
   topPickLabel: "My best-fit mouse",
-  closestPickLabel: "The closest mouse in the catalogue to my hand",
+  closestPickLabel: "My closest mouse in the catalogue",
   scoreLabel: "Fit score",
   tagline: "Find your mouse type",
   buttonLink: "Share",

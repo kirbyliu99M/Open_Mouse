@@ -170,7 +170,7 @@ export const zhTW: QuestionnaireCopy = {
   commentCount: (used, max) => `${used}/${max}`,
   consentLabel: "我同意，送出我的回答",
   consentKept:
-    "會保存：手長與掌寬（只存 5 mm 一格的範圍，不存確切數字）、握法、你評的滑鼠與滿意度、使用時間、哪裡不合適、哪一支是你現在用的、你選的其他品牌與大小感覺、主要用途，以及你選填的意見。",
+    "會保存：手長與掌寬（只存 5 mm 一格的範圍，不存確切數字）、握法、你評的滑鼠與滿意度、使用時間、哪裡不合適、哪一支是你現在用的、你選的其他品牌與大小感覺、主要用途，以及你選填的意見。登入後，你評過的滑鼠也會用來微調你自己的推薦結果。",
   consentNotKept:
     "不會保存：照片。意見欄請不要填姓名或聯絡方式；意見欄只有站方看得到，不會公開。",
   consentWithdraw:
@@ -266,7 +266,7 @@ export const en: QuestionnaireCopy = {
   commentCount: (used, max) => `${used}/${max}`,
   consentLabel: "I agree. Send my answers.",
   consentKept:
-    "Kept: hand length and palm width (only as a 5 mm range, never the exact numbers), grip, the mice you rate and how satisfied you are, how long you've used them, what doesn't suit you, which one you use now, the brand and size feel of other mice you pick, main use, and the comment if you write one.",
+    "Kept: hand length and palm width (only as a 5 mm range, never the exact numbers), grip, the mice you rate and how satisfied you are, how long you've used them, what doesn't suit you, which one you use now, the brand and size feel of other mice you pick, main use, and the comment if you write one. If you are signed in, the mice you rate are also used to fine-tune your own results.",
   consentNotKept:
     "Not kept: photos. Please don't write your name or contact details in the comment; only the maintainers can see the comment, and it is never public.",
   consentWithdraw:

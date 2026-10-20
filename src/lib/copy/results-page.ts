@@ -250,15 +250,15 @@ export const zhTW: ResultsPageCopy = {
   fitNotice: "這幾支都不太適合你的手，下面是最接近的一支。",
   coverageNotice: {
     above:
-      "你的手型超出目前目錄涵蓋範圍。以下是目錄中最大、與你其他尺寸最接近的款式，僅供參考，不提供合手度總分。",
+      "你需要的滑鼠長度超過目錄裡最長的款式，下面是最接近的幾支，所以不顯示合手度分數。",
     below:
-      "你的手型超出目前目錄涵蓋範圍。以下是目錄中最小、與你其他尺寸最接近的款式，僅供參考，不提供合手度總分。",
+      "你需要的滑鼠長度比目錄裡最短的款式還短，下面是最接近的幾支，所以不顯示合手度分數。",
     partial:
-      "你的手型在部分握法下，理想尺寸超出目前目錄涵蓋範圍。排名僅供參考，不提供合手度總分。",
+      "有些握法需要的長度超出目錄範圍，所以不顯示合手度分數；排名仍可參考。",
   },
   enteredLengthNotice: (mm) =>
     `依你輸入的手長（${mm}${NBSP}mm）估算，掃描時沒有使用紙張。`,
-  calibrationNotice: "已參考你在問卷評過的滑鼠微調尺寸",
+  calibrationNotice: "已參考你在問卷評過的滑鼠，微調了理想尺寸。",
   leftHandNotice: "左手的合手度還沒評過，購買前請先確認每支滑鼠的形狀。",
   othersHeading: "其他推薦",
   othersCaption: "點選任一款，會看到同樣版面的結果頁。",
@@ -403,15 +403,16 @@ export const en: ResultsPageCopy = {
   fitNotice: "None of these fits your hand well. The closest is below.",
   coverageNotice: {
     above:
-      "Your hand is larger than the catalogue currently covers. Below are the largest mice in it, closest to your other measurements. For reference only, with no overall fit score.",
+      "The length you need is longer than any mouse in the catalogue. These are the closest, so no fit score is shown.",
     below:
-      "Your hand is smaller than the catalogue currently covers. Below are the smallest mice in it, closest to your other measurements. For reference only, with no overall fit score.",
+      "The length you need is shorter than any mouse in the catalogue. These are the closest, so no fit score is shown.",
     partial:
-      "For some grips, your ideal size falls outside what the catalogue currently covers. The order is for reference only, with no overall fit score.",
+      "For some grips, the length you need is outside the catalogue, so no fit score is shown. The order still holds.",
   },
   enteredLengthNotice: (mm) =>
     `Based on the hand length you entered (${mm}${NBSP}mm). Measured without paper.`,
-  calibrationNotice: "Sizes adjusted using the mice you rated in the survey.",
+  calibrationNotice:
+    "Your ideal sizes were adjusted using the mice you rated in the survey.",
   leftHandNotice:
     "Left-hand fit isn't rated yet — check each mouse's shape before you buy.",
   othersHeading: "Other picks",
