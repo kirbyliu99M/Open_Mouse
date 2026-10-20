@@ -10,6 +10,8 @@ import {
   UNKNOWN_PRIOR_SCORE,
   type EngineId,
 } from "./coefficients";
+import { excludeReason } from "./exclusions";
+import { excludeReasonV1 } from "./exclusions-v1";
 import { computePriors } from "./priors";
 import { scoreFit } from "./score";
 import { scoreFitV1 } from "./score-v1";
@@ -69,6 +71,31 @@ export function scoreWithEngine(
         hand,
         computePriors(catalogue),
       );
+    default:
+      return unknownEngine(engine);
+  }
+}
+
+/**
+ * Whether the named engine leaves this mouse out for this hand, through that
+ * engine's own rule: v0 has `excludeReason`; v1, v2 and v3 all rank through
+ * `excludeReasonV1` (v2's and v3's `planV2` use it). Anything that has to
+ * agree with the fit about "is this mouse shown" (the similar-hands route)
+ * asks this, so no rule is copied and an engine switch moves it too.
+ */
+export function excludeReasonForEngine(
+  engine: EngineId,
+  mouse: CatalogueMouse,
+  hand: "left" | "right",
+  prefs: FitPreferences,
+): ReturnType<typeof excludeReason> {
+  switch (engine) {
+    case "v0":
+      return excludeReason(mouse, hand, prefs);
+    case "v1":
+    case "v2":
+    case "v3":
+      return excludeReasonV1(mouse, hand, prefs);
     default:
       return unknownEngine(engine);
   }

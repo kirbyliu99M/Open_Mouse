@@ -369,6 +369,29 @@ describe("GET /api/scans/{scanId}/similar", () => {
       },
     );
 
+    // The route asks the engine FIT_ENGINE names for "is this mouse shown": v1,
+    // v2 and v3 all hide a vertical mouse and a tall one. Before, only v1 was
+    // recognised and any other id fell to v0's rule, which let a vertical mouse
+    // through (found by running the suite with the default switched to v3).
+    describe.each(["v1", "v2", "v3"])("with FIT_ENGINE=%s", (engine) => {
+      beforeEach(() => {
+        vi.stubEnv("FIT_ENGINE", engine);
+      });
+      afterEach(() => {
+        vi.unstubAllEnvs();
+      });
+
+      it.each([
+        ["a vertical mouse", { formFactor: "vertical" as const }],
+        ["a mouse taller than the vertical ratio", { heightMm: 80 }],
+        ["a trackball", { formFactor: "trackball" as const }],
+      ])("%s is not listed and does not move the prior", async (_n, hidden) => {
+        world(hidden);
+        const scan = addScan();
+        expect(slugs(await answer(await getOwn(scan)))).toEqual(["a", "b"]);
+      });
+    });
+
     it("never gives the engine a rating of a hidden mouse, so it cannot move any number", async () => {
       world({ listed: false });
       const scan = addScan();

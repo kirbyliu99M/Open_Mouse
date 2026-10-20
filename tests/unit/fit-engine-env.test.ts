@@ -10,12 +10,13 @@ import {
   ENGINE_VERSION_V3,
 } from "../../src/server/fit/coefficients";
 import {
+  excludeReasonForEngine,
   resolveFitEngine,
   scoreFitDefault,
   scoreWithEngine,
   storedNullScore,
 } from "../../src/server/fit/engine";
-import { hand, seedCatalogue } from "./fit-v2c-fixtures";
+import { hand, mouseRow, seedCatalogue } from "./fit-v2c-fixtures";
 
 const prefs = { includeVertical: false } as const;
 
@@ -83,5 +84,35 @@ describe("the routes follow it", () => {
       seedCatalogue,
     );
     expect(typeof stored("thumb", "palm")).toBe("number");
+  });
+});
+
+describe("excludeReasonForEngine", () => {
+  const vertical = mouseRow({ slug: "v", formFactor: "vertical" });
+  const ordinary = mouseRow({ slug: "o" });
+
+  it.each(["v1", "v2", "v3"] as const)(
+    "%s hides a vertical mouse by default and keeps an ordinary one",
+    (engine) => {
+      expect(excludeReasonForEngine(engine, vertical, "right", prefs)).not.toBe(
+        null,
+      );
+      expect(excludeReasonForEngine(engine, ordinary, "right", prefs)).toBe(
+        null,
+      );
+    },
+  );
+
+  it("v1, v2 and v3 apply the same rule", () => {
+    const v1 = excludeReasonForEngine("v1", vertical, "left", prefs);
+    expect(excludeReasonForEngine("v2", vertical, "left", prefs)).toEqual(v1);
+    expect(excludeReasonForEngine("v3", vertical, "left", prefs)).toEqual(v1);
+  });
+
+  it("an id that is not an engine throws instead of falling to another rule", () => {
+    expect(() =>
+      // @ts-expect-error "v9" is not an EngineId
+      excludeReasonForEngine("v9", ordinary, "right", prefs),
+    ).toThrow(/Unknown fit engine: v9/);
   });
 });
