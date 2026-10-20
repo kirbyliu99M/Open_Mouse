@@ -20,6 +20,12 @@ export interface ShareCardCopy {
   /** What kind of mouse suits: length class and grip width, never the hand. */
   sentence: (type: HandType) => string;
   topPickLabel: string;
+  /**
+   * The title when the card carries no score (the hand is outside the
+   * catalogue's length range): "best fit" would claim too much. Candidate
+   * (未拍板), pending Kirby's call on the card title.
+   */
+  closestPickLabel: string;
   scoreLabel: string;
   tagline: string;
   /** Alt/accessible name of the silhouette is not needed: it is drawn on a canvas. */
@@ -57,6 +63,7 @@ export const zhTW: ShareCardCopy = {
   sentence: (t) =>
     `適合長度${sizeLengthZh[t.size]}、握寬${widthGripZh[t.width]}的滑鼠`,
   topPickLabel: "最適合我的滑鼠",
+  closestPickLabel: "目錄中最接近我的滑鼠",
   scoreLabel: "合手度分數",
   tagline: "測測你的手型",
   buttonLink: "分享",
@@ -74,6 +81,7 @@ export const en: ShareCardCopy = {
   sentence: (t) =>
     `Suits a mouse of ${sizeLengthEn[t.size]} length and ${widthGripEn[t.width]} grip width.`,
   topPickLabel: "My best-fit mouse",
+  closestPickLabel: "The closest mouse in the catalogue to my hand",
   scoreLabel: "Fit score",
   tagline: "Find your mouse type",
   buttonLink: "Share",
