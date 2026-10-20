@@ -20,9 +20,10 @@
  *   - How the snapshot is computed, so it does not depend on what the page
  *     last asked for: the server runs the current default engine on the
  *     scan's stored measurements with EMPTY preferences (`{}`: the same result
- *     an empty fit request gets), at the moment of the POST. It does NOT read
- *     `fit_results`, which every fit request overwrites with whatever
- *     preferences (grip override, weight, vertical mice) that request carried.
+ *     an empty fit request gets, which for a signed-in person under a v3
+ *     engine includes the automatic survey calibration), at the moment of the
+ *     POST. It does NOT read `fit_results`, which is no longer written
+ *     (2026-10-20) and only holds older rows.
  *     So `grip` is the grip the engine used for `{}` (the stated grip, else
  *     the predicted one), `palmThicknessStated` is the scan's own column, the
  *     ranking is before any filter or preference the page had on, the band is
