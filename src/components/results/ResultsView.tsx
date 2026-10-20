@@ -339,6 +339,13 @@ export function ResultsView({
               {response.hand === "left" && (
                 <p className="results-handNotice">{copy.leftHandNotice}</p>
               )}
+              {/* Only when the survey ratings really moved a target. */}
+              {response.calibration !== undefined &&
+                Object.values(response.calibration.dims).some(
+                  (dim) => dim.shiftMm !== 0,
+                ) && (
+                  <p className="results-handNotice">{copy.calibrationNotice}</p>
+                )}
 
               {/* Wide screens: the primary share button sits beside the purchase
                   links (design lPz7x). Phones show it under Other mice instead.

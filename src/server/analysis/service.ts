@@ -3,6 +3,7 @@ import { fitPreferencesSchema } from "../../lib/contracts/fit";
 import { BodyTooLargeError, readLimitedBody } from "../scans/body-limit";
 import { readSessionCookie } from "../scans/cookies";
 import type { ScanRepo } from "../scans/repo";
+import type { SurveyReferenceSource } from "../fit/auto-calibration";
 import { loadOwnedFit, type LoadOwnedFitResult } from "../fit/core";
 import type { FitRepo } from "../fit/repo";
 import type { AnalysisRequestDeps } from "./handler";
@@ -26,6 +27,8 @@ function json(status: number, body: unknown): Response {
 export interface AnalysisServiceDeps {
   scanRepo: ScanRepo;
   fitRepo: FitRepo;
+  /** Survey ratings for the automatic v3 calibration, the same source the fit route uses (`../fit/auto-calibration.ts`); absent: none. */
+  surveyReferences?: SurveyReferenceSource;
   client: AnalysisRequestDeps["client"];
   cache: AnalysisRequestDeps["cache"];
   limiter: AnalysisRequestDeps["limiter"];
@@ -107,7 +110,12 @@ export async function computeAnalysisForScan(
       scanId,
       { userId, cookieSessionId },
       parsedPrefs.data,
-      { scanRepo: deps.scanRepo, fitRepo: deps.fitRepo, now: deps.now },
+      {
+        scanRepo: deps.scanRepo,
+        fitRepo: deps.fitRepo,
+        surveyReferences: deps.surveyReferences,
+        now: deps.now,
+      },
     );
   } catch {
     return json(500, { error: "Failed to compute fit results." });

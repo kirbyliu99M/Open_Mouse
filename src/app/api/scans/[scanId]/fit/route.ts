@@ -1,6 +1,7 @@
 import { auth } from "../../../../../auth";
 import { createDrizzleRateLimiter } from "../../../../../server/analysis/drizzle-rate-limiter";
 import { createDrizzleFitRepo } from "../../../../../server/fit/drizzle-repo";
+import { createDrizzleSurveyReferenceSource } from "../../../../../server/fit/survey-reference-source";
 import { computeFitForScan } from "../../../../../server/fit/service";
 import { createDrizzleScanRepo } from "../../../../../server/scans/drizzle-repo";
 import {
@@ -23,6 +24,7 @@ export async function POST(
   return computeFitForScan(request, scanId, {
     scanRepo: createDrizzleScanRepo(),
     fitRepo: createDrizzleFitRepo(),
+    surveyReferences: createDrizzleSurveyReferenceSource(),
     limiter: createDrizzleRateLimiter({
       windowMs: FIT_RATE_LIMIT_WINDOW_MS,
       limit: FIT_RATE_LIMIT_MAX,

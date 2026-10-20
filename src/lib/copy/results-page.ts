@@ -76,6 +76,14 @@ export interface ResultsPageCopy {
    */
   coverageNotice: { above: string; below: string; partial: string };
   enteredLengthNotice: (mm: number) => string;
+  /**
+   * One line shown when the target sizes were nudged by the survey ratings of
+   * a signed-in person (fit-v3 automatic calibration: at least two usable
+   * ratings, a non-zero shift). Candidate (未拍板, Kirby 2026-10-20: draft, to
+   * be read before it ships). Says only where the nudge came from; no health
+   * claim, no promise of accuracy, no number.
+   */
+  calibrationNotice: string;
   leftHandNotice: string;
   othersHeading: string;
   othersCaption: string;
@@ -231,6 +239,7 @@ export const zhTW: ResultsPageCopy = {
   },
   enteredLengthNotice: (mm) =>
     `依你輸入的手長（${mm}${NBSP}mm）估算，掃描時沒有使用紙張。`,
+  calibrationNotice: "已參考你在問卷評過的滑鼠微調尺寸",
   leftHandNotice: "左手的合手度還沒評過，購買前請先確認每支滑鼠的形狀。",
   othersHeading: "其他推薦",
   othersCaption: "點選任一款，會看到同樣版面的結果頁。",
@@ -371,6 +380,7 @@ export const en: ResultsPageCopy = {
   },
   enteredLengthNotice: (mm) =>
     `Based on the hand length you entered (${mm}${NBSP}mm). Measured without paper.`,
+  calibrationNotice: "Sizes adjusted using the mice you rated in the survey.",
   leftHandNotice:
     "Left-hand fit isn't rated yet — check each mouse's shape before you buy.",
   othersHeading: "Other picks",

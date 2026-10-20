@@ -219,6 +219,77 @@ function takesPart(
   return true;
 }
 
+interface EligibleReference {
+  reference: FitReference;
+  index: number;
+  mouse: CatalogueMouse;
+}
+
+/**
+ * The references the engine can use at all: the slug is a listed mouse of
+ * `catalogue`, the reference is not `specialUse`, and the length/width model
+ * applies to its mouse (`totalApplies`). Unknown, unlisted, special-use and
+ * not-applicable references are dropped here, before any dimension looks at
+ * them. Shared by `calibrateV3` and `adoptedReferences` so the two cannot
+ * disagree about who is in.
+ */
+function eligibleReferences(
+  references: readonly FitReference[],
+  catalogue: readonly CatalogueMouse[],
+): EligibleReference[] {
+  const bySlug = new Map<string, CatalogueMouse>();
+  for (const mouse of catalogue) {
+    if (mouse.listed !== false && !bySlug.has(mouse.slug)) {
+      bySlug.set(mouse.slug, mouse);
+    }
+  }
+  const out: EligibleReference[] = [];
+  references.forEach((reference, index) => {
+    const mouse = bySlug.get(reference.slug);
+    if (mouse && !reference.specialUse && totalApplies(mouse)) {
+      out.push({ reference, index, mouse });
+    }
+  });
+  return out;
+}
+
+/**
+ * The references `calibrateV3` would really use: eligible (see above) and
+ * taking part in at least one of the three dimensions (an answered one; an
+ * ergonomic shell never in height). Input order is kept. Pure.
+ */
+export function adoptedReferences(
+  references: readonly FitReference[],
+  catalogue: readonly CatalogueMouse[],
+): FitReference[] {
+  return eligibleReferences(references, catalogue)
+    .filter(({ reference, mouse }) =>
+      CALIBRATION_DIMS.some((dim) => takesPart(reference, mouse, dim)),
+    )
+    .map(({ reference }) => reference);
+}
+
+/**
+ * How many voices `calibrateV3` would hear: the adopted references counted
+ * once per shell (`shellKey`), since the models of one shell are one voice.
+ * Two references of the same shell therefore count as one. Pure.
+ */
+export function adoptedReferenceCount(
+  references: readonly FitReference[],
+  catalogue: readonly CatalogueMouse[],
+): number {
+  const shells = new Set<string>();
+  for (const { reference, mouse } of eligibleReferences(
+    references,
+    catalogue,
+  )) {
+    if (CALIBRATION_DIMS.some((dim) => takesPart(reference, mouse, dim))) {
+      shells.add(shellKey(mouse));
+    }
+  }
+  return shells.size;
+}
+
 export interface CalibrationResult {
   /** The contract block for the response. */
   calibration: FitCalibration;
@@ -254,12 +325,6 @@ export function calibrateV3(
   baseTargetsByGrip: Record<GripStyle, FitTargets>,
   used: GripStyle,
 ): CalibrationResult {
-  const bySlug = new Map<string, CatalogueMouse>();
-  for (const mouse of catalogue) {
-    if (mouse.listed !== false && !bySlug.has(mouse.slug)) {
-      bySlug.set(mouse.slug, mouse);
-    }
-  }
   const targetKey: Record<CalibrationDim, keyof FitTargets> = {
     length: "lengthMm",
     gripWidth: "gripWidthMm",
@@ -267,24 +332,7 @@ export function calibrateV3(
   };
 
   const participated = new Set<number>();
-  const eligible = references
-    .map((reference, index) => ({
-      reference,
-      index,
-      mouse: bySlug.get(reference.slug),
-    }))
-    .filter(
-      (
-        r,
-      ): r is {
-        reference: FitReference;
-        index: number;
-        mouse: CatalogueMouse;
-      } =>
-        r.mouse !== undefined &&
-        !r.reference.specialUse &&
-        totalApplies(r.mouse),
-    );
+  const eligible = eligibleReferences(references, catalogue);
 
   const dims = {} as Record<CalibrationDim, ShiftPosterior>;
   for (const dim of CALIBRATION_DIMS) {

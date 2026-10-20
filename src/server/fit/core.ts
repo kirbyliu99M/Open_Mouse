@@ -7,7 +7,11 @@ import type {
 } from "../../lib/contracts/measurement";
 import type { ScanRepo } from "../scans/repo";
 import type { FitRepo } from "./repo";
-import { scoreFitDefault } from "./engine";
+import {
+  surveyReferencesFor,
+  type SurveyReferenceSource,
+} from "./auto-calibration";
+import { resolveFitEngine, scoreFitDefault } from "./engine";
 import { scoringMeasurements } from "./scoring-measurements";
 import { listedOnly } from "./listed";
 import { withFilterFacts } from "./filter-facts";
@@ -31,6 +35,12 @@ export interface FitOwner {
 export interface FitCoreDeps {
   scanRepo: ScanRepo;
   fitRepo: FitRepo;
+  /**
+   * Where a signed-in person's survey ratings come from, for the automatic
+   * calibration of a v3 result (`./auto-calibration.ts`). Absent means no
+   * automatic calibration (tests, and any caller that does not want it).
+   */
+  surveyReferences?: SurveyReferenceSource;
   /** Injectable clock; defaults to `new Date()`. */
   now?: () => Date;
 }
@@ -89,6 +99,17 @@ export async function loadOwnedFit(
 
   // Unlisted rows (CAT-1) leave here, before scoring and before the priors.
   const catalogue = listedOnly(await deps.fitRepo.loadCatalogue());
+  // Automatic calibration (candidate, Kirby 2026-10-20): under the v3 engine a
+  // signed-in caller with at least two usable survey ratings and no references
+  // in the request gets those ratings as references, for this request only.
+  // The engine decides what they do; nothing is stored.
+  const surveyReferences = await surveyReferencesFor({
+    engine: resolveFitEngine(),
+    userId: owner.userId,
+    prefs,
+    catalogue,
+    source: deps.surveyReferences,
+  });
   // A typed width is scored on the scan's scale; `owned.measurements` itself
   // (returned below, shown on the page) stays as typed.
   const engineOutput = scoreFitDefault(
@@ -96,6 +117,7 @@ export async function loadOwnedFit(
     catalogue,
     {
       ...prefs,
+      ...(surveyReferences ? { references: surveyReferences } : {}),
       gripStyle: prefs.gripStyle ?? owned.gripStyleStated ?? undefined,
       // A skipped answer is null in the scan; it must reach the engine as
       // undefined (no shift), never as "medium".

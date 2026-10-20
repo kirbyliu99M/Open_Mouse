@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { errorResponseSchema } from "../../src/lib/contracts/routes";
 import { analysisResponseSchema } from "../../src/lib/contracts/analysis";
 import {
@@ -413,5 +413,54 @@ describe("POST /api/scans/{scanId}/analysis — hard rule: never a malformed 200
 
     expect(res.status).toBe(500);
     expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+});
+
+describe("POST /api/scans/{scanId}/analysis — calibration from the survey", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const ratings = ["logitech-g502", "razer-basilisk"].map((slug) => ({
+    slug,
+    satisfaction: 5,
+    painPoints: [],
+    gripStyle: "claw" as const,
+  }));
+
+  it("analyses the same calibrated ranking the fit route shows a signed-in v3 caller (the prompt says the targets were adjusted)", async () => {
+    vi.stubEnv("FIT_ENGINE", "v3");
+    const loadRatings = vi.fn(async () => ratings);
+    const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
+
+    const res = await computeAnalysisForScan(analysisRequest({}), SCAN_ID, {
+      ...baseDeps({ client }),
+      getUserId: async () => "user-1",
+      surveyReferences: { loadRatings },
+    });
+
+    expect(res.status).toBe(200);
+    expect(loadRatings).toHaveBeenCalledTimes(1);
+    expect(loadRatings).toHaveBeenCalledWith("user-1");
+    expect(client.calls[0]!.prompt).toContain(
+      "已經加入依使用者自己持有的滑鼠所做的調整",
+    );
+  });
+
+  it("an anonymous caller: the survey is not read and the prompt carries no adjustment flag", async () => {
+    vi.stubEnv("FIT_ENGINE", "v3");
+    const loadRatings = vi.fn(async () => ratings);
+    const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
+
+    const res = await computeAnalysisForScan(analysisRequest({}), SCAN_ID, {
+      ...baseDeps({ client }),
+      surveyReferences: { loadRatings },
+    });
+
+    expect(res.status).toBe(200);
+    expect(loadRatings).not.toHaveBeenCalled();
+    expect(client.calls[0]!.prompt).not.toContain(
+      "已經加入依使用者自己持有的滑鼠所做的調整",
+    );
   });
 });

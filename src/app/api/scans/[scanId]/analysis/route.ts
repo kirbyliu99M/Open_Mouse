@@ -10,6 +10,7 @@ import {
 } from "../../../../../server/analysis/rate-limit-config";
 import { computeAnalysisForScan } from "../../../../../server/analysis/service";
 import { createDrizzleFitRepo } from "../../../../../server/fit/drizzle-repo";
+import { createDrizzleSurveyReferenceSource } from "../../../../../server/fit/survey-reference-source";
 import { createDrizzleScanRepo } from "../../../../../server/scans/drizzle-repo";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +40,7 @@ export async function POST(
   return computeAnalysisForScan(request, scanId, {
     scanRepo: createDrizzleScanRepo(),
     fitRepo: createDrizzleFitRepo(),
+    surveyReferences: createDrizzleSurveyReferenceSource(),
     client: createAnalysisModel(process.env),
     cache: createDrizzleAnalysisCache(),
     limiter: createDrizzleRateLimiter({
