@@ -27,6 +27,7 @@ import {
   findUnknownNumeral,
 } from "../../src/server/analysis/numerals";
 import { analysisOutputSchema } from "../../src/server/analysis/schema";
+import { findUnscoredGradeTerm } from "../../src/server/analysis/unscored-check";
 import { makeFit, makeMeasurements } from "./analysis-fixtures";
 
 const OUT: FitResponse = makeFit({
@@ -69,8 +70,9 @@ describe("analysis input, hand outside the catalogue's range", () => {
         expect(entry).not.toHaveProperty("bandMeaning");
         for (const sub of Object.values(entry.subscores)) {
           expect(sub).not.toHaveProperty("band");
-          // The sub-scores' scores and reason codes stay (the true target;
-          // v3.1 decision a); their params do not (contract, coverage).
+          // The sub-scores' reason codes stay; their scores and params do
+          // not (A1-02: nothing the model could quote as "the score").
+          expect(sub).not.toHaveProperty("score");
           expect(sub.impact.length).toBeGreaterThan(0);
           expect(sub.reasonCode).toBeTruthy();
           expect(sub).not.toHaveProperty("params");
@@ -268,6 +270,99 @@ describe("analyse(), unscored: no new numerals, ever", () => {
     expect(JSON.stringify(unscored.output)).not.toContain(String(TOTAL));
   });
 
+  it.each([
+    "A fit score of 99.",
+    "This is an excellent fit.",
+    "It is the best match for your hand.",
+    "It scores well on length.",
+    "It gets a high rating for height.",
+    "合手度為 99 分。",
+    "這支的合手度很高。",
+    "分數是 99。",
+    "是最適合你的一款。",
+    "非常適合你的手型。",
+    "這款完美契合你的手。",
+    "長度部分得到九十九分。",
+  ])(
+    "rejects a score or a grade, then serves the fallback: %s",
+    async (text) => {
+      for (const locale of ["en", "zh-TW"] as const) {
+        const client = new FakeTextModel({ answer: () => answerWith(text) });
+        const result = await analyse(
+          buildAnalysisInput(OUT, M, locale),
+          client,
+        );
+        expect(result.source).toBe("fallback");
+        expect(client.calls).toHaveLength(2);
+      }
+    },
+  );
+
+  it.each([
+    ["en", "This is an excellent fit.", "stated a score or a grade"],
+    ["zh-TW", "是最適合你的一款。", "分數或等級的說法"],
+  ] as const)(
+    "the retry prompt names the grade wording (%s)",
+    async (locale, text, expected) => {
+      const client = new FakeTextModel({ answer: () => answerWith(text) });
+      await analyse(buildAnalysisInput(OUT, M, locale), client);
+      expect(client.calls[1]!.prompt).toContain(expected);
+    },
+  );
+
+  it("the same grade wording is fine in range (scored mode is untouched)", async () => {
+    const client = new FakeTextModel({
+      answer: () => answerWith("This is an excellent fit."),
+    });
+    const result = await analyse(buildAnalysisInput(IN, M, "en"), client);
+    expect(result.source).toBe("model");
+  });
+
+  it("accepts ordinary unscored wording, in both languages", async () => {
+    for (const [locale, text] of [
+      [
+        "en",
+        "It is the closest mouse in the catalogue, and it may feel a little long.",
+      ],
+      [
+        "zh-TW",
+        "這是目錄中與你的手最接近的一款，長度可能偏長，部分手指要多伸一點。",
+      ],
+    ] as const) {
+      const client = new FakeTextModel({ answer: () => answerWith(text) });
+      const result = await analyse(buildAnalysisInput(OUT, M, locale), client);
+      expect(result.source).toBe("model");
+    }
+  });
+
+  it("no sub-score impact sentence, headline or caveat of the fallback trips the check", () => {
+    for (const locale of ["en", "zh-TW"] as const) {
+      const copy = locale === "en" ? enBands : zhBands;
+      for (const sentence of Object.values(copy.impact)) {
+        expect(findUnscoredGradeTerm(sentence), sentence).toBeNull();
+      }
+      const out = buildFallbackOutput(buildAnalysisInput(OUT, M, locale));
+      for (const text of [
+        out.headline,
+        out.whyTopPick,
+        ...out.tradeoffs,
+        ...out.whatToAvoid,
+        ...out.caveats,
+      ]) {
+        expect(findUnscoredGradeTerm(text), text).toBeNull();
+      }
+    }
+  });
+
+  it("a mouse named like a grade word is not a grade", () => {
+    expect(
+      findUnscoredGradeTerm("The Perfect Fit Pro is the closest.", [
+        "Perfect Fit Pro",
+      ]),
+    ).toBeNull();
+    expect(findUnscoredGradeTerm("It is a perfect fit.")).not.toBeNull();
+  });
+
   it("accepts an answer that uses only numbers the input carries", async () => {
     const client = new FakeTextModel({
       answer: () =>
@@ -279,8 +374,8 @@ describe("analyse(), unscored: no new numerals, ever", () => {
 });
 
 describe("the cache key, unscored", () => {
-  it("is on version 8 and differs from the scored key of the same scan", () => {
-    expect(ANALYSIS_PROMPT_VERSION).toBe(9);
+  it("is on version 10 and differs from the scored key of the same scan", () => {
+    expect(ANALYSIS_PROMPT_VERSION).toBe(10);
     for (const locale of ["en", "zh-TW"] as const) {
       expect(computeCacheKey(OUT, M, locale)).not.toBe(
         computeCacheKey(IN, M, locale),

@@ -36,6 +36,10 @@ const SCORE_MARKERS = [
   "results-excluded-mirror",
   "results-excluded-score",
   "results-fitNotice",
+  // The Details section's six sub-score bars (A1-02): number, bar, fill.
+  "results-subscoreBar-value",
+  "results-subscoreBar-track",
+  "results-subscoreBar-fill",
 ];
 
 describe("results page, hand outside the catalogue's length range", () => {
@@ -58,6 +62,9 @@ describe("results page, hand outside the catalogue's length range", () => {
       "results-card-score",
       "results-otherMice-score",
       "results-excluded-mirror",
+      "results-subscoreBar-value",
+      "results-subscoreBar-track",
+      "results-subscoreBar-fill",
     ]) {
       expect(html, marker).toContain(marker);
     }
@@ -85,6 +92,20 @@ describe("results page, hand outside the catalogue's length range", () => {
     for (const item of base.excluded) expect(html).toContain(item.model);
     expect(html).toContain("results-excluded-reason");
   });
+
+  it.each(["zh-TW", "en"] as const)(
+    "the Details section keeps each sub-score's label and reason, with no number, bar or accessible score text (%s)",
+    (language) => {
+      const html = render(outOfRange(), { language });
+      expect(html).toContain("results-subscoreBar-reason");
+      expect(html).toContain("results-subscoreBar-label");
+      expect(html).toContain('data-scored="false"');
+      // No bar element, so no role="img" score label either.
+      expect(html).not.toContain("results-subscoreBar-track");
+      expect(html).not.toMatch(/results-subscoreBar[^"]*"[^>]*aria-label/);
+      expect(html).not.toContain("width:");
+    },
+  );
 
   it("a detail page (any rank) draws no score either", () => {
     for (const rank of [1, 2, 4]) {

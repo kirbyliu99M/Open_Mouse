@@ -16,6 +16,7 @@ import { analysisOutputSchema, type AnalysisOutput } from "./schema";
 import { collectNumbers, findUnknownNumeral, stringTokens } from "./numerals";
 import { findMedicalClaimTerm } from "./medicalClaims";
 import { mentionsProvisional } from "./provisional";
+import { findUnscoredGradeTerm } from "./unscored-check";
 import { ANALYSIS_MODEL_TIMEOUT_MS } from "./model-config";
 import { NEGATIVE_REASON_CODES, POSITIVE_REASON_CODES } from "./reasonText";
 
@@ -389,6 +390,9 @@ function retryPromptZhTw(basePrompt: string, violation: string): string {
   if (violation.startsWith("medical claim: ")) {
     return `${basePrompt}\n\n你上一次的回答用了禁止的醫療或健康用語（${violation.slice("medical claim: ".length)}）。請只用形狀的事實重寫完整的回答，不要有任何醫療、診斷、治療、預防傷害或身體安全的說法。`;
   }
+  if (violation.startsWith("grade: ")) {
+    return `${basePrompt}\n\n你上一次的回答出現了分數或等級的說法（${violation.slice("grade: ".length)}）。這個手型超出目錄範圍，資料裡沒有整體分數或等級。請重寫完整的回答，不要提到分數、評分、合手度或任何好壞等級，只說明各項尺寸的差異與使用感受。`;
+  }
   if (violation.startsWith("(missing)")) {
     return `${basePrompt}\n\n你上一次的回答缺少必要的內容：沒有在 "caveats" 中說明這份排名是暫定的。請重寫完整的回答，並在 "caveats" 中明確寫出「暫定」。`;
   }
@@ -410,6 +414,9 @@ function retryPrompt(
   if (locale === "zh-TW") return retryPromptZhTw(basePrompt, violation);
   if (violation.startsWith("medical claim: ")) {
     return `${basePrompt}\n\nYour previous answer used a prohibited medical or health term (${violation.slice("medical claim: ".length)}). Rewrite the full answer using only shape facts, with no medical, diagnostic, therapeutic, injury-prevention, or body-safety claims.`;
+  }
+  if (violation.startsWith("grade: ")) {
+    return `${basePrompt}\n\nYour previous answer stated a score or a grade (${violation.slice("grade: ".length)}). This hand is outside the catalogue's range and the data carries no overall score or grade. Rewrite the full answer without any score, rating, points or grade of the fit, and say only how the sizes compare and how the mouse may feel to use.`;
   }
   // `findUnknownNumeral` reports a numeral symbol it cannot read (❺, ⓴, Ⅴ...)
   // as NaN: there is no value to name, but the symbol is still a number.
@@ -450,6 +457,11 @@ function findViolation(
       exemptNames,
     );
     if (unknown !== null) return String(unknown);
+    // Unscored: no overall score or grade, in digits or in words.
+    if (input.scoreMode === "unscored") {
+      const grade = findUnscoredGradeTerm(text, exemptNames);
+      if (grade !== null) return `grade: ${grade}`;
+    }
   }
   if (isLowConfidence(input)) {
     // In whichever language the model answered: see ./provisional.
