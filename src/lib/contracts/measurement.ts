@@ -312,9 +312,11 @@ export const MANUAL_ENTRY = {
   palmLengthRatio: 0.56,
   /**
    * A typed (ruler, skin-to-skin) hand width times this is the width on the
-   * scan's scale (landmarks 5 to 17), the scale fit v1's grip-width target
-   * (x 0.88) was made for. Candidate, from ONE pair: 65.7 mm scanned against
-   * 85 mm ruler (Kirby, 2026-10-17). Applied for scoring only.
+   * scan's scale (landmarks 5 to 17), so a typed width and a scanned width
+   * enter the fit on the same scale. It converts skin to landmarks only and
+   * does not depend on any engine's grip-width factor (v1 x 0.88, v3 x 1.00).
+   * Candidate, from ONE pair: 65.7 mm scanned against 85 mm ruler (Kirby,
+   * 2026-10-17). Applied for scoring only.
    */
   widthToLandmarkScale: 0.77,
 } as const;

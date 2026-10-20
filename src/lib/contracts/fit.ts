@@ -271,6 +271,55 @@ export const fitCoverageSchema = z
     path: ["direction"],
   });
 
+/**
+ * 2026-10-19 (fit-v3.0 candidate, 未拍板): one dimension of the personal
+ * calibration a v3 engine applies when the request carries `references`.
+ *
+ * `shiftMm` is what the engine added to this dimension's target, after its
+ * per-dimension Bayesian update from the person's "short / right / long"
+ * answers about mice they own. `answers` counts the references that answered
+ * this dimension and took part. `conflict` is true when those answers cannot
+ * all hold at once (the engine's own fit test); the dimension is then frozen:
+ * `shiftMm` is exactly 0 and the target is the uncalibrated one.
+ */
+export const fitCalibrationDimSchema = z
+  .strictObject({
+    shiftMm: z.number().finite(),
+    answers: z.number().int().min(0).max(8),
+    conflict: z.boolean(),
+  })
+  .refine((d) => !d.conflict || d.shiftMm === 0, {
+    message: "a dimension in conflict is frozen at a shift of 0",
+    path: ["shiftMm"],
+  })
+  .refine((d) => d.answers > 0 || (d.shiftMm === 0 && !d.conflict), {
+    message: "a dimension nobody answered has no shift and no conflict",
+    path: ["shiftMm"],
+  });
+
+/**
+ * 2026-10-19 (fit-v3.0 candidate, 未拍板): the personal calibration of a v3
+ * engine. Present only when a v3 engine scored a request that carried
+ * `references`; v0, v1 and v2 never fill it.
+ *
+ * `referencesUsed` counts the references that took part in at least one
+ * dimension: a known, listed slug, not `specialUse`. The response `targets`
+ * already include the shifts.
+ *
+ * Facts only, hard rule 2: nothing here enters the analysis input, the share
+ * card input or the analysis numeral allow-list. Gate: a v3 engine must not
+ * become `DEFAULT_ENGINE` nor be wired into those paths until every consumer
+ * handles this block (a test pins the default).
+ */
+export const fitCalibrationSchema = z.strictObject({
+  referencesUsed: z.number().int().min(0).max(8),
+  dims: z.strictObject({
+    length: fitCalibrationDimSchema,
+    gripWidth: fitCalibrationDimSchema,
+    height: fitCalibrationDimSchema,
+  }),
+});
+
 export const fitResponseSchema = z.strictObject({
   scanId: z.string().uuid(),
   engineVersion: z.string(),
@@ -354,7 +403,51 @@ export const fitResponseSchema = z.strictObject({
   results: z.array(fitEntrySchema),
   /** fit-v2.0 candidate: see `fitCoverageSchema`. Optional until a v2 engine fills it. */
   coverage: fitCoverageSchema.optional(),
+  /** fit-v3.0 candidate: see `fitCalibrationSchema`. Optional until a v3 engine fills it. */
+  calibration: fitCalibrationSchema.optional(),
 });
+
+/** "Short / narrow / low" (-1), "just right" (0), "long / wide / high" (1), or no answer (null). */
+export const fitFeelSchema = z
+  .union([z.literal(-1), z.literal(0), z.literal(1)])
+  .nullable();
+
+/**
+ * 2026-10-19 (fit-v3.0 candidate, 未拍板): a mouse the person owns and how it
+ * feels to them in their usual grip(s). Only a v3 engine reads references;
+ * every other engine ignores them and scores exactly as before.
+ *
+ * - `slug` is a catalogue slug; an unknown or unlisted slug is ignored.
+ * - `grips` are the grips the person uses on this mouse (any of three; empty
+ *   means "the grip used for this hand").
+ * - `feel` answers per dimension, each -1 / 0 / 1 or null (not answered); a
+ *   dimension left out is read as null, so a client that only asks about
+ *   length still sends a valid reference.
+ * - `specialUse` marks a mouse chosen for a feature rather than for fit (it
+ *   works on glass, it travels): it never calibrates.
+ *
+ * Engine rules a v3 engine must follow (candidate): an ergonomic shell's
+ * catalogue height is the top of the shell, not where the palm rests, so an
+ * ergonomic reference calibrates length and grip width only, never height.
+ *
+ * Privacy: the server uses references for this request only and stores none
+ * of them; storing them needs Kirby's decision and a consented table.
+ */
+export const fitReferenceSchema = z
+  .strictObject({
+    slug: z.string().min(1).max(160),
+    grips: z.array(z.enum(GRIP_STYLES)).max(3),
+    feel: z.strictObject({
+      length: fitFeelSchema.default(null),
+      width: fitFeelSchema.default(null),
+      height: fitFeelSchema.default(null),
+    }),
+    specialUse: z.boolean().default(false),
+  })
+  .refine((r) => new Set(r.grips).size === r.grips.length, {
+    message: "each grip at most once",
+    path: ["grips"],
+  });
 
 /**
  * Optional user preferences sent with a fit request.
@@ -376,6 +469,14 @@ export const fitPreferencesSchema = z.strictObject({
     .refine((w) => w.min <= w.max, { message: "min must not exceed max" })
     .optional(),
   includeVertical: z.boolean().default(false),
+  /** fit-v3.0 candidate: see `fitReferenceSchema`. At most 8, one per slug. */
+  references: z
+    .array(fitReferenceSchema)
+    .max(8)
+    .refine((rs) => new Set(rs.map((r) => r.slug)).size === rs.length, {
+      message: "each mouse at most once",
+    })
+    .optional(),
 });
 
 export type FitEntry = z.infer<typeof fitEntrySchema>;
@@ -383,3 +484,6 @@ export type HandType = NonNullable<FitResponse["handType"]>;
 export type FitResponse = z.infer<typeof fitResponseSchema>;
 export type FitCoverage = z.infer<typeof fitCoverageSchema>;
 export type FitPreferences = z.infer<typeof fitPreferencesSchema>;
+export type FitCalibration = z.infer<typeof fitCalibrationSchema>;
+export type FitReference = z.infer<typeof fitReferenceSchema>;
+export type FitFeel = z.infer<typeof fitFeelSchema>;

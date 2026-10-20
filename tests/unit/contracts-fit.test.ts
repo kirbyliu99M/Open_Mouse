@@ -420,3 +420,98 @@ describe("fitResponseSchema: v2 coverage and rankStability", () => {
     }
   });
 });
+
+describe("fit-v3 candidate: references and calibration", () => {
+  const dim = (shiftMm: number, answers: number, conflict = false) => ({
+    shiftMm,
+    answers,
+    conflict,
+  });
+  const calibration = {
+    referencesUsed: 2,
+    dims: {
+      length: dim(2.1, 2),
+      gripWidth: dim(-1.3, 2),
+      height: dim(0, 2, true),
+    },
+  };
+  const ref = {
+    slug: "logitech-g903-hero",
+    grips: ["palm", "claw"],
+    feel: { length: 0, width: 0, height: null },
+  };
+
+  it("accepts a calibration block, and a response without one", () => {
+    expect(fitResponseSchema.safeParse({ ...valid, calibration }).success).toBe(
+      true,
+    );
+    expect(fitResponseSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it("freezes a dimension in conflict at a shift of 0", () => {
+    const bad = {
+      ...calibration,
+      dims: { ...calibration.dims, height: dim(1.5, 2, true) },
+    };
+    expect(
+      fitResponseSchema.safeParse({ ...valid, calibration: bad }).success,
+    ).toBe(false);
+  });
+
+  it("gives a dimension nobody answered no shift and no conflict", () => {
+    for (const d of [dim(0.4, 0), dim(0, 0, true)]) {
+      const bad = { ...calibration, dims: { ...calibration.dims, length: d } };
+      expect(
+        fitResponseSchema.safeParse({ ...valid, calibration: bad }).success,
+      ).toBe(false);
+    }
+  });
+
+  it("refuses a non-finite shift and an extra key", () => {
+    for (const bad of [
+      {
+        ...calibration,
+        dims: { ...calibration.dims, length: dim(Number.NaN, 2) },
+      },
+      { ...calibration, probability: 0.9 },
+      { ...calibration, referencesUsed: 9 },
+    ]) {
+      expect(
+        fitResponseSchema.safeParse({ ...valid, calibration: bad }).success,
+      ).toBe(false);
+    }
+  });
+
+  it("accepts references and defaults specialUse to false", () => {
+    const r = fitPreferencesSchema.safeParse({ references: [ref] });
+    expect(r.success).toBe(true);
+    expect(r.success && r.data.references?.[0].specialUse).toBe(false);
+  });
+
+  it("reads a feel dimension left out as not answered", () => {
+    const r = fitPreferencesSchema.safeParse({
+      references: [{ ...ref, feel: { length: -1 } }],
+    });
+    expect(r.success).toBe(true);
+    expect(r.success && r.data.references?.[0].feel).toEqual({
+      length: -1,
+      width: null,
+      height: null,
+    });
+  });
+
+  it("refuses a feel outside -1, 0, 1, a repeated grip, a repeated mouse and more than 8", () => {
+    for (const references of [
+      [{ ...ref, feel: { ...ref.feel, length: 2 } }],
+      [{ ...ref, feel: { ...ref.feel, width: 0.5 } }],
+      [{ ...ref, grips: ["palm", "palm"] }],
+      [ref, { ...ref }],
+      Array.from({ length: 9 }, (_, i) => ({ ...ref, slug: `m-${i}` })),
+      [{ ...ref, slug: "" }],
+    ]) {
+      expect(fitPreferencesSchema.safeParse({ references }).success).toBe(
+        false,
+      );
+    }
+  });
+});
