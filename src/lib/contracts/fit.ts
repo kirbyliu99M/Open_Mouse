@@ -250,6 +250,8 @@ export const fitEntrySchema = z.strictObject({
  * become `DEFAULT_ENGINE` nor be wired into those paths (a test pins the
  * default). Facts only: hard rule 2 applies, so nothing here may enter the
  * analysis input or the share card input, or the analysis numeral allow-list.
+ * The one exception (2026-10-20): the analysis input may carry that the fit is
+ * unscored (a mode, not a number), so the prompt can write without a score.
  *
  * Rollout: this contract ships and deploys before any engine that fills it.
  * Clients parse the response with a strict schema, so a client from before
@@ -307,7 +309,10 @@ export const fitCalibrationDimSchema = z
  * already include the shifts.
  *
  * Facts only, hard rule 2: nothing here enters the analysis input, the share
- * card input or the analysis numeral allow-list. Gate: a v3 engine must not
+ * card input or the analysis numeral allow-list, except one boolean
+ * (2026-10-20): the analysis input may say that the targets were personally
+ * adjusted (a non-zero shift exists), never by how much or from which mice, so
+ * the analysis does not claim the targets come from the hand alone. Gate: a v3 engine must not
  * become `DEFAULT_ENGINE` nor be wired into those paths until every consumer
  * handles this block (a test pins the default).
  */
