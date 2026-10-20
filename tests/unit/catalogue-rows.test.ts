@@ -292,9 +292,13 @@ describe("a merged Logitech row", () => {
   it("marks inferred rows in descriptor_model", () => {
     const inferred = entries.filter((e) => e.descriptorsInferred);
     expect(inferred).toHaveLength(N.inferred);
+    // A candidate merged into a Logitech row (Kirby's 2026-10-20 MX owner
+    // rows) keeps that row's geometry label and adds the candidate's.
     for (const e of inferred)
-      expect(byModel(e.model).descriptorModel).toBe(
-        "public_compilation-inferred",
+      expect(byModel(e.model).descriptorModel).toEqual(
+        e.mergesInto
+          ? expect.stringMatching(/\+public_compilation$/)
+          : "public_compilation-inferred",
       );
   });
 });
