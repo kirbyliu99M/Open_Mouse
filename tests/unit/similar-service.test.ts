@@ -246,6 +246,40 @@ describe("GET /api/scans/{scanId}/similar", () => {
       });
     });
 
+    it("a parallax-corrected scan is looked up on the engine's scale (landmark-raw-v3, candidate): the cell the same hand had before correction", async () => {
+      pool = [...crowd(5, "a", 4)];
+      // 182.1 x 1.024 = 186.5 and 77.8 x 1.035 = 80.5: bins 185 x 80, where
+      // the stored numbers alone would be 180 x 75 (an empty cell here).
+      const corrected = addScan({
+        scan: {
+          measurements: {
+            handLengthMm: 182.1,
+            palmLengthMm: 101.2,
+            palmWidthMm: 77.8,
+          },
+          parallaxCorrected: true,
+        },
+      });
+      const body = await answer(await getOwn(corrected));
+      expect(body.available && body.basis).toEqual({
+        handLengthBinMm: 185,
+        palmWidthBinMm: 80,
+        gripStyle: predictGrip(182.1 * 1.024, 101.2 * 1.041),
+      });
+      const plain = addScan({
+        scan: {
+          measurements: {
+            handLengthMm: 182.1,
+            palmLengthMm: 101.2,
+            palmWidthMm: 77.8,
+          },
+          parallaxCorrected: false,
+        },
+      });
+      const plainBody = await answer(await getOwn(plain));
+      expect(plainBody.available).toBe(false);
+    });
+
     it("reports the grip the person stated, else the one the fit predicts", async () => {
       pool = [...crowd(5, "a", 4)];
       const stated: GripStyle =

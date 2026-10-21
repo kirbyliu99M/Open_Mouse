@@ -600,6 +600,41 @@ describe("buildScanQuality", () => {
     }
   });
 
+  it("landmark-raw-v3 (candidate): a nominal scan with the local S25 check sends only buckets, never a px or a mm", () => {
+    const out = buildScanQuality({
+      ...base,
+      diagnostics: diag({
+        parallaxCorrected: true,
+        focal: { source: "nominal", px: 1442.1077 },
+        shadowPrior: {
+          handLengthDeltaMm: 4.6812,
+          uncorrected: {
+            handLengthMm: 189.4321,
+            palmLengthMm: 107.019,
+            palmWidthMm: 65.7444,
+          },
+          reported: {
+            handLengthMm: 184.7509,
+            palmLengthMm: 102.81,
+            palmWidthMm: 63.52,
+          },
+          homographyFocal: { px: 1823.456, reliable: false },
+        },
+      }),
+    });
+    expect(out).toMatchObject({
+      focalSource: "nominal",
+      parallaxCorrected: true,
+      // Uncorrected minus reported, +4.7 mm.
+      priorEffect: "higher_2_plus",
+    });
+    const text = JSON.stringify(out);
+    for (const n of ["1442", "1823", "189", "184", "107", "102", "65.7", "63.5", "4.68"]) {
+      expect(text).not.toContain(n);
+    }
+    expect(text).not.toMatch(/uncorrected|reported|homographyFocal/);
+  });
+
   it("takes parallaxCorrected as the boolean, either way", () => {
     for (const value of [true, false]) {
       const out = buildScanQuality({

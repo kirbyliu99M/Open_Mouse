@@ -1609,3 +1609,108 @@ describe("which edge was hidden: the paper block's sideCoverages and worstSide (
     expect(describeAttempt(record({ paper: null }))).not.toContain("worst");
   });
 });
+
+describe("parallaxCheck (landmark-raw-v3, candidate): Kirby's S25 check, local only", () => {
+  const okResult = (diagnostics: PipelineDiagnostics): PipelineResult => ({
+    status: "ok",
+    measurements: {} as never,
+    submission: {} as never,
+    warnings: [],
+    overlay: ERROR_RESULT.overlay,
+    diagnostics,
+  });
+  const build = (diagnostics: PipelineDiagnostics) =>
+    buildAttemptRecord({
+      at: "2026-10-22T10:20:30.000Z",
+      userAgent: "x",
+      capture: CAPTURE,
+      outcome: { kind: "result", result: okResult(diagnostics) },
+    });
+  const V3 = {
+    ...DIAGNOSTICS,
+    focal: { source: "nominal" as const, px: 1442.1077 },
+    shadowPrior: {
+      handLengthDeltaMm: 4.6812,
+      uncorrected: {
+        handLengthMm: 189.4321,
+        palmLengthMm: 107.019,
+        palmWidthMm: 65.7444,
+      },
+      reported: {
+        handLengthMm: 184.7509,
+        palmLengthMm: 102.81,
+        palmWidthMm: 63.52,
+      },
+      homographyFocal: { px: 1823.456, reliable: false },
+    },
+  };
+
+  it("keeps the homography estimate (used or not), the uncorrected and the reported lengths, and the nominal focal source", () => {
+    const r = build(V3);
+    expect(r.focal).toEqual({ source: "nominal", px: 1442.1 });
+    expect(r.parallaxCheck).toEqual({
+      homographyFocal: { px: 1823.5, reliable: false },
+      uncorrected: {
+        handLengthMm: 189.4,
+        palmLengthMm: 107,
+        palmWidthMm: 65.7,
+      },
+      reported: { handLengthMm: 184.8, palmLengthMm: 102.8, palmWidthMm: 63.5 },
+    });
+    expect(r.shadowPrior).toEqual({ handLengthDeltaMm: 4.7 });
+    expect(parseAttempts(serialiseAttempts([r]))).toEqual([r]);
+  });
+
+  it("is null on a run that did not end in a measurement, without a shadow, and in an older record", () => {
+    expect(build({ ...V3, shadowPrior: null }).parallaxCheck).toBeNull();
+    const thrown = buildAttemptRecord({
+      at: "2026-10-22T10:20:30.000Z",
+      userAgent: "x",
+      capture: CAPTURE,
+      outcome: { kind: "thrown", code: "X", message: "x" },
+    });
+    expect(thrown.parallaxCheck).toBeNull();
+    const old = JSON.parse(JSON.stringify(record())) as Record<string, unknown>;
+    delete old.parallaxCheck;
+    expect(parseAttempts(JSON.stringify([old]))[0].parallaxCheck).toBeNull();
+  });
+
+  it("sanitising rebuilds it field by field: junk becomes null, never a partial set of lengths", () => {
+    const dataUrl = `data:image/jpeg;base64,${"A".repeat(1000)}`;
+    const r = sanitizeAttempt({
+      at: "2026-10-22T10:20:30.000Z",
+      result: "ok",
+      parallaxCheck: {
+        homographyFocal: { px: Number.NaN, reliable: true },
+        uncorrected: { handLengthMm: 189, palmLengthMm: dataUrl, palmWidthMm: 65 },
+        reported: { handLengthMm: 185, palmLengthMm: 103, palmWidthMm: 64 },
+        extra: dataUrl,
+      },
+    })!;
+    expect(r.parallaxCheck).toEqual({
+      homographyFocal: null,
+      uncorrected: null,
+      reported: { handLengthMm: 185, palmLengthMm: 103, palmWidthMm: 64 },
+    });
+    expect(JSON.stringify(r)).not.toMatch(/data:|base64/i);
+    expect(
+      sanitizeAttempt({
+        at: "2026-10-22T10:20:30.000Z",
+        result: "ok",
+        parallaxCheck: { homographyFocal: "x", uncorrected: 3 },
+      })!.parallaxCheck,
+    ).toBeNull();
+  });
+
+  it("an old record's focal source nominal is kept; anything else unknown is null", () => {
+    const base = { at: "2026-10-22T10:20:30.000Z", result: "ok" };
+    expect(
+      sanitizeAttempt({ ...base, focal: { source: "nominal", px: 1442 } })!
+        .focal.source,
+    ).toBe("nominal");
+    expect(
+      sanitizeAttempt({ ...base, focal: { source: "prior", px: 1442 } })!.focal
+        .source,
+    ).toBeNull();
+  });
+});
