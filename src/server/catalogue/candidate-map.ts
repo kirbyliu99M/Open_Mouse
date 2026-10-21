@@ -77,6 +77,13 @@ export interface CatalogueEntry {
   /** True when the shape values come from a predecessor or a description, not a measurement of this model. */
   descriptorsInferred: boolean;
   /**
+   * True when the site owner (Kirby) described the shape values himself: the
+   * candidate's `descriptorBasis` names an "owner" description (the 2026-10-20
+   * MX rows). The merged row's `descriptor_model` then says `owner`, not
+   * `public_compilation`.
+   */
+  descriptorsByOwner: boolean;
+  /**
    * The model name of the `logitech.json` row this entry is the same product
    * as, or null. The seed keeps that row's numbers and fills only its null
    * descriptors from this entry.
@@ -341,6 +348,11 @@ export function deriveFormFactor(dims: {
     : "standard";
 }
 
+/** Whether a candidate's `descriptorBasis` says the site owner described the shape (the word "owner"). */
+export function descriptorsByOwner(descriptorBasis: string): boolean {
+  return /\bowner\b/i.test(descriptorBasis);
+}
+
 export function mapCandidate(
   record: CandidateRecord,
   retrievedAt: string,
@@ -374,6 +386,7 @@ export function mapCandidate(
       thumbRest: mapYesNo("thumbRest", record.thumbRest),
       connectivity: mapConnectivity(record.connectivity),
       descriptorsInferred: record.descriptorBasis.trim() !== "",
+      descriptorsByOwner: descriptorsByOwner(record.descriptorBasis),
       mergesInto: null,
       retrievedAt,
     };

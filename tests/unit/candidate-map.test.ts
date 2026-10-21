@@ -15,6 +15,7 @@ import {
   buildOfficialUrlIndex,
   comparePageConnectivity,
   deriveFormFactor,
+  descriptorsByOwner,
   isKnownConnectivity,
   LOGITECH_ALIASES,
   lookupOfficialUrl,
@@ -434,6 +435,34 @@ describe("mapCandidate", () => {
       RETRIEVED,
     );
     expect(e.descriptorsInferred).toBe(true);
+    expect(e.descriptorsByOwner).toBe(false);
+  });
+
+  it("flags a row whose descriptorBasis is the owner's description as the owner's", () => {
+    const e = mapCandidate(
+      record({
+        descriptorBasis:
+          "Kirby 2026-10-20 owner description (MX shape not stated on the product page); inferred",
+      }),
+      RETRIEVED,
+    );
+    expect(e.descriptorsByOwner).toBe(true);
+    expect(e.descriptorsInferred).toBe(true);
+    expect(
+      mapCandidate(record({ descriptorBasis: "" }), RETRIEVED)
+        .descriptorsByOwner,
+    ).toBe(false);
+  });
+
+  it("descriptorsByOwner reads the word owner only, any case, not a part of a word", () => {
+    expect(descriptorsByOwner("Kirby owner description")).toBe(true);
+    expect(descriptorsByOwner("OWNER")).toBe(true);
+    expect(descriptorsByOwner("Kirby 2026-10-09 description")).toBe(false);
+    expect(descriptorsByOwner("public compilation predecessor; inferred")).toBe(
+      false,
+    );
+    expect(descriptorsByOwner("co-owners")).toBe(false);
+    expect(descriptorsByOwner("")).toBe(false);
   });
 
   it("names the row when a value does not map", () => {

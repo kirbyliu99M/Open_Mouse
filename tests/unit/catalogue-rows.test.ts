@@ -223,12 +223,14 @@ describe("a merged Logitech row", () => {
     );
   });
 
-  it("says +public_compilation on every merged row that took a value from its candidate", () => {
+  it("says +public_compilation, or +owner for the owner's rows, on every merged row that took a value from its candidate", () => {
     const mergedRows = entries.filter((e) => e.mergesInto);
     expect(mergedRows).toHaveLength(N.merged);
     for (const e of mergedRows) {
       const row = byModel(e.mergesInto!);
-      expect(row.descriptorModel, e.model).toMatch(/\+public_compilation$/);
+      expect(row.descriptorModel, e.model).toMatch(
+        e.descriptorsByOwner ? /\+owner$/ : /\+public_compilation$/,
+      );
       expect(row.descriptorSourceUrls, e.model).toContain(e.sourceUrl);
       expect(row.dataSource, e.model).toBe("first_party");
     }
@@ -293,13 +295,63 @@ describe("a merged Logitech row", () => {
     const inferred = entries.filter((e) => e.descriptorsInferred);
     expect(inferred).toHaveLength(N.inferred);
     // A candidate merged into a Logitech row (Kirby's 2026-10-20 MX owner
-    // rows) keeps that row's geometry label and adds the candidate's.
+    // rows) keeps that row's geometry label and adds the candidate's source:
+    // the owner, not the public compilation.
     for (const e of inferred)
       expect(byModel(e.model).descriptorModel).toEqual(
         e.mergesInto
-          ? expect.stringMatching(/\+public_compilation$/)
+          ? expect.stringMatching(
+              e.descriptorsByOwner ? /\+owner$/ : /\+public_compilation$/,
+            )
           : "public_compilation-inferred",
       );
+  });
+
+  it("labels the owner's three MX rows as owner data, distinct from public_compilation, with their shape values unchanged", () => {
+    const owner = entries.filter((e) => e.descriptorsByOwner);
+    expect(owner.map((e) => e.model)).toEqual([
+      "MX Master 4",
+      "MX Master 3S",
+      "MX Anywhere 3S",
+    ]);
+    expect(owner).toHaveLength(N.byOwner);
+    for (const e of owner) {
+      const row = byModel(e.mergesInto!);
+      expect(row.descriptorModel, e.model).toMatch(
+        /^geometry-gd1@[0-9a-f]+\+owner$/,
+      );
+      expect(row.descriptorModel, e.model).not.toMatch(/public_compilation/);
+      expect(row.descriptorSourceUrls, e.model).toContain(e.sourceUrl);
+    }
+    // The values Kirby gave (2026-10-20), as before this label changed.
+    const shapeOf = (model: string) => {
+      const r = byModel(model);
+      return [r.shape, r.handCompatibility, r.thumbRest];
+    };
+    expect(shapeOf("MX Master 4")).toEqual(["ergonomic", "right", true]);
+    expect(shapeOf("MX Master 3S")).toEqual(["ergonomic", "right", true]);
+    expect(shapeOf("MX Anywhere 3S")).toEqual(["symmetrical", "right", false]);
+  });
+
+  it("names the owner as the descriptor source when an owner row has no geometry record", () => {
+    const g309 = entries.find((e) => e.mergesInto === "G309")!;
+    const rebuilt = buildSeedRows(specs, descriptors, {
+      facts,
+      entries: [
+        {
+          ...g309,
+          model: "Test Owner Mouse",
+          slug: "logitech-test-owner-mouse",
+          mergesInto: null,
+          descriptorsByOwner: true,
+          descriptorsInferred: true,
+        },
+      ],
+    });
+    const row = rebuilt.withDescriptors.find(
+      (r) => r.model === "Test Owner Mouse",
+    );
+    expect(row?.descriptorModel).toBe("owner-inferred");
   });
 });
 
