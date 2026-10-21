@@ -6,9 +6,13 @@
  */
 import { describe, expect, it } from "vitest";
 import {
-  ADJUSTABLE_CODES,
   PAPER_ADJUST_LAYOUT,
+  adjustConfirmAction,
   adjustEntryFor,
+  adjustFirstCodeFor,
+  adjustWarningFor,
+  frameMoved,
+  isPaperIssue,
   adjustReadiness,
   adjustReducer,
   cornerCheckDistances,
@@ -73,84 +77,114 @@ const AUTO = submission({
 const run = (state: AdjustState, ...actions: AdjustAction[]) =>
   actions.reduce(adjustReducer, state);
 
-describe("adjustEntryFor: only after a hidden edge or corner", () => {
-  it("offers the rescue after PAPER_EDGE_HIDDEN and PAPER_CORNER_HIDDEN", () => {
-    expect(ADJUSTABLE_CODES).toEqual([
-      "PAPER_EDGE_HIDDEN",
-      "PAPER_CORNER_HIDDEN",
-    ]);
-    for (const code of ADJUSTABLE_CODES)
-      for (const debugOn of [false, true])
+describe("adjustEntryFor (F7, Kirby's phone test 2026-10-21): like Adobe Scan, every paper failure can have its frame fixed", () => {
+  const PAPER_CODES = [
+    "PAPER_NOT_FOUND",
+    "PAPER_EDGE_HIDDEN",
+    "PAPER_CORNER_HIDDEN",
+    "PAPER_CURLED",
+    // Any other paper gate, present or future (tilt, aspect): the prefix decides.
+    "PAPER_TILTED",
+    "PAPER_ASPECT_MISMATCH",
+  ];
+  const HAND_CODES = [
+    "HAND_NOT_DETECTED",
+    "HAND_OUT_OF_BOUNDS",
+    "HANDEDNESS_MISMATCH",
+    "LOW_LANDMARK_CONFIDENCE",
+  ];
+  const PLACED = { corners: RECT, source: "adjusted" as const };
+
+  it("isPaperIssue: every PAPER_* code, nothing else", () => {
+    for (const code of PAPER_CODES) expect(isPaperIssue(code)).toBe(true);
+    for (const code of [...HAND_CODES, "LOW_SHARPNESS", "DECODE_FAILED"])
+      expect(isPaperIssue(code)).toBe(false);
+    expect(isPaperIssue(undefined)).toBe(false);
+  });
+
+  it("offers the rescue after every paper failure on a decoded photo, wherever it is listed, with or without ?debug=1", () => {
+    for (const code of PAPER_CODES)
+      for (const debugOn of [false, true]) {
+        expect(
+          adjustEntryFor(
+            { kind: "gateFailure", errors: [issue(code)], overlay: overlay() },
+            debugOn,
+          ),
+          code,
+        ).toBe("rescue");
+        // Listed after a hand reason, or together with another paper reason.
         expect(
           adjustEntryFor(
             {
               kind: "gateFailure",
-              errors: [issue(code), issue("HAND_OUT_OF_BOUNDS")],
+              errors: [issue("HAND_OUT_OF_BOUNDS"), issue(code)],
               overlay: overlay(),
             },
             debugOn,
           ),
+          code,
+        ).toBe("rescue");
+        expect(
+          adjustEntryFor(
+            {
+              kind: "gateFailure",
+              errors: [issue("PAPER_EDGE_HIDDEN"), issue(code)],
+              overlay: overlay({ paperCorners: RECT }),
+            },
+            debugOn,
+          ),
+          code,
+        ).toBe("rescue");
+      }
+  });
+
+  it("not after a hand failure on the detector's own frame: moving it cannot help, and the sheet keeps its explanation", () => {
+    for (const code of [
+      ...HAND_CODES,
+      "LOW_SHARPNESS",
+      "MEASUREMENT_OUT_OF_RANGE",
+    ])
+      for (const placedFrame of [undefined, null])
+        expect(
+          adjustEntryFor(
+            {
+              kind: "gateFailure",
+              errors: [issue(code)],
+              overlay: overlay({ paperCorners: RECT }),
+              placedFrame,
+            },
+            false,
+          ),
+          code,
+        ).toBeNull();
+  });
+
+  it("after a hand gate turned back a frame the person placed, the rescue is offered again", () => {
+    for (const code of HAND_CODES)
+      for (const source of ["adjusted", "manual"] as const)
+        expect(
+          adjustEntryFor(
+            {
+              kind: "gateFailure",
+              errors: [issue(code)],
+              overlay: overlay(),
+              placedFrame: { corners: RECT, source },
+            },
+            false,
+          ),
+          code,
         ).toBe("rescue");
   });
 
-  it("never after any other failure, nor when the hidden edge is not the first reason", () => {
+  it("never without a decoded photo to adjust on", () => {
     for (const code of [
-      "PAPER_NOT_FOUND",
-      "PAPER_CURLED",
-      "HAND_NOT_DETECTED",
-      "HAND_OUT_OF_BOUNDS",
-      "LOW_SHARPNESS",
+      "PAPER_EDGE_HIDDEN",
       "DECODE_FAILED",
       "PROCESSING_FAILED",
-    ])
+    ]) {
       expect(
         adjustEntryFor(
-          { kind: "gateFailure", errors: [issue(code)], overlay: overlay() },
-          false,
-        ),
-      ).toBeNull();
-    expect(
-      adjustEntryFor(
-        {
-          kind: "gateFailure",
-          errors: [issue("HAND_OUT_OF_BOUNDS"), issue("PAPER_EDGE_HIDDEN")],
-          overlay: overlay(),
-        },
-        false,
-      ),
-    ).toBeNull();
-    // No photo to adjust on.
-    expect(
-      adjustEntryFor(
-        {
-          kind: "gateFailure",
-          errors: [issue("PAPER_EDGE_HIDDEN")],
-          overlay: null,
-        },
-        false,
-      ),
-    ).toBeNull();
-    expect(
-      adjustEntryFor(
-        {
-          kind: "gateFailure",
-          errors: [issue("PAPER_EDGE_HIDDEN")],
-          overlay: overlay({ imageWidth: 0, imageHeight: 0 }),
-        },
-        false,
-      ),
-    ).toBeNull();
-  });
-
-  it("never when another paper gate failed too: a hidden edge listed before PAPER_CURLED is not a way round the curl gate", () => {
-    for (const code of ADJUSTABLE_CODES) {
-      expect(
-        adjustEntryFor(
-          {
-            kind: "gateFailure",
-            errors: [issue(code), issue("PAPER_CURLED")],
-            overlay: overlay({ paperCorners: RECT }),
-          },
+          { kind: "gateFailure", errors: [issue(code)], overlay: null },
           false,
         ),
       ).toBeNull();
@@ -158,84 +192,402 @@ describe("adjustEntryFor: only after a hidden edge or corner", () => {
         adjustEntryFor(
           {
             kind: "gateFailure",
-            errors: [
-              issue(code),
-              issue("PAPER_CURLED"),
-              issue("HAND_OUT_OF_BOUNDS"),
-            ],
-            overlay: overlay({ paperCorners: RECT }),
+            errors: [issue(code)],
+            overlay: overlay({ imageWidth: 0, imageHeight: 0 }),
+            placedFrame: PLACED,
           },
-          true,
+          false,
         ),
       ).toBeNull();
     }
-    // Both hidden reasons together are still a rescue.
-    expect(
-      adjustEntryFor(
-        {
-          kind: "gateFailure",
-          errors: [issue("PAPER_CORNER_HIDDEN"), issue("PAPER_EDGE_HIDDEN")],
-          overlay: overlay(),
-        },
-        false,
-      ),
-    ).toBe("rescue");
-  });
-
-  it("never after a measurement without ?debug=1, nor before a result", () => {
-    expect(
-      adjustEntryFor(
-        {
-          kind: "measured",
-          overlay: overlay({ paperCorners: RECT }),
-          submission: AUTO,
-        },
-        false,
-      ),
-    ).toBeNull();
     expect(adjustEntryFor({ kind: "none" }, true)).toBeNull();
     expect(adjustEntryFor({ kind: "processing" }, true)).toBeNull();
   });
 
-  it("with ?debug=1, offers Kirby's corner check on a photo measured from the detector's corners only", () => {
+  it("on a photo measured from the detector's own corners: 檢查邊框 (review); with ?debug=1, Kirby's corner check instead", () => {
+    const measured = {
+      kind: "measured" as const,
+      overlay: overlay({ paperCorners: RECT }),
+      submission: AUTO,
+    };
+    expect(adjustEntryFor(measured, false)).toBe("review");
+    expect(adjustEntryFor(measured, true)).toBe("check");
+    // No corners to review.
     expect(
-      adjustEntryFor(
-        {
-          kind: "measured",
-          overlay: overlay({ paperCorners: RECT }),
-          submission: AUTO,
-        },
-        true,
-      ),
-    ).toBe("check");
+      adjustEntryFor({ ...measured, overlay: overlay() }, false),
+    ).toBeNull();
+  });
+
+  it("not on a photo measured from a frame placed by hand, nor with a typed length", () => {
     const adjusted = submission({
       method: "paper-edge",
       paperSize: "a4",
       cornersSource: "adjusted",
       parallaxCorrected: true,
     });
-    expect(
-      adjustEntryFor(
-        {
-          kind: "measured",
-          overlay: overlay({ paperCorners: RECT }),
-          submission: adjusted,
-        },
-        true,
-      ),
-    ).toBeNull();
+    for (const debugOn of [false, true])
+      expect(
+        adjustEntryFor(
+          {
+            kind: "measured",
+            overlay: overlay({ paperCorners: RECT }),
+            submission: adjusted,
+          },
+          debugOn,
+        ),
+      ).toBeNull();
     const typed = submission({
       method: "user-length",
       referenceMeasurement: "handLengthMm",
       referenceMm: 186,
       parallaxCorrected: false,
     });
+    for (const debugOn of [false, true])
+      expect(
+        adjustEntryFor(
+          { kind: "measured", overlay: overlay(), submission: typed },
+          debugOn,
+        ),
+      ).toBeNull();
+  });
+});
+
+describe("adjustWarningFor: PAPER_CURLED is said before confirming (F7)", () => {
+  it("curled when the sheet was measured as curled, wherever it is listed; nothing otherwise", () => {
     expect(
-      adjustEntryFor(
-        { kind: "measured", overlay: overlay(), submission: typed },
-        true,
-      ),
+      adjustWarningFor({
+        kind: "gateFailure",
+        errors: [issue("PAPER_CURLED")],
+        overlay: overlay(),
+      }),
+    ).toBe("curled");
+    expect(
+      adjustWarningFor({
+        kind: "gateFailure",
+        errors: [issue("PAPER_EDGE_HIDDEN"), issue("PAPER_CURLED")],
+        overlay: overlay(),
+      }),
+    ).toBe("curled");
+    expect(
+      adjustWarningFor({
+        kind: "gateFailure",
+        errors: [issue("PAPER_EDGE_HIDDEN")],
+        overlay: overlay(),
+      }),
     ).toBeNull();
+    expect(
+      adjustWarningFor({
+        kind: "measured",
+        overlay: overlay({ paperCorners: RECT }),
+        submission: AUTO,
+      }),
+    ).toBeNull();
+  });
+
+  it("a curled sheet can still be confirmed: the warning does not stop the frame", () => {
+    const state = startAdjust({
+      entry: "rescue",
+      overlay: overlay({ paperPartialCorners: [...RECT] }),
+      paperSize: "a4",
+      firstCode: "PAPER_CURLED",
+    });
+    const ready = adjustReadiness(state);
+    expect(ready.ok).toBe(true);
+    expect(
+      adjustConfirmAction({
+        entry: "rescue",
+        result: {
+          kind: "gateFailure",
+          errors: [issue("PAPER_CURLED")],
+          overlay: overlay(),
+        },
+        hasFile: true,
+      }),
+    ).toEqual({ kind: "rerun" });
+  });
+});
+
+describe("where the frame opens (F7)", () => {
+  it("adjustFirstCodeFor: a PAPER_NOT_FOUND failure with corners left from a partial detection opens the centred sheet, nothing placed (the camera's wiring)", () => {
+    const result = {
+      kind: "gateFailure" as const,
+      errors: [issue("PAPER_NOT_FOUND"), issue("HAND_NOT_FOUND")],
+      overlay: overlay({
+        paperPartialCorners: [RECT[0], RECT[1], null, RECT[3]],
+      }),
+    };
+    expect(adjustFirstCodeFor(result)).toBe("PAPER_NOT_FOUND");
+    expect(adjustEntryFor(result, false)).toBe("rescue");
+    const state = startAdjust({
+      entry: "rescue",
+      overlay: result.overlay,
+      paperSize: "a4",
+      firstCode: adjustFirstCodeFor(result),
+    });
+    expect(state.start.from).toBe("centred");
+    expect(state.placed).toEqual([false, false, false, false]);
+    // Without the code, the same overlay would open on the partial corners,
+    // some of them placed: the case the wiring guards.
+    const without = startAdjust({
+      entry: "rescue",
+      overlay: result.overlay,
+      paperSize: "a4",
+    });
+    expect(without.placed).not.toEqual([false, false, false, false]);
+  });
+
+  it("adjustFirstCodeFor: a measured photo gives no code; a failure gives its first", () => {
+    expect(
+      adjustFirstCodeFor({
+        kind: "measured",
+        overlay: overlay({ paperCorners: RECT }),
+        submission: AUTO,
+      }),
+    ).toBeUndefined();
+    expect(
+      adjustFirstCodeFor({
+        kind: "gateFailure",
+        errors: [issue("PAPER_CURLED"), issue("PAPER_NOT_FOUND")],
+        overlay: overlay(),
+      }),
+    ).toBe("PAPER_CURLED");
+    expect(
+      adjustFirstCodeFor({ kind: "gateFailure", errors: [], overlay: null }),
+    ).toBeUndefined();
+  });
+
+  it("PAPER_NOT_FOUND: the centred sheet, 72 % of the photo's width, all four corners not placed", () => {
+    const state = startAdjust({
+      entry: "rescue",
+      // Even with corners left over from a partial detection.
+      overlay: overlay({
+        paperPartialCorners: [RECT[0], null, RECT[2], RECT[3]],
+      }),
+      paperSize: "a4",
+      firstCode: "PAPER_NOT_FOUND",
+    });
+    expect(state.start.from).toBe("centred");
+    expect(state.placed).toEqual([false, false, false, false]);
+    const xs = state.corners.map((c) => c.x);
+    const ys = state.corners.map((c) => c.y);
+    const width = Math.max(...xs) - Math.min(...xs);
+    expect(width / IMAGE.width).toBeCloseTo(
+      MANUAL_QUAD_LIMITS.defaultWidthFraction,
+      6,
+    );
+    expect(MANUAL_QUAD_LIMITS.defaultWidthFraction).toBe(0.72);
+    // Centred.
+    expect((Math.max(...xs) + Math.min(...xs)) / 2).toBeCloseTo(
+      IMAGE.width / 2,
+      6,
+    );
+    expect((Math.max(...ys) + Math.min(...ys)) / 2).toBeCloseTo(
+      IMAGE.height / 2,
+      6,
+    );
+    // A4's shape.
+    expect((Math.max(...ys) - Math.min(...ys)) / width).toBeCloseTo(
+      297 / 210,
+      6,
+    );
+    // Nothing can be confirmed until each corner was dragged.
+    expect(adjustReadiness(state)).toEqual({ ok: false, notPlaced: 0 });
+  });
+
+  it("a paper gate after the four corners were found: starts from them, placed", () => {
+    const state = startAdjust({
+      entry: "rescue",
+      overlay: overlay({ paperPartialCorners: [...RECT] }),
+      paperSize: "a4",
+      firstCode: "PAPER_EDGE_HIDDEN",
+    });
+    expect(state.start.from).toBe("detected");
+    expect(state.corners).toEqual(RECT);
+    expect(state.placed).toEqual([true, true, true, true]);
+  });
+
+  it("after a frame placed by hand was turned back: that frame again, every corner placed, its source kept", () => {
+    const placed: Quad4 = [
+      { x: 210, y: 320 },
+      { x: 790, y: 305 },
+      { x: 812, y: 1140 },
+      { x: 190, y: 1162 },
+    ];
+    for (const source of ["adjusted", "manual"] as const) {
+      const state = startAdjust({
+        entry: "rescue",
+        overlay: overlay({ paperCorners: RECT }),
+        paperSize: "a4",
+        previous: { corners: placed, source },
+        firstCode: "HAND_OUT_OF_BOUNDS",
+      });
+      expect(state.corners).toEqual(placed);
+      expect(state.placed).toEqual([true, true, true, true]);
+      const ready = adjustReadiness(state);
+      expect(ready).toEqual({ ok: true, corners: placed, source });
+      // Moving one corner keeps the others where they were.
+      const moved = run(
+        state,
+        {
+          type: "pointerDown",
+          index: 1,
+          pointerId: 1,
+          pointerType: "touch",
+          point: { x: 0, y: 0 },
+        },
+        { type: "pointerMove", pointerId: 1, point: { x: 5, y: 5 }, scale: 1 },
+      );
+      expect(moved.corners[0]).toEqual(placed[0]);
+      expect(moved.corners[1]).toEqual({ x: 795, y: 310 });
+      expect(frameMoved(moved)).toBe(true);
+    }
+  });
+
+  it("a previous frame that is no longer usable falls back to the usual start", () => {
+    const state = startAdjust({
+      entry: "rescue",
+      overlay: overlay(),
+      paperSize: "a4",
+      previous: {
+        corners: [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+          { x: 1, y: 1 },
+          { x: 0, y: 1 },
+        ],
+        source: "manual",
+      },
+    });
+    expect(state.start.from).toBe("centred");
+    expect(state.placed).toEqual([false, false, false, false]);
+  });
+});
+
+describe("檢查邊框 on a measured photo (review, F7)", () => {
+  const measured = {
+    kind: "measured" as const,
+    overlay: overlay({ paperCorners: RECT }),
+    submission: AUTO,
+  };
+  const open = () =>
+    startAdjust({
+      entry: "review",
+      overlay: measured.overlay,
+      paperSize: "a4",
+    });
+
+  it("opens on the detector's own corners, all placed", () => {
+    const state = open();
+    expect(state.corners).toEqual(RECT);
+    expect(state.placed).toEqual([true, true, true, true]);
+    expect(frameMoved(state)).toBe(false);
+  });
+
+  it("confirmed without moving: the action is none, so nothing runs (that none leaves the result and its submission untouched is checked on EasyScanCamera's confirmAdjust in paper-adjust-screen.test.ts)", () => {
+    const state = open();
+    // A tap that selects a corner, and a press that never moves, move nothing.
+    const tapped = run(
+      state,
+      { type: "select", index: 2 },
+      {
+        type: "pointerDown",
+        index: 2,
+        pointerId: 3,
+        pointerType: "touch",
+        point: { x: 40, y: 40 },
+      },
+      {
+        type: "pointerMove",
+        pointerId: 3,
+        point: { x: 40, y: 40 },
+        scale: 0.4,
+      },
+      { type: "pointerUp", pointerId: 3 },
+    );
+    expect(frameMoved(tapped)).toBe(false);
+    expect(adjustReadiness(tapped).ok).toBe(true);
+    const action = adjustConfirmAction({
+      entry: "review",
+      result: measured,
+      hasFile: true,
+      moved: frameMoved(tapped),
+    });
+    expect(action).toEqual({ kind: "none" });
+    // The same frame, moved, is the only way to a rerun.
+    expect(
+      adjustConfirmAction({
+        entry: "review",
+        result: measured,
+        hasFile: true,
+        moved: true,
+      }),
+    ).toEqual({ kind: "rerun" });
+  });
+
+  it("a corner moved and back to exactly where it was is not a move", () => {
+    const back = run(
+      open(),
+      {
+        type: "pointerDown",
+        index: 0,
+        pointerId: 1,
+        pointerType: "mouse",
+        point: { x: 10, y: 10 },
+      },
+      { type: "pointerMove", pointerId: 1, point: { x: 30, y: 10 }, scale: 1 },
+      { type: "pointerMove", pointerId: 1, point: { x: 10, y: 10 }, scale: 1 },
+    );
+    expect(frameMoved(back)).toBe(false);
+  });
+
+  it("moved: measured again from the moved frame, as adjusted (the pipeline's input and the event's paper say so)", () => {
+    const moved = run(open(), {
+      type: "nudge",
+      index: 3,
+      dx: 1,
+      dy: 0,
+      big: true,
+      scale: 1,
+    });
+    expect(frameMoved(moved)).toBe(true);
+    const ready = adjustReadiness(moved);
+    expect(ready.ok).toBe(true);
+    if (!ready.ok) return;
+    expect(ready.source).toBe("adjusted");
+    expect(
+      adjustConfirmAction({
+        entry: "review",
+        result: measured,
+        hasFile: true,
+        moved: true,
+      }),
+    ).toEqual({ kind: "rerun" });
+    const input = pipelinePaperInput({
+      typedLengthMm: null,
+      paperSize: "a4",
+      manualPaperCorners: { corners: ready.corners, source: ready.source },
+    });
+    expect(input.paper).toBe("adjusted");
+    expect(input.pipeline.manualPaperCorners?.source).toBe("adjusted");
+  });
+
+  it("does nothing without the file, or once the result is no longer the measurement", () => {
+    expect(
+      adjustConfirmAction({
+        entry: "review",
+        result: measured,
+        hasFile: false,
+        moved: true,
+      }),
+    ).toEqual({ kind: "none" });
+    expect(
+      adjustConfirmAction({
+        entry: "review",
+        result: { kind: "processing" },
+        hasFile: true,
+        moved: true,
+      }),
+    ).toEqual({ kind: "none" });
   });
 });
 

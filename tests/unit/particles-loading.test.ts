@@ -28,6 +28,7 @@ import {
   stepsDone,
   timeProgress,
   waitingProgress,
+  fitReveal,
   type LoaderDrawState,
   type LoaderInput,
 } from "../../src/lib/particles/loading";
@@ -41,8 +42,53 @@ describe("the named timings (candidates, Kirby 2026-10-21)", () => {
     expect(LOADING_TIMING.WAIT_CAP).toBe(0.9);
     expect(LOADING_TIMING.FILL_MS).toBe(250);
     expect(LOADING_TIMING.FADE_OUT_MS).toBe(200);
-    expect(LOADING_TIMING.MIN_DISPLAY_FIT_MS).toBe(1200);
     expect(LOADING_TIMING.MIN_DISPLAY_PHOTO_MS).toBe(1500);
+  });
+
+  it("the recommendations: a loader only after 300 ms, with no minimum (Kirby's phone test 2026-10-21, F7; it was a 1.2 s minimum)", () => {
+    expect(LOADING_TIMING.FIT_SHOW_AFTER_MS).toBe(300);
+    expect(LOADING_TIMING.MIN_DISPLAY_FIT_MS).toBe(0);
+  });
+});
+
+describe("fitReveal: the recommendations' loader only while really waiting (F7, Kirby 2026-10-21)", () => {
+  it("an answer within 300 ms is shown at once, with no loader at all, a result or a failure", () => {
+    for (const ok of [true, false])
+      for (const after of [0, 1, 150, 299.9]) {
+        expect(fitReveal(1000, 1000 + after, ok)).toEqual({
+          loaderShownAt: null,
+          revealAt: 1000 + after,
+        });
+      }
+  });
+
+  it("a later result: the loader appeared at 300 ms, then fills (250 ms) and fades (200 ms) from the answer, with no minimum", () => {
+    expect(fitReveal(1000, 1300, true)).toEqual({
+      loaderShownAt: 1300,
+      revealAt: 1300 + 450,
+    });
+    expect(fitReveal(1000, 1310, true)).toEqual({
+      loaderShownAt: 1300,
+      revealAt: 1310 + 450,
+    });
+    expect(fitReveal(1000, 5000, true)).toEqual({
+      loaderShownAt: 1300,
+      revealAt: 5450,
+    });
+  });
+
+  it("a later failure: shown as soon as it is here (the ring stops above the error)", () => {
+    expect(fitReveal(1000, 1400, false)).toEqual({
+      loaderShownAt: 1300,
+      revealAt: 1400,
+    });
+  });
+
+  it("an answer stamped before the request counts as at the request", () => {
+    expect(fitReveal(1000, 900, true)).toEqual({
+      loaderShownAt: null,
+      revealAt: 1000,
+    });
   });
 });
 
@@ -180,9 +226,11 @@ describe("fillProgress, approach and the timeline", () => {
 });
 
 describe("loaderFrameAt", () => {
+  // A loader with a 1.2 s minimum (the recommendations' rule before F7): the
+  // timeline is the same whatever the minimum is.
   const fitLoader = (arrival: LoaderInput["arrival"]): LoaderInput => ({
     startedAt: 1000,
-    minMs: LOADING_TIMING.MIN_DISPLAY_FIT_MS,
+    minMs: 1200,
     steps: null,
     arrival,
   });
@@ -392,7 +440,7 @@ describe("breathFor: reduced motion holds the breath, a failure breathes out", (
   it("under reduced motion the drawn ring still moves forward, frame after frame, and does not breathe", () => {
     const input: LoaderInput = {
       startedAt: 1000,
-      minMs: LOADING_TIMING.MIN_DISPLAY_FIT_MS,
+      minMs: 1200,
       steps: null,
       arrival: null,
     };
@@ -412,7 +460,7 @@ describe("breathFor: reduced motion holds the breath, a failure breathes out", (
   it("the ring is drawn the same with reduced motion as without it, to a full ring", () => {
     const input: LoaderInput = {
       startedAt: 1000,
-      minMs: LOADING_TIMING.MIN_DISPLAY_FIT_MS,
+      minMs: 1200,
       steps: null,
       arrival: { at: 1800, ok: true },
     };

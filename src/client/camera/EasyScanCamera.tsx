@@ -140,9 +140,12 @@ import { PaperAdjust, type PaperAdjustConfirm } from "./PaperAdjust";
 import {
   adjustConfirmAction,
   adjustEntryFor,
+  adjustFirstCodeFor,
+  adjustWarningFor,
   cornerCheckDistances,
   pipelinePaperInput,
   type AdjustEntry,
+  type PlacedFrame,
 } from "./paperAdjustState";
 import { paperAdjustCopy } from "../../lib/copy/paper-adjust";
 import { ScanDebugPanel } from "./ScanDebugPanel";
@@ -241,6 +244,7 @@ import { ParticleLoader } from "../../components/loading/ParticleLoader";
 import { loadingCopy } from "../../lib/copy/loading";
 import {
   LOADING_TIMING,
+  calculationLoaderShown,
   loaderTimeline,
   failedLoaderInput,
   photoStagesFor,
@@ -393,6 +397,11 @@ type ResultState =
       errors: readonly PipelineIssue[];
       imageWidth: number;
       imageHeight: number;
+      /**
+       * The frame the person placed for this run, if any (F7): the
+       * adjustment opens again with it after the run was turned back.
+       */
+      placedFrame?: PlacedFrame | null;
     };
 
 /** The screen with no photo and no result: the live camera (or the entry screen). */
@@ -552,6 +561,11 @@ export default function EasyScanCamera({
         : null,
     [photoLoader],
   );
+  // The shutter was pressed and the photo is being made (F7, Kirby's phone
+  // test 2026-10-21): the calculation loader is already on screen, from the
+  // same frame as the press, before the photo is decoded; `runPipeline` then
+  // carries it on with the same start.
+  const [shutterLoader, setShutterLoader] = useState(false);
   // A photo whose analysis failed: its loader stays on the failure sheet,
   // stopped and dimmed, above the retry (scan S2; like the results page's
   // failedLoader). `null` otherwise.
@@ -1239,11 +1253,16 @@ export default function EasyScanCamera({
       // A paper frame the person placed on this photo (V3.2 F2): the same
       // analysis, with the frame instead of the detector.
       manualPaperCorners?: RunPhotoPipelineInput["manualPaperCorners"],
+      // When the loader appeared, if it is already on screen (the shutter's,
+      // F7): the minimum time counts from the press, not from here.
+      loaderStartedAtGiven?: number,
     ) => {
       // The typed-size form (or its pages) is open: a photo that arrives now
       // belongs to nothing on screen, and starting it would reset the answers.
       if (manualActiveRef.current) {
         URL.revokeObjectURL(previewUrl);
+        setShutterLoader(false);
+        setPhotoLoader(null);
         return;
       }
       const runId = ++runIdRef.current;
@@ -1265,10 +1284,12 @@ export default function EasyScanCamera({
         liveWait: liveWaitBucket(captureInfoRef.current?.liveWaitMs),
       });
       setResult({ kind: "processing", previewUrl });
-      // The loader (V3.2 U1): it appears now, follows the steps this run
-      // reports, and holds the answer back until it has been on screen for
-      // the minimum time (and, for a measured hand, filled and faded).
-      const loaderStartedAt = performance.now();
+      setShutterLoader(false);
+      // The loader (V3.2 U1): it appears now (or, after the shutter, it is
+      // already up: F7), follows the steps this run reports, and holds the
+      // answer back until it has been on screen for the minimum time (and,
+      // for a measured hand, filled and faded).
+      const loaderStartedAt = loaderStartedAtGiven ?? performance.now();
       setPhotoLoader({
         runId,
         startedAt: loaderStartedAt,
@@ -1404,6 +1425,7 @@ export default function EasyScanCamera({
             errors: pipelineResult.errors,
             imageWidth: pipelineResult.overlay.imageWidth,
             imageHeight: pipelineResult.overlay.imageHeight,
+            placedFrame: paperInput.pipeline.manualPaperCorners ?? null,
           });
         } else {
           // "needsManualCard" never happens in paper-edge mode.
@@ -1424,6 +1446,7 @@ export default function EasyScanCamera({
             ],
             imageWidth: pipelineResult.overlay.imageWidth,
             imageHeight: pipelineResult.overlay.imageHeight,
+            placedFrame: paperInput.pipeline.manualPaperCorners ?? null,
           });
         }
       } catch (error) {
@@ -1491,8 +1514,31 @@ export default function EasyScanCamera({
       return;
     }
     capturingRef.current = true;
+    // Whether the photo reached `runPipeline`, which takes the loader on; on
+    // any other way out the shutter's loader goes again (the `finally`).
+    let handedOff = false;
     try {
       const firedAt = performance.now();
+      // The calculation loader (F7): up as soon as there IS a photo (the
+      // frame made, or the camera's photo taken), before it is decoded and
+      // before the camera stops, with the press as its start so the minimum
+      // counts from the press. Not at the press itself: a frame that cannot
+      // be made leaves the viewfinder running, and a loader put up for it
+      // would flash over the camera on every failed try (review of F7).
+      // Its steps are the analysis' own.
+      const showCalculationLoader = () => {
+        setShutterLoader(true);
+        setPhotoLoader({
+          runId: -1,
+          startedAt: firedAt,
+          stages: photoStagesFor(
+            userLengthRef.current !== null ? "user-length" : "paper-edge",
+          ),
+          reached: [],
+          lastAt: null,
+          arrival: null,
+        });
+      };
       // The camera's own photo (off): the live loop stops at once, as it did.
       // A frame stops it only once the frame exists (below), so a frame that
       // cannot be made leaves the viewfinder running.
@@ -1600,6 +1646,7 @@ export default function EasyScanCamera({
         }
       }
 
+      showCalculationLoader();
       noteCaptureOutcome("success");
       const previewUrl = URL.createObjectURL(file);
       // The camera keeps running while the photo is decoded, so the swap from
@@ -1654,7 +1701,8 @@ export default function EasyScanCamera({
         ringCompleteToFrozenMs: null,
       };
       capturingRef.current = false;
-      void runPipeline(file, previewUrl);
+      handedOff = true;
+      void runPipeline(file, previewUrl, undefined, firedAt);
       // Two frames on, the frozen picture has been painted.
       requestAnimationFrame(() =>
         requestAnimationFrame(() => {
@@ -1665,6 +1713,13 @@ export default function EasyScanCamera({
     } finally {
       // Whatever happened above, a later press or auto-shutter is not blocked.
       capturingRef.current = false;
+      if (!handedOff) {
+        // No photo after all (the photo could not be decoded, or something
+        // threw after it was made): the camera is still there, so the loader
+        // goes. A frame that was never made never put it up.
+        setShutterLoader(false);
+        setPhotoLoader((prev) => (prev && prev.runId === -1 ? null : prev));
+      }
     }
   }, [stopStream, runPipeline, noteCaptureOutcome]);
 
@@ -1721,9 +1776,10 @@ export default function EasyScanCamera({
     if (canUseCamera && deviceFit === "phone") void startCamera();
   }, [result, startCamera, deviceFit, clearSubmitError]);
 
-  // 手動調整邊框 (V3.2 F2, candidate). Offered by `adjustEntryFor`: after a
-  // hidden edge or corner (rescue), or with ?debug=1 on a measured photo
-  // (Kirby's corner check). Nothing here reads the photo's pixels.
+  // 手動調整邊框 (V3.2 F2, candidate). Offered by `adjustEntryFor`: after any
+  // paper failure or a failure with a frame placed by hand (rescue, F7), as
+  // 檢查邊框 on a measured photo (review, F7), or with ?debug=1 on a measured
+  // photo (Kirby's corner check). Nothing here reads the photo's pixels.
   const adjustEntry = adjustEntryFor(result, debugOn);
   const openAdjust = useCallback(() => {
     if (!adjustEntry || manualActiveRef.current) return;
@@ -1740,6 +1796,7 @@ export default function EasyScanCamera({
         entry,
         result: current,
         hasFile: fileRef.current !== null,
+        moved: placed.moved,
       });
       if (action.kind === "recordCheck" && current.kind === "measured") {
         // The check changes no measurement: it only records, on this device,
@@ -1765,9 +1822,11 @@ export default function EasyScanCamera({
         );
         return;
       }
+      // A rescue on the failure, or a moved frame on 檢查邊框 (F7); a frame
+      // confirmed as it opened changes nothing.
       if (
         action.kind !== "rerun" ||
-        current.kind !== "gateFailure" ||
+        (current.kind !== "gateFailure" && current.kind !== "measured") ||
         !fileRef.current
       )
         return;
@@ -1868,7 +1927,12 @@ export default function EasyScanCamera({
       resultRef.current.errors[0]?.code === "HANDEDNESS_MISMATCH" &&
       fileRef.current
     ) {
-      void runPipeline(fileRef.current, resultRef.current.previewUrl);
+      // A frame the person placed stays with the photo (F7).
+      void runPipeline(
+        fileRef.current,
+        resultRef.current.previewUrl,
+        resultRef.current.placedFrame ?? undefined,
+      );
     }
   }, [runPipeline]);
 
@@ -3051,7 +3115,7 @@ export default function EasyScanCamera({
         }
       />
 
-      {result.kind === "processing" && photoLoaderInput && (
+      {calculationLoaderShown(result.kind, shutterLoader, photoLoaderInput) && (
         <ParticleLoader
           className="easyProcessingLoader"
           input={photoLoaderInput}
@@ -3100,6 +3164,19 @@ export default function EasyScanCamera({
                     {paperAdjustCopy(locale).measuredNote}
                   </p>
                 )}
+              {/* 檢查邊框 (F7, candidate): the detector's frame, to confirm
+                  as it is or move; secondary to 繼續. */}
+              {adjustEntry === "review" && (
+                <button
+                  type="button"
+                  className="easyAdjustFrameButton"
+                  ref={adjustButtonRef}
+                  data-testid="frame-review-entry"
+                  onClick={openAdjust}
+                >
+                  {paperAdjustCopy(locale).review.entry}
+                </button>
+              )}
               {adjustEntry === "check" && (
                 <>
                   <button
@@ -3197,8 +3274,9 @@ export default function EasyScanCamera({
                 >
                   {common.tryAgain}
                 </button>
-                {/* The secondary way on after a hidden edge or corner (V3.2
-                    F2, candidate): retaking stays the main one. */}
+                {/* The secondary way on after a paper failure, or after a frame
+                    placed by hand was turned back (V3.2 F2, F7, candidate):
+                    retaking stays the main one. */}
                 {adjustEntry === "rescue" && (
                   <button
                     type="button"
@@ -3244,6 +3322,13 @@ export default function EasyScanCamera({
             key={`${adjustOpen}:${result.previewUrl}`}
             entry={adjustOpen}
             overlay={result.overlay}
+            previous={
+              result.kind === "gateFailure"
+                ? (result.placedFrame ?? null)
+                : null
+            }
+            firstCode={adjustFirstCodeFor(result)}
+            warning={adjustWarningFor(result)}
             paperSize={paperSizeRef.current}
             previewUrl={result.previewUrl}
             locale={locale}

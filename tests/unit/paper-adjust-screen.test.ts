@@ -49,8 +49,9 @@ const URL_ = "blob:http://localhost/0d6c1e0a";
 
 function render(
   extra: {
-    entry?: "rescue" | "check";
+    entry?: "rescue" | "review" | "check";
     state?: AdjustState;
+    warning?: "curled" | null;
     stage?: { width: number; height: number };
     magnifier?: boolean;
     locale?: "zh-TW" | "en";
@@ -69,6 +70,7 @@ function render(
       initialState: extra.state,
       initialStageSize: extra.stage ?? { width: 390, height: 600 },
       initialMagnifier: extra.magnifier,
+      warning: extra.warning,
     }),
   );
 }
@@ -223,6 +225,39 @@ describe("words", () => {
     expect(handles(html)[0]).toContain('aria-label="Top-left corner"');
   });
 
+  it("檢查邊框 (F7) is named as such, opens on the detector's corners, with its own button", () => {
+    for (const locale of ["zh-TW", "en"] as const) {
+      const copy = paperAdjustCopy(locale);
+      const html = render({ entry: "review", locale });
+      expect(html).toContain('data-entry="review"');
+      expect(html).toContain(copy.review.title.replace(/'/g, "&#x27;"));
+      expect(html).toContain(copy.review.confirm);
+      // Every corner is the detector's: placed.
+      expect(handles(html).every((h) => h.includes('data-placed="true"'))).toBe(
+        true,
+      );
+    }
+    expect(paperAdjustCopy("zh-TW").review.entry).toBe("檢查邊框");
+  });
+
+  it("a curled sheet is said before confirming (F7), and the confirm button stays usable", () => {
+    for (const locale of ["zh-TW", "en"] as const) {
+      const html = render({ warning: "curled", locale });
+      expect(html).toContain('data-testid="paper-adjust-warning"');
+      expect(html).toContain(
+        paperAdjustCopy(locale).curledWarning.replace(/'/g, "&#x27;"),
+      );
+      const confirm = html.match(
+        /<button[^>]*data-testid="paper-adjust-confirm"[^>]*>/,
+      )![0];
+      expect(confirm).not.toContain("aria-disabled");
+    }
+    expect(paperAdjustCopy("zh-TW").curledWarning).toBe(
+      "紙好像沒有平貼，手動調整後量測可能不準，建議先把紙壓平再拍一次。",
+    );
+    expect(render()).not.toContain("paper-adjust-warning");
+  });
+
   it("the corner check is named as such, with its own button", () => {
     const html = render({ entry: "check" });
     expect(html).toContain("拖角精度測試");
@@ -299,10 +334,30 @@ describe("where the camera offers it (EasyScanCamera.tsx)", () => {
     // each sheet sits in the file is not asserted (layout may move freely).
     const count = (needle: string) => source.split(needle).length - 1;
     expect(count('{adjustEntry === "rescue" && (')).toBe(1);
+    expect(count('{adjustEntry === "review" && (')).toBe(1);
     expect(count('{adjustEntry === "check" && (')).toBe(1);
-    expect(count("adjustEntry ===")).toBe(2);
+    expect(count("adjustEntry ===")).toBe(3);
     expect(count('data-testid="adjust-frame-entry"')).toBe(1);
+    expect(count('data-testid="frame-review-entry"')).toBe(1);
     expect(count('data-testid="corner-check-entry"')).toBe(1);
+  });
+
+  it("the failure sheet's main action stays 再拍一次; the adjustment is the button after it (F7)", () => {
+    const failure = source.slice(
+      source.indexOf('className="primaryButton easyTryAgainButton"'),
+    );
+    expect(failure.indexOf("{common.tryAgain}")).toBeGreaterThan(0);
+    expect(failure.indexOf("{common.tryAgain}")).toBeLessThan(
+      failure.indexOf('data-testid="adjust-frame-entry"'),
+    );
+    // A hand failure on a frame the person placed opens that frame again, and
+    // a curled sheet says so before confirming.
+    expect(source).toContain("previous={");
+    expect(source).toContain("result.placedFrame ?? null");
+    expect(source).toContain("warning={adjustWarningFor(result)}");
+    // PAPER_NOT_FOUND opens the centred sheet only if the screen is told the
+    // failure's first code (review of F7).
+    expect(source).toContain("firstCode={adjustFirstCodeFor(result)}");
   });
 
   it("confirming goes through adjustConfirmAction; the pipeline runs only for its rerun, and nothing is sent", () => {
@@ -319,9 +374,64 @@ describe("where the camera offers it (EasyScanCamera.tsx)", () => {
     expect(rerun).toBeGreaterThan(rerunGuard);
     expect(confirm.split("runPipeline(").length - 1).toBe(1);
     expect(confirm).toContain("source: placed.source,");
+    // Whether a corner moved reaches adjustConfirmAction (its `moved` is
+    // optional, so the type checker would not notice it missing): without it
+    // a moved 檢查邊框 frame would close without measuring again (F7).
+    expect(confirm).toContain("moved: placed.moved,");
     expect(confirm).not.toMatch(/fetch\(|sendBeacon|XMLHttpRequest|track\(/);
     // The check only writes the local attempt log.
     expect(confirm).toContain('kind: "cornerCheck"');
+  });
+
+  it("confirming without a rerun leaves the result alone: it returns before anything is run, and nothing in it writes the result (F7)", () => {
+    const confirm = source.slice(
+      source.indexOf("const confirmAdjust = useCallback("),
+      source.indexOf("const changePaperSize = useCallback("),
+    );
+    // The guard returns, and the only run comes after that return.
+    const guard = confirm.indexOf('action.kind !== "rerun"');
+    const guardReturn = confirm.indexOf("return;", guard);
+    const rerun = confirm.indexOf("void runPipeline(");
+    expect(guard).toBeGreaterThan(0);
+    expect(guardReturn).toBeGreaterThan(guard);
+    expect(rerun).toBeGreaterThan(guardReturn);
+    // The guard has no other way through: only a rerun on a result with a
+    // photo goes on.
+    const guardBlock = confirm.slice(guard - 20, guardReturn);
+    expect(guardBlock.split("||").length - 1).toBe(2);
+    expect(guardBlock).toContain("!fileRef.current");
+    // So the measurement on screen and its submission stay as they were:
+    // nothing here sets the result or writes into it.
+    expect(confirm).not.toMatch(
+      /setResult\(|resultRef\.current\s*=[^=]|\.submission\s*=[^=]/,
+    );
+  });
+
+  it("a frame the person placed stays with the result when a gate turns it back, and goes back into a handedness rerun (F7)", () => {
+    const count = (needle: string) => source.split(needle).length - 1;
+    const process = source.slice(
+      source.indexOf('kind: "gateFailure",'),
+      source.indexOf('reportCaught(error, "easy-scan.process");'),
+    );
+    // Both gate-failure results the pipeline writes carry the placed frame.
+    expect(process.split('kind: "gateFailure",').length - 1).toBe(2);
+    expect(
+      process.split(
+        "placedFrame: paperInput.pipeline.manualPaperCorners ?? null,",
+      ).length - 1,
+    ).toBe(2);
+    expect(
+      count("placedFrame: paperInput.pipeline.manualPaperCorners ?? null,"),
+    ).toBe(2);
+    // The handedness toggle reruns the same photo with that frame.
+    const toggle = source.slice(
+      source.indexOf(
+        'resultRef.current.errors[0]?.code === "HANDEDNESS_MISMATCH"',
+      ),
+    );
+    const rerun = toggle.slice(0, toggle.indexOf("}, [runPipeline]);"));
+    expect(rerun).toContain("void runPipeline(");
+    expect(rerun).toContain("resultRef.current.placedFrame ?? undefined,");
   });
 
   it("a measurement from a placed frame says so on the sheet; its paper and the pipeline's frame come from one pipelinePaperInput", () => {

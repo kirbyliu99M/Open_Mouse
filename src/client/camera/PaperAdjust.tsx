@@ -49,6 +49,7 @@ import {
   cornerPositions,
   edgeStepOf,
   fitPhoto,
+  frameMoved,
   magnifierLayout,
   nudgeForKey,
   pointerMoveFor,
@@ -57,6 +58,7 @@ import {
   toScreen,
   type AdjustEntry,
   type AdjustState,
+  type PlacedFrame,
   type PointerKind,
 } from "./paperAdjustState";
 
@@ -65,6 +67,8 @@ export interface PaperAdjustConfirm {
   readonly source: "adjusted" | "manual";
   /** Whether the magnifier was on (always true outside the corner check). */
   readonly magnifier: boolean;
+  /** Whether any corner is somewhere other than where the screen opened it (`frameMoved`). */
+  readonly moved: boolean;
 }
 
 export interface PaperAdjustProps {
@@ -76,6 +80,12 @@ export interface PaperAdjustProps {
   readonly locale: Locale;
   readonly onCancel: () => void;
   readonly onConfirm: (result: PaperAdjustConfirm) => void;
+  /** The frame the run on screen was given, when the person placed one (F7: it opens again). */
+  readonly previous?: PlacedFrame | null;
+  /** The first reason the photo was turned back (F7: `PAPER_NOT_FOUND` opens the centred sheet). */
+  readonly firstCode?: string;
+  /** A line shown before confirming (`adjustWarningFor`, F7): the sheet was measured as curled. */
+  readonly warning?: "curled" | null;
   /** For tests and the static render: a state to start from, and the stage's size. */
   readonly initialState?: AdjustState;
   readonly initialStageSize?: FrameSize;
@@ -94,6 +104,9 @@ export function PaperAdjust({
   locale,
   onCancel,
   onConfirm,
+  previous = null,
+  firstCode,
+  warning = null,
   initialState,
   initialStageSize,
   initialMagnifier = true,
@@ -102,7 +115,8 @@ export function PaperAdjust({
   const [state, dispatch] = useReducer(
     adjustReducer,
     initialState ?? null,
-    (given) => given ?? startAdjust({ entry, overlay, paperSize }),
+    (given) =>
+      given ?? startAdjust({ entry, overlay, paperSize, previous, firstCode }),
   );
   const [stageSize, setStageSize] = useState<FrameSize | null>(
     initialStageSize ?? null,
@@ -233,6 +247,7 @@ export function PaperAdjust({
       corners: readiness.corners,
       source: readiness.source,
       magnifier: entry === "check" ? magnifierOn : true,
+      moved: frameMoved(state),
     });
   };
 
@@ -267,9 +282,23 @@ export function PaperAdjust({
   const instruction =
     entry === "check"
       ? copy.check.instruction
-      : state.start.from === "detected"
-        ? copy.instructionDetected
-        : copy.instructionGuess;
+      : entry === "review"
+        ? copy.review.instruction
+        : state.start.detected.every(Boolean)
+          ? copy.instructionDetected
+          : copy.instructionGuess;
+  const title =
+    entry === "check"
+      ? copy.check.entry
+      : entry === "review"
+        ? copy.review.title
+        : copy.title;
+  const confirmLabel =
+    entry === "check"
+      ? copy.check.confirm
+      : entry === "review"
+        ? copy.review.confirm
+        : copy.confirm;
 
   const screenCorners = state.corners.map((c) => toScreen(c, fit));
   const drag = state.drag;
@@ -309,9 +338,14 @@ export function PaperAdjust({
     >
       <header className="paperAdjustHeader">
         <h2 id="paper-adjust-title" ref={titleRef} tabIndex={-1}>
-          {entry === "check" ? copy.check.entry : copy.title}
+          {title}
         </h2>
         <p className="paperAdjustHint">{instruction}</p>
+        {warning === "curled" && (
+          <p className="paperAdjustWarning" data-testid="paper-adjust-warning">
+            {copy.curledWarning}
+          </p>
+        )}
       </header>
       <div
         className="paperAdjustStage"
@@ -481,7 +515,7 @@ export function PaperAdjust({
           aria-disabled={readiness.ok ? undefined : "true"}
           onClick={confirm}
         >
-          {entry === "check" ? copy.check.confirm : copy.confirm}
+          {confirmLabel}
         </button>
         <button type="button" className="paperAdjustCancel" onClick={onCancel}>
           {copy.cancel}

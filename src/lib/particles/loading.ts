@@ -12,9 +12,11 @@
  *   start of the next part; between steps it creeps by the same curve and
  *   never passes the next part's start.
  * When the answer arrives the ring fills to 100 % in 250 ms, the cloud is
- * brightest once, and the loader fades out in 200 ms. It stays at least
- * 1.2 s (recommendations) or 1.5 s (photo), counted from when it appeared to
- * when it is gone; a longer wait is shown as it is, with nothing added.
+ * brightest once, and the loader fades out in 200 ms. The photo's loader
+ * stays at least 1.5 s, counted from when it appeared to when it is gone; a
+ * longer wait is shown as it is, with nothing added. The recommendations'
+ * loader (F7, Kirby's phone test 2026-10-21) appears only when the answer has
+ * not come within 300 ms, and then has no minimum (`fitReveal`).
  *
  * Every number here is a named candidate (Kirby 2026-10-20/21 for the timings
  * and colours). Pure: no DOM, no clock.
@@ -32,8 +34,17 @@ export const LOADING_TIMING = {
   FILL_MS: 250,
   /** The loader fades out after the ring is full. */
   FADE_OUT_MS: 200,
-  /** The shortest time the recommendations' loader is on screen (Kirby 2026-10-21). */
-  MIN_DISPLAY_FIT_MS: 1200,
+  /**
+   * The shortest time the recommendations' loader is on screen: none (F7,
+   * Kirby's phone test 2026-10-21; it was 1.2 s). It appears only once the
+   * answer has taken `FIT_SHOW_AFTER_MS`, and goes as soon as it is here.
+   */
+  MIN_DISPLAY_FIT_MS: 0,
+  /**
+   * The recommendations' loader appears only when the answer has not come
+   * within this time (F7, Kirby 2026-10-21): a quick answer is shown at once.
+   */
+  FIT_SHOW_AFTER_MS: 300,
   /** The shortest time the photo analysis' loader is on screen (Kirby 2026-10-21). */
   MIN_DISPLAY_PHOTO_MS: 1500,
   /** How fast the drawn ring catches up with a step that jumped (ms). */
@@ -179,6 +190,32 @@ export function fadeOutOpacity(now: number, timeline: LoaderTimeline): number {
   return 1 - clamp01((now - fadeFrom) / LOADING_TIMING.FADE_OUT_MS);
 }
 
+/**
+ * The recommendations' wait (F7, Kirby's phone test 2026-10-21, candidate):
+ * an answer that arrives within `FIT_SHOW_AFTER_MS` of the request is shown
+ * at once and no loader is ever drawn; a later one is shown by the loader
+ * that appeared at `FIT_SHOW_AFTER_MS`, with no minimum time (`MIN_DISPLAY_FIT_MS`
+ * is 0): a result fills the ring and fades (450 ms), a failure stops it at
+ * once. The same rule on every way in (after a scan, a direct open, a
+ * reload). `loaderShownAt` is when the loader appeared, `null` with none.
+ */
+export function fitReveal(
+  requestedAt: number,
+  arrivedAt: number,
+  ok: boolean,
+): { loaderShownAt: number | null; revealAt: number } {
+  const arrived = Math.max(arrivedAt, requestedAt);
+  const shownAt = requestedAt + LOADING_TIMING.FIT_SHOW_AFTER_MS;
+  if (arrived < shownAt) return { loaderShownAt: null, revealAt: arrived };
+  const { doneAt } = loaderTimeline(
+    shownAt,
+    arrived,
+    LOADING_TIMING.MIN_DISPLAY_FIT_MS,
+    ok,
+  );
+  return { loaderShownAt: shownAt, revealAt: doneAt };
+}
+
 // ---------------------------------------------------------------- one loader
 
 /** What a loader on screen knows, all times on one clock (ms). */
@@ -195,6 +232,22 @@ export interface LoaderInput {
   steps: { total: number; done: number; lastAt: number | null } | null;
   /** The answer, once it is here. */
   arrival: { at: number; ok: boolean } | null;
+}
+
+/**
+ * Whether the easy-scan camera shows its full-screen calculation loader (F7):
+ * while the photo is analysed (`processing`), or once the shutter has a photo
+ * and before the analysis takes the loader on (`shutterLoader`), and only
+ * with a loader to show. Once the answer is on screen (measured, a failure)
+ * and the shutter's flag is cleared, it is not shown, though the loader's
+ * input is kept: it must never stay over the answer.
+ */
+export function calculationLoaderShown(
+  resultKind: string,
+  shutterLoader: boolean,
+  input: LoaderInput | null,
+): input is LoaderInput {
+  return (resultKind === "processing" || shutterLoader) && input !== null;
 }
 
 export type LoaderPhase = "waiting" | "filling" | "failed" | "done";

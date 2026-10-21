@@ -398,6 +398,36 @@ describe("a sheet found without all four corners", () => {
     ]);
   });
 
+  it("a paper gate after all four corners were found keeps them on the overlay, in the whole photo's pixels, so the frame opens on them (F7)", async () => {
+    arrange(CROP);
+    const corners = PAPER_FULL.map((p) => shift(p, -CROP.x, 0));
+    vi.mocked(detectPaperQuad).mockReturnValue({
+      corners: corners as never,
+      cornersSeen: 4,
+      cornersFound: [true, true, true, true],
+      partialCorners: corners as never,
+      // One side mostly hidden: PAPER_EDGE_HIDDEN.
+      minSideCoverage: 0.05,
+      edgeFitResidualPx: 0.3,
+      worstSideIndex: 0,
+      paperRegionFound: true,
+    });
+    const r = await run({
+      previewView: {
+        stream: STREAM,
+        visibleInStream: visibleRectInStream(STREAM, PHONE)!,
+      },
+    });
+    expect(r.status).toBe("error");
+    if (r.status !== "error") return;
+    expect(r.errors[0]?.code).toBe("PAPER_EDGE_HIDDEN");
+    expect(r.overlay.paperCorners).toHaveLength(4);
+    for (const [i, p] of (r.overlay.paperCorners ?? []).entries()) {
+      expect(p.x).toBeCloseTo(PAPER_FULL[i as 0 | 1 | 2 | 3].x, 6);
+      expect(p.y).toBeCloseTo(PAPER_FULL[i as 0 | 1 | 2 | 3].y, 6);
+    }
+  });
+
   it("reports none when no sheet was found at all", async () => {
     arrange(null);
     vi.mocked(detectPaperQuad).mockReturnValue({

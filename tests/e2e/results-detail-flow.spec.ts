@@ -89,8 +89,9 @@ test.describe("results: main page and rank 2 to 5 detail pages", () => {
     // branch (2026-10-21, trace on): the main page's first load 10 s, the
     // first visit to /m/[slug] another 9 s, so the walk below used all of the
     // default 30 s before its last step. The product is not slow here:
-    // after that, a detail page loads in 4 s, 1.2 s of it the loader's
-    // minimum time.
+    // after that, a detail page loaded in 4 s, 1.2 s of it the loader's
+    // minimum time then (F7, 2026-10-21: the loader now has no minimum and
+    // appears only after 300 ms).
     test.setTimeout(120_000);
     const calls = await stubScan(page);
 
@@ -155,9 +156,10 @@ test.describe("results: main page and rank 2 to 5 detail pages", () => {
 
     // A reload on a detail page fetches again and stays on that page.
     await page.goto(`${MAIN}/m/${RANK_2}`);
-    // The loader holds the page back for at least 1.2 s, then fills (250 ms)
-    // and fades (200 ms); dev hydration adds about 2 s. Measured: 3 to 4 s
-    // from the request to the mouse's name, close to the 5 s default.
+    // A fit slower than 300 ms shows the loader, which fills (250 ms) and
+    // fades (200 ms) with no minimum since F7; dev hydration adds about 2 s.
+    // Measured before F7 (1.2 s minimum): 3 to 4 s from the request to the
+    // mouse's name, close to the 5 s default.
     await expect(page.locator(".results-score-model")).toHaveText(
       "G305 Lightspeed",
       { timeout: 15_000 },

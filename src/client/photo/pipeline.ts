@@ -55,6 +55,7 @@ import {
   checkLandmarkConfidence,
 } from "./gates";
 import { detectPaperQuad } from "../paper/detect";
+import { yieldToBrowser } from "./yieldToBrowser";
 import {
   evaluateManualPaperCalibration,
   evaluatePaperEdgeCalibration,
@@ -205,7 +206,10 @@ export interface RunPhotoPipelineInput {
    * looked for; paper-edge only) and `hand` (the hand was looked for).
    * Called once per step that runs, in that order, whatever the step found.
    * It only listens: nothing in the run reads it or waits for it, and a
-   * callback that throws is ignored. Omitted, nothing is called.
+   * callback that throws is ignored. Omitted, nothing is called. After each
+   * step (and before the sheet is looked for) the run lets the browser draw
+   * a frame (`yieldToBrowser`, F7), so the loader moves while it works; that
+   * only waits and changes nothing the run computes.
    */
   readonly onStage?: (stage: PipelineStage) => void;
   /**
@@ -287,8 +291,9 @@ async function detectHandTraced(
   input: RunPhotoPipelineInput,
 ): Promise<Awaited<ReturnType<typeof detectHandLandmarks>>> {
   const startedAt = performance.now();
+  let hand: Awaited<ReturnType<typeof detectHandLandmarks>>;
   try {
-    const hand = await detectHandLandmarks(bitmap);
+    hand = await detectHandLandmarks(bitmap);
     trace.hand = hand
       ? {
           detected: true,
@@ -304,11 +309,13 @@ async function detectHandTraced(
           handedness: null,
           flatness: null,
         };
-    return hand;
   } finally {
     trace.handMs = performance.now() - startedAt;
     notifyStage(input, "hand");
   }
+  // A frame for the loader before the measurements are worked out (F7).
+  await yieldToBrowser();
+  return hand;
 }
 
 /**
@@ -412,6 +419,8 @@ async function runPhotoPipelineTraced(
   // every way out of the run below closes it, exactly once.
   const releaseDecoded = closeOnce(decoded.bitmap);
   try {
+    // A frame for the loader after decoding (F7).
+    await yieldToBrowser();
     return await runDecodedPipeline(decoded, input, trace, releaseDecoded);
   } finally {
     releaseDecoded();
@@ -698,6 +707,9 @@ async function runPaperEdgePipeline(
     } catch {
       trace.laplacianVariance = null;
     }
+    // A frame for the loader before the sheet is looked for, the longest
+    // step on a large photo (F7).
+    await yieldToBrowser();
 
     const paperStartedAt = performance.now();
     // The assumed focal length is the whole photo's, not the crop's: a crop
@@ -730,6 +742,7 @@ async function runPaperEdgePipeline(
     const quad = detectPaperQuad(imageData, paperSize, { focalPxHint });
     trace.paperMs = performance.now() - paperStartedAt;
     notifyStage(input, "paper");
+    await yieldToBrowser();
     const quadSize = quad.corners
       ? paperSizeFractions(quad.corners, width, height)
       : null;
@@ -899,6 +912,7 @@ async function finishManualPaper(args: {
   });
   trace.paperMs = performance.now() - args.paperStartedAt;
   notifyStage(input, "paper");
+  await yieldToBrowser();
   const quadSize = paperSizeFractions(corners, width, height);
   // What the record says of a placed frame: its geometry, where its corners
   // came from, and no edge numbers (there was no fitted edge to measure).

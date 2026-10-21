@@ -7,6 +7,7 @@
  * Rendered with renderToStaticMarkup: effects never run on the server, so the
  * canvas stays blank and only the markup is checked.
  */
+import { readFileSync } from "node:fs";
 import { createElement, type FunctionComponent } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -128,17 +129,60 @@ describe.each(LOCALES)(
       ),
     );
 
-    it("shows the particle loader, not the old loading line", () => {
-      expect(html).toContain("particleLoader");
+    // F7 (Kirby's phone test 2026-10-21): the loader appears only once the
+    // fit has taken 300 ms (`fitReveal`, tested in particles-loading.test.ts),
+    // so the first frame has none: a quick answer is shown without a loader
+    // flashing up first.
+    it("draws no loader in its first frame, and not the old loading line", () => {
+      expect(html).not.toContain("particleLoader");
+      expect(html).toContain('class="results-page-pending" aria-busy="true"');
       // The old line's words (removed from results-screens.ts in V3.2 F6).
       expect(html).not.toContain(
         locale === "zh-TW" ? "正在載入你的結果…" : "Loading your results…",
       );
     });
 
-    it("has one role=status, the loader's, saying the working words", () => {
-      expect(statusTexts(html)).toEqual([loadingCopy(locale).fit.working]);
-      expect(html.match(/role="status"/g)).toHaveLength(1);
+    it("has no status region of its own before the loader appears", () => {
+      expect(html.match(/role="status"/g)).toBeNull();
     });
   },
 );
+
+describe("the results page's loader appears at 300 ms while the fit is still out (ResultsScanProvider)", () => {
+  // Read as LF whatever the checkout's line endings are.
+  const source = readFileSync(
+    "src/app/results/[scanId]/ResultsScanProvider.tsx",
+    "utf8",
+  )
+    .split("\r\n")
+    .join("\n");
+  const effect = source.slice(
+    source.indexOf("const requestedAt = performance.now();"),
+    source.indexOf("refreshInflightRef.current = null;"),
+  );
+
+  it("a timer set when the fit is asked for shows the loader after FIT_SHOW_AFTER_MS", () => {
+    expect(effect.length).toBeGreaterThan(0);
+    expect(effect).toContain("setLoaderVisible(false);");
+    expect(effect).toMatch(
+      /const show = setTimeout\(\(\) => \{\s*if \(!cancelled\) setLoaderVisible\(true\);\s*\}, LOADING_TIMING\.FIT_SHOW_AFTER_MS\);/,
+    );
+    // Set before the request is awaited, so a slow fit shows it while waiting.
+    expect(effect.indexOf("const show = setTimeout(")).toBeLessThan(
+      effect.indexOf("await fitRequests.getOrStart("),
+    );
+  });
+
+  it("the timer is cleared once the answer is here, and when the effect is cleaned up", () => {
+    const arrived = effect.indexOf("const arrivedAt = performance.now();");
+    const cleanup = effect.indexOf("return () => {");
+    expect(arrived).toBeGreaterThan(0);
+    expect(cleanup).toBeGreaterThan(arrived);
+    expect(effect.indexOf("clearTimeout(show);", arrived)).toBeLessThan(
+      effect.indexOf("fitReveal(requestedAt, arrivedAt, ok)"),
+    );
+    expect(effect.indexOf("clearTimeout(show);", cleanup)).toBeGreaterThan(
+      cleanup,
+    );
+  });
+});
