@@ -1,6 +1,8 @@
 /**
- * Scan S2 (V3.2, 2026-10-21, candidate): when a photo's analysis fails, the
- * particle loader does not just vanish with "processing". Its ring stops
+ * Scan S2 (V3.2, 2026-10-21, candidate): when an analysis fails, the
+ * particle loader does not just vanish. (The easy scan's photo loader that S2
+ * kept on its failure sheet is gone with F10, Kirby 2026-10-21/22: no loader
+ * after the shutter. The pure failed-loader rules below stay.) Its ring stops
  * where it was and dims, the cloud stays breathed out, and it stays on the
  * failure sheet above the retry, the way the results page's `failedLoader`
  * stays above its error.
@@ -23,7 +25,7 @@ import { loadingCopy } from "../../src/lib/copy/loading";
 function photo(arrival: LoaderInput["arrival"]): LoaderInput {
   return {
     startedAt: 1000,
-    minMs: LOADING_TIMING.MIN_DISPLAY_PHOTO_MS,
+    minMs: 0,
     steps: { total: 4, done: 2, lastAt: 1400 },
     arrival,
   };
@@ -95,35 +97,16 @@ describe("the failed loader: frozen ring, dimmed, breathed out", () => {
   });
 });
 
-describe("the easy scan keeps the failed loader on its failure sheet", () => {
+describe("the easy scan no longer draws it (F10, Kirby 2026-10-21/22)", () => {
+  // F10: no loader after the shutter, so there is no stopped ring to keep on
+  // the failure sheet either; the failure sheet opens straight away.
   const source = readFileSync("src/client/camera/EasyScanCamera.tsx", "utf8");
   const css = readFileSync("src/client/camera/easy-scan.css", "utf8");
 
-  it("takes the failed loader from the photo's own loader", () => {
-    expect(source).toContain(
-      "const failedPhotoLoader = failedLoaderInput(photoLoaderInput);",
-    );
-  });
-
-  it("draws it in the failure branch, before the retake title and the retry", () => {
-    const loaderAt = source.indexOf('className="easyFailedLoader"');
-    expect(loaderAt).toBeGreaterThan(-1);
-    const titleAt = source.indexOf(
-      'className="easySheetTitle easySheetTitleError"',
-    );
-    const retryAt = source.indexOf("easyTryAgainButton");
-    expect(loaderAt).toBeLessThan(titleAt);
-    expect(titleAt).toBeLessThan(retryAt);
-    expect(source.slice(loaderAt - 200, loaderAt)).toContain(
-      "{failedPhotoLoader && (",
-    );
-    expect(source.slice(loaderAt, loaderAt + 120)).toContain(
-      "input={failedPhotoLoader}",
-    );
-  });
-
-  it("styles it smaller, inside the sheet", () => {
-    expect(css).toContain(".particleLoader.easyFailedLoader");
-    expect(css).toContain(".easyFailedLoader .particleLoader-canvas");
+  it("has no failed loader on its failure sheet, and no style for one", () => {
+    expect(source).not.toContain("failedLoaderInput");
+    expect(source).not.toContain('className="easyFailedLoader"');
+    expect(css).not.toContain("easyFailedLoader");
+    expect(css).not.toContain("easyProcessingLoader");
   });
 });

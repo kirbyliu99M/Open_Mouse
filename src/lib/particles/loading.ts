@@ -1,8 +1,12 @@
 /**
  * The particle loader (V3.2 U1, candidate / 未拍板; design loading-v5-ring): a
  * round cloud of the home page's blue-white particles that breathes, inside a
- * thin progress ring. It stands in for the results page's loading text and
- * for the wait after a photo is taken. Nothing on it is text or a number.
+ * thin progress ring. It stands in for the results page's loading text.
+ * Nothing on it is text or a number. (It also stood for the wait after a
+ * photo was taken, from U1 to F7; F10, Kirby's second phone test
+ * 2026-10-21/22, took it off the camera: a small 測量中… line on the frozen
+ * photo instead, no minimum time, `src/client/camera/measuringIndicator.ts`.
+ * The photo steps below stay, pure and tested, for the pipeline's stages.)
  *
  * The ring shows waiting, not work done:
  * - reading the recommendations is one server answer with no real progress,
@@ -12,9 +16,7 @@
  *   start of the next part; between steps it creeps by the same curve and
  *   never passes the next part's start.
  * When the answer arrives the ring fills to 100 % in 250 ms, the cloud is
- * brightest once, and the loader fades out in 200 ms. The photo's loader
- * stays at least 1.5 s, counted from when it appeared to when it is gone; a
- * longer wait is shown as it is, with nothing added. The recommendations'
+ * brightest once, and the loader fades out in 200 ms. The recommendations'
  * loader (F7, Kirby's phone test 2026-10-21) appears only when the answer has
  * not come within 300 ms, and then has no minimum (`fitReveal`).
  *
@@ -45,8 +47,6 @@ export const LOADING_TIMING = {
    * within this time (F7, Kirby 2026-10-21): a quick answer is shown at once.
    */
   FIT_SHOW_AFTER_MS: 300,
-  /** The shortest time the photo analysis' loader is on screen (Kirby 2026-10-21). */
-  MIN_DISPLAY_PHOTO_MS: 1500,
   /** How fast the drawn ring catches up with a step that jumped (ms). */
   SMOOTH_TAU_MS: 140,
 } as const;
@@ -222,7 +222,7 @@ export function fitReveal(
 export interface LoaderInput {
   /** When the loader appeared. */
   startedAt: number;
-  /** The shortest time it stays (`MIN_DISPLAY_FIT_MS` or `MIN_DISPLAY_PHOTO_MS`). */
+  /** The shortest time it stays (`MIN_DISPLAY_FIT_MS`). */
   minMs: number;
   /**
    * A wait with real steps (a photo): how many there are in all, the last
@@ -232,22 +232,6 @@ export interface LoaderInput {
   steps: { total: number; done: number; lastAt: number | null } | null;
   /** The answer, once it is here. */
   arrival: { at: number; ok: boolean } | null;
-}
-
-/**
- * Whether the easy-scan camera shows its full-screen calculation loader (F7):
- * while the photo is analysed (`processing`), or once the shutter has a photo
- * and before the analysis takes the loader on (`shutterLoader`), and only
- * with a loader to show. Once the answer is on screen (measured, a failure)
- * and the shutter's flag is cleared, it is not shown, though the loader's
- * input is kept: it must never stay over the answer.
- */
-export function calculationLoaderShown(
-  resultKind: string,
-  shutterLoader: boolean,
-  input: LoaderInput | null,
-): input is LoaderInput {
-  return (resultKind === "processing" || shutterLoader) && input !== null;
 }
 
 export type LoaderPhase = "waiting" | "filling" | "failed" | "done";

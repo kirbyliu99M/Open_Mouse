@@ -42,7 +42,9 @@ describe("the named timings (candidates, Kirby 2026-10-21)", () => {
     expect(LOADING_TIMING.WAIT_CAP).toBe(0.9);
     expect(LOADING_TIMING.FILL_MS).toBe(250);
     expect(LOADING_TIMING.FADE_OUT_MS).toBe(200);
-    expect(LOADING_TIMING.MIN_DISPLAY_PHOTO_MS).toBe(1500);
+    // F10 (Kirby 2026-10-21/22): the photo analysis has no loader and no
+    // minimum any more; its 1.5 s is gone.
+    expect("MIN_DISPLAY_PHOTO_MS" in LOADING_TIMING).toBe(false);
   });
 
   it("the recommendations: a loader only after 300 ms, with no minimum (Kirby's phone test 2026-10-21, F7; it was a 1.2 s minimum)", () => {
@@ -270,7 +272,7 @@ describe("loaderFrameAt", () => {
   it("a photo follows its steps", () => {
     const input: LoaderInput = {
       startedAt: 0,
-      minMs: LOADING_TIMING.MIN_DISPLAY_PHOTO_MS,
+      minMs: 0,
       steps: { total: 4, done: 2, lastAt: 500 },
       arrival: null,
     };

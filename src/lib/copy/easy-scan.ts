@@ -23,6 +23,12 @@ export interface EasyScanCopy {
   /** The (visually hidden) `<h1>`. */
   heading: string;
   loadingScanner: string;
+  /**
+   * The small line on the frozen photo while it is analysed (F10, Kirby's
+   * second phone test 2026-10-21/22: no loading screen after the shutter).
+   * CANDIDATE (未拍板) in both languages.
+   */
+  measuring: string;
   /** Live-region announcements when the no-paper mode is switched. */
   noPaperAnnounce: (mm: string) => string;
   paperAnnounce: string;
@@ -86,6 +92,7 @@ export const zhTW: EasyScanCopy = {
     "把手放在任何一張空白的 A4 紙上拍照，所有測量都在你的裝置上完成。",
   heading: "掃描你的手",
   loadingScanner: "正在載入掃描器…",
+  measuring: "測量中…",
   noPaperAnnounce: (mm) =>
     `無紙模式：使用你輸入的手長 ${mm}${NBSP}mm，不需要紙張。`,
   paperAnnounce: "紙張模式：請把手放在空白紙上。",
@@ -146,6 +153,7 @@ export const en: EasyScanCopy = {
     "Lay your hand on any blank sheet of A4 and photograph it — measured entirely on this device.",
   heading: "Scan your hand",
   loadingScanner: "Loading the scanner…",
+  measuring: "Measuring…",
   noPaperAnnounce: (mm) =>
     `No-paper mode: using your hand length of ${mm} mm. No sheet needed.`,
   paperAnnounce: "Paper mode: place your hand on a blank sheet of paper.",
