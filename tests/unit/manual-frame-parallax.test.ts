@@ -240,11 +240,20 @@ describe("R6 F2: a corner just out of frame is not clamped to the edge", () => {
       h: 1920,
       f: 1442,
       exif: false,
+      // No reliable focal length on this frame at all (see the known gap).
+      correctable: false,
     },
-    { name: "photo 2250x3000, EXIF", w: 2250, h: 3000, f: 2254, exif: true },
+    {
+      name: "photo 2250x3000, EXIF",
+      w: 2250,
+      h: 3000,
+      f: 2254,
+      exif: true,
+      correctable: true,
+    },
   ];
   for (const c of configs)
-    it(`${c.name}: dragged out to the true corner, palm width within 0.2 mm`, () => {
+    it(`${c.name}: dragged out to the true corner, palm width within 0.2 mm of ${c.correctable ? "the true hand" : "the automatic run (the true hand: known gap)"}`, () => {
       const image = { w: c.w, h: c.h };
       const base = buildR6Scene({
         w: c.w,
@@ -327,8 +336,32 @@ describe("R6 F2: a corner just out of frame is not clamped to the edge", () => {
         assumedFocalPxFromFov(c.w),
         reused,
       );
-      expect(Math.abs(placed.pw - ref.pw)).toBeLessThan(0.2);
-      expect(Math.abs(placed.len - ref.len)).toBeLessThan(0.2);
+      // The same corners measured the same way (a pure function): the
+      // frame dragged by hand is the true frame.
+      expect(placed.pw).toBeCloseTo(ref.pw, 9);
+      expect(placed.len).toBeCloseTo(ref.len, 9);
+      // And as the automatic run would measure the true corners.
+      expect(Math.abs(placed.pw - auto.pw)).toBeLessThan(0.2);
+      expect(Math.abs(placed.len - auto.len)).toBeLessThan(0.2);
+      if (c.correctable) {
+        // Against the scene's true hand (R6's error), not the same corners
+        // measured twice (review of F10: that difference is always 0).
+        expect(placed.corrected).toBe(true);
+        expect(Math.abs(placed.pw - scene.truePw)).toBeLessThan(0.2);
+        expect(Math.abs(placed.len - scene.trueLen)).toBeLessThan(0.2);
+      } else {
+        // KNOWN GAP, not fixed by F10 (review of F10, simulated): with no
+        // EXIF and the sheet partly out of frame, the automatic run finds no
+        // reliable focal length either, so there is none to reuse, the
+        // parallax correction stays off and the hand reads too big whatever
+        // the corners. R6's shiftX moves the picture, not the camera (the
+        // principal point leaves the centre), so how much of this a real
+        // photo shows is 不確定. Pinned so a change to it is seen.
+        expect(auto.source).toBe("none");
+        expect(placed.corrected).toBe(false);
+        expect(placed.pw - scene.truePw).toBeGreaterThan(3);
+        expect(placed.len - scene.trueLen).toBeGreaterThan(3);
+      }
       // What clamping to the edge (before F10) did to the same frame.
       const clamped = state.corners.map((p) => ({
         x: Math.min(c.w, Math.max(0, p.x)),
@@ -343,11 +376,17 @@ describe("R6 F2: a corner just out of frame is not clamped to the edge", () => {
         reused,
       );
       console.info(
-        `[F10 F2, simulated] ${c.name}: 2 % out, unclamped Δpw ${(placed.pw - ref.pw).toFixed(3)} mm, clamped Δpw ${(old.pw - ref.pw).toFixed(3)} mm (Δlen ${(old.len - ref.len).toFixed(3)} mm)`,
+        `[F10 F2, simulated] ${c.name}: 2 % out, vs true hand: unclamped Δpw ${(placed.pw - scene.truePw).toFixed(3)} mm Δlen ${(placed.len - scene.trueLen).toFixed(3)} mm; clamped (before F10) Δpw ${(old.pw - scene.truePw).toFixed(3)} mm Δlen ${(old.len - scene.trueLen).toFixed(3)} mm`,
       );
-      expect(Math.abs(old.pw - ref.pw)).toBeGreaterThan(
-        Math.abs(placed.pw - ref.pw),
+      // Clamping (before F10) moved the palm width away from what the true
+      // corners give (and, where the correction is on, from the true hand).
+      expect(Math.abs(old.pw - auto.pw)).toBeGreaterThan(
+        Math.abs(placed.pw - auto.pw) + 0.1,
       );
+      if (c.correctable)
+        expect(Math.abs(old.pw - scene.truePw)).toBeGreaterThan(
+          Math.abs(placed.pw - scene.truePw),
+        );
     });
 
   it("clampToAllowed stops a corner at 10 % beyond the photo, and leaves one inside alone", () => {
