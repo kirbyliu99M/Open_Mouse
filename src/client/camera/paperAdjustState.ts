@@ -159,6 +159,18 @@ export function adjustWarningFor(result: AdjustableResult): "curled" | null {
 }
 
 /**
+ * The first error's code the adjustment screen is opened with (F7): a
+ * failure's first code (so `PAPER_NOT_FOUND` opens the centred A4 sheet at
+ * 72 %, all four corners not placed, even when a partial detection left
+ * corners in the overlay), nothing for a measured photo.
+ */
+export function adjustFirstCodeFor(
+  result: AdjustableResult,
+): string | undefined {
+  return result.kind === "gateFailure" ? result.errors[0]?.code : undefined;
+}
+
+/**
  * The `paper` of the `scan_measured` event for a run: `none` with a typed
  * length (no sheet used), `adjusted` with a frame the person placed (rescue;
  * the contract has no `manual` there), else `detected`. Read when the run

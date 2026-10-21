@@ -234,6 +234,22 @@ export interface LoaderInput {
   arrival: { at: number; ok: boolean } | null;
 }
 
+/**
+ * Whether the easy-scan camera shows its full-screen calculation loader (F7):
+ * while the photo is analysed (`processing`), or once the shutter has a photo
+ * and before the analysis takes the loader on (`shutterLoader`), and only
+ * with a loader to show. Once the answer is on screen (measured, a failure)
+ * and the shutter's flag is cleared, it is not shown, though the loader's
+ * input is kept: it must never stay over the answer.
+ */
+export function calculationLoaderShown(
+  resultKind: string,
+  shutterLoader: boolean,
+  input: LoaderInput | null,
+): input is LoaderInput {
+  return (resultKind === "processing" || shutterLoader) && input !== null;
+}
+
 export type LoaderPhase = "waiting" | "filling" | "failed" | "done";
 
 export interface LoaderFrame {

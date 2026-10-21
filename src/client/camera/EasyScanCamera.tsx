@@ -140,6 +140,7 @@ import { PaperAdjust, type PaperAdjustConfirm } from "./PaperAdjust";
 import {
   adjustConfirmAction,
   adjustEntryFor,
+  adjustFirstCodeFor,
   adjustWarningFor,
   cornerCheckDistances,
   pipelinePaperInput,
@@ -243,6 +244,7 @@ import { ParticleLoader } from "../../components/loading/ParticleLoader";
 import { loadingCopy } from "../../lib/copy/loading";
 import {
   LOADING_TIMING,
+  calculationLoaderShown,
   loaderTimeline,
   failedLoaderInput,
   photoStagesFor,
@@ -1517,19 +1519,26 @@ export default function EasyScanCamera({
     let handedOff = false;
     try {
       const firedAt = performance.now();
-      // The calculation loader, in the same frame as the press (F7): before
-      // the frame is made or decoded. Its steps are the analysis' own.
-      setShutterLoader(true);
-      setPhotoLoader({
-        runId: -1,
-        startedAt: firedAt,
-        stages: photoStagesFor(
-          userLengthRef.current !== null ? "user-length" : "paper-edge",
-        ),
-        reached: [],
-        lastAt: null,
-        arrival: null,
-      });
+      // The calculation loader (F7): up as soon as there IS a photo (the
+      // frame made, or the camera's photo taken), before it is decoded and
+      // before the camera stops, with the press as its start so the minimum
+      // counts from the press. Not at the press itself: a frame that cannot
+      // be made leaves the viewfinder running, and a loader put up for it
+      // would flash over the camera on every failed try (review of F7).
+      // Its steps are the analysis' own.
+      const showCalculationLoader = () => {
+        setShutterLoader(true);
+        setPhotoLoader({
+          runId: -1,
+          startedAt: firedAt,
+          stages: photoStagesFor(
+            userLengthRef.current !== null ? "user-length" : "paper-edge",
+          ),
+          reached: [],
+          lastAt: null,
+          arrival: null,
+        });
+      };
       // The camera's own photo (off): the live loop stops at once, as it did.
       // A frame stops it only once the frame exists (below), so a frame that
       // cannot be made leaves the viewfinder running.
@@ -1637,6 +1646,7 @@ export default function EasyScanCamera({
         }
       }
 
+      showCalculationLoader();
       noteCaptureOutcome("success");
       const previewUrl = URL.createObjectURL(file);
       // The camera keeps running while the photo is decoded, so the swap from
@@ -1704,8 +1714,9 @@ export default function EasyScanCamera({
       // Whatever happened above, a later press or auto-shutter is not blocked.
       capturingRef.current = false;
       if (!handedOff) {
-        // No photo after all (no frame could be made): the camera is still
-        // there, so the loader goes.
+        // No photo after all (the photo could not be decoded, or something
+        // threw after it was made): the camera is still there, so the loader
+        // goes. A frame that was never made never put it up.
         setShutterLoader(false);
         setPhotoLoader((prev) => (prev && prev.runId === -1 ? null : prev));
       }
@@ -3104,7 +3115,7 @@ export default function EasyScanCamera({
         }
       />
 
-      {(result.kind === "processing" || shutterLoader) && photoLoaderInput && (
+      {calculationLoaderShown(result.kind, shutterLoader, photoLoaderInput) && (
         <ParticleLoader
           className="easyProcessingLoader"
           input={photoLoaderInput}
@@ -3316,9 +3327,7 @@ export default function EasyScanCamera({
                 ? (result.placedFrame ?? null)
                 : null
             }
-            firstCode={
-              result.kind === "gateFailure" ? result.errors[0]?.code : undefined
-            }
+            firstCode={adjustFirstCodeFor(result)}
             warning={adjustWarningFor(result)}
             paperSize={paperSizeRef.current}
             previewUrl={result.previewUrl}

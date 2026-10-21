@@ -9,6 +9,7 @@ import {
   PAPER_ADJUST_LAYOUT,
   adjustConfirmAction,
   adjustEntryFor,
+  adjustFirstCodeFor,
   adjustWarningFor,
   frameMoved,
   isPaperIssue,
@@ -307,6 +308,54 @@ describe("adjustWarningFor: PAPER_CURLED is said before confirming (F7)", () => 
 });
 
 describe("where the frame opens (F7)", () => {
+  it("adjustFirstCodeFor: a PAPER_NOT_FOUND failure with corners left from a partial detection opens the centred sheet, nothing placed (the camera's wiring)", () => {
+    const result = {
+      kind: "gateFailure" as const,
+      errors: [issue("PAPER_NOT_FOUND"), issue("HAND_NOT_FOUND")],
+      overlay: overlay({
+        paperPartialCorners: [RECT[0], RECT[1], null, RECT[3]],
+      }),
+    };
+    expect(adjustFirstCodeFor(result)).toBe("PAPER_NOT_FOUND");
+    expect(adjustEntryFor(result, false)).toBe("rescue");
+    const state = startAdjust({
+      entry: "rescue",
+      overlay: result.overlay,
+      paperSize: "a4",
+      firstCode: adjustFirstCodeFor(result),
+    });
+    expect(state.start.from).toBe("centred");
+    expect(state.placed).toEqual([false, false, false, false]);
+    // Without the code, the same overlay would open on the partial corners,
+    // some of them placed: the case the wiring guards.
+    const without = startAdjust({
+      entry: "rescue",
+      overlay: result.overlay,
+      paperSize: "a4",
+    });
+    expect(without.placed).not.toEqual([false, false, false, false]);
+  });
+
+  it("adjustFirstCodeFor: a measured photo gives no code; a failure gives its first", () => {
+    expect(
+      adjustFirstCodeFor({
+        kind: "measured",
+        overlay: overlay({ paperCorners: RECT }),
+        submission: AUTO,
+      }),
+    ).toBeUndefined();
+    expect(
+      adjustFirstCodeFor({
+        kind: "gateFailure",
+        errors: [issue("PAPER_CURLED"), issue("PAPER_NOT_FOUND")],
+        overlay: overlay(),
+      }),
+    ).toBe("PAPER_CURLED");
+    expect(
+      adjustFirstCodeFor({ kind: "gateFailure", errors: [], overlay: null }),
+    ).toBeUndefined();
+  });
+
   it("PAPER_NOT_FOUND: the centred sheet, 72 % of the photo's width, all four corners not placed", () => {
     const state = startAdjust({
       entry: "rescue",

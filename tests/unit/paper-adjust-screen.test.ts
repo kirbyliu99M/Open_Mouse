@@ -355,6 +355,9 @@ describe("where the camera offers it (EasyScanCamera.tsx)", () => {
     expect(source).toContain("previous={");
     expect(source).toContain("result.placedFrame ?? null");
     expect(source).toContain("warning={adjustWarningFor(result)}");
+    // PAPER_NOT_FOUND opens the centred sheet only if the screen is told the
+    // failure's first code (review of F7).
+    expect(source).toContain("firstCode={adjustFirstCodeFor(result)}");
   });
 
   it("confirming goes through adjustConfirmAction; the pipeline runs only for its rerun, and nothing is sent", () => {
