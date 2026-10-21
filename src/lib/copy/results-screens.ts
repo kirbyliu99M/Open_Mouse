@@ -38,6 +38,12 @@ export interface ResultsScreensCopy {
   serverError: ResultsErrorScreen;
   tryAgain: string;
   deleted: ResultsErrorScreen;
+  /**
+   * V3.2 F13 (candidate, 未拍板): the line at the top after the ranking on
+   * screen was found stale (412) and the new one replaced it in place, and the
+   * name of its close button.
+   */
+  rankingUpdated: { text: string; close: string };
   analysis: {
     eyebrow: string;
     preparing: string;
@@ -120,6 +126,7 @@ export const zhTW: ResultsScreensCopy = {
     title: "這次掃描已刪除",
     body: "你的測量資料已永久移除。",
   },
+  rankingUpdated: { text: "結果已更新。", close: "關閉提示" },
   analysis: {
     eyebrow: "文字分析",
     preparing: "正在準備你的文字分析…",
@@ -200,6 +207,10 @@ export const en: ResultsScreensCopy = {
   deleted: {
     title: "This scan has been deleted",
     body: "Its measurements have been permanently removed.",
+  },
+  rankingUpdated: {
+    text: "Your results were updated.",
+    close: "Close this message",
   },
   analysis: {
     eyebrow: "Written analysis",

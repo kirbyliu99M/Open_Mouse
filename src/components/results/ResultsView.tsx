@@ -121,6 +121,7 @@ export function ResultsView({
   enteredLengthMm = null,
   enteredManual = null,
   paperAdjusted = false,
+  paperCurled = false,
   showViewer = false,
   scanId,
   onSelectRank,
@@ -158,6 +159,12 @@ export function ResultsView({
    * One line in the cautions about how the scan was made.
    */
   paperAdjusted?: boolean;
+  /**
+   * V3.2 F13 (candidate): that hand-placed frame was confirmed after the
+   * sheet was found curled (`PAPER_CURLED`). One more line: the paper may
+   * not have been flat. Read from this browser only.
+   */
+  paperCurled?: boolean;
   /** Mount the 3D size illustration (real scans only). */
   showViewer?: boolean;
   /** A real scan: the other picks link to its routes. Absent in the demo. */
@@ -430,6 +437,14 @@ export function ResultsView({
                   data-testid="results-paper-adjusted"
                 >
                   {copy.paperAdjustedNotice}
+                </p>
+              )}
+              {paperCurled && (
+                <p
+                  className="results-handNotice"
+                  data-testid="results-paper-curled"
+                >
+                  {copy.paperCurledNotice}
                 </p>
               )}
               {/* The hand comes from the fit response (#62), not from browser

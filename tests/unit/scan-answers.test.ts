@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createElement, type FunctionComponent } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -19,6 +20,11 @@ import {
   type AnswersState,
 } from "../../src/client/scan/answers";
 import { submitScan } from "../../src/client/scan/submitScan";
+import {
+  SUBMIT_OVERLAY,
+  overlayFadeMs,
+  overlayPhaseFor,
+} from "../../src/client/scan/submitOverlayPhase";
 import {
   MEASUREMENT_MODEL_VERSION,
   scanSubmissionSchema,
@@ -454,44 +460,133 @@ describe("the pages as rendered", () => {
     );
   });
 
-  it("after a successful send the button says the results are opening", () => {
-    const html = render(
+  // V3.2 F13 (Kirby 2026-10-22): the button never turns into 「傳送中…」;
+  // the veil with the particle loader comes over the page instead.
+  const sendingPage = (busy: boolean, locale: "zh-TW" | "en" = "zh-TW") =>
+    render(
       createElement(ThicknessPage, {
         value: "thin",
         onChange: noop,
         onSubmit: noop,
         onSkip: noop,
         onBack: noop,
-        busy: true,
-        opening: true,
+        busy,
         errorKind: null,
         onRetake: noop,
       }),
+      locale,
     );
-    expect(html).toContain("正在開啟結果…");
-  });
 
-  it("while sending, the button says so and every control is off", () => {
-    const html = render(
-      createElement(ThicknessPage, {
-        value: "thin",
-        onChange: noop,
-        onSubmit: noop,
-        onSkip: noop,
-        onBack: noop,
-        busy: true,
-        errorKind: null,
-        onRetake: noop,
-      }),
-    );
-    expect(html).toContain("傳送中…");
+  it("while sending, the button keeps its word, every control is off, and the veil with the loader is up", () => {
+    const html = sendingPage(true);
+    expect(html).not.toContain("傳送中");
+    expect(html).not.toContain("正在開啟結果");
     expect(html).toMatch(
-      /<button[^>]*disabled=""[^>]*data-testid="thickness-submit"/,
+      /<button[^>]*disabled=""[^>]*data-testid="thickness-submit"[^>]*>看結果<\/button>/,
     );
     expect(html).toMatch(
       /<button[^>]*disabled=""[^>]*data-testid="thickness-skip"/,
     );
     expect(html).toMatch(/<fieldset[^>]*disabled=""/);
+    expect(html).toMatch(
+      /<div class="submitOverlay" data-phase="shown" data-testid="submit-overlay" aria-busy="true"/,
+    );
+    expect(html).toContain("--submit-veil-opacity:70%");
+    expect(html).toContain("--submit-fade-ms:220ms");
+    expect(html).toMatch(/class="particleLoader submitOverlay-loader"/);
+    // The loader's status says it is matching; no word about sending.
+    expect(html).toContain('role="status">正在比對<');
+  });
+
+  it("in English too: no Sending anywhere while it is sent", () => {
+    const html = sendingPage(true, "en");
+    expect(html).not.toMatch(/Sending|Opening/);
+    expect(html).toMatch(/data-testid="thickness-submit"[^>]*>See results</);
+    expect(html).toContain('data-testid="submit-overlay"');
+  });
+
+  it("not sending: no veil, the button is the page's own", () => {
+    const html = sendingPage(false);
+    expect(html).not.toContain("submit-overlay");
+    expect(html).toMatch(
+      /<button[^>]*data-testid="thickness-submit"[^>]*>看結果<\/button>/,
+    );
+  });
+});
+
+describe("the send veil's phases (submitOverlayPhase.ts, V3.2 F13)", () => {
+  it("busy shows it; a failure fades it out, then it is gone; idle stays hidden", () => {
+    expect(overlayPhaseFor("hidden", true)).toBe("shown");
+    expect(overlayPhaseFor("shown", true)).toBe("shown");
+    expect(overlayPhaseFor("shown", false)).toBe("leaving");
+    expect(overlayPhaseFor("leaving", false)).toBe("leaving");
+    expect(overlayPhaseFor("hidden", false)).toBe("hidden");
+    // A retry while it is still fading brings it straight back.
+    expect(overlayPhaseFor("leaving", true)).toBe("shown");
+  });
+
+  it("about 70 % over the page, a 220 ms fade, none under reduced motion (candidate)", () => {
+    expect(SUBMIT_OVERLAY.VEIL_OPACITY).toBe(0.7);
+    expect(overlayFadeMs(false)).toBe(220);
+    expect(overlayFadeMs(true)).toBe(0);
+  });
+});
+
+const source = (path: string) =>
+  readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+
+// No DOM test library: the veil's wiring is pinned by its source, so a change
+// that the static renders above cannot see (the fade timer, reduced motion,
+// the leaving rule) fails here.
+describe("the send veil's wiring (source pins, F13)", () => {
+  it("a change of busy moves the phase with overlayPhaseFor", () => {
+    const veil = source("src/client/scan/SubmitOverlay.tsx");
+    expect(veil).toContain("const reducedMotion = usePrefersReducedMotion();");
+    const adjust = veil.slice(
+      veil.indexOf("if (busy !== seenBusy) {"),
+      veil.indexOf("useEffect(() => {"),
+    );
+    expect(adjust).toContain("setSeenBusy(busy);");
+    expect(adjust).toContain("setPhase(overlayPhaseFor(phase, busy));");
+  });
+
+  it("leaving turns hidden after overlayFadeMs(reducedMotion), not a fixed time", () => {
+    const veil = source("src/client/scan/SubmitOverlay.tsx");
+    const effect = veil.slice(
+      veil.indexOf("useEffect(() => {"),
+      veil.indexOf("}, [phase, reducedMotion]);"),
+    );
+    expect(effect).toContain('if (phase !== "leaving") return;');
+    expect(effect).toMatch(
+      /setTimeout\(\n\s*\(\) => setPhase\("hidden"\),\n\s*overlayFadeMs\(reducedMotion\),\n\s*\);/,
+    );
+    expect(effect).toContain("return () => clearTimeout(timer);");
+    expect(effect).not.toContain("SUBMIT_OVERLAY.FADE_MS");
+    expect(veil).toContain("}, [phase, reducedMotion]);");
+    expect(veil).toContain('if (phase === "hidden") return null;');
+  });
+
+  it("while it fades it is see-through and catches no taps", () => {
+    const css = source("src/client/scan/submit-overlay.css");
+    const rule = css.slice(
+      css.indexOf('.submitOverlay[data-phase="leaving"] {'),
+    );
+    const body = rule.slice(0, rule.indexOf("}"));
+    expect(body).toContain("opacity: 0;");
+    expect(body).toContain("pointer-events: none;");
+  });
+
+  it("under reduced motion it neither animates in nor fades out", () => {
+    const css = source("src/client/scan/submit-overlay.css");
+    const block = css.slice(
+      css.indexOf("@media (prefers-reduced-motion: reduce) {"),
+    );
+    const rule = block.slice(
+      block.indexOf(".submitOverlay {"),
+      block.indexOf("}"),
+    );
+    expect(rule).toContain("animation: none;");
+    expect(rule).toContain("transition: none;");
   });
 });
 

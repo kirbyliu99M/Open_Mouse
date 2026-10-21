@@ -160,6 +160,26 @@ export function adjustWarningFor(result: AdjustableResult): "curled" | null {
 }
 
 /**
+ * V3.2 F13 (candidate): whether the results page should add that the paper
+ * may not have been flat. Only for a scan measured with a frame placed or
+ * moved by hand (`cornersSource` not auto) on a photo whose sheet the
+ * detector had found curled (`PAPER_CURLED`, `curledBefore`). Kept in this
+ * browser only (`ScanLocalNotes`); the submission is not changed.
+ */
+export function paperCurledNoteFor(input: {
+  readonly submission: Pick<ScanSubmission, "calibration">;
+  readonly curledBefore: boolean;
+}): boolean {
+  if (!input.curledBefore) return false;
+  const calibration = input.submission.calibration;
+  return (
+    "method" in calibration &&
+    calibration.method === "paper-edge" &&
+    (calibration.cornersSource ?? "auto") !== "auto"
+  );
+}
+
+/**
  * The `paper` of the `scan_measured` event for a run: `none` with a typed
  * length (no sheet used), `adjusted` with a frame the person placed (rescue;
  * the contract has no `manual` there), else `detected`. Read when the run

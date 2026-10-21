@@ -953,7 +953,7 @@ describe("the provider's shown ranking (shownRanking.ts)", () => {
       FIT_A.resultFingerprint,
       FIT_B.resultFingerprint,
     ]);
-    expect(show).toHaveBeenCalledWith(FIT_B);
+    expect(show).toHaveBeenCalledWith(FIT_B, FIT_A);
     expect(r.shown.current).toBe(FIT_B);
     expect(r.inflight.current).toBeNull();
   });

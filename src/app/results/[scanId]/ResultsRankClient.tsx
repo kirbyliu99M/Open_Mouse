@@ -227,6 +227,7 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
       enteredLengthMm={scan.enteredLength}
       enteredManual={scan.enteredManual}
       paperAdjusted={scan.paperAdjusted}
+      paperCurled={scan.paperCurled}
       showViewer={RESULTS_VIEWER_ENABLED}
       analysisState={scan.analysisState}
       onRetryAnalysis={scan.retryAnalysis}

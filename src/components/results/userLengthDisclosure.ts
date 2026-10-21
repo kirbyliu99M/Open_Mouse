@@ -52,16 +52,34 @@ export function parseStoredPaperAdjusted(raw: string | null): boolean {
   return raw === "1";
 }
 
+/**
+ * V3.2 F13 (candidate): set, next to `resultPaperAdjustedKey`, for a scan
+ * whose hand-placed frame was confirmed after the detector measured the sheet
+ * as not lying flat (`PAPER_CURLED`): the results page then adds that the
+ * paper may not have been flat. Kept in this browser only; never sent to the
+ * server. The value is only "1".
+ */
+export function resultPaperCurledKey(scanId: string): string {
+  return `open-mouse:paper-curled:${scanId}`;
+}
+
+/** Whether the stored value says the paper was found curled; anything else is false. */
+export function parseStoredPaperCurled(raw: string | null): boolean {
+  return raw === "1";
+}
+
 export interface StoredManualEntry {
   readonly handLengthMm: number;
   readonly handWidthMm: number;
 }
 
-/** The three per-scan notes the results page reads from this browser. */
+/** The per-scan notes the results page reads from this browser. */
 export interface ScanDisclosures {
   readonly enteredLength: number | null;
   readonly enteredManual: StoredManualEntry | null;
   readonly paperAdjusted: boolean;
+  /** V3.2 F13: the hand-placed frame followed a `PAPER_CURLED` result. */
+  readonly paperCurled: boolean;
 }
 
 /**
@@ -82,6 +100,9 @@ export function readScanDisclosures(
     ),
     paperAdjusted: parseStoredPaperAdjusted(
       storage.getItem(resultPaperAdjustedKey(scanId)),
+    ),
+    paperCurled: parseStoredPaperCurled(
+      storage.getItem(resultPaperCurledKey(scanId)),
     ),
   };
 }
@@ -177,6 +198,7 @@ export function clearScanDisclosures(
     storage.removeItem(resultLengthKey(scanId));
     storage.removeItem(resultManualEntryKey(scanId));
     storage.removeItem(resultPaperAdjustedKey(scanId));
+    storage.removeItem(resultPaperCurledKey(scanId));
     // Legacy key, no longer written (see handDisclosure.ts).
     storage.removeItem(resultHandKey(scanId));
   }

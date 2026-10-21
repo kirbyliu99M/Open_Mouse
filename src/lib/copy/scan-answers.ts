@@ -58,8 +58,6 @@ export interface ScanAnswersCopy {
   skipAndSee: string;
   /** In the error banner when the failure's fix is a new photo (kinds invalid and tooLarge). */
   retake: string;
-  /** While the scan is sent (the button shows `sending`). */
-  sending: string;
 }
 
 export const zhTW: ScanAnswersCopy = {
@@ -92,7 +90,6 @@ export const zhTW: ScanAnswersCopy = {
   },
   skipAndSee: "跳過並看結果",
   retake: "重拍",
-  sending: "傳送中…",
 };
 
 export const en: ScanAnswersCopy = {
@@ -140,7 +137,6 @@ export const en: ScanAnswersCopy = {
   },
   skipAndSee: "Skip and see results",
   retake: "Retake photo",
-  sending: "Sending…",
 };
 
 export function scanAnswersCopy(locale: Locale): ScanAnswersCopy {

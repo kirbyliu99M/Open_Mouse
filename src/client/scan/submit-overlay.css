@@ -1,0 +1,41 @@
+/*
+ * The veil over the last question page while the scan is sent (V3.2 F13,
+ * candidate / 未拍板): the page colour at about 70 %, the particle loader in
+ * the middle. Fades by opacity only; none under reduced motion.
+ */
+.submitOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(
+    in srgb,
+    var(--bg) var(--submit-veil-opacity, 70%),
+    transparent
+  );
+  animation: submitOverlay-in var(--submit-fade-ms, 220ms) ease-out;
+  transition: opacity var(--submit-fade-ms, 220ms) ease-in;
+}
+.submitOverlay[data-phase="leaving"] {
+  opacity: 0;
+  pointer-events: none;
+}
+.submitOverlay-loader {
+  padding: 0;
+}
+@keyframes submitOverlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .submitOverlay {
+    animation: none;
+    transition: none;
+  }
+}

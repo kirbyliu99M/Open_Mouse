@@ -307,33 +307,37 @@ describe("a merged Logitech row", () => {
       );
   });
 
-  it("the two rows from Kirby's 2026-10-09 descriptions stay public_compilation-inferred until Kirby decides (未拍板)", () => {
-    // Their descriptorBasis is "Kirby 2026-10-09 description ...", without the
-    // word owner, so descriptorsByOwner reads false. Boomslang's basis says
-    // there was no public compilation relative, so this label is in doubt:
-    // whether a 2026-10-09 Kirby description counts as the owner's is
-    // Kirby's decision (candidate). If it does, descriptorsByOwner changes
-    // and these two expectations flip to owner-inferred.
+  it("the two rows from Kirby's 2026-10-09 descriptions are the owner's: owner-inferred (V3.2 F13, candidate)", () => {
+    // Kirby 2026-10-22 ("other items per your recommendation"): the shape
+    // values of these two were his own descriptions of 2026-10-09, so their
+    // descriptorBasis now says "owner" (source CSV edited, backup kept) and
+    // descriptor_model names the owner. Their values did not change.
     for (const model of ["Boomslang 20th Anniversary Edition", "ULTRA 07"]) {
       const e = entries.find((x) => x.model === model)!;
       expect(e.descriptorsInferred).toBe(true);
-      expect(e.descriptorsByOwner).toBe(false);
+      expect(e.descriptorsByOwner).toBe(true);
       expect(e.mergesInto ?? null).toBeNull();
-      expect(byModel(model).descriptorModel).toBe(
-        "public_compilation-inferred",
-      );
+      expect(byModel(model).descriptorModel).toBe("owner-inferred");
     }
   });
 
   it("labels the owner's three MX rows as owner data, distinct from public_compilation, with their shape values unchanged", () => {
     const owner = entries.filter((e) => e.descriptorsByOwner);
-    expect(owner.map((e) => e.model)).toEqual([
+    expect(owner).toHaveLength(N.byOwner);
+    const merged = owner.filter((e) => e.mergesInto);
+    expect(merged.map((e) => e.model)).toEqual([
       "MX Master 4",
       "MX Master 3S",
       "MX Anywhere 3S",
     ]);
-    expect(owner).toHaveLength(N.byOwner);
-    for (const e of owner) {
+    // The other owner rows are the two 2026-10-09 descriptions (test above).
+    expect(
+      owner
+        .filter((e) => !e.mergesInto)
+        .map((e) => e.model)
+        .sort(),
+    ).toEqual(["Boomslang 20th Anniversary Edition", "ULTRA 07"]);
+    for (const e of merged) {
       const row = byModel(e.mergesInto!);
       expect(row.descriptorModel, e.model).toMatch(
         /^geometry-gd1@[0-9a-f]+\+owner$/,

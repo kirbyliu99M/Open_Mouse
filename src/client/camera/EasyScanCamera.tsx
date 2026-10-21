@@ -142,6 +142,7 @@ import {
   adjustEntryFor,
   adjustWarningFor,
   cornerCheckDistances,
+  paperCurledNoteFor,
   reusableFocal,
   reusedFocalFor,
   pipelinePaperInput,
@@ -717,6 +718,11 @@ export default function EasyScanCamera({
     readonly file: File;
     readonly focal: ReusedFocal;
   } | null>(null);
+  // V3.2 F13 (candidate): the detector found the sheet of the photo on screen
+  // curled (`PAPER_CURLED`) and the person went on with a frame placed by
+  // hand. Kept for that photo (a new automatic run forgets it) and written to
+  // this browser only after the scan was stored (`paperCurledNoteFor`).
+  const curledBeforeRef = useRef(false);
   const quadSourceRef = useRef<SheetQuadSource>(createPaperEdgeQuadSource());
   const handChipRef = useRef(handChip);
   handChipRef.current = handChip;
@@ -1241,6 +1247,9 @@ export default function EasyScanCamera({
       // A placed frame on the photo whose automatic run had a focal length
       // keeps it (F10 item 2); a new automatic run forgets the old one.
       if (!paperInput.pipeline.manualPaperCorners) autoFocalRef.current = null;
+      // It also forgets that the last photo's sheet was curled (F13).
+      if (!paperInput.pipeline.manualPaperCorners)
+        curledBeforeRef.current = false;
       const reusedFocal = reusedFocalFor({
         placedFrame: Boolean(paperInput.pipeline.manualPaperCorners),
         file,
@@ -1763,6 +1772,10 @@ export default function EasyScanCamera({
         !fileRef.current
       )
         return;
+      // The frame is confirmed over a curled sheet's warning (F7): the
+      // results page will say so (F13), for this photo.
+      if (adjustWarningFor(current) === "curled")
+        curledBeforeRef.current = true;
       // A new analysis, not a return: its sheet slides in as any result does.
       sheetResumedRef.current = false;
       adjustReturnRef.current = false;
@@ -1797,7 +1810,13 @@ export default function EasyScanCamera({
         return;
       }
       if (resultRef.current.kind !== "measured") return;
-      submitScanNow(buildSubmission(resultRef.current.submission, final));
+      const submission = buildSubmission(resultRef.current.submission, final);
+      submitScanNow(submission, {
+        paperCurled: paperCurledNoteFor({
+          submission,
+          curledBefore: curledBeforeRef.current,
+        }),
+      });
     },
     [submitScanNow, manualValues],
   );
@@ -2430,7 +2449,6 @@ export default function EasyScanCamera({
           }}
           onBack={backFromAnswers}
           busy={submitBusy}
-          opening={submitState.kind === "success"}
           onRetake={manualMode ? editManualNumbers : retake}
           retakeLabel={
             manualMode ? manualEntryCopy(locale).editNumbers : undefined
