@@ -103,14 +103,19 @@ describe("the pipeline yields between its steps (pipeline.ts)", () => {
     // Inside the paper step itself: after the sharpness is worked out and
     // before the sheet's clock starts and the detector runs (an anchor on the
     // import line would let a missing yield through).
+    // Since F8 both run through the worker client (analysisWorkerClient.ts),
+    // so the anchors are those calls.
     const sharpness = source.indexOf(
-      "trace.laplacianVariance = computeLaplacianVariance(",
+      "trace.laplacianVariance = sharp.outcome.laplacianVariance;",
     );
     const paperStart = source.indexOf(
       "const paperStartedAt = performance.now();",
       sharpness,
     );
-    const detect = source.indexOf("const quad = detectPaperQuad(", sharpness);
+    const detect = source.indexOf(
+      "const detected = await getAnalysisRunner().run(",
+      sharpness,
+    );
     expect(sharpness).toBeGreaterThan(0);
     expect(paperStart).toBeGreaterThan(sharpness);
     expect(detect).toBeGreaterThan(paperStart);
