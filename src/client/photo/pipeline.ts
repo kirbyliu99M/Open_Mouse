@@ -75,6 +75,7 @@ import {
   type PixelRect,
 } from "../camera/visibleView";
 import { finishPaperEdge } from "./paperEdgeFinish";
+import type { ReusedFocal } from "../geometry/parallax";
 import type { IssueDetail } from "./issue-detail";
 import {
   paperMaxAngleDeviationDeg,
@@ -126,6 +127,14 @@ export interface PhotoOverlay {
    * them; absent everywhere else.
    */
   readonly paperPartialCorners?: readonly (Point2 | null)[];
+  /**
+   * F10 (candidate 未拍板): the detector's rough quad around the bright region
+   * when it did not find all four corners (`guessCorners`), TL, TR, BR, BL in
+   * the same full-resolution pixels. Set only on that failure, ONLY as where
+   * the frame the person adjusts starts (every corner of it still to be
+   * confirmed); nothing is measured from it.
+   */
+  readonly paperGuessCorners?: readonly [Point2, Point2, Point2, Point2];
 }
 
 export type PipelineResult =
@@ -228,6 +237,16 @@ export interface RunPhotoPipelineInput {
     readonly corners: Quad4;
     readonly source: "adjusted" | "manual";
   };
+  /**
+   * F10 item 2 (R6 F1, candidate 未拍板): read only with `manualPaperCorners`.
+   * The focal length this same photo's automatic run used (EXIF, or a
+   * reliable homography estimate on the detector's corners), so a placed
+   * frame keeps the parallax correction that a few px of hand placement would
+   * otherwise switch off (R6: palm width +3.0 mm, hand length +4.9 mm,
+   * simulated). The photo's own EXIF still comes first. Ignored on the
+   * automatic path.
+   */
+  readonly reusedFocal?: ReusedFocal | null;
 }
 
 /** The steps `onStage` reports. */
@@ -796,8 +815,15 @@ async function runPaperEdgePipeline(
     }
     // The detector runs once, in the worker where there is one (F8), else
     // here: the same `detectPaperQuad`, the same pixels and arguments.
+    // `failureGuess` (F10): a photo that fails also says where the bright
+    // region was, for the frame the person adjusts; a found sheet's result is
+    // exactly what it was without it.
     const detected = await getAnalysisRunner().run(
-      { kind: "paper", paperSize, options: { focalPxHint } },
+      {
+        kind: "paper",
+        paperSize,
+        options: { focalPxHint, failureGuess: true },
+      },
       frame,
       reread,
     );
@@ -852,6 +878,15 @@ async function runPaperEdgePipeline(
       const partial = quad.paperRegionFound
         ? quad.partialCorners.map((p) => (p ? toFullFrame(p, crop) : null))
         : null;
+      // ...and the rough quad around the bright region (F10), a start only.
+      const guess = quad.guessCorners
+        ? (quad.guessCorners.map((p) => toFullFrame(p, crop)) as unknown as [
+            Point2,
+            Point2,
+            Point2,
+            Point2,
+          ])
+        : null;
       return {
         status: "error",
         errors: [failure],
@@ -861,6 +896,7 @@ async function runPaperEdgePipeline(
           ...(partial && partial.some((p) => p !== null)
             ? { paperPartialCorners: partial }
             : {}),
+          ...(guess ? { paperGuessCorners: guess } : {}),
         },
       };
     }
@@ -1039,6 +1075,7 @@ async function finishManualPaper(args: {
     decoded: { width: args.fullWidth, height: args.fullHeight },
     crop,
     readJpegBytes: async () => new Uint8Array(await input.file.arrayBuffer()),
+    ...(input.reusedFocal ? { reusedFocal: input.reusedFocal } : {}),
   });
   trace.parallaxCorrected = finish.parallaxCorrected;
   trace.focal = finish.focal;

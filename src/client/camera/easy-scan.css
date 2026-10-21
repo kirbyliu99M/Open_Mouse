@@ -1631,40 +1631,6 @@ main.easyScanShell {
   text-align: start;
 }
 
-/* The particle loader over the photo while it is analysed (V3.2 U1,
-   candidate): a dark veil with the cloud in the middle. It lets taps through
-   and fades in; the loader fades the whole veil out when it is done. */
-.easyProcessingLoader {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-  padding: 0;
-  background: rgb(6 7 9 / 0.72);
-  pointer-events: none;
-  animation: easyProcessingLoader-in 160ms ease-out;
-}
-@keyframes easyProcessingLoader-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-/* A failed analysis: the loader stays on the failure sheet, stopped and
-   dimmed, above the retry (scan S2, candidate). */
-.particleLoader.easyFailedLoader {
-  padding: 0 0 0.5rem;
-}
-.easyFailedLoader .particleLoader-canvas {
-  width: min(28vw, 6rem);
-}
-@media (prefers-reduced-transparency: reduce) {
-  .easyProcessingLoader {
-    background: #060709;
-  }
-}
-
 /* ── 手動調整邊框 (V3.2 F2, candidate, 未拍板) ─────────────────────────────
    A full-screen modal over the frozen photo. The same dark tokens and white
    pill as the result sheet; the measurement motif (a thin frame, end-tick

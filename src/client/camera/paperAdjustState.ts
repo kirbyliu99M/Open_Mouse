@@ -40,6 +40,7 @@ import type {
   RunPhotoPipelineInput,
 } from "../photo/pipeline";
 import type { ScanSubmission } from "../../lib/contracts/measurement";
+import type { ReusedFocal } from "../geometry/parallax";
 
 /** The screen's named sizes. CSS px unless said otherwise. */
 export const PAPER_ADJUST_LAYOUT = {
@@ -159,18 +160,6 @@ export function adjustWarningFor(result: AdjustableResult): "curled" | null {
 }
 
 /**
- * The first error's code the adjustment screen is opened with (F7): a
- * failure's first code (so `PAPER_NOT_FOUND` opens the centred A4 sheet at
- * 72 %, all four corners not placed, even when a partial detection left
- * corners in the overlay), nothing for a measured photo.
- */
-export function adjustFirstCodeFor(
-  result: AdjustableResult,
-): string | undefined {
-  return result.kind === "gateFailure" ? result.errors[0]?.code : undefined;
-}
-
-/**
  * The `paper` of the `scan_measured` event for a run: `none` with a typed
  * length (no sheet used), `adjusted` with a frame the person placed (rescue;
  * the contract has no `manual` there), else `detected`. Read when the run
@@ -273,6 +262,39 @@ export function frameMoved(
   });
 }
 
+// ── The focal length a placed frame keeps (F10 item 2) ─────────────────
+
+/**
+ * The focal length of a photo's automatic run that a frame placed on the same
+ * photo may keep (R6 F1, candidate 未拍板): EXIF, or the homography estimate
+ * the run judged reliable, with a finite positive value. `null` for none
+ * (`source` none: the placed frame then measures exactly as before).
+ */
+export function reusableFocal(
+  focal:
+    { readonly source: string; readonly px: number | null } | null | undefined,
+): ReusedFocal | null {
+  if (!focal || (focal.source !== "exif" && focal.source !== "homography"))
+    return null;
+  const px = focal.px;
+  if (px === null || !Number.isFinite(px) || !(px > 0)) return null;
+  return { fPx: px, source: focal.source };
+}
+
+/**
+ * What a run is told to reuse: only a run with a placed frame, and only the
+ * focal length of the automatic run of the very same file (a new photo has its
+ * own lens settings and its own run).
+ */
+export function reusedFocalFor<F>(input: {
+  readonly placedFrame: boolean;
+  readonly file: F;
+  readonly auto: { readonly file: F; readonly focal: ReusedFocal } | null;
+}): ReusedFocal | null {
+  if (!input.placedFrame || !input.auto) return null;
+  return input.auto.file === input.file ? input.auto.focal : null;
+}
+
 // ── Fitting the photo on screen ─────────────────────────────────────────
 
 export interface PhotoFit {
@@ -347,6 +369,19 @@ export interface DragState {
    * pointer comes back to where it pressed.
    */
   readonly moved: boolean;
+  /**
+   * Whether the press began on this corner's handle (`pointerDown` named it),
+   * not on the photo dragging the chosen corner. Only a tap on the handle
+   * itself confirms a rough-guess corner (review of F10).
+   */
+  readonly onHandle: boolean;
+  /** The frame as it was when the press began, for `dragCancel` (F10). */
+  readonly before: {
+    readonly corners: Quad4;
+    readonly placed: readonly [boolean, boolean, boolean, boolean];
+    readonly solved: readonly [boolean, boolean, boolean, boolean];
+    readonly notice: AdjustNotice | null;
+  };
 }
 
 export interface EdgeMarkState {
@@ -376,6 +411,8 @@ export type AdjustNotice =
 export interface AdjustState {
   readonly entry: AdjustEntry;
   readonly image: FrameSize;
+  /** The sheet's size, for the centred frame (`centre`, F10). */
+  readonly paperSize: PaperSize;
   /** The frame the screen opened with (`reset` goes back to it). */
   readonly start: DefaultAdjustFrame;
   readonly corners: Quad4;
@@ -405,10 +442,12 @@ const NONE_SOLVED = [false, false, false, false] as const;
  *   frame again, every corner placed (F7: the corners are kept). Its source
  *   stays what it was: a frame first placed from the detector's corners is
  *   `adjusted`, one placed where it had none `manual`.
- * - `rescue` after `PAPER_NOT_FOUND` (`firstCode`): the centred sheet (72 %
- *   of the photo's width), every corner not placed, to be dragged (F7).
- * - otherwise (`rescue`, `review`) what the detector found
- *   (`defaultAdjustFrame`): for `review`, the four corners it measured with.
+ * - otherwise (`rescue`, `review`) the best guess there is
+ *   (`defaultAdjustFrame`): for `review`, the four corners it measured with;
+ *   after a failure, the corners it found, else its rough quad around the
+ *   bright region (`paperGuessCorners`, F10: also after `PAPER_NOT_FOUND`,
+ *   which F7 opened on the centred sheet), else the centred sheet. Corners
+ *   that are only a guess start not placed.
  */
 export function startAdjust(input: {
   readonly entry: AdjustEntry;
@@ -416,8 +455,6 @@ export function startAdjust(input: {
   readonly paperSize: PaperSize;
   /** The frame the run on screen was given, when the person placed one. */
   readonly previous?: PlacedFrame | null;
-  /** The first reason the photo was turned back. */
-  readonly firstCode?: string;
 }): AdjustState {
   const image = {
     width: input.overlay.imageWidth,
@@ -450,17 +487,20 @@ export function startAdjust(input: {
             // adjusted, anything else manual.
             from: previous.source === "adjusted" ? "detected" : "centred",
           }
-        : input.entry === "rescue" && input.firstCode === "PAPER_NOT_FOUND"
-          ? centred
-          : defaultAdjustFrame({
-              corners: input.overlay.paperCorners ?? null,
-              partialCorners: input.overlay.paperPartialCorners ?? null,
-              image,
-              paperSize: input.paperSize,
-            });
+        : defaultAdjustFrame({
+            corners: input.overlay.paperCorners ?? null,
+            partialCorners: input.overlay.paperPartialCorners ?? null,
+            guessCorners:
+              input.entry === "rescue"
+                ? (input.overlay.paperGuessCorners ?? null)
+                : null,
+            image,
+            paperSize: input.paperSize,
+          });
   return {
     entry: input.entry,
     image,
+    paperSize: input.paperSize,
     start,
     corners: start.corners,
     placed: start.detected,
@@ -502,12 +542,32 @@ export type AdjustAction =
   /** A tap on the photo while marking edges (photo px). */
   | { readonly type: "edgeTap"; readonly point: Point2 }
   | { readonly type: "edgeCancel" }
-  | { readonly type: "reset" };
+  | { readonly type: "reset" }
+  /**
+   * F10 (rescue only): start again from the centred sheet, every corner not
+   * placed, for when the opening guess is plainly wrong. It becomes the
+   * opening frame (`reset` then goes back to it).
+   */
+  | { readonly type: "centre" }
+  /**
+   * F10: a second finger came down during a corner drag (a pinch begins): the
+   * corner goes back to where the drag started, as if it never moved.
+   */
+  | { readonly type: "dragCancel" };
 
-function clampToImage(p: Point2, image: FrameSize): Point2 {
+/**
+ * A dragged or nudged corner may go past the photo's edge (F10, R6 F2: a sheet
+ * corner just out of frame), as far as `checkManualQuad` allows
+ * (`MANUAL_QUAD_LIMITS.maxOutsideFraction` of the photo's width or height),
+ * and no further. Clamping it to the edge instead widened the palm by 1.0 mm
+ * with the corner 2 % out (R6 E3, simulated).
+ */
+export function clampToAllowed(p: Point2, image: FrameSize): Point2 {
+  const mx = image.width * MANUAL_QUAD_LIMITS.maxOutsideFraction;
+  const my = image.height * MANUAL_QUAD_LIMITS.maxOutsideFraction;
   return {
-    x: Math.min(image.width, Math.max(0, p.x)),
-    y: Math.min(image.height, Math.max(0, p.y)),
+    x: Math.min(image.width + mx, Math.max(-mx, p.x)),
+    y: Math.min(image.height + my, Math.max(-my, p.y)),
   };
 }
 
@@ -576,8 +636,22 @@ export function adjustReducer(
   action: AdjustAction,
 ): AdjustState {
   switch (action.type) {
-    case "select":
-      return { ...state, selected: action.index, notice: null };
+    case "select": {
+      // A corner of the rough guess (F10) is confirmed by a tap: the person
+      // has looked at it and it is on the paper's corner. (A centred start or
+      // the partial frame's inset guess is not: those must be moved.)
+      const confirm =
+        state.start.from === "guess" && !state.placed[action.index];
+      const placed = confirm
+        ? (state.placed.map((p, i) => p || i === action.index) as unknown as [
+            boolean,
+            boolean,
+            boolean,
+            boolean,
+          ])
+        : state.placed;
+      return { ...state, selected: action.index, notice: null, placed };
+    }
     case "pointerDown": {
       if (state.drag) return state; // one pointer at a time
       const index = action.index ?? state.selected;
@@ -594,6 +668,13 @@ export function adjustReducer(
           pointer: action.point,
           startCorner: state.corners[index],
           moved: false,
+          onHandle: action.index !== null,
+          before: {
+            corners: state.corners,
+            placed: state.placed,
+            solved: state.solved,
+            notice: state.notice,
+          },
         },
       };
     }
@@ -601,7 +682,7 @@ export function adjustReducer(
       const drag = state.drag;
       if (!drag || drag.pointerId !== action.pointerId || !(action.scale > 0))
         return state;
-      const corner = clampToImage(
+      const corner = clampToAllowed(
         {
           x:
             drag.startCorner.x +
@@ -625,10 +706,29 @@ export function adjustReducer(
       };
       return moved ? withCorner(next, drag.index, corner) : next;
     }
-    case "pointerUp":
-      return state.drag?.pointerId === action.pointerId
-        ? { ...state, drag: null }
-        : state;
+    case "pointerUp": {
+      const drag = state.drag;
+      if (drag?.pointerId !== action.pointerId) return state;
+      // A press on a corner of the rough guess that never moved is a tap, and
+      // a tap confirms it, as `select` does. The handle's own click cannot
+      // be relied on for this: the stage captures the pointer at the press,
+      // so the browser sends the click to the stage, not the handle (review
+      // of F10). A tap on the photo away from every handle (`pointerDown`
+      // with no index) only moves the chosen corner, so it confirms nothing,
+      // even when that corner is a guess still waiting to be confirmed.
+      if (
+        drag.onHandle &&
+        !drag.moved &&
+        state.start.from === "guess" &&
+        !state.placed[drag.index]
+      ) {
+        const placed = state.placed.map(
+          (p, i) => p || i === drag.index,
+        ) as unknown as [boolean, boolean, boolean, boolean];
+        return { ...state, drag: null, placed };
+      }
+      return { ...state, drag: null };
+    }
     case "nudge": {
       if (!(action.scale > 0) || (action.dx === 0 && action.dy === 0))
         return state;
@@ -640,7 +740,7 @@ export function adjustReducer(
       return withCorner(
         { ...state, selected: action.index, notice: null },
         action.index,
-        clampToImage(
+        clampToAllowed(
           { x: c.x + action.dx * step, y: c.y + action.dy * step },
           state.image,
         ),
@@ -702,6 +802,37 @@ export function adjustReducer(
     }
     case "edgeCancel":
       return { ...state, edge: null, notice: null };
+    case "centre": {
+      if (state.entry !== "rescue") return state;
+      const start: DefaultAdjustFrame = {
+        corners: centredPaperFrame(state.image, state.paperSize),
+        detected: [false, false, false, false],
+        from: "centred",
+      };
+      return {
+        ...state,
+        start,
+        corners: start.corners,
+        placed: start.detected,
+        solved: NONE_SOLVED,
+        selected: null,
+        drag: null,
+        edge: null,
+        notice: null,
+      };
+    }
+    case "dragCancel": {
+      const drag = state.drag;
+      if (!drag) return state;
+      return {
+        ...state,
+        corners: drag.before.corners,
+        placed: drag.before.placed,
+        solved: drag.before.solved,
+        notice: drag.before.notice,
+        drag: null,
+      };
+    }
     case "reset":
       return {
         ...state,
@@ -809,6 +940,254 @@ export function adjustReadiness(state: AdjustState): AdjustReadiness {
   };
 }
 
+// ── Zoom and pan (F10) ──────────────────────────────────────────────────
+//
+// Kirby's second phone test (2026-10-21/22): 「手動調整後要放大」. The screen
+// opens zoomed so the frame it starts with fills the stage (with room for the
+// handles), two fingers zoom and move the photo, one finger still drags a
+// corner, and a double tap or a button shows the whole photo. A view is only
+// how the photo is shown: it is a `PhotoFit` like the whole-photo one
+// (`fitPhoto`), so `toScreen` / `toImage` convert through it unchanged, and
+// the corners stay in the photo's pixels whatever the zoom.
+
+/** The view's named limits (candidates). */
+export const PAPER_ADJUST_VIEW = {
+  /** The closest zoom, as a multiple of the whole-photo scale. */
+  maxZoom: 6,
+  /**
+   * Room kept between the frame's outermost corners and the stage's edge when
+   * the view opens on the frame, beyond half a handle (so every handle is
+   * whole, reachable, and has some photo around it to drag into).
+   */
+  sheetMarginPx: 24,
+  /** Two taps on the photo this close in time (ms) and place (px) are a double tap. */
+  doubleTapMs: 300,
+  doubleTapPx: 24,
+  /** A mouse wheel's zoom: the factor per 100 px of scroll. */
+  wheelFactorPer100Px: 1.25,
+} as const;
+
+/**
+ * The whole photo and the band around it where a corner may lie
+ * (`maxOutsideFraction`, F2), inset by half a handle: the view a double tap
+ * goes back to. Fitting the band too keeps a corner dragged off the photo on
+ * the stage, with its handle whole (review of F10: fitting the photo alone
+ * put such a handle past the stage's clipped edge).
+ */
+export function wholeView(image: FrameSize, stage: FrameSize): PhotoFit {
+  const out = MANUAL_QUAD_LIMITS.maxOutsideFraction;
+  const fit = fitPhoto(
+    {
+      width: image.width * (1 + 2 * out),
+      height: image.height * (1 + 2 * out),
+    },
+    stage,
+    PAPER_ADJUST_LAYOUT.handleTargetPx / 2,
+  );
+  if (fit.width === 0) return fit;
+  // Centred, written as `clampView` centres an axis, so that clamping the
+  // whole view gives it back exactly.
+  return viewAt(
+    image,
+    fit.scale,
+    (stage.width - image.width * fit.scale) / 2,
+    (stage.height - image.height * fit.scale) / 2,
+  );
+}
+
+function viewAt(
+  image: FrameSize,
+  scale: number,
+  offsetX: number,
+  offsetY: number,
+): PhotoFit {
+  return {
+    scale,
+    offsetX,
+    offsetY,
+    width: image.width * scale,
+    height: image.height * scale,
+  };
+}
+
+/**
+ * A view kept sensible: its scale between the whole photo's and `maxZoom`
+ * times that; along each axis the photo is centred while it (with the band
+ * beyond it and the handle inset) fits on the stage, and otherwise it may be
+ * moved only so far that the
+ * stage still shows the photo or the band beyond it where a corner may lie
+ * (`maxOutsideFraction`), never empty space past that.
+ */
+export function clampView(
+  view: PhotoFit,
+  image: FrameSize,
+  stage: FrameSize,
+): PhotoFit {
+  const base = wholeView(image, stage);
+  if (!(base.scale > 0)) return base;
+  const scale = Math.min(
+    Math.max(view.scale, base.scale),
+    base.scale * PAPER_ADJUST_VIEW.maxZoom,
+  );
+  const inset = PAPER_ADJUST_LAYOUT.handleTargetPx / 2;
+  const out = MANUAL_QUAD_LIMITS.maxOutsideFraction;
+  const axis = (offset: number, length: number, room: number) => {
+    const drawn = length * scale;
+    const band = length * out * scale;
+    // The photo and its band on both sides fit: centred (as the whole view).
+    // (A rounding margin: the whole view fills one axis exactly.)
+    if (drawn + 2 * band + 2 * inset <= room + 1e-9) return (room - drawn) / 2;
+    const lo = room - inset - drawn - band;
+    const hi = inset + band;
+    return Math.min(Math.max(offset, lo), hi);
+  };
+  return viewAt(
+    image,
+    scale,
+    axis(view.offsetX, image.width, stage.width),
+    axis(view.offsetY, image.height, stage.height),
+  );
+}
+
+/**
+ * The view the screen opens with (F10): the frame's four corners filling the
+ * stage, `sheetMarginPx` plus half a handle from its edges, centred, never
+ * smaller than the whole photo nor closer than `maxZoom`.
+ */
+export function sheetView(
+  image: FrameSize,
+  stage: FrameSize,
+  quad: Quad4,
+): PhotoFit {
+  const base = wholeView(image, stage);
+  if (!(base.scale > 0)) return base;
+  const xs = quad.map((p) => p.x);
+  const ys = quad.map((p) => p.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  if (![minX, maxX, minY, maxY].every(Number.isFinite)) return base;
+  const pad =
+    PAPER_ADJUST_LAYOUT.handleTargetPx / 2 + PAPER_ADJUST_VIEW.sheetMarginPx;
+  const roomW = stage.width - 2 * pad;
+  const roomH = stage.height - 2 * pad;
+  const bw = Math.max(maxX - minX, 1);
+  const bh = Math.max(maxY - minY, 1);
+  const target =
+    roomW > 0 && roomH > 0 ? Math.min(roomW / bw, roomH / bh) : base.scale;
+  const scale = Math.min(
+    Math.max(target, base.scale),
+    base.scale * PAPER_ADJUST_VIEW.maxZoom,
+  );
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  return clampView(
+    viewAt(
+      image,
+      scale,
+      stage.width / 2 - cx * scale,
+      stage.height / 2 - cy * scale,
+    ),
+    image,
+    stage,
+  );
+}
+
+/** Whether a view shows the whole photo (as a double tap leaves it). */
+export function isWholeView(
+  view: PhotoFit,
+  image: FrameSize,
+  stage: FrameSize,
+): boolean {
+  const base = wholeView(image, stage);
+  return Math.abs(view.scale - base.scale) <= base.scale * 1e-6;
+}
+
+/** `view` zoomed by `factor` about the screen point `at` (a wheel, a button): the photo point under it stays under it. */
+export function zoomViewAt(
+  view: PhotoFit,
+  factor: number,
+  at: Point2,
+  image: FrameSize,
+  stage: FrameSize,
+): PhotoFit {
+  if (!(factor > 0) || !(view.scale > 0)) return view;
+  const p = toImage(at, view);
+  const base = wholeView(image, stage);
+  const scale = Math.min(
+    Math.max(view.scale * factor, base.scale),
+    base.scale * PAPER_ADJUST_VIEW.maxZoom,
+  );
+  return clampView(
+    viewAt(image, scale, at.x - p.x * scale, at.y - p.y * scale),
+    image,
+    stage,
+  );
+}
+
+/**
+ * Two fingers (F10): from the view when they came down (`start`, with both
+ * fingers' points then) to where they are now. The distance between them
+ * scales the photo, their midpoint carries it: the photo point that was under
+ * the starting midpoint is under the current one.
+ */
+export function pinchView(input: {
+  readonly start: PhotoFit;
+  readonly from: readonly [Point2, Point2];
+  readonly to: readonly [Point2, Point2];
+  readonly image: FrameSize;
+  readonly stage: FrameSize;
+}): PhotoFit {
+  const { start, from, to } = input;
+  const d0 = Math.hypot(from[1].x - from[0].x, from[1].y - from[0].y);
+  const d1 = Math.hypot(to[1].x - to[0].x, to[1].y - to[0].y);
+  const factor = d0 > 0 && d1 > 0 ? d1 / d0 : 1;
+  const mid0 = {
+    x: (from[0].x + from[1].x) / 2,
+    y: (from[0].y + from[1].y) / 2,
+  };
+  const mid1 = { x: (to[0].x + to[1].x) / 2, y: (to[0].y + to[1].y) / 2 };
+  if (!(start.scale > 0)) return start;
+  const p = toImage(mid0, start);
+  const base = wholeView(input.image, input.stage);
+  const scale = Math.min(
+    Math.max(start.scale * factor, base.scale),
+    base.scale * PAPER_ADJUST_VIEW.maxZoom,
+  );
+  return clampView(
+    viewAt(input.image, scale, mid1.x - p.x * scale, mid1.y - p.y * scale),
+    input.image,
+    input.stage,
+  );
+}
+
+/** A tap on the photo: when and where. */
+export interface StageTap {
+  readonly at: number;
+  readonly point: Point2;
+}
+
+/** Whether `now` is the second tap of a double tap after `previous` (F10). */
+export function isDoubleTap(previous: StageTap | null, now: StageTap): boolean {
+  if (!previous) return false;
+  const dt = now.at - previous.at;
+  return (
+    dt >= 0 &&
+    dt <= PAPER_ADJUST_VIEW.doubleTapMs &&
+    Math.hypot(
+      now.point.x - previous.point.x,
+      now.point.y - previous.point.y,
+    ) <= PAPER_ADJUST_VIEW.doubleTapPx
+  );
+}
+
+/** The mouse wheel's zoom factor for a scroll of `deltaY` px (up zooms in). */
+export function wheelZoomFactor(deltaY: number): number {
+  if (!Number.isFinite(deltaY)) return 1;
+  return Math.pow(PAPER_ADJUST_VIEW.wheelFactorPer100Px, -deltaY / 100);
+}
+
 // ── Names, the magnifier, the corner check ──────────────────────────────
 
 /**
@@ -843,15 +1222,34 @@ export interface MagnifierLayout {
   readonly backgroundX: number;
   readonly backgroundY: number;
   /** Which side of the pointer it went to. */
-  readonly side: "above" | "left" | "right" | "below";
+  readonly side: MagnifierSide;
 }
 
-interface Placement {
+export type MagnifierSide = "above" | "left" | "right" | "below";
+
+/** Where the magnifier is: what the next frame's placement is given back (`magnifierPlacement`). */
+export interface MagnifierPlacement {
   readonly left: number;
   readonly top: number;
   readonly size: number;
-  readonly side: MagnifierLayout["side"];
+  readonly side: MagnifierSide;
 }
+
+/**
+ * The magnifier's edge rules (F10, Kirby's second phone test 2026-10-21/22:
+ * 「放大鏡會左右跳動，要溢出邊界一些些，緩衝後再切換」), candidates:
+ *
+ * - `overflowPx`: it may run past the stage's edge by at most this much (it is
+ *   clipped there), rather than jump to the other side.
+ * - `switchPx`: it keeps the side it is on until staying there would put it
+ *   more than this far past the edge (hysteresis); only then does it change
+ *   side. Coming back above the finger (the side preferred, the hand holding
+ *   the phone is below) needs the same room to spare.
+ */
+export const MAGNIFIER_EDGE = {
+  overflowPx: 12,
+  switchPx: 24,
+} as const;
 
 /** The diameters tried, largest first. */
 const MAGNIFIER_SIZES = [
@@ -862,100 +1260,168 @@ const MAGNIFIER_SIZES = [
   64,
 ] as const;
 
-/**
- * A place for a magnifier of `size` clear of the finger: above, else beside
- * (the roomier side), else below. `strict`: `null` when none of them fits
- * inside the stage; otherwise the last resort is clamped into it.
- */
-function placeMagnifier(
+/** A magnifier of `size` on `side` of the pointer, clear of the finger, before any clamping. */
+function naturalBox(
   pointer: Point2,
-  stage: FrameSize,
   size: number,
-  strict: boolean,
-): Placement | null {
+  side: MagnifierSide,
+): { left: number; top: number } {
   const L = PAPER_ADJUST_LAYOUT;
   const clear = L.fingerRadiusPx + L.fingerGapPx + size / 2;
   const { x, y } = pointer;
-  const minX = L.edgeMarginPx;
-  const maxX = stage.width - L.edgeMarginPx - size;
-  const minY = L.edgeMarginPx;
-  const maxY = stage.height - L.edgeMarginPx - size;
-  if (maxX < minX || maxY < minY) {
-    return strict
-      ? null
-      : {
-          left: Math.max(0, minX),
-          top: Math.max(0, minY),
-          size,
-          side: "below",
-        };
+  switch (side) {
+    case "above":
+      return { left: x - size / 2, top: y - clear - size / 2 };
+    case "below":
+      return { left: x - size / 2, top: y + clear - size / 2 };
+    case "left":
+      return { left: x - clear - size / 2, top: y - size / 2 };
+    case "right":
+      return { left: x + clear - size / 2, top: y - size / 2 };
   }
-  const clampX = (v: number) => Math.min(Math.max(v, minX), maxX);
-  const clampY = (v: number) => Math.min(Math.max(v, minY), maxY);
-  const aboveTop = y - clear - size / 2;
-  if (aboveTop >= minY && aboveTop <= maxY)
-    return { left: clampX(x - size / 2), top: aboveTop, size, side: "above" };
-  const rightLeft = x + clear - size / 2;
-  const leftLeft = x - clear - size / 2;
-  const fitsRight = rightLeft >= minX && rightLeft <= maxX;
-  const fitsLeft = leftLeft >= minX && leftLeft <= maxX;
-  if (fitsRight || fitsLeft) {
-    const roomRight = maxX - rightLeft;
-    const roomLeft = leftLeft - minX;
-    const right = fitsRight && (!fitsLeft || roomRight >= roomLeft);
-    return {
-      left: right ? rightLeft : leftLeft,
-      top: clampY(y - size / 2),
-      size,
-      side: right ? "right" : "left",
-    };
+}
+
+/**
+ * How far past the stage's edge the box would go on its own side's axis (the
+ * axis it was moved along to clear the finger); 0 when it is inside. The
+ * other axis is only clamped, which moves it away from the finger, never
+ * under it.
+ */
+function ownOverflow(
+  box: { left: number; top: number },
+  size: number,
+  side: MagnifierSide,
+  stage: FrameSize,
+): number {
+  switch (side) {
+    case "above":
+      return Math.max(0, -box.top);
+    case "below":
+      return Math.max(0, box.top + size - stage.height);
+    case "left":
+      return Math.max(0, -box.left);
+    case "right":
+      return Math.max(0, box.left + size - stage.width);
   }
-  const belowTop = y + clear - size / 2;
-  if (belowTop >= minY && belowTop <= maxY)
-    return { left: clampX(x - size / 2), top: belowTop, size, side: "below" };
-  return strict
-    ? null
-    : {
-        left: clampX(x - size / 2),
-        top: clampY(belowTop),
-        size,
-        side: "below",
-      };
+}
+
+/** Free room between the box and the stage's edge on its own side (negative past the edge). */
+function ownRoom(
+  box: { left: number; top: number },
+  size: number,
+  side: MagnifierSide,
+  stage: FrameSize,
+): number {
+  switch (side) {
+    case "above":
+      return box.top;
+    case "below":
+      return stage.height - (box.top + size);
+    case "left":
+      return box.left;
+    case "right":
+      return stage.width - (box.left + size);
+  }
+}
+
+/** The box kept within `overflowPx` of the stage on both axes. */
+function clampBox(
+  box: { left: number; top: number },
+  size: number,
+  side: MagnifierSide,
+  stage: FrameSize,
+): MagnifierPlacement {
+  const o = MAGNIFIER_EDGE.overflowPx;
+  const clampTo = (v: number, lo: number, hi: number) =>
+    hi < lo ? (lo + hi) / 2 : Math.min(Math.max(v, lo), hi);
+  return {
+    left: clampTo(box.left, -o, stage.width + o - size),
+    top: clampTo(box.top, -o, stage.height + o - size),
+    size,
+    side,
+  };
+}
+
+/**
+ * Where the magnifier goes for a pointer (F10, pure): the side it was on last
+ * frame (`previous`) while that side stays within `switchPx` of the edge;
+ * otherwise (or on the first frame) above the finger, else beside it on the
+ * roomier side, else below, each allowed to run `overflowPx` past the edge,
+ * at the largest size that fits; and from beside or below it goes back above
+ * only once above has `switchPx` to spare. So a finger moving back and forth
+ * near an edge, or across the middle of the screen, does not make it change
+ * side on every frame. It is always clear of the finger's disc
+ * (`fingerGapPx` - `overflowPx` of gap at the least).
+ */
+export function magnifierPlacement(input: {
+  readonly pointer: Point2;
+  readonly stage: FrameSize;
+  readonly previous?: MagnifierPlacement | null;
+}): MagnifierPlacement {
+  const { pointer, stage } = input;
+  const E = MAGNIFIER_EDGE;
+  const prev = input.previous ?? null;
+  if (prev) {
+    const size = prev.size;
+    if (prev.side !== "above") {
+      const above = naturalBox(pointer, size, "above");
+      if (ownRoom(above, size, "above", stage) >= E.switchPx)
+        return clampBox(above, size, "above", stage);
+    }
+    const kept = naturalBox(pointer, size, prev.side);
+    if (ownOverflow(kept, size, prev.side, stage) <= E.switchPx)
+      return clampBox(kept, size, prev.side, stage);
+  }
+  for (const size of MAGNIFIER_SIZES) {
+    if (size > Math.min(stage.width, stage.height) + 2 * E.overflowPx) continue;
+    const fits = (side: MagnifierSide) =>
+      ownOverflow(naturalBox(pointer, size, side), size, side, stage) <=
+      E.overflowPx;
+    if (fits("above"))
+      return clampBox(naturalBox(pointer, size, "above"), size, "above", stage);
+    const right = fits("right");
+    const left = fits("left");
+    if (right || left) {
+      const side: MagnifierSide =
+        right &&
+        (!left ||
+          ownRoom(naturalBox(pointer, size, "right"), size, "right", stage) >=
+            ownRoom(naturalBox(pointer, size, "left"), size, "left", stage))
+          ? "right"
+          : "left";
+      return clampBox(naturalBox(pointer, size, side), size, side, stage);
+    }
+    if (fits("below"))
+      return clampBox(naturalBox(pointer, size, "below"), size, "below", stage);
+  }
+  const size = MAGNIFIER_SIZES[MAGNIFIER_SIZES.length - 1];
+  return clampBox(naturalBox(pointer, size, "below"), size, "below", stage);
 }
 
 /**
  * Where the magnifier goes while a corner is dragged, and what it shows.
  *
  * It shows the CORNER (not the pointer: the drag is relative), at
- * `magnifierZoom` times the photo's on-screen size, centred under its
- * crosshair. It goes above the pointer, clear of the finger's disc (the hand
- * holding the phone is below the finger); if there is no room above, beside
- * it, on whichever side has more room; below only as a last resort. It always
- * stays inside the stage.
+ * `magnifierZoom` times the photo's on-screen size (as the photo is shown
+ * now, zoomed or not), centred under its crosshair. Where it goes is
+ * `magnifierPlacement` (above the finger, beside it, below only as a last
+ * resort; F10: with hysteresis, and up to `MAGNIFIER_EDGE.overflowPx` past
+ * the stage's edge).
  */
 export function magnifierLayout(input: {
   readonly pointer: Point2;
   readonly corner: Point2;
   readonly fit: PhotoFit;
   readonly stage: FrameSize;
+  /** Where it was on the previous frame of this drag (F10). */
+  readonly previous?: MagnifierPlacement | null;
 }): MagnifierLayout {
-  const L = PAPER_ADJUST_LAYOUT;
-  // The full size where it fits clear of the finger; smaller on a stage too
-  // short for it (a 320 px phone with its bars), never under the finger.
-  let placed: Placement | null = null;
-  for (const size of MAGNIFIER_SIZES) {
-    placed = placeMagnifier(input.pointer, input.stage, size, true);
-    if (placed) break;
-  }
-  const { left, top, size, side } =
-    placed ??
-    placeMagnifier(
-      input.pointer,
-      input.stage,
-      MAGNIFIER_SIZES[MAGNIFIER_SIZES.length - 1],
-      false,
-    )!;
-  const z = L.magnifierZoom;
+  const { left, top, size, side } = magnifierPlacement({
+    pointer: input.pointer,
+    stage: input.stage,
+    previous: input.previous,
+  });
+  const z = PAPER_ADJUST_LAYOUT.magnifierZoom;
   const cornerOnPhoto = {
     x: input.corner.x * input.fit.scale,
     y: input.corner.y * input.fit.scale,

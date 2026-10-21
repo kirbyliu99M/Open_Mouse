@@ -37,6 +37,7 @@ import {
   REFERENCE_LANDMARK_HEIGHTS_MM,
   type FocalSource,
   resolveFocalPx,
+  type ReusedFocal,
 } from "./parallax";
 
 /** MediaPipe Hand Landmarker: 21 joint-centre landmarks, image pixels. */
@@ -278,6 +279,12 @@ export interface CorrectedMeasurementsOptions {
    * then a single pass is made at exactly these heights.
    */
   readonly heightsMm?: readonly number[];
+  /**
+   * F10 (candidate): the same photo's focal length from its automatic run,
+   * for a frame the person placed (`resolveFocalPx`'s `reusedFocal`). Never
+   * passed on the automatic path.
+   */
+  readonly reusedFocal?: ReusedFocal | null;
 }
 
 export interface CorrectedMeasurementsResult {
@@ -316,6 +323,7 @@ export function computeCorrectedHandMeasurements(
     exifFocalPx: options.exifFocalPx,
     homography,
     principalPoint,
+    reusedFocal: options.reusedFocal,
   });
 
   if (resolved.fPx === null) {

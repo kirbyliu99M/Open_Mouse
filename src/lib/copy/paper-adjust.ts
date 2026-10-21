@@ -24,6 +24,20 @@ export interface PaperAdjustCopy {
   instructionDetected: string;
   /** ...when some corners are only a starting guess. */
   instructionGuess: string;
+  /**
+   * ...when the frame is the detector's rough guess around the bright region
+   * (F10): each corner is confirmed with a tap, or dragged.
+   */
+  instructionRough: string;
+  /** How to zoom and move the photo (F10). */
+  gestureHint: string;
+  /** F10: show the whole photo, and zoom back onto the frame. */
+  wholePhoto: string;
+  zoomToFrame: string;
+  /** F10 (rescue): start again from the centred frame. */
+  centreFrame: string;
+  /** A corner of the rough guess not yet confirmed (F10). */
+  notConfirmed: (corner: string) => string;
   /** The four corners as the person sees them, top left first, clockwise. */
   cornerNames: readonly [string, string, string, string];
   /** A handle's accessible name. */
@@ -86,6 +100,14 @@ export const zhTW: PaperAdjustCopy = {
   instructionDetected: "把四個角對準紙的四個角。拖曳時會出現放大鏡。",
   instructionGuess:
     "把空心的角拖到紙角上；被手遮住的角，可以改用「這個角被手遮住」。",
+  instructionRough:
+    "我們先大致框出紙張了。逐一檢查四個角：對準了就點一下確認，沒對準就拖到紙角上。",
+  gestureHint: "兩指可以縮放、移動照片；點兩下看整張照片。",
+  wholePhoto: "看整張照片",
+  zoomToFrame: "放大到邊框",
+  centreFrame: "改用置中框",
+  notConfirmed: (corner) =>
+    `${corner}還沒確認。對準了就點一下，沒對準就拖到紙角上。`,
   cornerNames: ["左上角", "右上角", "右下角", "左下角"],
   handleLabel: (corner) => corner,
   handleNotPlaced: "，還沒對齊",
@@ -148,6 +170,15 @@ export const en: PaperAdjustCopy = {
     "Line the four corners up with the paper's corners. A magnifier appears while you drag.",
   instructionGuess:
     "Drag the hollow corners onto the paper's corners. If your hand covers a corner, use “My hand covers this corner”.",
+  instructionRough:
+    "We've roughly framed the sheet for you. Check each corner: tap it if it's on the paper's corner, or drag it there.",
+  gestureHint:
+    "Pinch or drag with two fingers to zoom and move the photo; double-tap to see all of it.",
+  wholePhoto: "Show the whole photo",
+  zoomToFrame: "Zoom to the frame",
+  centreFrame: "Start from a centred frame",
+  notConfirmed: (corner) =>
+    `The ${corner.toLowerCase()} isn't confirmed yet. Tap it if it's on the paper's corner, or drag it there.`,
   cornerNames: [
     "Top-left corner",
     "Top-right corner",
