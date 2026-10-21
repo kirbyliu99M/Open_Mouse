@@ -124,6 +124,52 @@ export function adjustEntryFor(
   return null;
 }
 
+/**
+ * The `paper` of the `scan_measured` event for a run: `none` with a typed
+ * length (no sheet used), `adjusted` with a frame the person placed (rescue;
+ * the contract has no `manual` there), else `detected`. Read when the run
+ * starts, so a choice made while the photo is analysed cannot change it.
+ */
+export function scanMeasuredPaper(input: {
+  readonly typedLength: boolean;
+  readonly placedFrame: boolean;
+}): "none" | "adjusted" | "detected" {
+  if (input.typedLength) return "none";
+  return input.placedFrame ? "adjusted" : "detected";
+}
+
+/**
+ * What confirming the adjustment does, from the entry that was open and the
+ * result on screen now:
+ *
+ * - `recordCheck`: the corner check on a measured photo with the detector's
+ *   corners: record how far each placed corner is from them, nothing else.
+ * - `rerun`: a rescue on a photo still turned back, with the file at hand:
+ *   the same pipeline again, on the same file, with the frame.
+ * - `none`: anything else (the result changed meanwhile, no file, no entry):
+ *   nothing runs, and no measurement changes.
+ */
+export type AdjustConfirmAction =
+  | { readonly kind: "recordCheck"; readonly detected: Quad4 }
+  | { readonly kind: "rerun" }
+  | { readonly kind: "none" };
+
+export function adjustConfirmAction(input: {
+  readonly entry: AdjustEntry | null;
+  readonly result: AdjustableResult;
+  readonly hasFile: boolean;
+}): AdjustConfirmAction {
+  const { entry, result } = input;
+  if (entry === "check") {
+    const detected =
+      result.kind === "measured" ? result.overlay.paperCorners : null;
+    return detected ? { kind: "recordCheck", detected } : { kind: "none" };
+  }
+  if (entry === "rescue" && result.kind === "gateFailure" && input.hasFile)
+    return { kind: "rerun" };
+  return { kind: "none" };
+}
+
 // ── Fitting the photo on screen ─────────────────────────────────────────
 
 export interface PhotoFit {

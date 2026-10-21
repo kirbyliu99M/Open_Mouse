@@ -12,12 +12,20 @@ import { describe, expect, it } from "vitest";
 import { PaperAdjust } from "../../src/client/camera/PaperAdjust";
 import {
   PAPER_ADJUST_LAYOUT,
+  adjustConfirmAction,
   adjustReducer,
   fitPhoto,
+  scanMeasuredPaper,
   startAdjust,
   toScreen,
+  type AdjustableResult,
   type AdjustState,
 } from "../../src/client/camera/paperAdjustState";
+import { analyticsEventSchemas } from "../../src/lib/contracts/analytics";
+import {
+  MEASUREMENT_MODEL_VERSION,
+  scanSubmissionSchema,
+} from "../../src/lib/contracts/measurement";
 import type { PhotoOverlay } from "../../src/client/photo/pipeline";
 import type { Quad4 } from "../../src/client/paper/manualQuad";
 import { paperAdjustCopy } from "../../src/lib/copy/paper-adjust";
@@ -286,39 +294,148 @@ describe("where the camera offers it (EasyScanCamera.tsx)", () => {
     );
   });
 
-  it("the rescue button is in the failure sheet only, under 再拍一次; the check in the measured sheet only", () => {
-    const failure = source.slice(
-      source.indexOf('className="primaryButton easyTryAgainButton"'),
-    );
-    const rescue = source.indexOf('adjustEntry === "rescue"');
-    const check = source.indexOf('adjustEntry === "check"');
-    const measured = source.indexOf('{result.kind === "measured" ? (');
-    const failureSheet = source.indexOf(
-      'className="easySheetTitle easySheetTitleError"',
-    );
-    expect(rescue).toBeGreaterThan(failureSheet);
-    expect(failure.indexOf('adjustEntry === "rescue"')).toBeGreaterThan(0);
-    expect(check).toBeGreaterThan(measured);
-    expect(check).toBeLessThan(failureSheet);
+  it("each button is drawn on its own entry alone, by the exact condition", () => {
+    // The condition itself, so a widened one (`|| debugOn`) fails here; where
+    // each sheet sits in the file is not asserted (layout may move freely).
+    const count = (needle: string) => source.split(needle).length - 1;
+    expect(count('{adjustEntry === "rescue" && (')).toBe(1);
+    expect(count('{adjustEntry === "check" && (')).toBe(1);
+    expect(count("adjustEntry ===")).toBe(2);
+    expect(count('data-testid="adjust-frame-entry"')).toBe(1);
+    expect(count('data-testid="corner-check-entry"')).toBe(1);
   });
 
-  it("confirming a rescue runs the same pipeline on the same file with the frame, and sends nothing itself", () => {
+  it("confirming goes through adjustConfirmAction; the pipeline runs only for its rerun, and nothing is sent", () => {
     const confirm = source.slice(
       source.indexOf("const confirmAdjust = useCallback("),
       source.indexOf("const changePaperSize = useCallback("),
     );
-    expect(confirm).toContain(
+    expect(confirm).toContain("adjustConfirmAction({");
+    const rerunGuard = confirm.indexOf('action.kind !== "rerun"');
+    const rerun = confirm.indexOf(
       "void runPipeline(fileRef.current, current.previewUrl, {",
     );
+    expect(rerunGuard).toBeGreaterThan(0);
+    expect(rerun).toBeGreaterThan(rerunGuard);
+    expect(confirm.split("runPipeline(").length - 1).toBe(1);
     expect(confirm).toContain("source: placed.source,");
     expect(confirm).not.toMatch(/fetch\(|sendBeacon|XMLHttpRequest|track\(/);
     // The check only writes the local attempt log.
     expect(confirm).toContain('kind: "cornerCheck"');
   });
 
-  it("a measurement from a placed frame says so on the sheet, and goes to analytics as paper: adjusted", () => {
+  it("a measurement from a placed frame says so on the sheet; its paper comes from scanMeasuredPaper", () => {
     expect(source).toContain("paperAdjustCopy(locale).measuredNote");
-    expect(source).toMatch(/manualPaperCorners\s*\?\s*"adjusted"/);
+    expect(source).toContain("const paperUsed = scanMeasuredPaper({");
+    expect(source).toMatch(/paper:\s*paperUsed/);
+  });
+});
+
+describe("adjustConfirmAction (what confirming does)", () => {
+  const failure: AdjustableResult = {
+    kind: "gateFailure",
+    errors: [{ code: "PAPER_EDGE_HIDDEN", message: "m" }],
+    overlay: OVERLAY,
+  };
+  const measured: AdjustableResult = {
+    kind: "measured",
+    overlay: OVERLAY,
+    submission: scanSubmissionSchema.parse({
+      hand: "right",
+      measurements: { handLengthMm: 186, palmLengthMm: 106, palmWidthMm: 82 },
+      calibration: {
+        method: "paper-edge",
+        paperSize: "a4",
+        edgeFitResidualMm: 0.4,
+        minSideCoverage: 0.9,
+        parallaxCorrected: true,
+      },
+      measurementModelVersion: MEASUREMENT_MODEL_VERSION,
+    }),
+  };
+
+  it("a rescue on a photo still turned back, with its file, runs the pipeline again", () => {
+    expect(
+      adjustConfirmAction({ entry: "rescue", result: failure, hasFile: true }),
+    ).toEqual({ kind: "rerun" });
+  });
+
+  it("a rescue does nothing without the file, or once the result is no longer the failure", () => {
+    expect(
+      adjustConfirmAction({ entry: "rescue", result: failure, hasFile: false }),
+    ).toEqual({ kind: "none" });
+    for (const result of [
+      measured,
+      { kind: "processing" } as const,
+      { kind: "none" } as const,
+    ])
+      expect(
+        adjustConfirmAction({ entry: "rescue", result, hasFile: true }),
+      ).toEqual({ kind: "none" });
+  });
+
+  it("the check only records, against the detector's corners, on a measured photo", () => {
+    expect(
+      adjustConfirmAction({ entry: "check", result: measured, hasFile: true }),
+    ).toEqual({ kind: "recordCheck", detected: RECT });
+    // Never a rerun, even on a failure with its file.
+    expect(
+      adjustConfirmAction({ entry: "check", result: failure, hasFile: true }),
+    ).toEqual({ kind: "none" });
+    expect(
+      adjustConfirmAction({
+        entry: "check",
+        result: {
+          ...measured,
+          overlay: { ...OVERLAY, paperCorners: null },
+        } as AdjustableResult,
+        hasFile: true,
+      }),
+    ).toEqual({ kind: "none" });
+  });
+
+  it("no entry open: nothing", () => {
+    expect(
+      adjustConfirmAction({ entry: null, result: failure, hasFile: true }),
+    ).toEqual({ kind: "none" });
+  });
+});
+
+describe("scanMeasuredPaper (the scan_measured event's paper)", () => {
+  it("typed length: none; a placed frame: adjusted; else detected", () => {
+    expect(scanMeasuredPaper({ typedLength: true, placedFrame: true })).toBe(
+      "none",
+    );
+    expect(scanMeasuredPaper({ typedLength: true, placedFrame: false })).toBe(
+      "none",
+    );
+    expect(scanMeasuredPaper({ typedLength: false, placedFrame: true })).toBe(
+      "adjusted",
+    );
+    expect(scanMeasuredPaper({ typedLength: false, placedFrame: false })).toBe(
+      "detected",
+    );
+  });
+
+  it("every value it gives is accepted by the contract's scan_measured schema", () => {
+    for (const typedLength of [true, false])
+      for (const placedFrame of [true, false]) {
+        const paper = scanMeasuredPaper({ typedLength, placedFrame });
+        expect(
+          analyticsEventSchemas.scan_measured.safeParse({
+            flow: "easy",
+            attempt: 1,
+            paper,
+          }).success,
+        ).toBe(true);
+      }
+    expect(
+      analyticsEventSchemas.scan_measured.safeParse({
+        flow: "easy",
+        attempt: 1,
+        paper: "adjusted",
+      }).success,
+    ).toBe(true);
   });
 });
 

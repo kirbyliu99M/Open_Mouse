@@ -138,8 +138,10 @@ import { FrozenPhoto, type DimensionSpec } from "./FrozenPhoto";
 import { EasyCorners } from "./EasyCorners";
 import { PaperAdjust, type PaperAdjustConfirm } from "./PaperAdjust";
 import {
+  adjustConfirmAction,
   adjustEntryFor,
   cornerCheckDistances,
+  scanMeasuredPaper,
   type AdjustEntry,
 } from "./paperAdjustState";
 import { paperAdjustCopy } from "../../lib/copy/paper-adjust";
@@ -1247,12 +1249,10 @@ export default function EasyScanCamera({
       const runId = ++runIdRef.current;
       attemptCountRef.current += 1;
       // Read now: a typed length chosen while the photo is analysed must not change it.
-      const paperUsed =
-        userLengthRef.current !== null
-          ? "none"
-          : manualPaperCorners
-            ? "adjusted"
-            : "detected";
+      const paperUsed = scanMeasuredPaper({
+        typedLength: userLengthRef.current !== null,
+        placedFrame: Boolean(manualPaperCorners),
+      });
       const attempt = clampAttempt(attemptCountRef.current);
       track("scan_capture_attempted", {
         flow: "easy",
@@ -1737,13 +1737,18 @@ export default function EasyScanCamera({
       const current = resultRef.current;
       const entry = adjustOpen;
       setAdjustOpen(null);
-      if (entry === "check") {
+      const action = adjustConfirmAction({
+        entry,
+        result: current,
+        hasFile: fileRef.current !== null,
+      });
+      if (action.kind === "recordCheck" && current.kind === "measured") {
         // The check changes no measurement: it only records, on this device,
         // how far each placed corner is from the detector's.
-        const detected =
-          current.kind === "measured" ? current.overlay.paperCorners : null;
-        if (!detected || current.kind !== "measured") return;
-        const distancesPx = cornerCheckDistances(placed.corners, detected);
+        const distancesPx = cornerCheckDistances(
+          placed.corners,
+          action.detected,
+        );
         const longEdge = Math.max(
           current.overlay.imageWidth,
           current.overlay.imageHeight,
@@ -1761,7 +1766,12 @@ export default function EasyScanCamera({
         );
         return;
       }
-      if (current.kind !== "gateFailure" || !fileRef.current) return;
+      if (
+        action.kind !== "rerun" ||
+        current.kind !== "gateFailure" ||
+        !fileRef.current
+      )
+        return;
       // A new analysis, not a return: its sheet slides in as any result does.
       sheetResumedRef.current = false;
       adjustReturnRef.current = false;
