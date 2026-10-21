@@ -699,10 +699,26 @@ export function adjustReducer(
       };
       return moved ? withCorner(next, drag.index, corner) : next;
     }
-    case "pointerUp":
-      return state.drag?.pointerId === action.pointerId
-        ? { ...state, drag: null }
-        : state;
+    case "pointerUp": {
+      const drag = state.drag;
+      if (drag?.pointerId !== action.pointerId) return state;
+      // A press on a corner of the rough guess that never moved is a tap, and
+      // a tap confirms it, as `select` does. The handle's own click cannot
+      // be relied on for this: the stage captures the pointer at the press,
+      // so the browser sends the click to the stage, not the handle (review
+      // of F10).
+      if (
+        !drag.moved &&
+        state.start.from === "guess" &&
+        !state.placed[drag.index]
+      ) {
+        const placed = state.placed.map(
+          (p, i) => p || i === drag.index,
+        ) as unknown as [boolean, boolean, boolean, boolean];
+        return { ...state, drag: null, placed };
+      }
+      return { ...state, drag: null };
+    }
     case "nudge": {
       if (!(action.scale > 0) || (action.dx === 0 && action.dy === 0))
         return state;
@@ -941,9 +957,32 @@ export const PAPER_ADJUST_VIEW = {
   wheelFactorPer100Px: 1.25,
 } as const;
 
-/** The whole photo, inset by half a handle: the view a double tap goes back to. */
+/**
+ * The whole photo and the band around it where a corner may lie
+ * (`maxOutsideFraction`, F2), inset by half a handle: the view a double tap
+ * goes back to. Fitting the band too keeps a corner dragged off the photo on
+ * the stage, with its handle whole (review of F10: fitting the photo alone
+ * put such a handle past the stage's clipped edge).
+ */
 export function wholeView(image: FrameSize, stage: FrameSize): PhotoFit {
-  return fitPhoto(image, stage, PAPER_ADJUST_LAYOUT.handleTargetPx / 2);
+  const out = MANUAL_QUAD_LIMITS.maxOutsideFraction;
+  const fit = fitPhoto(
+    {
+      width: image.width * (1 + 2 * out),
+      height: image.height * (1 + 2 * out),
+    },
+    stage,
+    PAPER_ADJUST_LAYOUT.handleTargetPx / 2,
+  );
+  if (fit.width === 0) return fit;
+  // Centred, written as `clampView` centres an axis, so that clamping the
+  // whole view gives it back exactly.
+  return viewAt(
+    image,
+    fit.scale,
+    (stage.width - image.width * fit.scale) / 2,
+    (stage.height - image.height * fit.scale) / 2,
+  );
 }
 
 function viewAt(
@@ -963,7 +1002,7 @@ function viewAt(
 
 /**
  * A view kept sensible: its scale between the whole photo's and `maxZoom`
- * times that; along each axis the photo is centred while it (with the handle
+ * times that; along each axis the photo is centred while it (with the band beyond it
  * inset) fits on the stage, and otherwise it may be moved only so far that the
  * stage still shows the photo or the band beyond it where a corner may lie
  * (`maxOutsideFraction`), never empty space past that.
@@ -983,8 +1022,10 @@ export function clampView(
   const out = MANUAL_QUAD_LIMITS.maxOutsideFraction;
   const axis = (offset: number, length: number, room: number) => {
     const drawn = length * scale;
-    if (drawn + 2 * inset <= room) return (room - drawn) / 2;
     const band = length * out * scale;
+    // The photo and its band on both sides fit: centred (as the whole view).
+    // (A rounding margin: the whole view fills one axis exactly.)
+    if (drawn + 2 * band + 2 * inset <= room + 1e-9) return (room - drawn) / 2;
     const lo = room - inset - drawn - band;
     const hi = inset + band;
     return Math.min(Math.max(offset, lo), hi);

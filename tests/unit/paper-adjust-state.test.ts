@@ -360,6 +360,81 @@ describe("where the frame opens (F7; F10: always a best guess)", () => {
     if (ready.ok) expect(ready.source).toBe("manual");
   });
 
+  it("a press and release on a rough-quad corner with no movement confirms it (the click goes to the capturing stage, not the handle: review of F10)", () => {
+    const tap = (state: AdjustState, index: 0 | 1 | 2 | 3, id: number) =>
+      run(
+        state,
+        {
+          type: "pointerDown",
+          index,
+          pointerId: id,
+          pointerType: "touch",
+          point: { x: 50, y: 60 },
+        },
+        { type: "pointerUp", pointerId: id },
+      );
+    let s = startAdjust({
+      entry: "rescue",
+      overlay: overlay({ paperGuessCorners: GUESS }),
+      paperSize: "a4",
+    });
+    expect(s.start.from).toBe("guess");
+    s = tap(s, 0, 1);
+    expect(s.placed).toEqual([true, false, false, false]);
+    expect(s.corners).toEqual(GUESS);
+    expect(s.drag).toBeNull();
+    // A release of another pointer confirms nothing.
+    const other = run(
+      s,
+      {
+        type: "pointerDown",
+        index: 1,
+        pointerId: 2,
+        pointerType: "touch",
+        point: { x: 50, y: 60 },
+      },
+      { type: "pointerUp", pointerId: 3 },
+    );
+    expect(other.placed[1]).toBe(false);
+    // The other three, tapped the same way: the frame may be used as it is.
+    s = tap(tap(tap(s, 1, 4), 2, 5), 3, 6);
+    expect(s.placed).toEqual([true, true, true, true]);
+    expect(s.corners).toEqual(GUESS);
+    const ready = adjustReadiness(s);
+    expect(ready.ok).toBe(true);
+    if (ready.ok) expect(ready.source).toBe("manual");
+  });
+
+  it("a press and release with no movement does NOT confirm a centred corner or the partial frame's inset guess", () => {
+    const tap = {
+      type: "pointerDown",
+      pointerId: 1,
+      pointerType: "touch",
+      point: { x: 5, y: 5 },
+    } as const;
+    const centred = run(
+      startAdjust({ entry: "rescue", overlay: overlay(), paperSize: "a4" }),
+      { ...tap, index: 0 },
+      { type: "pointerUp", pointerId: 1 },
+    );
+    expect(centred.start.from).toBe("centred");
+    expect(centred.placed[0]).toBe(false);
+    const partial = run(
+      startAdjust({
+        entry: "rescue",
+        overlay: overlay({
+          paperPartialCorners: [RECT[0], null, RECT[2], RECT[3]],
+          paperGuessCorners: GUESS,
+        }),
+        paperSize: "a4",
+      }),
+      { ...tap, index: 1 },
+      { type: "pointerUp", pointerId: 1 },
+    );
+    expect(partial.start.from).toBe("partial");
+    expect(partial.placed[1]).toBe(false);
+  });
+
   it("a tap does NOT confirm a centred corner or the partial frame's inset guess (those must be moved)", () => {
     const centred = run(
       startAdjust({ entry: "rescue", overlay: overlay(), paperSize: "a4" }),

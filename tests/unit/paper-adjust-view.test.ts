@@ -88,12 +88,13 @@ describe("sheetView: the screen opens with the frame filling the stage", () => {
       expect(isWholeView(v, IMAGE, stage)).toBe(false);
     });
 
-  it("a frame as large as the photo opens on the whole photo (never zoomed out past it)", () => {
+  it("a frame reaching the whole band beyond the photo opens on the whole view (never zoomed out past it)", () => {
+    const out = MANUAL_QUAD_LIMITS.maxOutsideFraction;
     const edge: Quad4 = [
-      { x: 0, y: 0 },
-      { x: IMAGE.width, y: 0 },
-      { x: IMAGE.width, y: IMAGE.height },
-      { x: 0, y: IMAGE.height },
+      { x: -IMAGE.width * out, y: -IMAGE.height * out },
+      { x: IMAGE.width * (1 + out), y: -IMAGE.height * out },
+      { x: IMAGE.width * (1 + out), y: IMAGE.height * (1 + out) },
+      { x: -IMAGE.width * out, y: IMAGE.height * (1 + out) },
     ];
     for (const stage of STAGES) {
       const v = sheetView(IMAGE, stage, edge);
@@ -113,6 +114,58 @@ describe("sheetView: the screen opens with the frame filling the stage", () => {
     const v = sheetView(IMAGE, stage, tiny);
     close(v.scale, wholeView(IMAGE, stage).scale * PAPER_ADJUST_VIEW.maxZoom);
   });
+});
+
+describe("a corner up to 10 % off the photo stays on the stage with its handle whole (review of F10)", () => {
+  const out = MANUAL_QUAD_LIMITS.maxOutsideFraction;
+  const half = PAPER_ADJUST_LAYOUT.handleTargetPx / 2;
+  const W = IMAGE.width;
+  const H = IMAGE.height;
+  // Each corner as far off the photo as a drag may put it, and the frame
+  // with all four there at once.
+  const far: Quad4 = [
+    { x: -W * out, y: -H * out },
+    { x: W * (1 + out), y: -H * out },
+    { x: W * (1 + out), y: H * (1 + out) },
+    { x: -W * out, y: H * (1 + out) },
+  ];
+  // One corner off the bottom edge (the reviewer's case: y = 1.1 x 1920),
+  // the others on the sheet.
+  const oneOff: Quad4 = [
+    SHEET[0],
+    SHEET[1],
+    { x: 860, y: H * (1 + out) },
+    SHEET[3],
+  ];
+  const onStage = (
+    v: PhotoFit,
+    stage: { width: number; height: number },
+    q: Quad4,
+  ) => {
+    for (const c of q) {
+      const p = toScreen(c, v);
+      expect(p.x).toBeGreaterThanOrEqual(half - 1e-6);
+      expect(p.y).toBeGreaterThanOrEqual(half - 1e-6);
+      expect(p.x).toBeLessThanOrEqual(stage.width - half + 1e-6);
+      expect(p.y).toBeLessThanOrEqual(stage.height - half + 1e-6);
+    }
+  };
+  for (const stage of STAGES)
+    it(`${stage.width}x${stage.height}: in the whole view and in the view the screen opens with`, () => {
+      const whole = wholeView(IMAGE, stage);
+      onStage(whole, stage, far);
+      onStage(whole, stage, oneOff);
+      onStage(sheetView(IMAGE, stage, far), stage, far);
+      onStage(sheetView(IMAGE, stage, oneOff), stage, oneOff);
+      // clampView leaves the whole view as it is (it is already centred).
+      const clamped = clampView(whole, IMAGE, stage);
+      close(clamped.scale, whole.scale);
+      close(clamped.offsetX, whole.offsetX, 1e-6);
+      close(clamped.offsetY, whole.offsetY, 1e-6);
+      // The photo is still centred in the whole view.
+      close(whole.offsetX * 2 + whole.width, stage.width, 1e-6);
+      close(whole.offsetY * 2 + whole.height, stage.height, 1e-6);
+    });
 });
 
 describe("display <-> photo conversion through a zoomed, panned view", () => {
