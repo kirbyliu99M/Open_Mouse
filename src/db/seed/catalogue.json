@@ -8179,7 +8179,7 @@
     "thumbRest": null,
     "connectivity": null,
     "descriptorsInferred": true,
-    "descriptorsByOwner": false,
+    "descriptorsByOwner": true,
     "mergesInto": null,
     "retrievedAt": "2026-10-09T00:00:00.000Z"
   },
@@ -8333,7 +8333,7 @@
     "thumbRest": null,
     "connectivity": "wireless",
     "descriptorsInferred": true,
-    "descriptorsByOwner": false,
+    "descriptorsByOwner": true,
     "mergesInto": null,
     "retrievedAt": "2026-10-09T00:00:00.000Z"
   },
