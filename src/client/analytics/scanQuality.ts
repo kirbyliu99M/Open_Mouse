@@ -226,8 +226,12 @@ export function liveWaitBucket(
 }
 
 /**
- * How far the nominal-focal shadow hand length is from the shown one, in four
- * wide steps. `deltaMm` is shadow minus shown: at or below -5 is
+ * How far the shadow hand length is from the shown one, in four wide steps.
+ * Since landmark-raw-v3 the shadow is the uncorrected hand length (no
+ * parallax correction) and the shown one is the reported, corrected value;
+ * before it the shadow was the nominal-focal value. The event carries no
+ * field that tells the two apart (open contract question for Claude).
+ * `deltaMm` is shadow minus shown: at or below -5 is
  * `lower_5_plus`, above -5 up to -2 `lower_2_to_5`, between -2 and 2 (neither
  * included) `within_2`, 2 and over `higher_2_plus`. Not a finite number is
  * `null`: the shadow could not be worked out.
