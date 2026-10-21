@@ -24,21 +24,18 @@ import {
 export type FilterChangeSource = (typeof FILTER_SOURCES)[number];
 
 /**
- * Where a change of the results page's filters came from: one of the
- * contract's sources, or the shape toggle above the filter button (V3.2 U1).
- * The contract has no source for the toggle, so a toggle change sends no
- * `filter_applied` (`filterAppliedSource`); adding one is a contract change
- * for Claude.
+ * Where a change of the results page's filters came from. Since V3.2 the
+ * contract's sources include the shape toggle above the filter button
+ * (`"shape_toggle"`), so every change maps to a `filter_applied` source.
  */
-export type ResultsFilterChange = FilterChangeSource | "shape_toggle";
+export type ResultsFilterChange = FilterChangeSource;
 
-/** The `filter_applied` source of a change, or `null` for one the contract has no source for (the shape toggle). */
+/** The `filter_applied` source of a change: the contract's source itself, or
+ * `null` for a value outside `FILTER_SOURCES` (none today; a guard only). */
 export function filterAppliedSource(
   change: ResultsFilterChange,
 ): FilterChangeSource | null {
-  return (FILTER_SOURCES as readonly string[]).includes(change)
-    ? (change as FilterChangeSource)
-    : null;
+  return (FILTER_SOURCES as readonly string[]).includes(change) ? change : null;
 }
 
 /** The fields every results-page event carries. */

@@ -5,7 +5,15 @@ import { ResultsView } from "../../src/components/results/ResultsView";
 import { ShapeToggle } from "../../src/components/results/filter/ShapeToggle";
 import type { FitResponse } from "../../src/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "../../src/lib/copy/results-page";
-import { filterAppliedSource } from "../../src/lib/results/analyticsEvents";
+import {
+  analyticsEventSchemas,
+  FILTER_SOURCES,
+} from "../../src/lib/contracts/analytics";
+import {
+  filterAppliedSource,
+  filterSelectionProps,
+  resultsPageFields,
+} from "../../src/lib/results/analyticsEvents";
 import {
   emptyFilters,
   filteredView,
@@ -197,13 +205,32 @@ describe("the toggle's motion", () => {
   });
 });
 
-describe("analytics: a toggle change sends no filter_applied (no contract source)", () => {
-  it("maps the contract's sources to themselves and the toggle to null", () => {
+describe("analytics: a toggle change sends filter_applied with source shape_toggle", () => {
+  it("maps every contract source, the toggle's included, to itself", () => {
     expect(filterAppliedSource("sheet")).toBe("sheet");
     expect(filterAppliedSource("sidebar")).toBe("sidebar");
     expect(filterAppliedSource("chips")).toBe("chips");
     expect(filterAppliedSource("no_match")).toBe("no_match");
-    expect(filterAppliedSource("shape_toggle")).toBeNull();
+    expect(filterAppliedSource("shape_toggle")).toBe("shape_toggle");
+    expect(FILTER_SOURCES).toContain("shape_toggle");
+  });
+
+  it("a toggle event built from the existing fields passes the contract", () => {
+    const source = filterAppliedSource("shape_toggle");
+    expect(source).toBe("shape_toggle");
+    const props = {
+      ...resultsPageFields(1, true),
+      source,
+      ...filterSelectionProps({ ...emptyFilters(), shape: ["ergonomic"] }),
+      count: 7,
+    };
+    const parsed = analyticsEventSchemas.filter_applied.safeParse(props);
+    expect(parsed.success).toBe(true);
+    // No field beyond the contract's (the schema is strict).
+    expect(
+      analyticsEventSchemas.filter_applied.safeParse({ ...props, extra: 1 })
+        .success,
+    ).toBe(false);
   });
 });
 

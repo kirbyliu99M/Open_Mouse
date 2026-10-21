@@ -70,8 +70,8 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
       const changed = filtersChanged(filtersRef.current, next);
       filtersRef.current = next;
       setFilters(next);
-      // The shape toggle has no `filter_applied` source in the contract, so
-      // its changes are not sent (reported to Claude, V3.2 U1).
+      // Every change, the shape toggle's included (source `shape_toggle`,
+      // V3.2), is sent as `filter_applied` with the existing fields.
       const source = filterAppliedSource(change);
       if (changed && source !== null) {
         // The page after the change: a filter is only changed on the main
