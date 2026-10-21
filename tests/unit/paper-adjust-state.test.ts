@@ -587,6 +587,72 @@ describe("where the frame opens (F7; F10: always a best guess)", () => {
     expect(back.placed).toEqual(s0.placed);
     expect(back.drag).toBeNull();
   });
+
+  it("a tap on the photo away from every handle confirms no guessed corner, even the chosen one (review of F10)", () => {
+    const s0 = startAdjust({
+      entry: "rescue",
+      overlay: overlay({ paperGuessCorners: GUESS }),
+      paperSize: "a4",
+    });
+    const photoTap = (state: AdjustState, id: number) =>
+      run(
+        state,
+        {
+          type: "pointerDown",
+          index: null,
+          pointerId: id,
+          pointerType: "touch",
+          point: { x: 500, y: 700 },
+        },
+        { type: "pointerUp", pointerId: id },
+      );
+    // The finding's path: press on corner 0, a second finger cancels the
+    // drag (corner 0 stays chosen), then one tap on the photo.
+    let s = run(
+      s0,
+      {
+        type: "pointerDown",
+        index: 0,
+        pointerId: 1,
+        pointerType: "touch",
+        point: { x: 0, y: 0 },
+      },
+      { type: "dragCancel" },
+    );
+    expect(s.selected).toBe(0);
+    expect(s.placed[0]).toBe(false);
+    s = photoTap(s, 2);
+    expect(s.placed).toEqual([false, false, false, false]);
+    expect(s.corners).toEqual(GUESS);
+    // A small drag that leaves the guess not placed, then a photo tap.
+    s = run(
+      s0,
+      {
+        type: "pointerDown",
+        index: 1,
+        pointerId: 3,
+        pointerType: "touch",
+        point: { x: 0, y: 0 },
+      },
+      { type: "pointerMove", pointerId: 3, point: { x: 1, y: 0 }, scale: 1 },
+      { type: "dragCancel" },
+    );
+    s = photoTap(s, 4);
+    expect(s.placed[1]).toBe(false);
+    // A tap on the handle itself still confirms it.
+    s = run(
+      s,
+      {
+        type: "pointerDown",
+        index: 1,
+        pointerId: 5,
+        pointerType: "touch",
+        point: { x: 0, y: 0 },
+      },
+      { type: "pointerUp", pointerId: 5 },
+    );
+    expect(s.placed[1]).toBe(true);
+  });
 });
 
 describe("where the frame opens (F7), continued", () => {

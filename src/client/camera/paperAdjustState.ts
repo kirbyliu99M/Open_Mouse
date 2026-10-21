@@ -369,6 +369,12 @@ export interface DragState {
    * pointer comes back to where it pressed.
    */
   readonly moved: boolean;
+  /**
+   * Whether the press began on this corner's handle (`pointerDown` named it),
+   * not on the photo dragging the chosen corner. Only a tap on the handle
+   * itself confirms a rough-guess corner (review of F10).
+   */
+  readonly onHandle: boolean;
   /** The frame as it was when the press began, for `dragCancel` (F10). */
   readonly before: {
     readonly corners: Quad4;
@@ -662,6 +668,7 @@ export function adjustReducer(
           pointer: action.point,
           startCorner: state.corners[index],
           moved: false,
+          onHandle: action.index !== null,
           before: {
             corners: state.corners,
             placed: state.placed,
@@ -706,8 +713,11 @@ export function adjustReducer(
       // a tap confirms it, as `select` does. The handle's own click cannot
       // be relied on for this: the stage captures the pointer at the press,
       // so the browser sends the click to the stage, not the handle (review
-      // of F10).
+      // of F10). A tap on the photo away from every handle (`pointerDown`
+      // with no index) only moves the chosen corner, so it confirms nothing,
+      // even when that corner is a guess still waiting to be confirmed.
       if (
+        drag.onHandle &&
         !drag.moved &&
         state.start.from === "guess" &&
         !state.placed[drag.index]
