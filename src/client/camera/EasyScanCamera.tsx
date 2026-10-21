@@ -136,6 +136,15 @@ import {
 import { problemAreaFor } from "./problemArea";
 import { FrozenPhoto, type DimensionSpec } from "./FrozenPhoto";
 import { EasyCorners } from "./EasyCorners";
+import { PaperAdjust, type PaperAdjustConfirm } from "./PaperAdjust";
+import {
+  adjustConfirmAction,
+  adjustEntryFor,
+  cornerCheckDistances,
+  pipelinePaperInput,
+  type AdjustEntry,
+} from "./paperAdjustState";
+import { paperAdjustCopy } from "../../lib/copy/paper-adjust";
 import { ScanDebugPanel } from "./ScanDebugPanel";
 import { usePrefersReducedMotion } from "./useReducedMotion";
 import {
@@ -746,6 +755,13 @@ export default function EasyScanCamera({
   const helpTriggerRef = useRef<HTMLButtonElement>(null);
   const gotItRef = useRef<HTMLButtonElement>(null);
   const tryAgainRef = useRef<HTMLButtonElement>(null);
+  // 手動調整邊框 (V3.2 F2, candidate): which adjustment is open over the photo
+  // (the sheet closes under it), the button that opened it (focus goes back
+  // there when it is cancelled), and Kirby's last corner check (?debug=1).
+  const [adjustOpen, setAdjustOpen] = useState<AdjustEntry | null>(null);
+  const adjustButtonRef = useRef<HTMLButtonElement>(null);
+  const adjustReturnRef = useRef(false);
+  const [cornerCheckNote, setCornerCheckNote] = useState<string | null>(null);
 
   // The attempts kept on this device (attemptLog.ts), read once so the debug
   // panel shows the earlier ones too.
@@ -824,8 +840,11 @@ export default function EasyScanCamera({
       // A question page (grip, thickness) is open over the sheet: the sheet
       // closes, but keeps the heights it measured, so the photo behind does not
       // move when 返回 opens it again.
-      if (!onSheet) {
+      // The same while the paper frame is being adjusted (V3.2 F2): its own
+      // full-screen modal is over the photo.
+      if (!onSheet || adjustOpen) {
         sheetResumedRef.current = true;
+        if (adjustOpen) adjustReturnRef.current = true;
         dialog?.close();
         return;
       }
@@ -833,12 +852,19 @@ export default function EasyScanCamera({
       // (it was there a moment ago), and focus goes to the button that left.
       const resumed = sheetResumedRef.current;
       sheetResumedRef.current = false;
+      const fromAdjust = adjustReturnRef.current;
+      adjustReturnRef.current = false;
       if (dialog) {
         if (resumed) dialog.dataset.resumed = "true";
         else delete dialog.dataset.resumed;
       }
       dialog?.showModal();
-      (resumed ? continueRef.current : sheetTitleRef.current)?.focus();
+      (fromAdjust
+        ? (adjustButtonRef.current ?? sheetTitleRef.current)
+        : resumed
+          ? continueRef.current
+          : sheetTitleRef.current
+      )?.focus();
       const measureBar = () => {
         const bottoms = [
           ...(topBarRef.current?.querySelectorAll("button") ?? []),
@@ -877,7 +903,7 @@ export default function EasyScanCamera({
     sheetDialogRef.current?.close();
     setSheetHeight(null);
     setBarBottom(null);
-  }, [result.kind, onSheet]);
+  }, [result.kind, onSheet, adjustOpen]);
 
   // A question page is a modal of its own, opened the moment it mounts, and
   // opened again if the browser closed it by itself while it should be open
@@ -1207,7 +1233,13 @@ export default function EasyScanCamera({
   );
 
   const runPipeline = useCallback(
-    async (file: File, previewUrl: string) => {
+    async (
+      file: File,
+      previewUrl: string,
+      // A paper frame the person placed on this photo (V3.2 F2): the same
+      // analysis, with the frame instead of the detector.
+      manualPaperCorners?: RunPhotoPipelineInput["manualPaperCorners"],
+    ) => {
       // The typed-size form (or its pages) is open: a photo that arrives now
       // belongs to nothing on screen, and starting it would reset the answers.
       if (manualActiveRef.current) {
@@ -1216,8 +1248,15 @@ export default function EasyScanCamera({
       }
       const runId = ++runIdRef.current;
       attemptCountRef.current += 1;
-      // Read now: a typed length chosen while the photo is analysed must not change it.
-      const paperUsed = userLengthRef.current !== null ? "none" : "detected";
+      // Read now: a typed length chosen while the photo is analysed must not
+      // change it. One reading gives both what the pipeline is told about the
+      // paper (with the placed frame, if any) and what the event records.
+      const paperInput = pipelinePaperInput({
+        typedLengthMm: userLengthRef.current,
+        paperSize: paperSizeRef.current,
+        manualPaperCorners,
+      });
+      const paperUsed = paperInput.paper;
       const attempt = clampAttempt(attemptCountRef.current);
       track("scan_capture_attempted", {
         flow: "easy",
@@ -1277,10 +1316,9 @@ export default function EasyScanCamera({
           handExplicit: handChipRef.current.locked,
           handednessFixInstruction: HAND_BUTTON_FIX_INSTRUCTION,
           onStage,
-          calibration:
-            userLengthRef.current !== null
-              ? { method: "user-length", handLengthMm: userLengthRef.current }
-              : { method: "paper-edge", paperSize: paperSizeRef.current },
+          // The calibration, and the placed frame only with paper (a typed
+          // length has no sheet to frame): `pipelinePaperInput`, read above.
+          ...paperInput.pipeline,
           // A frame of the video is already the part the person saw on
           // screen, so nothing is cropped (no previewView). The camera's own
           // photo (takePhoto, off by default) is cut down to that part before
@@ -1317,7 +1355,8 @@ export default function EasyScanCamera({
             flow: "easy",
             attempt,
             // Paper-edge mode finds the sheet itself; a typed hand length
-            // means no paper was used. This flow has no manual corners.
+            // means no paper was used; `adjusted` is a frame the person
+            // placed (V3.2 F2). The printed sheet's `manual` is never sent here.
             paper: paperUsed,
           });
           // The photo's conditions, as buckets; nothing is sent where a value
@@ -1668,6 +1707,8 @@ export default function EasyScanCamera({
   const retake = useCallback(() => {
     if (result.kind !== "none") URL.revokeObjectURL(result.previewUrl);
     setResult({ kind: "none" });
+    setAdjustOpen(null);
+    setCornerCheckNote(null);
     dispatchAnswers({ type: "reset" });
     clearSubmitError();
     setPhotoInfo(null);
@@ -1679,6 +1720,67 @@ export default function EasyScanCamera({
       typeof navigator.mediaDevices?.getUserMedia === "function";
     if (canUseCamera && deviceFit === "phone") void startCamera();
   }, [result, startCamera, deviceFit, clearSubmitError]);
+
+  // 手動調整邊框 (V3.2 F2, candidate). Offered by `adjustEntryFor`: after a
+  // hidden edge or corner (rescue), or with ?debug=1 on a measured photo
+  // (Kirby's corner check). Nothing here reads the photo's pixels.
+  const adjustEntry = adjustEntryFor(result, debugOn);
+  const openAdjust = useCallback(() => {
+    if (!adjustEntry || manualActiveRef.current) return;
+    setCornerCheckNote(null);
+    setAdjustOpen(adjustEntry);
+  }, [adjustEntry]);
+  const cancelAdjust = useCallback(() => setAdjustOpen(null), []);
+  const confirmAdjust = useCallback(
+    (placed: PaperAdjustConfirm) => {
+      const current = resultRef.current;
+      const entry = adjustOpen;
+      setAdjustOpen(null);
+      const action = adjustConfirmAction({
+        entry,
+        result: current,
+        hasFile: fileRef.current !== null,
+      });
+      if (action.kind === "recordCheck" && current.kind === "measured") {
+        // The check changes no measurement: it only records, on this device,
+        // how far each placed corner is from the detector's.
+        const distancesPx = cornerCheckDistances(
+          placed.corners,
+          action.detected,
+        );
+        const longEdge = Math.max(
+          current.overlay.imageWidth,
+          current.overlay.imageHeight,
+        );
+        void logAttempt(captureInfoRef.current, {
+          kind: "cornerCheck",
+          magnifier: placed.magnifier,
+          distancesPx,
+          imageLongEdgePx: longEdge > 0 ? longEdge : null,
+        });
+        setCornerCheckNote(
+          paperAdjustCopy(localeRef.current).check.recorded(
+            Math.max(...distancesPx).toFixed(1),
+          ),
+        );
+        return;
+      }
+      if (
+        action.kind !== "rerun" ||
+        current.kind !== "gateFailure" ||
+        !fileRef.current
+      )
+        return;
+      // A new analysis, not a return: its sheet slides in as any result does.
+      sheetResumedRef.current = false;
+      adjustReturnRef.current = false;
+      void runPipeline(fileRef.current, current.previewUrl, {
+        corners: placed.corners,
+        source: placed.source,
+      });
+    },
+    [adjustOpen, logAttempt, runPipeline],
+  );
 
   const changePaperSize = useCallback((size: PaperSize) => {
     setPaperSize(size);
@@ -2988,6 +3090,35 @@ export default function EasyScanCamera({
               </p>
               <p className="easySheetNote">{common.unverifiedNote}</p>
               {"method" in result.submission.calibration &&
+                result.submission.calibration.method === "paper-edge" &&
+                (result.submission.calibration.cornersSource ?? "auto") !==
+                  "auto" && (
+                  <p
+                    className="easySheetAdjustedNote"
+                    data-testid="easy-sheet-adjusted-note"
+                  >
+                    {paperAdjustCopy(locale).measuredNote}
+                  </p>
+                )}
+              {adjustEntry === "check" && (
+                <>
+                  <button
+                    type="button"
+                    className="easyAdjustFrameButton"
+                    ref={adjustButtonRef}
+                    data-testid="corner-check-entry"
+                    onClick={openAdjust}
+                  >
+                    {paperAdjustCopy(locale).check.entry}
+                  </button>
+                  {cornerCheckNote && (
+                    <p className="easySheetAdjustedNote" role="status">
+                      {cornerCheckNote}
+                    </p>
+                  )}
+                </>
+              )}
+              {"method" in result.submission.calibration &&
                 result.submission.calibration.method === "user-length" && (
                   <div className="easyLengthDisclosure">
                     <p>
@@ -3066,6 +3197,19 @@ export default function EasyScanCamera({
                 >
                   {common.tryAgain}
                 </button>
+                {/* The secondary way on after a hidden edge or corner (V3.2
+                    F2, candidate): retaking stays the main one. */}
+                {adjustEntry === "rescue" && (
+                  <button
+                    type="button"
+                    className="easyAdjustFrameButton"
+                    ref={adjustButtonRef}
+                    data-testid="adjust-frame-entry"
+                    onClick={openAdjust}
+                  >
+                    {paperAdjustCopy(locale).entry}
+                  </button>
+                )}
                 {noPaperLabel &&
                   failureOffersLengthEdit(
                     noPaperMode,
@@ -3092,6 +3236,21 @@ export default function EasyScanCamera({
           )}
         </dialog>
       )}
+
+      {adjustOpen &&
+        (result.kind === "measured" || result.kind === "gateFailure") &&
+        result.overlay && (
+          <PaperAdjust
+            key={`${adjustOpen}:${result.previewUrl}`}
+            entry={adjustOpen}
+            overlay={result.overlay}
+            paperSize={paperSizeRef.current}
+            previewUrl={result.previewUrl}
+            locale={locale}
+            onCancel={cancelAdjust}
+            onConfirm={confirmAdjust}
+          />
+        )}
 
       {manualSheetOpen && (
         <ManualEntrySheet

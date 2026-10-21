@@ -490,6 +490,49 @@ describe("rejectedPaperSkew (a refused scan's skew bucket)", () => {
   });
 });
 
+describe("rejected paper grades for a frame a person placed (V3.2 F2)", () => {
+  const placed = (source: "adjusted" | "manual") =>
+    diag({
+      paper: {
+        ...diag().paper!,
+        cornersSource: source,
+        minSideCoverage: null,
+        edgeFitResidualMm: null,
+      },
+    });
+  const fullCoverage = (source: "adjusted" | "manual") =>
+    diag({ paper: { ...diag().paper!, cornersSource: source } });
+
+  it("leaves paperSkew and paperCoverage out for adjusted and manual corners", () => {
+    for (const source of ["adjusted", "manual"] as const) {
+      expect(rejectedPaperSkew(placed(source))).toBeUndefined();
+      // Even with a coverage number on it, a placed frame carries none.
+      expect(rejectedPaperCoverage(fullCoverage(source))).toBeUndefined();
+      const out = buildScanRejected({
+        flow: "easy",
+        attempt: 2,
+        errors: [{ code: "HAND_OUT_OF_BOUNDS" }],
+        diagnostics: fullCoverage(source),
+      });
+      expect(out).not.toHaveProperty("paperSkew");
+      expect(out).not.toHaveProperty("paperCoverage");
+      // The hand grade does not depend on the paper's corners.
+      expect(out.handPose).toBe("flat_like");
+      expect(() =>
+        analyticsEventSchemas.scan_rejected.parse(out),
+      ).not.toThrow();
+    }
+  });
+
+  it("keeps them for the detector's corners, said or left unsaid", () => {
+    const auto = diag({ paper: { ...diag().paper!, cornersSource: "auto" } });
+    expect(rejectedPaperSkew(auto)).toBe("under_3");
+    expect(rejectedPaperCoverage(auto)).toBe("from_0_8");
+    expect(rejectedPaperSkew(diag())).toBe("under_3");
+    expect(rejectedPaperCoverage(diag())).toBe("from_0_8");
+  });
+});
+
 describe("buildScanQuality", () => {
   const base = { flow: "easy", attempt: 2, method: "canvas" } as const;
 

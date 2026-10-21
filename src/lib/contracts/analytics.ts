@@ -242,13 +242,27 @@ const mouseSlug = z
 const attempt = z.int().min(1).max(ANALYTICS_COUNT_CAP);
 const rank = z.int().min(1).max(100);
 
+/** V3.2 candidate (S2): the step at which paper detection stopped when no
+ * sheet was found. A step of the algorithm, never a claimed physical cause.
+ * The client's detector reports the same values. */
+export const PAPER_DETECTION_STAGES = [
+  "no_bright_region",
+  "region_split",
+  "aspect_mismatch",
+  "too_small",
+  "exception",
+  "unknown",
+] as const;
+
 /** Where a filter change was made: the wide sidebar, the narrow sheet, a chip
- * (removing one option, or 全部清除), or the no-match block's buttons. */
+ * (removing one option, or 全部清除), the no-match block's buttons, or (V3.2
+ * candidate) the results page's 綜合／左右對稱／人體工學 shape toggle. */
 export const FILTER_SOURCES = [
   "sidebar",
   "sheet",
   "chips",
   "no_match",
+  "shape_toggle",
 ] as const;
 
 /** The three share buttons: the top bar's link, the one beside the purchase
@@ -383,13 +397,19 @@ export const analyticsEventSchemas = {
     paperCoverage: z.enum(PAPER_COVERAGE_BUCKETS).optional(),
     /** 2026-10-19, candidate, shadow mode: see `HAND_POSE_BUCKETS`; absent without a hand. */
     handPose: z.enum(HAND_POSE_BUCKETS).optional(),
+    /** V3.2 candidate: where paper detection stopped (see
+     * `PAPER_DETECTION_STAGES`); only with PAPER_NOT_FOUND, absent otherwise. */
+    paperStage: z.enum(PAPER_DETECTION_STAGES).optional(),
   }),
 
   /** The pipeline produced measurements (the numbers themselves stay out). */
   scan_measured: z.strictObject({
     flow: z.enum(SCAN_FLOWS),
     attempt,
-    paper: z.enum(["detected", "manual", "none"]),
+    /** `adjusted` (V3.2 candidate): plain-paper corners the person moved or
+     * placed by hand (`cornersSource` adjusted or manual). `manual` stays the
+     * printed sheet's hand-placed card corners. */
+    paper: z.enum(["detected", "adjusted", "manual", "none"]),
   }),
 
   /** The conditions of a photo that was measured (2026-10-16, candidate), sent

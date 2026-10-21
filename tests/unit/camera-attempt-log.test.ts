@@ -158,6 +158,8 @@ describe("buildAttemptRecord", () => {
       gateFailures: ["PAPER_CURLED"],
       // A found sheet: no detector stage (scan S2).
       failureStage: null,
+      // The detector's own corners (V3.2 F2).
+      cornersSource: "auto",
     });
     expect(r.sharpness).toBe(142.35);
   });
@@ -1576,6 +1578,7 @@ describe("which edge was hidden: the paper block's sideCoverages and worstSide (
     expect(text).not.toMatch(/landmark|world|"z"/i);
     expect(Object.keys(record().paper!).sort()).toEqual([
       "cornersSeen",
+      "cornersSource",
       "edgeFitResidualMm",
       "failureStage",
       "gateFailures",

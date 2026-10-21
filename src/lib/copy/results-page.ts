@@ -78,6 +78,11 @@ export interface ResultsPageCopy {
   coverageNotice: { above: string; below: string; partial: string };
   enteredLengthNotice: (mm: number) => string;
   /**
+   * V3.2 F2 (candidate, 未拍板): the scan's paper frame was placed or moved by
+   * hand. Says only that; no claim about accuracy either way.
+   */
+  paperAdjustedNotice: string;
+  /**
    * One line shown when the target sizes were nudged by the survey ratings of
    * a signed-in person (fit-v3 automatic calibration: at least two usable
    * ratings, a non-zero shift). Candidate (未拍板, Kirby 2026-10-20: draft, to
@@ -258,6 +263,7 @@ export const zhTW: ResultsPageCopy = {
   },
   enteredLengthNotice: (mm) =>
     `依你輸入的手長（${mm}${NBSP}mm）估算，掃描時沒有使用紙張。`,
+  paperAdjustedNotice: "紙張邊框是手動調整的。",
   calibrationNotice: "已參考你在問卷評過的滑鼠，微調了理想尺寸。",
   leftHandNotice: "左手的合手度還沒評過，購買前請先確認每支滑鼠的形狀。",
   othersHeading: "其他推薦",
@@ -411,6 +417,7 @@ export const en: ResultsPageCopy = {
   },
   enteredLengthNotice: (mm) =>
     `Based on the hand length you entered (${mm}${NBSP}mm). Measured without paper.`,
+  paperAdjustedNotice: "The paper's frame was adjusted by hand.",
   calibrationNotice:
     "Your ideal sizes were adjusted using the mice you rated in the survey.",
   leftHandNotice:

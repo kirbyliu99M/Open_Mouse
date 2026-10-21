@@ -242,26 +242,43 @@ export function priorEffectBucket(
 }
 
 /**
+ * Whether the sheet's corners in these diagnostics came from the detector.
+ * A frame a person placed (V3.2 F2, `cornersSource` `adjusted` or `manual`)
+ * is not the detector's: its angle and coverage say nothing about how the
+ * detector sees paper, and `scan_rejected` has no field that could tell the
+ * two apart, so the paper shadow grades are left out for it.
+ */
+function detectorCorners(
+  diagnostics: PipelineDiagnostics | null | undefined,
+): boolean {
+  const source = diagnostics?.paper?.cornersSource;
+  return source === undefined || source === "auto";
+}
+
+/**
  * The `paperSkew` a rejected scan may carry: present only when the pipeline
- * found the sheet's four corners (its diagnostics hold the angle). `undefined`
- * otherwise, and the caller leaves the property out.
+ * found the sheet's four corners itself (its diagnostics hold the angle).
+ * `undefined` otherwise, or for a frame a person placed, and the caller
+ * leaves the property out.
  */
 export function rejectedPaperSkew(
   diagnostics: PipelineDiagnostics | null | undefined,
 ): ScanQualityProps["paperSkew"] | undefined {
+  if (!detectorCorners(diagnostics)) return undefined;
   return paperSkewBucket(diagnostics?.paper?.maxAngleDeviationDeg) ?? undefined;
 }
 
 /**
  * The `paperCoverage` a rejected scan may carry: present only when the
- * pipeline found the sheet's four corners (the contract's rule), `undefined`
- * otherwise.
+ * pipeline found the sheet's four corners itself (the contract's rule),
+ * `undefined` otherwise, or for a frame a person placed.
  */
 export function rejectedPaperCoverage(
   diagnostics: PipelineDiagnostics | null | undefined,
 ): ScanQualityProps["paperCoverage"] | undefined {
   const paper = diagnostics?.paper;
-  if (!paper || paper.widthFraction === null) return undefined;
+  if (!paper || paper.widthFraction === null || !detectorCorners(diagnostics))
+    return undefined;
   return paperCoverageBucket(paper.minSideCoverage) ?? undefined;
 }
 
