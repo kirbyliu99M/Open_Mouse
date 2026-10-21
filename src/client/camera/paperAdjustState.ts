@@ -1002,8 +1002,9 @@ function viewAt(
 
 /**
  * A view kept sensible: its scale between the whole photo's and `maxZoom`
- * times that; along each axis the photo is centred while it (with the band beyond it
- * inset) fits on the stage, and otherwise it may be moved only so far that the
+ * times that; along each axis the photo is centred while it (with the band
+ * beyond it and the handle inset) fits on the stage, and otherwise it may be
+ * moved only so far that the
  * stage still shows the photo or the band beyond it where a corner may lie
  * (`maxOutsideFraction`), never empty space past that.
  */
