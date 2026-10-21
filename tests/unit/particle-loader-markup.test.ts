@@ -7,6 +7,7 @@
  * Rendered with renderToStaticMarkup: effects never run on the server, so the
  * canvas stays blank and only the markup is checked.
  */
+import { readFileSync } from "node:fs";
 import { createElement, type FunctionComponent } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -146,3 +147,42 @@ describe.each(LOCALES)(
     });
   },
 );
+
+describe("the results page's loader appears at 300 ms while the fit is still out (ResultsScanProvider)", () => {
+  // Read as LF whatever the checkout's line endings are.
+  const source = readFileSync(
+    "src/app/results/[scanId]/ResultsScanProvider.tsx",
+    "utf8",
+  )
+    .split("\r\n")
+    .join("\n");
+  const effect = source.slice(
+    source.indexOf("const requestedAt = performance.now();"),
+    source.indexOf("refreshInflightRef.current = null;"),
+  );
+
+  it("a timer set when the fit is asked for shows the loader after FIT_SHOW_AFTER_MS", () => {
+    expect(effect.length).toBeGreaterThan(0);
+    expect(effect).toContain("setLoaderVisible(false);");
+    expect(effect).toMatch(
+      /const show = setTimeout\(\(\) => \{\s*if \(!cancelled\) setLoaderVisible\(true\);\s*\}, LOADING_TIMING\.FIT_SHOW_AFTER_MS\);/,
+    );
+    // Set before the request is awaited, so a slow fit shows it while waiting.
+    expect(effect.indexOf("const show = setTimeout(")).toBeLessThan(
+      effect.indexOf("await fitRequests.getOrStart("),
+    );
+  });
+
+  it("the timer is cleared once the answer is here, and when the effect is cleaned up", () => {
+    const arrived = effect.indexOf("const arrivedAt = performance.now();");
+    const cleanup = effect.indexOf("return () => {");
+    expect(arrived).toBeGreaterThan(0);
+    expect(cleanup).toBeGreaterThan(arrived);
+    expect(effect.indexOf("clearTimeout(show);", arrived)).toBeLessThan(
+      effect.indexOf("fitReveal(requestedAt, arrivedAt, ok)"),
+    );
+    expect(effect.indexOf("clearTimeout(show);", cleanup)).toBeGreaterThan(
+      cleanup,
+    );
+  });
+});

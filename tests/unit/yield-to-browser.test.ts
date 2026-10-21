@@ -100,17 +100,32 @@ describe("the pipeline yields between its steps (pipeline.ts)", () => {
     expect(firstYield).toBeGreaterThan(decoded);
     expect(firstYield).toBeLessThan(runDecoded);
 
-    const detect = source.indexOf("const quad = detectPaperQuad(");
-    const before = source.lastIndexOf("await yieldToBrowser();", detect);
-    expect(before).toBeGreaterThan(source.indexOf("computeLaplacianVariance"));
+    // Inside the paper step itself: after the sharpness is worked out and
+    // before the sheet's clock starts and the detector runs (an anchor on the
+    // import line would let a missing yield through).
+    const sharpness = source.indexOf(
+      "trace.laplacianVariance = computeLaplacianVariance(",
+    );
+    const paperStart = source.indexOf(
+      "const paperStartedAt = performance.now();",
+      sharpness,
+    );
+    const detect = source.indexOf("const quad = detectPaperQuad(", sharpness);
+    expect(sharpness).toBeGreaterThan(0);
+    expect(paperStart).toBeGreaterThan(sharpness);
+    expect(detect).toBeGreaterThan(paperStart);
+    const before = source.indexOf("await yieldToBrowser();", sharpness);
+    expect(before).toBeGreaterThan(sharpness);
+    expect(before).toBeLessThan(paperStart);
     for (const after of [
       'notifyStage(input, "paper");\n    await yieldToBrowser();',
       'notifyStage(input, "paper");\n  await yieldToBrowser();',
     ])
       expect(source).toContain(after);
     const hand = source.indexOf('notifyStage(input, "hand");');
-    expect(source.indexOf("await yieldToBrowser();", hand)).toBeLessThan(
-      source.indexOf("return hand;", hand),
-    );
+    const handYield = source.indexOf("await yieldToBrowser();", hand);
+    expect(hand).toBeGreaterThan(0);
+    expect(handYield).toBeGreaterThan(hand);
+    expect(handYield).toBeLessThan(source.indexOf("return hand;", hand));
   });
 });

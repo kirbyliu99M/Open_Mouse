@@ -371,9 +371,64 @@ describe("where the camera offers it (EasyScanCamera.tsx)", () => {
     expect(rerun).toBeGreaterThan(rerunGuard);
     expect(confirm.split("runPipeline(").length - 1).toBe(1);
     expect(confirm).toContain("source: placed.source,");
+    // Whether a corner moved reaches adjustConfirmAction (its `moved` is
+    // optional, so the type checker would not notice it missing): without it
+    // a moved 檢查邊框 frame would close without measuring again (F7).
+    expect(confirm).toContain("moved: placed.moved,");
     expect(confirm).not.toMatch(/fetch\(|sendBeacon|XMLHttpRequest|track\(/);
     // The check only writes the local attempt log.
     expect(confirm).toContain('kind: "cornerCheck"');
+  });
+
+  it("confirming without a rerun leaves the result alone: it returns before anything is run, and nothing in it writes the result (F7)", () => {
+    const confirm = source.slice(
+      source.indexOf("const confirmAdjust = useCallback("),
+      source.indexOf("const changePaperSize = useCallback("),
+    );
+    // The guard returns, and the only run comes after that return.
+    const guard = confirm.indexOf('action.kind !== "rerun"');
+    const guardReturn = confirm.indexOf("return;", guard);
+    const rerun = confirm.indexOf("void runPipeline(");
+    expect(guard).toBeGreaterThan(0);
+    expect(guardReturn).toBeGreaterThan(guard);
+    expect(rerun).toBeGreaterThan(guardReturn);
+    // The guard has no other way through: only a rerun on a result with a
+    // photo goes on.
+    const guardBlock = confirm.slice(guard - 20, guardReturn);
+    expect(guardBlock.split("||").length - 1).toBe(2);
+    expect(guardBlock).toContain("!fileRef.current");
+    // So the measurement on screen and its submission stay as they were:
+    // nothing here sets the result or writes into it.
+    expect(confirm).not.toMatch(
+      /setResult\(|resultRef\.current\s*=[^=]|\.submission\s*=[^=]/,
+    );
+  });
+
+  it("a frame the person placed stays with the result when a gate turns it back, and goes back into a handedness rerun (F7)", () => {
+    const count = (needle: string) => source.split(needle).length - 1;
+    const process = source.slice(
+      source.indexOf('kind: "gateFailure",'),
+      source.indexOf('reportCaught(error, "easy-scan.process");'),
+    );
+    // Both gate-failure results the pipeline writes carry the placed frame.
+    expect(process.split('kind: "gateFailure",').length - 1).toBe(2);
+    expect(
+      process.split(
+        "placedFrame: paperInput.pipeline.manualPaperCorners ?? null,",
+      ).length - 1,
+    ).toBe(2);
+    expect(
+      count("placedFrame: paperInput.pipeline.manualPaperCorners ?? null,"),
+    ).toBe(2);
+    // The handedness toggle reruns the same photo with that frame.
+    const toggle = source.slice(
+      source.indexOf(
+        'resultRef.current.errors[0]?.code === "HANDEDNESS_MISMATCH"',
+      ),
+    );
+    const rerun = toggle.slice(0, toggle.indexOf("}, [runPipeline]);"));
+    expect(rerun).toContain("void runPipeline(");
+    expect(rerun).toContain("resultRef.current.placedFrame ?? undefined,");
   });
 
   it("a measurement from a placed frame says so on the sheet; its paper and the pipeline's frame come from one pipelinePaperInput", () => {

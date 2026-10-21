@@ -434,7 +434,7 @@ describe("檢查邊框 on a measured photo (review, F7)", () => {
     expect(frameMoved(state)).toBe(false);
   });
 
-  it("confirmed without moving: nothing runs, so the measurement on screen and its submission stay exactly as they were (cornersSource auto)", () => {
+  it("confirmed without moving: the action is none, so nothing runs (that none leaves the result and its submission untouched is checked on EasyScanCamera's confirmAdjust in paper-adjust-screen.test.ts)", () => {
     const state = open();
     // A tap that selects a corner, and a press that never moves, move nothing.
     const tapped = run(
@@ -464,13 +464,15 @@ describe("檢查邊框 on a measured photo (review, F7)", () => {
       moved: frameMoved(tapped),
     });
     expect(action).toEqual({ kind: "none" });
-    // What would be sent is the result's own submission, untouched.
-    const calibration = measured.submission.calibration;
-    expect("method" in calibration && calibration.method).toBe("paper-edge");
+    // The same frame, moved, is the only way to a rerun.
     expect(
-      "cornersSource" in calibration ? calibration.cornersSource : undefined,
-    ).toBeUndefined();
-    expect(measured.submission).toEqual(AUTO);
+      adjustConfirmAction({
+        entry: "review",
+        result: measured,
+        hasFile: true,
+        moved: true,
+      }),
+    ).toEqual({ kind: "rerun" });
   });
 
   it("a corner moved and back to exactly where it was is not a move", () => {
