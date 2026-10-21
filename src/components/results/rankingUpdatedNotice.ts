@@ -55,3 +55,43 @@ export function noticePhaseAt(
   if (elapsedMs < leaveAt + fadeMs) return "leaving";
   return "gone";
 }
+
+const PHASE_ORDER: Record<NoticePhase, number> = {
+  shown: 0,
+  leaving: 1,
+  gone: 2,
+};
+
+/**
+ * What the notice does next, given the phase on screen: `gone` (call onGone),
+ * `set` (move to a later phase now), or `wait` `ms` and then move to `then`.
+ *
+ * The phase never goes back: a timer that fires a little early (or whose
+ * fractional delay the browser truncated) would make `noticePhaseAt` say the
+ * old phase again, and the line would stay forever. So the step only moves
+ * forward, and the timer moves to `then` without asking the clock again.
+ */
+export type NoticeStep =
+  | { kind: "gone" }
+  | { kind: "set"; phase: NoticePhase }
+  | { kind: "wait"; ms: number; then: NoticePhase };
+
+export function noticeStep(
+  phase: NoticePhase,
+  elapsedMs: number,
+  closedAtMs: number | null,
+  fadeMs: number,
+): NoticeStep {
+  const byClock = noticePhaseAt(elapsedMs, closedAtMs, fadeMs);
+  const now = PHASE_ORDER[byClock] > PHASE_ORDER[phase] ? byClock : phase;
+  if (now !== phase) return { kind: "set", phase: now };
+  if (now === "gone") return { kind: "gone" };
+  const leaveAt = Math.min(
+    RANKING_UPDATED_NOTICE.VISIBLE_MS,
+    closedAtMs ?? Number.POSITIVE_INFINITY,
+  );
+  const next = now === "shown" ? leaveAt : leaveAt + fadeMs;
+  const then: NoticePhase = now === "shown" && fadeMs > 0 ? "leaving" : "gone";
+  // Whole milliseconds, rounded up (setTimeout truncates a fraction).
+  return { kind: "wait", ms: Math.max(0, Math.ceil(next - elapsedMs)), then };
+}

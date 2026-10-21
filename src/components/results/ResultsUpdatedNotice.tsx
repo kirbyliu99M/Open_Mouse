@@ -8,7 +8,7 @@
  * else on the page moves: it floats over the top, so a reader further down
  * (at the feedback sheet, say) loses neither the place nor what was typed.
  *
- * The timing is `noticePhaseAt` (rankingUpdatedNotice.ts); under reduced
+ * The timing is `noticeStep` (rankingUpdatedNotice.ts); under reduced
  * motion the line has no fade and simply goes.
  */
 import { useEffect, useRef, useState } from "react";
@@ -16,9 +16,8 @@ import { usePrefersReducedMotion } from "@/client/camera/useReducedMotion";
 import type { Locale } from "@/lib/contracts/locale";
 import { resultsScreensCopy } from "@/lib/copy/results-screens";
 import {
-  RANKING_UPDATED_NOTICE,
   noticeFadeMs,
-  noticePhaseAt,
+  noticeStep,
   type NoticePhase,
 } from "./rankingUpdatedNotice";
 
@@ -41,23 +40,23 @@ export function ResultsUpdatedNotice({
 
   useEffect(() => {
     if (shownAt.current === null) shownAt.current = performance.now();
-    const elapsed = () => performance.now() - (shownAt.current ?? 0);
-    const now = noticePhaseAt(elapsed(), closedAt, fadeMs);
-    setPhase(now);
-    if (now === "gone") {
+    const step = noticeStep(
+      phase,
+      performance.now() - shownAt.current,
+      closedAt,
+      fadeMs,
+    );
+    if (step.kind === "set") {
+      setPhase(step.phase);
+      return;
+    }
+    if (step.kind === "gone") {
       onGoneRef.current();
       return;
     }
-    // Wake at the next change of phase.
-    const leaveAt = Math.min(
-      RANKING_UPDATED_NOTICE.VISIBLE_MS,
-      closedAt ?? Number.POSITIVE_INFINITY,
-    );
-    const next = now === "shown" ? leaveAt : leaveAt + fadeMs;
-    const timer = setTimeout(
-      () => setPhase(noticePhaseAt(elapsed(), closedAt, fadeMs)),
-      Math.max(0, next - elapsed()),
-    );
+    // Wake at the next change of phase and move to it (never re-read the
+    // clock there: an early timer would leave the phase as it was).
+    const timer = setTimeout(() => setPhase(step.then), step.ms);
     return () => clearTimeout(timer);
   }, [closedAt, fadeMs, phase]);
 
