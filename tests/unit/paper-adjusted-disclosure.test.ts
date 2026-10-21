@@ -4,6 +4,7 @@
  * notes, the fact is kept per scan in this browser after a 201, and only the
  * value "1" is kept. What is sent is the contract's submission, numbers only.
  */
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -12,6 +13,7 @@ import { FIXTURES } from "../../src/components/results/fixtures";
 import {
   clearScanDisclosures,
   parseStoredPaperAdjusted,
+  readScanDisclosures,
   resultLengthKey,
   resultManualEntryKey,
   resultPaperAdjustedKey,
@@ -134,5 +136,76 @@ describe("the results page line", () => {
     expect(RESULTS_PAGE_COPY["zh-TW"].paperAdjustedNotice).toBe(
       "紙張邊框是手動調整的。",
     );
+  });
+});
+
+describe("from this browser to the results page (the wiring between the two ends)", () => {
+  const fakeStorage = (entries: Record<string, string>) => ({
+    getItem: (key: string) =>
+      Object.prototype.hasOwnProperty.call(entries, key) ? entries[key] : null,
+  });
+
+  it("readScanDisclosures reads each note from its own key, for this scan only", () => {
+    const other = "723e4567-e89b-12d3-a456-426614174099";
+    expect(
+      readScanDisclosures(
+        fakeStorage({
+          [resultPaperAdjustedKey(SCAN_ID)]: "1",
+          [resultLengthKey(SCAN_ID)]: "190",
+          [resultManualEntryKey(other)]: JSON.stringify({
+            handLengthMm: 190,
+            handWidthMm: 85,
+          }),
+        }),
+        SCAN_ID,
+      ),
+    ).toEqual({ enteredLength: 190, enteredManual: null, paperAdjusted: true });
+    // The adjusted note is read from its own key, not another note's.
+    expect(
+      readScanDisclosures(
+        fakeStorage({
+          [resultManualEntryKey(SCAN_ID)]: "1",
+          [resultLengthKey(SCAN_ID)]: "1",
+        }),
+        SCAN_ID,
+      ).paperAdjusted,
+    ).toBe(false);
+    expect(
+      readScanDisclosures(
+        fakeStorage({ [resultPaperAdjustedKey(other)]: "1" }),
+        SCAN_ID,
+      ),
+    ).toEqual({
+      enteredLength: null,
+      enteredManual: null,
+      paperAdjusted: false,
+    });
+  });
+
+  // The repo has no DOM test library: the two components are locked by their
+  // source, as result-fingerprint.test.ts does for the same files.
+  it("the provider reads the notes with readScanDisclosures and hands paperAdjusted on", () => {
+    const provider = readFileSync(
+      "src/app/results/[scanId]/ResultsScanProvider.tsx",
+      "utf8",
+    );
+    expect(provider).toContain(
+      "const notes = readScanDisclosures(localStorage, scanId);",
+    );
+    expect(provider).toContain("setPaperAdjusted(notes.paperAdjusted);");
+    expect(provider).toContain("setEnteredLength(notes.enteredLength);");
+    expect(provider).toContain("setEnteredManual(notes.enteredManual);");
+    // ...into the value the page reads.
+    expect(
+      provider.match(/^\s*paperAdjusted,$/gm)?.length ?? 0,
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  it("the ranking page passes it to ResultsView", () => {
+    const rank = readFileSync(
+      "src/app/results/[scanId]/ResultsRankClient.tsx",
+      "utf8",
+    );
+    expect(rank).toContain("paperAdjusted={scan.paperAdjusted}");
   });
 });

@@ -25,12 +25,7 @@ import {
   shouldRequestAnalysis,
 } from "@/lib/results/requests";
 import {
-  parseStoredManualEntry,
-  parseStoredPaperAdjusted,
-  parseStoredUserLength,
-  resultLengthKey,
-  resultManualEntryKey,
-  resultPaperAdjustedKey,
+  readScanDisclosures,
   type StoredManualEntry,
 } from "@/components/results/userLengthDisclosure";
 import { prefetchMouseLinks } from "@/components/results/mouseLinksStore";
@@ -192,22 +187,13 @@ export function ResultsScanProvider({
 
   useEffect(() => {
     try {
-      setEnteredLength(
-        parseStoredUserLength(localStorage.getItem(resultLengthKey(scanId))),
-      );
+      const notes = readScanDisclosures(localStorage, scanId);
+      setEnteredLength(notes.enteredLength);
       // The hand is read from the fit response now. Builds before that
       // stored it here; drop every leftover, not just this scan's.
       sweepLegacyHandKeys(localStorage);
-      setEnteredManual(
-        parseStoredManualEntry(
-          localStorage.getItem(resultManualEntryKey(scanId)),
-        ),
-      );
-      setPaperAdjusted(
-        parseStoredPaperAdjusted(
-          localStorage.getItem(resultPaperAdjustedKey(scanId)),
-        ),
-      );
+      setEnteredManual(notes.enteredManual);
+      setPaperAdjusted(notes.paperAdjusted);
     } catch {
       setEnteredLength(null);
       setEnteredManual(null);

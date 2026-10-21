@@ -12,19 +12,24 @@
  *
  * 1. `centredPaperFrame` / `defaultAdjustFrame`: the frame the screen opens
  *    with. The detector's corners where it found them; a corner it could not
- *    find, when three were found, is completed as a parallelogram ONLY as a
- *    starting point the person must move (it is marked not detected, and the
- *    screen will not accept it untouched: R5 E2 shows the parallelogram is
- *    biased by 5-8 mm under tilt). Otherwise a centred portrait sheet 72 % of
- *    the photo's width.
+ *    find, when three were found, starts visibly INSIDE the sheet: the
+ *    parallelogram's fourth corner pulled toward the opposite corner by
+ *    `guessInsetFraction` of that diagonal. It is never offered on the
+ *    parallelogram itself (R5 E2: biased by 5-8 mm under tilt, simulated;
+ *    DESIGN-v3.2 F2: no parallelogram completion), it is marked not detected,
+ *    and the screen counts it placed only once it is worked out from its
+ *    edges or moved at least `guessMinMoveFraction` of the photo's diagonal
+ *    (`paperAdjustState.ts`), so a 1 px nudge does not accept it. Otherwise a
+ *    centred portrait sheet 72 % of the photo's width.
  * 2. `solveHiddenCorner`: a corner under the hand, from points the person
  *    marks on its two neighbouring edges where they are visible. Each edge is
  *    the line through its visible neighbouring corner and the marked points;
  *    the corner is where the two lines meet. Refused, with a reason, for
  *    near-parallel edges, a meeting point far outside the photo, or edges that
  *    are mostly hidden (R5 E2c: past 70 % hidden the error grows fast).
- * 3. `checkManualQuad`: obvious mistakes only (crossed or concave frame,
- *    corners off the photo, a frame smaller than the detector's own minimum).
+ * 3. `checkManualQuad`: obvious mistakes only (crossed or concave frame, two
+ *    corners on top of each other or three in a line, corners off the photo,
+ *    a frame smaller than the detector's own minimum).
  *    There is deliberately NO aspect-ratio check: R5 E3 found it catches almost
  *    no bad frame (correlation with the hand-length error 0.02-0.22).
  * 4. `orientManualQuad`: labels the four points TL, TR, BR, BL with TL->TR the
@@ -81,6 +86,37 @@ export const MANUAL_QUAD_LIMITS = {
   minVisibleEdgeFraction: 0.3,
   /** A marked point closer than this share of the photo's diagonal to its edge's corner says nothing about the edge's direction. */
   minPointSpacingFraction: 0.03,
+  /**
+   * Two corners closer than this share of the photo's diagonal are taken to be
+   * one (a frame with a corner dragged onto another's place): the homography
+   * cannot be built from it. 0.02 of a 1024x1920 photo is 44 px, about 12 mm
+   * on a sheet 72 % of the photo's width (simulated); a real sheet's corners
+   * are far further apart than that, given `minAreaFraction`.
+   */
+  minCornerSpacingFraction: 0.02,
+  /**
+   * Every interior angle must be at least this many degrees (and at most 180
+   * minus it): an angle near 0 or 180 is three corners in a line, which
+   * leaves the homography singular. A sheet seen even under strong tilt keeps
+   * its corners far from that; this only catches a frame that is not a
+   * quadrilateral.
+   */
+  minCornerAngleDeg: 10,
+  /**
+   * The corner the detector did not find, when it found the other three,
+   * starts this share of the way from the parallelogram's fourth corner back
+   * toward the opposite corner: visibly off the sheet's corner, so it must
+   * really be dragged there (or worked out from its edges).
+   */
+  guessInsetFraction: 0.25,
+  /**
+   * ...and it counts as placed by a drag or arrow keys only once it is at
+   * least this share of the photo's diagonal from where it started (0.03 of a
+   * 1024x1920 photo is 65 px; the inset start is about 5 times that from the
+   * parallelogram corner on R5's scene, simulated). Working it out from its
+   * edges places it whatever the distance.
+   */
+  guessMinMoveFraction: 0.03,
 } as const;
 
 /** The corner order every paper quad uses: 0 = TL, 1 = TR, 2 = BR, 3 = BL. */
@@ -135,7 +171,7 @@ export interface DefaultAdjustFrame {
 /**
  * The frame the adjustment screen opens with, in the photo's pixels.
  * `corners` (all four found) wins; else `partialCorners` when three of them
- * were found (the fourth completed as a parallelogram, a guess); else the
+ * were found (the fourth a start inside the sheet, a guess); else the
  * centred sheet. A start that would itself fail `checkManualQuad` is replaced
  * by the centred sheet.
  */
@@ -177,7 +213,13 @@ export function defaultAdjustFrame(input: {
       const a = partial[prev]!;
       const b = partial[next]!;
       const o = partial[opposite]!;
-      const guess = { x: a.x + b.x - o.x, y: a.y + b.y - o.y };
+      // The parallelogram's corner is only the direction: the start is pulled
+      // inside the sheet, off that biased point (see the module comment).
+      const t = 1 - MANUAL_QUAD_LIMITS.guessInsetFraction;
+      const guess = {
+        x: o.x + (a.x + b.x - 2 * o.x) * t,
+        y: o.y + (a.y + b.y - 2 * o.y) * t,
+      };
       const corners = CORNER_INDICES.map((i) =>
         i === missing ? guess : { x: partial[i]!.x, y: partial[i]!.y },
       ) as unknown as Quad4;
@@ -203,6 +245,8 @@ export type ManualQuadProblem =
   | "not_finite"
   | "self_intersecting"
   | "not_convex"
+  /** Two corners on one point, or three in a line: not a quadrilateral. */
+  | "degenerate"
   | "outside_image"
   | "too_small";
 
@@ -228,6 +272,8 @@ function isFinitePoint(p: Point2): boolean {
 
 /**
  * Whether a placed frame is usable: four finite points, not crossed, convex,
+ * no two corners closer than `minCornerSpacingFraction` of the diagonal and no
+ * interior angle within `minCornerAngleDeg` of 0 or 180 (`degenerate`),
  * every corner on the photo or at most `maxOutsideFraction` beyond it, and at
  * least `minAreaFraction` of the photo. The order may be either way round;
  * `orientManualQuad` labels it afterwards. No aspect-ratio check (see the
@@ -245,6 +291,8 @@ export function checkManualQuad(
   )
     return { ok: false, problem: "self_intersecting" };
   if (!isConvexQuad(corners)) return { ok: false, problem: "not_convex" };
+  if (isDegenerateQuad(corners, image))
+    return { ok: false, problem: "degenerate" };
   if (!corners.every((p) => withinImage(p, image)))
     return { ok: false, problem: "outside_image" };
   if (
@@ -253,6 +301,38 @@ export function checkManualQuad(
   )
     return { ok: false, problem: "too_small" };
   return { ok: true };
+}
+
+/**
+ * Two corners (nearly) on one point, or a corner whose two edges (nearly) lie
+ * on one line. `isConvexQuad` skips a vertex whose cross product is 0 and the
+ * crossing test ignores touching ends, so without this a triangle with a
+ * doubled corner passes and the homography throws later.
+ */
+function isDegenerateQuad(corners: Quad4, image: FrameSize): boolean {
+  const minSpacing =
+    Math.hypot(image.width, image.height) *
+    MANUAL_QUAD_LIMITS.minCornerSpacingFraction;
+  for (let i = 0; i < 4; i++)
+    for (let j = i + 1; j < 4; j++)
+      if (
+        Math.hypot(corners[i].x - corners[j].x, corners[i].y - corners[j].y) <
+        minSpacing
+      )
+        return true;
+  const minSin = Math.sin(
+    (MANUAL_QUAD_LIMITS.minCornerAngleDeg * Math.PI) / 180,
+  );
+  for (let i = 0; i < 4; i++) {
+    const p = corners[(i + 3) % 4];
+    const c = corners[i];
+    const n = corners[(i + 1) % 4];
+    const lengths =
+      Math.hypot(p.x - c.x, p.y - c.y) * Math.hypot(n.x - c.x, n.y - c.y);
+    // |sin| of the angle at c: 0 for a straight line or a folded-back edge.
+    if (Math.abs(orient(c, p, n)) < minSin * lengths) return true;
+  }
+  return false;
 }
 
 /** On the photo, or no more than `maxOutsideFraction` of its size beyond an edge. */
@@ -384,7 +464,8 @@ export function solveHiddenCorner(input: {
  * (`orderQuadCorners`: round the centre, starting nearest the photo's top
  * left), and which pair of sides is short is decided as the detector decides
  * it (`resolveOrientation`, at the same focal length). It labels; it never
- * rejects (no aspect check, see the module comment). `image` is the analysed
+ * rejects (no aspect check, see the module comment), and never throws: a
+ * frame `checkManualQuad` refuses is only ordered. `image` is the analysed
  * photo, whose centre is the principal point.
  */
 export function orientManualQuad(
@@ -399,6 +480,11 @@ export function orientManualQuad(
     corners[2],
     corners[3],
   ]);
+  // A frame that fails the checks has no orientation to find (a doubled
+  // corner or three in a line leaves the pose singular, and it throws):
+  // it is returned in order, for `evaluateManualPaperCalibration` to turn
+  // back with a reason.
+  if (!checkManualQuad(ordered, image).ok) return ordered;
   const { shortMm, longMm } = PAPER_DIMENSIONS_MM[paperSize];
   const orientation = resolveOrientation(
     ordered,

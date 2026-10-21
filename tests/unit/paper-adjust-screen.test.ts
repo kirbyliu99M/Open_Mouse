@@ -324,10 +324,50 @@ describe("where the camera offers it (EasyScanCamera.tsx)", () => {
     expect(confirm).toContain('kind: "cornerCheck"');
   });
 
-  it("a measurement from a placed frame says so on the sheet; its paper comes from scanMeasuredPaper", () => {
+  it("a measurement from a placed frame says so on the sheet; its paper and the pipeline's frame come from one pipelinePaperInput", () => {
     expect(source).toContain("paperAdjustCopy(locale).measuredNote");
-    expect(source).toContain("const paperUsed = scanMeasuredPaper({");
-    expect(source).toMatch(/paper:\s*paperUsed/);
+    const run = source.slice(
+      source.indexOf("const runPipeline = useCallback("),
+      source.indexOf("const confirmAdjust = useCallback("),
+    );
+    expect(run.length).toBeGreaterThan(0);
+    // The frame the confirm passes in is read once, with the typed length and
+    // the paper size, and that one reading is both the event's paper...
+    expect(run).toMatch(
+      /const paperInput = pipelinePaperInput\(\{\s*typedLengthMm: userLengthRef\.current,\s*paperSize: paperSizeRef\.current,\s*manualPaperCorners,\s*\}\);/,
+    );
+    expect(run).toContain("const paperUsed = paperInput.paper;");
+    expect(run).toMatch(/paper:\s*paperUsed/);
+    // ...and what the pipeline is given (calibration and manualPaperCorners).
+    const call = run.slice(run.indexOf("await runPhotoPipelineImpl({"));
+    expect(call.indexOf("...paperInput.pipeline,")).toBeGreaterThan(0);
+    expect(call.indexOf("...paperInput.pipeline,")).toBeLessThan(
+      call.indexOf("});"),
+    );
+    // Nothing else sets them in that call.
+    expect(call.slice(0, call.indexOf("});"))).not.toMatch(
+      /calibration:|manualPaperCorners/,
+    );
+  });
+});
+
+describe("PaperAdjust.tsx turns keys and moves into actions through the tested helpers", () => {
+  const adjust = readFileSync("src/client/camera/PaperAdjust.tsx", "utf8");
+
+  it("the arrow keys go through nudgeForKey, with the event's key, Shift and the fit", () => {
+    expect(adjust).toMatch(
+      /nudgeForKey\(\{\s*key: e\.key,\s*shiftKey: e\.shiftKey,\s*index,\s*fit,\s*\}\)/,
+    );
+    expect(adjust).toContain("dispatch(nudge);");
+    expect(adjust).not.toContain("KEY_DIRECTIONS");
+    expect(adjust).not.toMatch(/type: "nudge"/);
+  });
+
+  it("a pointer move goes through pointerMoveFor with the fit", () => {
+    expect(adjust).toMatch(
+      /pointerMoveFor\(\{ pointerId: e\.pointerId, point: stagePoint\(e\), fit \}\)/,
+    );
+    expect(adjust).not.toMatch(/type: "pointerMove"/);
   });
 });
 

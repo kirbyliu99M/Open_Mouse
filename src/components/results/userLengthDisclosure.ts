@@ -57,6 +57,35 @@ export interface StoredManualEntry {
   readonly handWidthMm: number;
 }
 
+/** The three per-scan notes the results page reads from this browser. */
+export interface ScanDisclosures {
+  readonly enteredLength: number | null;
+  readonly enteredManual: StoredManualEntry | null;
+  readonly paperAdjusted: boolean;
+}
+
+/**
+ * Every per-scan note for `scanId`, each from its own key and parsed by its
+ * own reader. The results page calls this; an unreadable value is "no note".
+ * A storage that throws is the caller's to catch.
+ */
+export function readScanDisclosures(
+  storage: Pick<Storage, "getItem">,
+  scanId: string,
+): ScanDisclosures {
+  return {
+    enteredLength: parseStoredUserLength(
+      storage.getItem(resultLengthKey(scanId)),
+    ),
+    enteredManual: parseStoredManualEntry(
+      storage.getItem(resultManualEntryKey(scanId)),
+    ),
+    paperAdjusted: parseStoredPaperAdjusted(
+      storage.getItem(resultPaperAdjustedKey(scanId)),
+    ),
+  };
+}
+
 export function serializeManualEntry(entry: StoredManualEntry): string {
   return JSON.stringify({
     handLengthMm: entry.handLengthMm,

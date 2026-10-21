@@ -13,9 +13,14 @@ import {
   adjustReducer,
   cornerCheckDistances,
   cornerPositions,
+  KEY_DIRECTIONS,
   edgeStepOf,
   fitPhoto,
+  isGuessedCorner,
   magnifierLayout,
+  nudgeForKey,
+  pipelinePaperInput,
+  pointerMoveFor,
   startAdjust,
   toImage,
   toScreen,
@@ -28,7 +33,10 @@ import {
   scanSubmissionSchema,
   type ScanSubmission,
 } from "../../src/lib/contracts/measurement";
-import type { Quad4 } from "../../src/client/paper/manualQuad";
+import {
+  MANUAL_QUAD_LIMITS,
+  type Quad4,
+} from "../../src/client/paper/manualQuad";
 import { buildR5Scene } from "./helpers/r5-corner-scene";
 
 const IMAGE = { width: 1024, height: 1920 };
@@ -415,9 +423,157 @@ describe("relative drag", () => {
         pointerType: "touch",
         point: { x: 5, y: 5 },
       },
-      { type: "pointerMove", pointerId: 2, point: { x: 6, y: 5 }, scale },
+      // The guess starts inside the sheet: dragged the whole way to TR.
+      {
+        type: "pointerMove",
+        pointerId: 2,
+        point: {
+          x: 5 + (RECT[1].x - s.corners[1].x) * scale,
+          y: 5 + (RECT[1].y - s.corners[1].y) * scale,
+        },
+        scale,
+      },
     );
     expect(s.placed[1]).toBe(true);
+    expect(s.corners[1].x).toBeCloseTo(RECT[1].x, 9);
+    expect(s.corners[1].y).toBeCloseTo(RECT[1].y, 9);
+  });
+
+  it("a pointer back where the press began puts the corner back where it started", () => {
+    // The review's case: out 3 screen px and back to the very same point.
+    let s = run(
+      rescue(),
+      {
+        type: "pointerDown",
+        index: 0,
+        pointerId: 1,
+        pointerType: "mouse",
+        point: { x: 100, y: 100 },
+      },
+      { type: "pointerMove", pointerId: 1, point: { x: 103, y: 100 }, scale },
+    );
+    expect(s.corners[0]).toEqual({ x: 200 + 3 / scale, y: 300 });
+    expect(s.drag?.moved).toBe(true);
+    s = run(
+      s,
+      { type: "pointerMove", pointerId: 1, point: { x: 100, y: 100 }, scale },
+      { type: "pointerUp", pointerId: 1 },
+    );
+    expect(s.corners[0]).toEqual(RECT[0]);
+    expect(s.placed[0]).toBe(true);
+  });
+
+  it("a press that never moves leaves the drag unmoved", () => {
+    const s = run(
+      rescue(),
+      {
+        type: "pointerDown",
+        index: 0,
+        pointerId: 1,
+        pointerType: "mouse",
+        point: { x: 100, y: 100 },
+      },
+      { type: "pointerMove", pointerId: 1, point: { x: 100, y: 100 }, scale },
+    );
+    expect(s.drag?.moved).toBe(false);
+    expect(s.corners).toEqual(RECT);
+  });
+});
+
+describe("the corner the detector did not find: a nudge does not accept the guess", () => {
+  const partial = () =>
+    startAdjust({
+      entry: "rescue",
+      overlay: overlay({
+        paperPartialCorners: [RECT[0], null, RECT[2], RECT[3]],
+      }),
+      paperSize: "a4",
+    });
+  const minMove =
+    Math.hypot(IMAGE.width, IMAGE.height) *
+    MANUAL_QUAD_LIMITS.guessMinMoveFraction;
+
+  it("names the guessed corner, only in a partial start", () => {
+    const s = partial();
+    expect([0, 1, 2, 3].map((i) => isGuessedCorner(s, i as 0))).toEqual([
+      false,
+      true,
+      false,
+      false,
+    ]);
+    expect([0, 1, 2, 3].map((i) => isGuessedCorner(rescue(), i as 0))).toEqual([
+      false,
+      false,
+      false,
+      false,
+    ]);
+    expect(MANUAL_QUAD_LIMITS.guessMinMoveFraction).toBe(0.03);
+  });
+
+  it("one arrow press, or ten with Shift, leaves it not placed and the frame unusable", () => {
+    const scale = 0.4;
+    let s = run(partial(), {
+      type: "nudge",
+      index: 1,
+      dx: 1,
+      dy: 0,
+      big: false,
+      scale,
+    });
+    expect(s.placed[1]).toBe(false);
+    expect(adjustReadiness(s)).toEqual({ ok: false, notPlaced: 1 });
+    s = run(s, { type: "nudge", index: 1, dx: 1, dy: 0, big: true, scale });
+    // 1 + 10 screen px at 0.4 = 27.5 photo px: still under the minimum.
+    expect(1 / scale + 10 / scale).toBeLessThan(minMove);
+    expect(s.placed[1]).toBe(false);
+    expect(adjustReadiness(s)).toEqual({ ok: false, notPlaced: 1 });
+  });
+
+  it("a drag past the minimum places it, and a drag back near its start unplaces it", () => {
+    const start = partial();
+    const from = start.corners[1];
+    const down: AdjustAction = {
+      type: "pointerDown",
+      index: 1,
+      pointerId: 1,
+      pointerType: "touch",
+      point: { x: 0, y: 0 },
+    };
+    // Just short of the minimum (photo px; scale 1).
+    let s = run(start, down, {
+      type: "pointerMove",
+      pointerId: 1,
+      point: { x: minMove - 1, y: 0 },
+      scale: 1,
+    });
+    expect(s.corners[1]).toEqual({ x: from.x + minMove - 1, y: from.y });
+    expect(s.placed[1]).toBe(false);
+    s = run(s, {
+      type: "pointerMove",
+      pointerId: 1,
+      point: { x: minMove + 1, y: 0 },
+      scale: 1,
+    });
+    expect(s.placed[1]).toBe(true);
+    s = run(s, {
+      type: "pointerMove",
+      pointerId: 1,
+      point: { x: 2, y: 0 },
+      scale: 1,
+    });
+    expect(s.placed[1]).toBe(false);
+  });
+
+  it("a corner the detector found is placed by any move, however small", () => {
+    const s = run(partial(), {
+      type: "nudge",
+      index: 0,
+      dx: 1,
+      dy: 0,
+      big: false,
+      scale: 1,
+    });
+    expect(s.placed[0]).toBe(true);
   });
 });
 
@@ -438,6 +594,116 @@ describe("keyboard", () => {
     expect(s.corners[3]).toEqual({ x: 204, y: 1110 });
     expect(PAPER_ADJUST_LAYOUT.keyStepScreenPx).toBe(1);
     expect(PAPER_ADJUST_LAYOUT.keyBigStepFactor).toBe(10);
+  });
+});
+
+describe("keys and pointer moves become actions at the photo's scale (PaperAdjust.tsx)", () => {
+  // A 390 px phone stage, the photo fitted with the handle inset (simulated).
+  const fit = fitPhoto(
+    IMAGE,
+    { width: 390, height: 700 },
+    PAPER_ADJUST_LAYOUT.handleTargetPx / 2,
+  );
+
+  it("each arrow key nudges its own way, Shift is the big step, other keys do nothing", () => {
+    expect(Object.keys(KEY_DIRECTIONS).sort()).toEqual([
+      "ArrowDown",
+      "ArrowLeft",
+      "ArrowRight",
+      "ArrowUp",
+    ]);
+    const cases = [
+      ["ArrowLeft", -1, 0],
+      ["ArrowRight", 1, 0],
+      ["ArrowUp", 0, -1],
+      ["ArrowDown", 0, 1],
+    ] as const;
+    for (const [key, dx, dy] of cases)
+      for (const shiftKey of [false, true])
+        expect(nudgeForKey({ key, shiftKey, index: 2, fit })).toEqual({
+          type: "nudge",
+          index: 2,
+          dx,
+          dy,
+          big: shiftKey,
+          scale: fit.scale,
+        });
+    for (const key of ["Enter", " ", "a", "Tab", "toString", "constructor"])
+      expect(nudgeForKey({ key, shiftKey: false, index: 0, fit })).toBeNull();
+  });
+
+  it("an arrow on screen moves the corner the same way in the photo", () => {
+    const up = nudgeForKey({ key: "ArrowUp", shiftKey: false, index: 0, fit })!;
+    const s = run(rescue(), up);
+    expect(s.corners[0].x).toBe(RECT[0].x);
+    expect(s.corners[0].y).toBeCloseTo(RECT[0].y - 1 / fit.scale, 9);
+    expect(s.corners[0].y).toBeLessThan(RECT[0].y);
+  });
+
+  it("a pointer move carries the fitted scale, so 1 screen px is about 3 photo px on a phone (not 1)", () => {
+    const move = pointerMoveFor({ pointerId: 3, point: { x: 11, y: 7 }, fit });
+    expect(move).toEqual({
+      type: "pointerMove",
+      pointerId: 3,
+      point: { x: 11, y: 7 },
+      scale: fit.scale,
+    });
+    expect(fit.scale).toBeLessThan(0.35);
+    const s = run(
+      rescue(),
+      {
+        type: "pointerDown",
+        index: 0,
+        pointerId: 3,
+        pointerType: "touch",
+        point: { x: 10, y: 7 },
+      },
+      move,
+    );
+    expect(s.corners[0].x - RECT[0].x).toBeCloseTo(1 / fit.scale, 9);
+    expect(s.corners[0].x - RECT[0].x).toBeGreaterThan(2.5);
+  });
+});
+
+describe("what the pipeline is told about the paper (pipelinePaperInput)", () => {
+  const corners = { corners: RECT, source: "manual" as const };
+
+  it("with paper and a placed frame: the frame goes in and the event says adjusted", () => {
+    expect(
+      pipelinePaperInput({
+        typedLengthMm: null,
+        paperSize: "letter",
+        manualPaperCorners: corners,
+      }),
+    ).toEqual({
+      pipeline: {
+        calibration: { method: "paper-edge", paperSize: "letter" },
+        manualPaperCorners: corners,
+      },
+      paper: "adjusted",
+    });
+  });
+
+  it("with a typed length: no frame, whatever was placed, and no sheet", () => {
+    const r = pipelinePaperInput({
+      typedLengthMm: 190,
+      paperSize: "a4",
+      manualPaperCorners: corners,
+    });
+    expect(r).toEqual({
+      pipeline: { calibration: { method: "user-length", handLengthMm: 190 } },
+      paper: "none",
+    });
+    expect("manualPaperCorners" in r.pipeline).toBe(false);
+  });
+
+  it("with paper and no frame: the detector's run, detected", () => {
+    const r = pipelinePaperInput({ typedLengthMm: null, paperSize: "a4" });
+    expect(r).toEqual({
+      pipeline: { calibration: { method: "paper-edge", paperSize: "a4" } },
+      paper: "detected",
+    });
+    expect("manualPaperCorners" in r.pipeline).toBe(false);
   });
 });
 
@@ -696,6 +962,35 @@ describe("adjustReadiness", () => {
       paperSize: "a4",
     });
     expect(adjustReadiness(s)).toEqual({ ok: false, notPlaced: 1 });
+  });
+
+  it("two corners dragged onto the photo's corner block it as degenerate (no crash later)", () => {
+    // TR and BR both dragged past the photo's top-right: both clamp to (W, 0).
+    const far = { x: 5000, y: -5000 };
+    const s = run(
+      rescue(),
+      {
+        type: "pointerDown",
+        index: 1,
+        pointerId: 1,
+        pointerType: "mouse",
+        point: { x: 0, y: 0 },
+      },
+      { type: "pointerMove", pointerId: 1, point: far, scale: 1 },
+      { type: "pointerUp", pointerId: 1 },
+      {
+        type: "pointerDown",
+        index: 2,
+        pointerId: 2,
+        pointerType: "mouse",
+        point: { x: 0, y: 0 },
+      },
+      { type: "pointerMove", pointerId: 2, point: far, scale: 1 },
+      { type: "pointerUp", pointerId: 2 },
+    );
+    expect(s.corners[1]).toEqual({ x: IMAGE.width, y: 0 });
+    expect(s.corners[2]).toEqual({ x: IMAGE.width, y: 0 });
+    expect(adjustReadiness(s)).toEqual({ ok: false, problem: "degenerate" });
   });
 
   it("a crossed frame blocks it with its problem", () => {

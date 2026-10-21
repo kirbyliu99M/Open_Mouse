@@ -19,6 +19,7 @@
 import type { Point2 } from "../geometry/homography";
 import type { PaperSize } from "../paper/detect";
 import {
+  MANUAL_QUAD_LIMITS,
   checkManualQuad,
   cornerDistancesPx,
   defaultAdjustFrame,
@@ -33,7 +34,11 @@ import {
   type Quad4,
 } from "../paper/manualQuad";
 import { orderQuadCorners } from "../paper/quad-math";
-import type { PhotoOverlay, PipelineIssue } from "../photo/pipeline";
+import type {
+  PhotoOverlay,
+  PipelineIssue,
+  RunPhotoPipelineInput,
+} from "../photo/pipeline";
 import type { ScanSubmission } from "../../lib/contracts/measurement";
 
 /** The screen's named sizes. CSS px unless said otherwise. */
@@ -139,6 +144,38 @@ export function scanMeasuredPaper(input: {
 }
 
 /**
+ * What a run of the pipeline is given about the paper, and the `paper` its
+ * `scan_measured` event records, from ONE reading of the inputs so the two
+ * cannot disagree: a typed length uses no sheet (no frame either, there is
+ * nothing to frame); with paper, a frame the person placed goes to the
+ * pipeline (`manualPaperCorners`) and the event says `adjusted`.
+ */
+export function pipelinePaperInput(input: {
+  readonly typedLengthMm: number | null;
+  readonly paperSize: PaperSize;
+  readonly manualPaperCorners?: RunPhotoPipelineInput["manualPaperCorners"];
+}): {
+  readonly pipeline: Pick<
+    RunPhotoPipelineInput,
+    "calibration" | "manualPaperCorners"
+  >;
+  readonly paper: "none" | "adjusted" | "detected";
+} {
+  const typedLength = input.typedLengthMm !== null;
+  const corners = typedLength ? undefined : input.manualPaperCorners;
+  return {
+    pipeline: {
+      calibration:
+        input.typedLengthMm !== null
+          ? { method: "user-length", handLengthMm: input.typedLengthMm }
+          : { method: "paper-edge", paperSize: input.paperSize },
+      ...(corners ? { manualPaperCorners: corners } : {}),
+    },
+    paper: scanMeasuredPaper({ typedLength, placedFrame: Boolean(corners) }),
+  };
+}
+
+/**
  * What confirming the adjustment does, from the entry that was open and the
  * result on screen now:
  *
@@ -238,6 +275,12 @@ export interface DragState {
   readonly pointer: Point2;
   /** Where the corner was when the press began (photo px). */
   readonly startCorner: Point2;
+  /**
+   * Whether the pointer has left `startPointer` at any time in this drag. Once
+   * it has, the corner follows it exactly, back to `startCorner` when the
+   * pointer comes back to where it pressed.
+   */
+  readonly moved: boolean;
 }
 
 export interface EdgeMarkState {
@@ -369,10 +412,23 @@ function clampToImage(p: Point2, image: FrameSize): Point2 {
 }
 
 /**
+ * Whether `index` is the corner the detector did not find while it found the
+ * other three: its start is only a guess inside the sheet.
+ */
+export function isGuessedCorner(
+  state: Pick<AdjustState, "start">,
+  index: CornerIndex,
+): boolean {
+  return state.start.from === "partial" && !state.start.detected[index];
+}
+
+/**
  * `index` moved to `corner` and is placed. `solved` says whether it was worked
- * out from its edges (else the person put it there). A worked-out neighbour of
- * it was found from where `index` was, so it goes back to not placed, and the
- * notice says so.
+ * out from its edges (else the person put it there). A guessed corner
+ * (`isGuessedCorner`) moved by hand is placed only once it is at least
+ * `guessMinMoveFraction` of the photo's diagonal from its start, so a nudge
+ * does not accept the guess. A worked-out neighbour of it was found from
+ * where `index` was, so it goes back to not placed, and the notice says so.
  */
 function withCorner(
   state: AdjustState,
@@ -384,7 +440,13 @@ function withCorner(
   const corners = [...state.corners] as [Point2, Point2, Point2, Point2];
   corners[index] = corner;
   const placed = [...state.placed] as [boolean, boolean, boolean, boolean];
-  placed[index] = true;
+  const from = state.start.corners[index];
+  placed[index] =
+    solvedNow ||
+    !isGuessedCorner(state, index) ||
+    Math.hypot(corner.x - from.x, corner.y - from.y) >=
+      Math.hypot(state.image.width, state.image.height) *
+        MANUAL_QUAD_LIMITS.guessMinMoveFraction;
   const solved = [...state.solved] as [boolean, boolean, boolean, boolean];
   solved[index] = solvedNow;
   let notice = state.notice;
@@ -431,6 +493,7 @@ export function adjustReducer(
           startPointer: action.point,
           pointer: action.point,
           startCorner: state.corners[index],
+          moved: false,
         },
       };
     }
@@ -449,10 +512,17 @@ export function adjustReducer(
         },
         state.image,
       );
+      // A press that has not moved yet changes nothing (a tap only selects);
+      // once it has moved, the corner is always start + movement, including
+      // a return to the very point where the press began.
       const moved =
+        drag.moved ||
         action.point.x !== drag.startPointer.x ||
         action.point.y !== drag.startPointer.y;
-      const next = { ...state, drag: { ...drag, pointer: action.point } };
+      const next = {
+        ...state,
+        drag: { ...drag, pointer: action.point, moved },
+      };
       return moved ? withCorner(next, drag.index, corner) : next;
     }
     case "pointerUp":
@@ -544,6 +614,58 @@ export function adjustReducer(
         notice: null,
       };
   }
+}
+
+/** The arrow keys, as (dx, dy) on screen. */
+export const KEY_DIRECTIONS: Readonly<
+  Record<string, readonly [-1 | 0 | 1, -1 | 0 | 1]>
+> = {
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+  ArrowUp: [0, -1],
+  ArrowDown: [0, 1],
+};
+
+/**
+ * The action a key press on the handle of `index` makes: an arrow key nudges
+ * it (Shift: the big step) at the photo's current on-screen scale; any other
+ * key makes none.
+ */
+export function nudgeForKey(input: {
+  readonly key: string;
+  readonly shiftKey: boolean;
+  readonly index: CornerIndex;
+  readonly fit: PhotoFit;
+}): Extract<AdjustAction, { type: "nudge" }> | null {
+  const direction = Object.prototype.hasOwnProperty.call(
+    KEY_DIRECTIONS,
+    input.key,
+  )
+    ? KEY_DIRECTIONS[input.key]
+    : undefined;
+  if (!direction) return null;
+  return {
+    type: "nudge",
+    index: input.index,
+    dx: direction[0],
+    dy: direction[1],
+    big: input.shiftKey,
+    scale: input.fit.scale,
+  };
+}
+
+/** The action a pointer move on the stage makes, at the photo's current on-screen scale. */
+export function pointerMoveFor(input: {
+  readonly pointerId: number;
+  readonly point: Point2;
+  readonly fit: PhotoFit;
+}): Extract<AdjustAction, { type: "pointerMove" }> {
+  return {
+    type: "pointerMove",
+    pointerId: input.pointerId,
+    point: input.point,
+    scale: input.fit.scale,
+  };
 }
 
 /** The corner the marked points belong to, and which neighbour's edge the next tap is on. */

@@ -50,6 +50,8 @@ import {
   edgeStepOf,
   fitPhoto,
   magnifierLayout,
+  nudgeForKey,
+  pointerMoveFor,
   startAdjust,
   toImage,
   toScreen,
@@ -79,13 +81,6 @@ export interface PaperAdjustProps {
   readonly initialStageSize?: FrameSize;
   readonly initialMagnifier?: boolean;
 }
-
-const KEY_DIRECTIONS: Record<string, readonly [-1 | 0 | 1, -1 | 0 | 1]> = {
-  ArrowLeft: [-1, 0],
-  ArrowRight: [1, 0],
-  ArrowUp: [0, -1],
-  ArrowDown: [0, 1],
-};
 
 function pointerKind(type: string): PointerKind {
   return type === "mouse" || type === "pen" ? type : "touch";
@@ -203,12 +198,9 @@ export function PaperAdjust({
 
   const onStageMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!state.drag) return;
-    dispatch({
-      type: "pointerMove",
-      pointerId: e.pointerId,
-      point: stagePoint(e),
-      scale: fit.scale,
-    });
+    dispatch(
+      pointerMoveFor({ pointerId: e.pointerId, point: stagePoint(e), fit }),
+    );
   };
 
   const onStageUp = (e: ReactPointerEvent<HTMLDivElement>) =>
@@ -216,18 +208,16 @@ export function PaperAdjust({
 
   const onHandleKey =
     (index: CornerIndex) => (e: ReactKeyboardEvent<HTMLButtonElement>) => {
-      const direction = KEY_DIRECTIONS[e.key];
-      if (!direction) return;
+      const nudge = nudgeForKey({
+        key: e.key,
+        shiftKey: e.shiftKey,
+        index,
+        fit,
+      });
+      if (!nudge) return;
       e.preventDefault();
       setRefusal(null);
-      dispatch({
-        type: "nudge",
-        index,
-        dx: direction[0],
-        dy: direction[1],
-        big: e.shiftKey,
-        scale: fit.scale,
-      });
+      dispatch(nudge);
     };
 
   const confirm = () => {

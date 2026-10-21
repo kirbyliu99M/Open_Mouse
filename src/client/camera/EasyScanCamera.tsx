@@ -141,7 +141,7 @@ import {
   adjustConfirmAction,
   adjustEntryFor,
   cornerCheckDistances,
-  scanMeasuredPaper,
+  pipelinePaperInput,
   type AdjustEntry,
 } from "./paperAdjustState";
 import { paperAdjustCopy } from "../../lib/copy/paper-adjust";
@@ -1248,11 +1248,15 @@ export default function EasyScanCamera({
       }
       const runId = ++runIdRef.current;
       attemptCountRef.current += 1;
-      // Read now: a typed length chosen while the photo is analysed must not change it.
-      const paperUsed = scanMeasuredPaper({
-        typedLength: userLengthRef.current !== null,
-        placedFrame: Boolean(manualPaperCorners),
+      // Read now: a typed length chosen while the photo is analysed must not
+      // change it. One reading gives both what the pipeline is told about the
+      // paper (with the placed frame, if any) and what the event records.
+      const paperInput = pipelinePaperInput({
+        typedLengthMm: userLengthRef.current,
+        paperSize: paperSizeRef.current,
+        manualPaperCorners,
       });
+      const paperUsed = paperInput.paper;
       const attempt = clampAttempt(attemptCountRef.current);
       track("scan_capture_attempted", {
         flow: "easy",
@@ -1312,14 +1316,9 @@ export default function EasyScanCamera({
           handExplicit: handChipRef.current.locked,
           handednessFixInstruction: HAND_BUTTON_FIX_INSTRUCTION,
           onStage,
-          calibration:
-            userLengthRef.current !== null
-              ? { method: "user-length", handLengthMm: userLengthRef.current }
-              : { method: "paper-edge", paperSize: paperSizeRef.current },
-          // Only with paper (a typed length has no sheet to frame).
-          ...(manualPaperCorners && userLengthRef.current === null
-            ? { manualPaperCorners }
-            : {}),
+          // The calibration, and the placed frame only with paper (a typed
+          // length has no sheet to frame): `pipelinePaperInput`, read above.
+          ...paperInput.pipeline,
           // A frame of the video is already the part the person saw on
           // screen, so nothing is cropped (no previewView). The camera's own
           // photo (takePhoto, off by default) is cut down to that part before

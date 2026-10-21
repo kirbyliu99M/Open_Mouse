@@ -83,7 +83,7 @@ describe("defaultAdjustFrame", () => {
     expect(f.corners).not.toBe(RECT);
   });
 
-  it("completes a missing fourth corner as a guess the person must move", () => {
+  it("starts a missing fourth corner inside the sheet, never on the parallelogram's corner", () => {
     const f = defaultAdjustFrame({
       corners: null,
       partialCorners: [RECT[0], RECT[1], null, RECT[3]],
@@ -92,7 +92,20 @@ describe("defaultAdjustFrame", () => {
     });
     expect(f.from).toBe("partial");
     expect(f.detected).toEqual([true, true, false, true]);
-    expect(near(f.corners[2], RECT[2])).toBeLessThan(1e-9);
+    // The parallelogram's corner here is RECT[2] (RECT is a rectangle): the
+    // start is pulled guessInsetFraction of the diagonal back toward RECT[0].
+    expect(MANUAL_QUAD_LIMITS.guessInsetFraction).toBe(0.25);
+    const t = 1 - MANUAL_QUAD_LIMITS.guessInsetFraction;
+    expect(
+      near(f.corners[2], {
+        x: RECT[0].x + (RECT[2].x - RECT[0].x) * t,
+        y: RECT[0].y + (RECT[2].y - RECT[0].y) * t,
+      }),
+    ).toBeLessThan(1e-9);
+    expect(near(f.corners[2], RECT[2])).toBeGreaterThan(
+      0.2 * near(RECT[0], RECT[2]),
+    );
+    expect(checkManualQuad(f.corners, IMAGE)).toEqual({ ok: true });
   });
 
   it("falls back to the centred sheet with two corners or fewer, or a start that would fail the checks", () => {
@@ -137,6 +150,77 @@ describe("checkManualQuad: obvious mistakes only", () => {
       ok: false,
       problem: "not_convex",
     });
+  });
+
+  it("refuses two corners on one point (dragged together onto the photo's corner)", () => {
+    // The review's case: TR and BR both clamped onto (W, 0). Before the
+    // degenerate check this passed and the homography threw.
+    const doubled: Quad4 = [
+      { x: 150, y: 300 },
+      { x: IMAGE.width, y: 0 },
+      { x: IMAGE.width, y: 0 },
+      { x: 150, y: 1500 },
+    ];
+    expect(checkManualQuad(doubled, IMAGE)).toEqual({
+      ok: false,
+      problem: "degenerate",
+    });
+    // Nearly on one point: still one corner.
+    const spacing =
+      Math.hypot(IMAGE.width, IMAGE.height) *
+      MANUAL_QUAD_LIMITS.minCornerSpacingFraction;
+    const close: Quad4 = [
+      { x: 150, y: 300 },
+      { x: 900, y: 200 },
+      { x: 900, y: 200 + spacing * 0.9 },
+      { x: 150, y: 1500 },
+    ];
+    expect(checkManualQuad(close, IMAGE)).toEqual({
+      ok: false,
+      problem: "degenerate",
+    });
+    expect(MANUAL_QUAD_LIMITS.minCornerSpacingFraction).toBe(0.02);
+  });
+
+  it("refuses three corners in a line, and passes a strongly tilted sheet", () => {
+    const inLine: Quad4 = [
+      { x: 100, y: 100 },
+      { x: IMAGE.width, y: 100 },
+      { x: IMAGE.width, y: 1000 },
+      { x: IMAGE.width, y: 1800 },
+    ];
+    expect(checkManualQuad(inLine, IMAGE)).toEqual({
+      ok: false,
+      problem: "degenerate",
+    });
+    // A corner whose two edges meet at just under minCornerAngleDeg of a
+    // straight line, and one just over it.
+    const bend = (deg: number): Quad4 => {
+      const r = (deg * Math.PI) / 180;
+      // TR -> BR runs straight down; BR -> BL turns back by (180 - deg).
+      const br = { x: 900, y: 1000 };
+      const len = 800;
+      return [
+        { x: 100, y: 200 },
+        { x: 900, y: 200 },
+        br,
+        { x: br.x - len * Math.sin(r), y: br.y + len * Math.cos(r) },
+      ];
+    };
+    expect(MANUAL_QUAD_LIMITS.minCornerAngleDeg).toBe(10);
+    expect(checkManualQuad(bend(9), IMAGE)).toEqual({
+      ok: false,
+      problem: "degenerate",
+    });
+    expect(checkManualQuad(bend(11), IMAGE)).toEqual({ ok: true });
+    // A trapezoid such as a sheet seen at a steep tilt (simulated) is fine.
+    const tilted: Quad4 = [
+      { x: 300, y: 300 },
+      { x: 724, y: 300 },
+      { x: 950, y: 1600 },
+      { x: 74, y: 1600 },
+    ];
+    expect(checkManualQuad(tilted, IMAGE)).toEqual({ ok: true });
   });
 
   it("refuses a corner well off the photo, and lets one just beyond it pass", () => {
@@ -251,6 +335,31 @@ describe("solveHiddenCorner: edge extension", () => {
       image: IMAGE,
     });
     expect(exact).toEqual({ ok: false, problem: "parallel" });
+  });
+
+  it("refuses edges meeting under minEdgeAngleDeg, and accepts them just over it", () => {
+    // Corner (800, 500); edge A along +x, edge B coming in at `deg` to it.
+    // Both edges are 700 px to the corner with a point marked 60 % along, so
+    // only the angle differs (simulated).
+    const corner = { x: 800, y: 500 };
+    const at = (deg: number) => {
+      const r = (deg * Math.PI) / 180;
+      const fromB = {
+        x: corner.x - 700 * Math.cos(r),
+        y: corner.y - 700 * Math.sin(r),
+      };
+      return solveHiddenCorner({
+        edgeA: { from: { x: 100, y: 500 }, points: [{ x: 520, y: 500 }] },
+        edgeB: { from: fromB, points: [lerp(fromB, corner, 0.6)] },
+        image: IMAGE,
+      });
+    };
+    expect(MANUAL_QUAD_LIMITS.minEdgeAngleDeg).toBe(20);
+    expect(at(19)).toEqual({ ok: false, problem: "parallel" });
+    const ok = at(21);
+    expect(ok.ok).toBe(true);
+    expect(ok.ok && near(ok.corner, corner)).toBeLessThan(1e-6);
+    expect(ok.ok && ok.angleDeg).toBeCloseTo(21, 6);
   });
 
   it("refuses edges that meet far outside the photo", () => {
@@ -396,6 +505,38 @@ describe("evaluateManualPaperCalibration", () => {
     expect(r.geometry).toBeNull();
     expect(r.calibration).toBeNull();
     expect(r.errors.map((e) => e.code)).toEqual(["PAPER_CORNER_HIDDEN"]);
+  });
+
+  it("turns a doubled or in-line frame back as a hidden corner instead of throwing in the homography", () => {
+    // The two frames the review ran through the pipeline's own steps
+    // (orientManualQuad, then this): both used to throw.
+    const focal = assumedFocalPxFromFov(IMAGE.width);
+    const frames: Quad4[] = [
+      [
+        { x: 150, y: 300 },
+        { x: IMAGE.width, y: 0 },
+        { x: IMAGE.width, y: 0 },
+        { x: 150, y: 1500 },
+      ],
+      [
+        { x: 100, y: 100 },
+        { x: IMAGE.width, y: 100 },
+        { x: IMAGE.width, y: 1000 },
+        { x: IMAGE.width, y: 1800 },
+      ],
+    ];
+    for (const frame of frames) {
+      const r = evaluateManualPaperCalibration({
+        corners: orientManualQuad(frame, "a4", IMAGE, focal),
+        cornersSource: "manual",
+        paperSize: "a4",
+        image: IMAGE,
+        parallaxCorrected: false,
+      });
+      expect(r.ok).toBe(false);
+      expect(r.geometry).toBeNull();
+      expect(r.errors.map((e) => e.code)).toEqual(["PAPER_CORNER_HIDDEN"]);
+    }
   });
 });
 

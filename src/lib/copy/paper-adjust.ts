@@ -98,6 +98,8 @@ export const zhTW: PaperAdjustCopy = {
     not_finite: "有一個角的位置無法使用，請按「重設」再試一次。",
     self_intersecting: "邊框交叉了。請把每個角拖回它自己的位置。",
     not_convex: "邊框凹進去了。請把四個角拖到紙的四個角上。",
+    degenerate:
+      "有兩個角疊在一起，或三個角排成一直線。請把四個角拖到紙的四個角上。",
     outside_image: "有一個角在照片外面。請把它拖回照片裡。",
     too_small: "邊框太小了。請把四個角拖到紙的四個角上。",
   },
@@ -160,6 +162,8 @@ export const en: PaperAdjustCopy = {
       "The frame crosses itself. Drag each corner back to its own place.",
     not_convex:
       "The frame bends inwards. Drag the four corners onto the paper's corners.",
+    degenerate:
+      "Two corners are on top of each other, or three are in a line. Drag the four corners onto the paper's corners.",
     outside_image: "A corner is outside the photo. Drag it back in.",
     too_small:
       "The frame is too small. Drag the four corners onto the paper's corners.",
