@@ -16,6 +16,7 @@ import {
   adjustReducer,
   fitPhoto,
   scanMeasuredPaper,
+  sheetView,
   startAdjust,
   toScreen,
   type AdjustableResult,
@@ -92,7 +93,13 @@ describe("the handles", () => {
       expect(all[i]).toContain('data-placed="true"');
     });
     expect(html).toContain(copy.keyboardHint);
-    const fit = fitPhoto(IMAGE, { width: 390, height: 600 }, 24);
+    // F10: the screen opens zoomed onto the frame (sheetView), not on the
+    // whole photo.
+    const fit = sheetView(IMAGE, { width: 390, height: 600 }, RECT);
+    expect(fit.scale).toBeGreaterThan(
+      fitPhoto(IMAGE, { width: 390, height: 600 }, 24).scale,
+    );
+    expect(html).toContain('data-view="zoomed"');
     const p = toScreen(RECT[2], fit);
     const half = PAPER_ADJUST_LAYOUT.handleTargetPx / 2;
     expect(all[2]).toContain(
@@ -165,7 +172,8 @@ describe("the magnifier", () => {
     expect(m).toBeDefined();
     expect(m).toContain('aria-hidden="true"');
     expect(m).toContain(`background-image:url(&quot;${URL_}&quot;)`);
-    const fit = fitPhoto(IMAGE, { width: 390, height: 600 }, 24);
+    // Four times the photo as it is shown now (zoomed onto the frame, F10).
+    const fit = sheetView(IMAGE, { width: 390, height: 600 }, RECT);
     expect(m).toContain(
       `background-size:${fit.width * PAPER_ADJUST_LAYOUT.magnifierZoom}px`,
     );
@@ -355,9 +363,9 @@ describe("where the camera offers it (EasyScanCamera.tsx)", () => {
     expect(source).toContain("previous={");
     expect(source).toContain("result.placedFrame ?? null");
     expect(source).toContain("warning={adjustWarningFor(result)}");
-    // PAPER_NOT_FOUND opens the centred sheet only if the screen is told the
-    // failure's first code (review of F7).
-    expect(source).toContain("firstCode={adjustFirstCodeFor(result)}");
+    // F10: no first-code special case any more (F7 opened PAPER_NOT_FOUND on
+    // the centred sheet); the frame opens on the best guess in the overlay.
+    expect(source).not.toContain("firstCode=");
   });
 
   it("confirming goes through adjustConfirmAction; the pipeline runs only for its rerun, and nothing is sent", () => {
@@ -475,8 +483,9 @@ describe("PaperAdjust.tsx turns keys and moves into actions through the tested h
 
   it("a pointer move goes through pointerMoveFor with the fit", () => {
     expect(adjust).toMatch(
-      /pointerMoveFor\(\{ pointerId: e\.pointerId, point: stagePoint\(e\), fit \}\)/,
+      /pointerMoveFor\(\{ pointerId: e\.pointerId, point, fit \}\)/,
     );
+    expect(adjust).toContain("const point = stagePoint(e);");
     expect(adjust).not.toMatch(/type: "pointerMove"/);
   });
 });

@@ -140,7 +140,6 @@ import type { ReusedFocal } from "../geometry/parallax";
 import {
   adjustConfirmAction,
   adjustEntryFor,
-  adjustFirstCodeFor,
   adjustWarningFor,
   cornerCheckDistances,
   reusableFocal,
@@ -3245,7 +3244,6 @@ export default function EasyScanCamera({
                 ? (result.placedFrame ?? null)
                 : null
             }
-            firstCode={adjustFirstCodeFor(result)}
             warning={adjustWarningFor(result)}
             paperSize={paperSizeRef.current}
             previewUrl={result.previewUrl}

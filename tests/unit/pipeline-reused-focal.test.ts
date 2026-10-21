@@ -172,3 +172,38 @@ describe("a placed frame keeps the automatic run's focal length (real pipeline)"
     expect(given.diagnostics?.focal).toEqual(plain.diagnostics?.focal);
   });
 });
+
+describe("a failed photo's rough quad (F10 item 3, real pipeline)", () => {
+  it("the detector is asked for it once, and it reaches the overlay as paperGuessCorners; nothing is measured", async () => {
+    arrange();
+    const guess = SCENE.corners.map((p) => ({ x: p.x + 3, y: p.y - 2 })) as [
+      { x: number; y: number },
+      { x: number; y: number },
+      { x: number; y: number },
+      { x: number; y: number },
+    ];
+    vi.mocked(detectPaperQuad).mockReturnValue({
+      corners: null,
+      cornersSeen: 0,
+      cornersFound: [false, false, false, false],
+      partialCorners: [null, null, null, null],
+      minSideCoverage: 0,
+      edgeFitResidualPx: 0,
+      worstSideIndex: null,
+      paperRegionFound: false,
+      failureStage: "aspect_mismatch",
+      guessCorners: guess,
+    });
+    const r = await run();
+    expect(detectPaperQuad).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(detectPaperQuad).mock.calls[0][2]).toMatchObject({
+      failureGuess: true,
+    });
+    expect(r.status).toBe("error");
+    if (r.status !== "error") return;
+    expect(r.errors[0].code).toBe("PAPER_NOT_FOUND");
+    expect(r.overlay.paperGuessCorners).toEqual(guess);
+    expect(r.overlay.paperCorners).toBeUndefined();
+    expect(detectHandLandmarks).not.toHaveBeenCalled();
+  });
+});

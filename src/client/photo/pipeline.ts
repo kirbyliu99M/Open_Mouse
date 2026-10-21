@@ -127,6 +127,14 @@ export interface PhotoOverlay {
    * them; absent everywhere else.
    */
   readonly paperPartialCorners?: readonly (Point2 | null)[];
+  /**
+   * F10 (candidate 未拍板): the detector's rough quad around the bright region
+   * when it did not find all four corners (`guessCorners`), TL, TR, BR, BL in
+   * the same full-resolution pixels. Set only on that failure, ONLY as where
+   * the frame the person adjusts starts (every corner of it still to be
+   * confirmed); nothing is measured from it.
+   */
+  readonly paperGuessCorners?: readonly [Point2, Point2, Point2, Point2];
 }
 
 export type PipelineResult =
@@ -807,8 +815,15 @@ async function runPaperEdgePipeline(
     }
     // The detector runs once, in the worker where there is one (F8), else
     // here: the same `detectPaperQuad`, the same pixels and arguments.
+    // `failureGuess` (F10): a photo that fails also says where the bright
+    // region was, for the frame the person adjusts; a found sheet's result is
+    // exactly what it was without it.
     const detected = await getAnalysisRunner().run(
-      { kind: "paper", paperSize, options: { focalPxHint } },
+      {
+        kind: "paper",
+        paperSize,
+        options: { focalPxHint, failureGuess: true },
+      },
       frame,
       reread,
     );
@@ -863,6 +878,15 @@ async function runPaperEdgePipeline(
       const partial = quad.paperRegionFound
         ? quad.partialCorners.map((p) => (p ? toFullFrame(p, crop) : null))
         : null;
+      // ...and the rough quad around the bright region (F10), a start only.
+      const guess = quad.guessCorners
+        ? (quad.guessCorners.map((p) => toFullFrame(p, crop)) as unknown as [
+            Point2,
+            Point2,
+            Point2,
+            Point2,
+          ])
+        : null;
       return {
         status: "error",
         errors: [failure],
@@ -872,6 +896,7 @@ async function runPaperEdgePipeline(
           ...(partial && partial.some((p) => p !== null)
             ? { paperPartialCorners: partial }
             : {}),
+          ...(guess ? { paperGuessCorners: guess } : {}),
         },
       };
     }

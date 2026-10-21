@@ -55,6 +55,14 @@
  * Every "no detection" carries `failureStage`, the step it stopped at
  * (`detectionStage.ts`, scan S2): no step above changed for it.
  *
+ * F10 (candidate 未拍板): with `failureGuess: true` (the photo pipeline only,
+ * never the live viewfinder), a result without all four corners also carries
+ * `guessCorners`, a
+ * rough quad around the bright region it was looking at, as a starting point
+ * for the frame the person adjusts by hand. It is never measured from, no
+ * gate reads it, and nothing above changes for it: a found sheet's result is
+ * exactly what it was, with or without the option (`failureGuessFor`).
+ *
  * `cornersSeen` is exactly the count of `true` in `cornersFound`
  * (TL/TR/BR/BL, both adjacent sides fit); `minSideCoverage` is the
  * smallest fraction of any side's length that had inlier points spread
@@ -84,6 +92,7 @@ import {
 } from "./quad-math";
 import { assumedFocalPxFromFov, resolveOrientation } from "./orientation";
 import {
+  MIN_PIECE_FRACTION,
   stageForSmallRegions,
   type PaperDetectionStage,
 } from "./detectionStage";
@@ -120,6 +129,11 @@ export interface DetectPaperQuadOptions {
    * optional parameter, never a required one.
    */
   readonly focalPxHint?: number;
+  /**
+   * F10 (candidate): on a "no detection", also return `guessCorners`. Off by
+   * default, so the live viewfinder (called up to 8x/s) does no extra work.
+   */
+  readonly failureGuess?: boolean;
 }
 
 export interface SheetQuadDetection {
@@ -187,6 +201,19 @@ export interface SheetQuadDetection {
    * Absent where no detector ran (the marker adapter, hand-built detections).
    */
   readonly failureStage?: PaperDetectionStage;
+  /**
+   * F10 (candidate 未拍板): only when `corners` is `null`, and only when asked
+   * for (`failureGuess`). A rough quad (TL, TR, BR, BL, in this frame's px)
+   * around the bright region the detector was looking at when it stopped: the
+   * quad it had fitted when it got that far (a sheet found with fewer than four
+   * corners, `aspect_mismatch`, `too_small`, a region cut into), else the
+   * convex hull of the sizeable bright pieces simplified
+   * to four corners. `null` where there is nothing sensible to offer (no
+   * bright piece of any size, a region merged with the background). A
+   * starting point for the frame the person adjusts, NEVER a measurement: no
+   * gate, homography or number reads it.
+   */
+  readonly guessCorners?: readonly [Point2, Point2, Point2, Point2] | null;
 }
 
 const NONE: SheetQuadDetection = {
@@ -250,6 +277,15 @@ function resolutionScale(width: number, height: number): number {
  */
 const ASPECT_TOLERANCE_FRACTION = 0.08;
 const MAX_ORIENTATION_RESIDUAL = 0.2;
+/**
+ * F10 (candidate): the most a rough guess may differ from the chosen paper's
+ * shape (`guessPlausibility`: orientation residual + relative aspect error)
+ * and still be offered as the adjustment screen's start. About twice the
+ * sum of the two sanity limits above (0.2 + 0.08): a guess is only a start,
+ * but a frame around a bright desk (0.8 on the S2 near-white-desk scene,
+ * simulated) is no better than the centred sheet. Never read by any gate.
+ */
+const GUESS_MAX_IMPLAUSIBILITY = 0.6;
 /**
  * The connected component's raw pixel count must stay within this
  * fraction of the fitted quad's own polygon area. A hand/wrist sitting ON
@@ -666,17 +702,116 @@ export function detectPaperQuad(
   // own call defensively, but the contract this module promises its
   // caller (the live camera viewfinder in another worktree, called up to
   // 8×/s) is that it never throws in the first place.
+  const guess: GuessSink | null = options.failureGuess
+    ? { corners: null }
+    : null;
+  let result: SheetQuadDetection;
   try {
-    return detectPaperQuadImpl(frame, paperSize, options);
+    result = detectPaperQuadImpl(frame, paperSize, options, guess);
   } catch {
-    return none("exception");
+    result = none("exception");
   }
+  return failureGuessFor(result, guess);
+}
+
+/** Where the implementation leaves its rough quad as it goes (F10). */
+interface GuessSink {
+  corners: readonly [Point2, Point2, Point2, Point2] | null;
+}
+
+/**
+ * The detection as it is, plus `guessCorners` when a guess was asked for
+ * (F10) and the four corners were not all found (no sheet, or a sheet with
+ * fewer than four corners). A sheet with all four corners is returned
+ * untouched (the same object), so nothing it reports can change.
+ */
+export function failureGuessFor(
+  result: SheetQuadDetection,
+  guess: { readonly corners: SheetQuadDetection["guessCorners"] } | null,
+): SheetQuadDetection {
+  if (!guess || result.corners !== null) return result;
+  return { ...result, guessCorners: guess.corners ?? null };
+}
+
+/**
+ * A rough quad around every pixel whose label `keep` accepts (F10): the
+ * left/right-most such pixel of every row, their convex hull, simplified to
+ * four corners and ordered TL, TR, BR, BL. `null` without enough of them.
+ * Pixel-centre coordinates, like the detector's own.
+ */
+function regionGuessQuad(
+  labels: Int32Array,
+  width: number,
+  height: number,
+  keep: (label: number) => boolean,
+): readonly [Point2, Point2, Point2, Point2] | null {
+  const points: Point2[] = [];
+  for (let y = 0; y < height; y++) {
+    const rowOff = y * width;
+    let left = -1;
+    let right = -1;
+    for (let x = 0; x < width; x++) {
+      const label = labels[rowOff + x];
+      if (label < 0 || !keep(label)) continue;
+      if (left < 0) left = x;
+      right = x;
+    }
+    if (left >= 0) {
+      points.push({ x: left + 0.5, y: y + 0.5 });
+      if (right !== left) points.push({ x: right + 0.5, y: y + 0.5 });
+    }
+  }
+  if (points.length < 4) return null;
+  const quad = simplifyToQuad(convexHull(points));
+  if (!quad) return null;
+  const ordered = orderQuadCorners(quad);
+  return [ordered[0], ordered[1], ordered[2], ordered[3]];
+}
+
+/**
+ * How unlike the chosen paper a rough quad looks (F10, choosing between two
+ * guesses only): the orientation residual plus the rectified aspect's
+ * relative error, as the sanity checks measure them; `Infinity` for a quad
+ * with no orientation or a corner more than 10 % of the frame off it (the
+ * adjustment screen's own limit).
+ */
+export function guessPlausibility(
+  quad: readonly [Point2, Point2, Point2, Point2],
+  paperSize: PaperSize,
+  width: number,
+  height: number,
+  focalPx: number,
+): number {
+  const mx = width * 0.1;
+  const my = height * 0.1;
+  if (
+    !quad.every(
+      (p) =>
+        p.x >= -mx && p.x <= width + mx && p.y >= -my && p.y <= height + my,
+    )
+  )
+    return Infinity;
+  const { shortMm, longMm } = PAPER_DIMENSIONS_MM[paperSize];
+  const orientation = resolveOrientation(
+    quad,
+    shortMm,
+    longMm,
+    { x: width / 2, y: height / 2 },
+    focalPx,
+  );
+  if (!orientation) return Infinity;
+  const expected = orientation.rotateBy1 ? longMm / shortMm : shortMm / longMm;
+  return (
+    orientation.residual +
+    Math.abs(orientation.rectifiedAspect - expected) / expected
+  );
 }
 
 function detectPaperQuadImpl(
   frame: ImageData,
   paperSize: PaperSize,
   options: DetectPaperQuadOptions,
+  guess: GuessSink | null,
 ): SheetQuadDetection {
   const { width, height, data } = frame;
   const pixelCount = width * height;
@@ -711,10 +846,46 @@ function detectPaperQuadImpl(
     }
   }
   if (bestArea < MIN_PAPER_AREA_FRACTION * pixelCount) {
+    if (guess) {
+      // Every sizeable piece together (a sheet cut by a shadow or a hand, or
+      // one too small): the hull of all of them.
+      const minPiece = MIN_PIECE_FRACTION * pixelCount;
+      const q = regionGuessQuad(
+        labels,
+        width,
+        height,
+        (label) => areas[label] >= minPiece,
+      );
+      const focal = options.focalPxHint ?? assumedFocalPxFromFov(width);
+      if (
+        q &&
+        guessPlausibility(q, paperSize, width, height, focal) <=
+          GUESS_MAX_IMPLAUSIBILITY
+      )
+        guess.corners = q;
+    }
     return none(
       stageForSmallRegions(areas, pixelCount, MIN_PAPER_AREA_FRACTION),
     );
   }
+  // From here on, a rough quad for the frame a person adjusts (F10) is the
+  // region's own hull until a better one (the fitted quad) exists.
+  const regionGuess = () => {
+    if (!guess) return;
+    const q = regionGuessQuad(
+      labels,
+      width,
+      height,
+      (label) => label === bestLabel,
+    );
+    const focal = options.focalPxHint ?? assumedFocalPxFromFov(width);
+    if (
+      q &&
+      guessPlausibility(q, paperSize, width, height, focal) <=
+        GUESS_MAX_IMPLAUSIBILITY
+    )
+      guess.corners = q;
+  };
 
   const { rowPoints, colPoints } = collectBoundaryCandidates(
     labels,
@@ -725,13 +896,41 @@ function detectPaperQuadImpl(
     height,
   );
   if (rowPoints.length + colPoints.length < 4 * RANSAC_MIN_POINTS) {
+    regionGuess();
     return none("unknown");
   }
 
   const hull = convexHull(rowPoints.concat(colPoints));
   const coarseQuad = simplifyToQuad(hull);
-  if (!coarseQuad) return none("unknown");
+  if (!coarseQuad) {
+    regionGuess();
+    return none("unknown");
+  }
   const ordered = orderQuadCorners(coarseQuad);
+  const quadGuess = (q: readonly [Point2, Point2, Point2, Point2]) => {
+    if (guess) guess.corners = [q[0], q[1], q[2], q[3]];
+  };
+  // A fitted quad that was turned back (too small, cut into, the wrong
+  // shape) may be only part of the sheet, as when a shadow band splits it:
+  // the hull of every sizeable piece together is the other candidate, and
+  // whichever looks more like the chosen paper (`guessPlausibility`) is kept.
+  const sheetGuess = (q: readonly [Point2, Point2, Point2, Point2]) => {
+    if (!guess) return;
+    const minPiece = MIN_PIECE_FRACTION * pixelCount;
+    const union = regionGuessQuad(
+      labels,
+      width,
+      height,
+      (label) => areas[label] >= minPiece,
+    );
+    const focal = options.focalPxHint ?? assumedFocalPxFromFov(width);
+    const score = (c: readonly [Point2, Point2, Point2, Point2]) =>
+      guessPlausibility(c, paperSize, width, height, focal);
+    const best = union && score(union) < score(q) ? union : q;
+    // Nothing that looks like the paper at all: no guess (the frame opens
+    // centred), rather than a frame around a bright desk.
+    if (score(best) <= GUESS_MAX_IMPLAUSIBILITY) quadGuess(best);
+  };
 
   const diag = Math.hypot(width, height);
   const maxAssignDistance = diag * SIDE_ASSIGNMENT_MAX_DISTANCE_FRACTION;
@@ -771,7 +970,10 @@ function detectPaperQuadImpl(
     if (coarse) return coarse.line;
     return null; // degenerate input (e.g. 3 near-collinear coarse corners) — no detection, not a throw.
   });
-  if (finalLinesOrNull.some((line) => line === null)) return none("unknown");
+  if (finalLinesOrNull.some((line) => line === null)) {
+    quadGuess(ordered);
+    return none("unknown");
+  }
   const finalLines = finalLinesOrNull as NormalLine[];
 
   // Working quad: EVERY side present, falling back to the coarse line
@@ -784,14 +986,22 @@ function detectPaperQuadImpl(
     const c1 = intersectLines(finalLines[0], finalLines[1]);
     const c2 = intersectLines(finalLines[1], finalLines[2]);
     const c3 = intersectLines(finalLines[2], finalLines[3]);
-    if (!c0 || !c1 || !c2 || !c3) return none("unknown");
+    if (!c0 || !c1 || !c2 || !c3) {
+      quadGuess(ordered);
+      return none("unknown");
+    }
     workingCorners = [c0, c1, c2, c3];
   } catch {
+    quadGuess(ordered);
     return none("exception");
   }
 
-  if (!isConvexQuad(workingCorners)) return none("unknown");
+  if (!isConvexQuad(workingCorners)) {
+    quadGuess(ordered);
+    return none("unknown");
+  }
   if (polygonArea(workingCorners) < MIN_QUAD_AREA_FRACTION * pixelCount) {
+    sheetGuess(workingCorners);
     return none("too_small");
   }
 
@@ -805,8 +1015,11 @@ function detectPaperQuadImpl(
   // it is cut into or split. Over the maximum: it spills well past the quad
   // (merged with the background), which no named stage describes.
   if (componentToQuadAreaRatio < MIN_COMPONENT_TO_QUAD_AREA_RATIO) {
+    sheetGuess(workingCorners);
     return none("region_split");
   }
+  // Merged with the background: the region is not the sheet, and no rough
+  // quad is offered (the frame opens centred instead).
   if (componentToQuadAreaRatio > MAX_COMPONENT_TO_QUAD_AREA_RATIO) {
     return none("unknown");
   }
@@ -826,6 +1039,7 @@ function detectPaperQuadImpl(
     focalPx,
   );
   if (!orientation || orientation.residual > MAX_ORIENTATION_RESIDUAL) {
+    sheetGuess(workingCorners);
     return none("aspect_mismatch");
   }
   const expectedRectifiedAspect = orientation.rotateBy1
@@ -834,7 +1048,10 @@ function detectPaperQuadImpl(
   const aspectError =
     Math.abs(orientation.rectifiedAspect - expectedRectifiedAspect) /
     expectedRectifiedAspect;
-  if (aspectError > ASPECT_TOLERANCE_FRACTION) return none("aspect_mismatch");
+  if (aspectError > ASPECT_TOLERANCE_FRACTION) {
+    sheetGuess(workingCorners);
+    return none("aspect_mismatch");
+  }
 
   // Relabel so TL→TR is always the paper's WIDTH (short) side, exactly
   // like a photo shot upright would have given `buildPaperHomography`
@@ -918,6 +1135,8 @@ function detectPaperQuadImpl(
     }
   }
 
+  // Fewer than four corners: the working quad is the rough start (F10).
+  if (cornersSeen < 4) quadGuess(workingCorners);
   return {
     corners:
       cornersSeen === 4

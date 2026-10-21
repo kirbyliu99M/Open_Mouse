@@ -5,18 +5,24 @@
  * photo where the person lines a frame up with the sheet's four corners.
  *
  * All of its rules are in `paperAdjustState.ts` (pure, tested); this file wires the
- * pointer and key events to `adjustReducer` and draws the state. The skeleton
- * of `/scan`'s card-corner handles is kept (pointerdown + setPointerCapture +
- * arrow-key nudges, ScanClient.tsx), with new targets and looks:
+ * pointer and key events to `adjustReducer` and the view helpers, and draws the
+ * state. The skeleton of `/scan`'s card-corner handles is kept (pointerdown +
+ * setPointerCapture + arrow-key nudges, ScanClient.tsx), with new targets and
+ * looks:
  *
  * - four 48 px handles (the ring inside is 18 px), named by where they are;
  * - relative drag: a press anywhere on a handle, or anywhere on the photo once
  *   a corner is chosen, moves that corner by the pointer's movement;
  * - a 4x magnifier above (or beside) the finger, showing the corner under a
- *   crosshair, never under the finger;
+ *   crosshair, never under the finger, switching side only past a margin
+ *   (F10, `magnifierPlacement`);
  * - the arrow keys move the focused corner 1 screen px (Shift: 10);
  * - "這個角被手遮住": two taps on the corner's two edges work it out
- *   (`solveHiddenCorner`), or say why they cannot.
+ *   (`solveHiddenCorner`), or say why they cannot;
+ * - F10: it opens zoomed onto the frame (`sheetView`); two fingers zoom and
+ *   move the photo (`pinchView`), a double tap or a button shows the whole
+ *   photo, a mouse wheel zooms. The view only changes how the photo is drawn:
+ *   corners are kept in the photo's pixels.
  *
  * The photo is the frozen photo's own object URL, drawn by the browser; it is
  * never read, copied or sent. Only the four corner positions leave this
@@ -30,36 +36,50 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
+  type WheelEvent as ReactWheelEvent,
 } from "react";
 import type { Locale } from "../../lib/contracts/locale";
 import { paperAdjustCopy } from "../../lib/copy/paper-adjust";
 import type { PaperSize } from "../paper/detect";
 import {
   CORNER_INDICES,
+  centredPaperFrame,
   neighbourCorners,
   type CornerIndex,
   type FrameSize,
   type Quad4,
 } from "../paper/manualQuad";
+import type { Point2 } from "../geometry/homography";
 import type { PhotoOverlay } from "../photo/pipeline";
 import {
   PAPER_ADJUST_LAYOUT,
   adjustReadiness,
   adjustReducer,
+  clampView,
   cornerPositions,
   edgeStepOf,
-  fitPhoto,
   frameMoved,
+  isDoubleTap,
+  isWholeView,
   magnifierLayout,
+  magnifierPlacement,
   nudgeForKey,
+  pinchView,
   pointerMoveFor,
+  sheetView,
   startAdjust,
   toImage,
   toScreen,
+  wheelZoomFactor,
+  wholeView,
+  zoomViewAt,
   type AdjustEntry,
   type AdjustState,
+  type MagnifierPlacement,
+  type PhotoFit,
   type PlacedFrame,
   type PointerKind,
+  type StageTap,
 } from "./paperAdjustState";
 
 export interface PaperAdjustConfirm {
@@ -82,8 +102,6 @@ export interface PaperAdjustProps {
   readonly onConfirm: (result: PaperAdjustConfirm) => void;
   /** The frame the run on screen was given, when the person placed one (F7: it opens again). */
   readonly previous?: PlacedFrame | null;
-  /** The first reason the photo was turned back (F7: `PAPER_NOT_FOUND` opens the centred sheet). */
-  readonly firstCode?: string;
   /** A line shown before confirming (`adjustWarningFor`, F7): the sheet was measured as curled. */
   readonly warning?: "curled" | null;
   /** For tests and the static render: a state to start from, and the stage's size. */
@@ -91,6 +109,16 @@ export interface PaperAdjustProps {
   readonly initialStageSize?: FrameSize;
   readonly initialMagnifier?: boolean;
 }
+
+/**
+ * How the photo is shown (F10): zoomed onto a frame (`sheet`, recomputed for
+ * the stage's size), the whole photo, or wherever two fingers or the wheel
+ * left it (`free`).
+ */
+type ViewChoice =
+  | { readonly kind: "sheet"; readonly quad: Quad4 }
+  | { readonly kind: "whole" }
+  | { readonly kind: "free"; readonly fit: PhotoFit };
 
 function pointerKind(type: string): PointerKind {
   return type === "mouse" || type === "pen" ? type : "touch";
@@ -105,7 +133,6 @@ export function PaperAdjust({
   onCancel,
   onConfirm,
   previous = null,
-  firstCode,
   warning = null,
   initialState,
   initialStageSize,
@@ -115,18 +142,33 @@ export function PaperAdjust({
   const [state, dispatch] = useReducer(
     adjustReducer,
     initialState ?? null,
-    (given) =>
-      given ?? startAdjust({ entry, overlay, paperSize, previous, firstCode }),
+    (given) => given ?? startAdjust({ entry, overlay, paperSize, previous }),
   );
   const [stageSize, setStageSize] = useState<FrameSize | null>(
     initialStageSize ?? null,
   );
+  const [view, setView] = useState<ViewChoice>(() => ({
+    kind: "sheet",
+    quad: state.start.corners,
+  }));
   const [magnifierOn, setMagnifierOn] = useState(initialMagnifier);
+  // Where the magnifier was on the last frame of this drag (F10: hysteresis).
+  const [magnifierAt, setMagnifierAt] = useState<MagnifierPlacement | null>(
+    null,
+  );
   // Said once after a press of the primary button that cannot be used yet.
   const [refusal, setRefusal] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  // The fingers on the stage now, and a pinch in progress (F10).
+  const pointersRef = useRef(new Map<number, Point2>());
+  const pinchRef = useRef<{
+    readonly ids: readonly [number, number];
+    readonly from: readonly [Point2, Point2];
+    readonly start: PhotoFit;
+  } | null>(null);
+  const lastTapRef = useRef<StageTap | null>(null);
 
   // A modal of its own (focus stays inside), opened when it mounts.
   useEffect(() => {
@@ -152,11 +194,14 @@ export function PaperAdjust({
     return () => observer.disconnect();
   }, []);
 
-  const fit = fitPhoto(
-    state.image,
-    stageSize ?? { width: 0, height: 0 },
-    PAPER_ADJUST_LAYOUT.handleTargetPx / 2,
-  );
+  const stage = stageSize ?? { width: 0, height: 0 };
+  const fit: PhotoFit =
+    view.kind === "whole"
+      ? wholeView(state.image, stage)
+      : view.kind === "sheet"
+        ? sheetView(state.image, stage, view.quad)
+        : clampView(view.fit, state.image, stage);
+  const showingWhole = isWholeView(fit, state.image, stage);
   const positions = cornerPositions(state.corners);
   const nameOf = (index: CornerIndex) => copy.cornerNames[positions[index]];
   const readiness = adjustReadiness(state);
@@ -176,20 +221,61 @@ export function PaperAdjust({
     }
   };
 
+  /**
+   * A finger came down while another is on the stage: a pinch begins, and a
+   * corner drag in progress is undone (F10). Returns whether it did.
+   */
+  const startPinch = (pointerId: number, point: Point2): boolean => {
+    const others = [...pointersRef.current.entries()].filter(
+      ([id]) => id !== pointerId,
+    );
+    pointersRef.current.set(pointerId, point);
+    if (others.length !== 1 || state.edge) return false;
+    const [otherId, otherPoint] = others[0];
+    if (state.drag) dispatch({ type: "dragCancel" });
+    setMagnifierAt(null);
+    lastTapRef.current = null;
+    pinchRef.current = {
+      ids: [otherId, pointerId],
+      from: [otherPoint, point],
+      start: fit,
+    };
+    return true;
+  };
+
+  const beginDrag = (
+    index: CornerIndex | null,
+    e: ReactPointerEvent<HTMLElement>,
+    point: Point2,
+  ) => {
+    capture(e.pointerId);
+    setRefusal(null);
+    setMagnifierAt(
+      stageSize
+        ? magnifierPlacement({ pointer: point, stage: stageSize })
+        : null,
+    );
+    dispatch({
+      type: "pointerDown",
+      index,
+      pointerId: e.pointerId,
+      pointerType: pointerKind(e.pointerType),
+      point,
+    });
+  };
+
   const onHandleDown =
     (index: CornerIndex) => (e: ReactPointerEvent<HTMLButtonElement>) => {
       if (state.edge) return; // taps go to the edges while marking
       e.preventDefault();
       e.stopPropagation();
-      capture(e.pointerId);
-      setRefusal(null);
-      dispatch({
-        type: "pointerDown",
-        index,
-        pointerId: e.pointerId,
-        pointerType: pointerKind(e.pointerType),
-        point: stagePoint(e),
-      });
+      const point = stagePoint(e);
+      if (startPinch(e.pointerId, point)) {
+        capture(e.pointerId);
+        return;
+      }
+      lastTapRef.current = null;
+      beginDrag(index, e, point);
     };
 
   const onStageDown = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -199,26 +285,77 @@ export function PaperAdjust({
       dispatch({ type: "edgeTap", point: toImage(point, fit) });
       return;
     }
-    capture(e.pointerId);
-    setRefusal(null);
-    dispatch({
-      type: "pointerDown",
-      index: null,
-      pointerId: e.pointerId,
-      pointerType: pointerKind(e.pointerType),
-      point,
-    });
+    if (startPinch(e.pointerId, point)) {
+      capture(e.pointerId);
+      return;
+    }
+    // A double tap on the photo: the whole photo, or back onto the frame.
+    const tap = { at: e.timeStamp, point };
+    if (isDoubleTap(lastTapRef.current, tap)) {
+      lastTapRef.current = null;
+      pointersRef.current.delete(e.pointerId);
+      setView(
+        showingWhole
+          ? { kind: "sheet", quad: state.corners }
+          : { kind: "whole" },
+      );
+      return;
+    }
+    lastTapRef.current = tap;
+    beginDrag(null, e, point);
   };
 
   const onStageMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!state.drag) return;
-    dispatch(
-      pointerMoveFor({ pointerId: e.pointerId, point: stagePoint(e), fit }),
-    );
+    const point = stagePoint(e);
+    if (pointersRef.current.has(e.pointerId))
+      pointersRef.current.set(e.pointerId, point);
+    const pinch = pinchRef.current;
+    if (pinch) {
+      const a = pointersRef.current.get(pinch.ids[0]);
+      const b = pointersRef.current.get(pinch.ids[1]);
+      if (a && b && stageSize)
+        setView({
+          kind: "free",
+          fit: pinchView({
+            start: pinch.start,
+            from: pinch.from,
+            to: [a, b],
+            image: state.image,
+            stage: stageSize,
+          }),
+        });
+      return;
+    }
+    if (!state.drag || state.drag.pointerId !== e.pointerId) return;
+    lastTapRef.current = null;
+    if (stageSize)
+      setMagnifierAt((prev) =>
+        magnifierPlacement({
+          pointer: point,
+          stage: stageSize,
+          previous: prev,
+        }),
+      );
+    dispatch(pointerMoveFor({ pointerId: e.pointerId, point, fit }));
   };
 
-  const onStageUp = (e: ReactPointerEvent<HTMLDivElement>) =>
+  const onStageUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    pointersRef.current.delete(e.pointerId);
+    const pinch = pinchRef.current;
+    if (pinch && pinch.ids.includes(e.pointerId)) pinchRef.current = null;
+    if (state.drag?.pointerId === e.pointerId) setMagnifierAt(null);
     dispatch({ type: "pointerUp", pointerId: e.pointerId });
+  };
+
+  const onStageWheel = (e: ReactWheelEvent<HTMLDivElement>) => {
+    if (!stageSize || fit.width === 0) return;
+    const factor = wheelZoomFactor(e.deltaY);
+    if (factor === 1) return;
+    setView({
+      kind: "free",
+      fit: zoomViewAt(fit, factor, stagePoint(e), state.image, stageSize),
+    });
+  };
 
   const onHandleKey =
     (index: CornerIndex) => (e: ReactKeyboardEvent<HTMLButtonElement>) => {
@@ -236,9 +373,15 @@ export function PaperAdjust({
 
   const confirm = () => {
     if (!readiness.ok) {
+      const name =
+        "notPlaced" in readiness
+          ? copy.cornerNames[positions[readiness.notPlaced]]
+          : "";
       setRefusal(
         "notPlaced" in readiness
-          ? copy.notPlaced(copy.cornerNames[positions[readiness.notPlaced]])
+          ? state.start.from === "guess"
+            ? copy.notConfirmed(name)
+            : copy.notPlaced(name)
           : copy.quadProblem[readiness.problem],
       );
       return;
@@ -286,7 +429,9 @@ export function PaperAdjust({
         ? copy.review.instruction
         : state.start.detected.every(Boolean)
           ? copy.instructionDetected
-          : copy.instructionGuess;
+          : state.start.from === "guess"
+            ? copy.instructionRough
+            : copy.instructionGuess;
   const title =
     entry === "check"
       ? copy.check.entry
@@ -309,6 +454,7 @@ export function PaperAdjust({
           corner: state.corners[drag.index],
           fit,
           stage: stageSize,
+          previous: magnifierAt,
         })
       : null;
   const half = PAPER_ADJUST_LAYOUT.handleTargetPx / 2;
@@ -341,6 +487,9 @@ export function PaperAdjust({
           {title}
         </h2>
         <p className="paperAdjustHint">{instruction}</p>
+        <p className="paperAdjustHint paperAdjustGestureHint">
+          {copy.gestureHint}
+        </p>
         {warning === "curled" && (
           <p className="paperAdjustWarning" data-testid="paper-adjust-warning">
             {copy.curledWarning}
@@ -350,11 +499,14 @@ export function PaperAdjust({
       <div
         className="paperAdjustStage"
         ref={stageRef}
+        data-testid="paper-adjust-stage"
         data-marking={state.edge ? "true" : undefined}
+        data-view={showingWhole ? "whole" : "zoomed"}
         onPointerDown={onStageDown}
         onPointerMove={onStageMove}
         onPointerUp={onStageUp}
         onPointerCancel={onStageUp}
+        onWheel={onStageWheel}
       >
         {fit.width > 0 && (
           // eslint-disable-next-line @next/next/no-img-element -- a local object URL, drawn as it is
@@ -488,13 +640,45 @@ export function PaperAdjust({
         <button
           type="button"
           className="paperAdjustTool"
+          data-testid="paper-adjust-view"
+          onClick={() =>
+            setView(
+              showingWhole
+                ? { kind: "sheet", quad: state.corners }
+                : { kind: "whole" },
+            )
+          }
+        >
+          {showingWhole ? copy.zoomToFrame : copy.wholePhoto}
+        </button>
+        <button
+          type="button"
+          className="paperAdjustTool"
           onClick={() => {
             setRefusal(null);
             dispatch({ type: "reset" });
+            setView({ kind: "sheet", quad: state.start.corners });
           }}
         >
           {copy.reset}
         </button>
+        {entry === "rescue" && state.start.from !== "centred" && (
+          <button
+            type="button"
+            className="paperAdjustTool"
+            data-testid="paper-adjust-centre"
+            onClick={() => {
+              setRefusal(null);
+              dispatch({ type: "centre" });
+              setView({
+                kind: "sheet",
+                quad: centredPaperFrame(state.image, state.paperSize),
+              });
+            }}
+          >
+            {copy.centreFrame}
+          </button>
+        )}
         {entry === "check" && (
           <button
             type="button"

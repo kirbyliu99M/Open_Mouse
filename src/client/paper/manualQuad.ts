@@ -165,20 +165,33 @@ export interface DefaultAdjustFrame {
   readonly corners: Quad4;
   /** Which corners are the detector's own (true) and which only a starting guess (false). */
   readonly detected: readonly [boolean, boolean, boolean, boolean];
-  /** Where the frame came from, for the record and for the words on screen. */
-  readonly from: "detected" | "partial" | "centred";
+  /**
+   * Where the frame came from, for the record and for the words on screen.
+   * `guess` (F10): the detector's rough quad around the bright region
+   * (`guessCorners`), with any corner it did find in place of the rough one.
+   */
+  readonly from: "detected" | "partial" | "guess" | "centred";
 }
 
 /**
- * The frame the adjustment screen opens with, in the photo's pixels.
- * `corners` (all four found) wins; else `partialCorners` when three of them
- * were found (the fourth a start inside the sheet, a guess); else the
- * centred sheet. A start that would itself fail `checkManualQuad` is replaced
- * by the centred sheet.
+ * The frame the adjustment screen opens with, in the photo's pixels (F10,
+ * Kirby's second phone test 2026-10-21/22: always a best guess, never the
+ * centred sheet when anything better is known). In order:
+ *
+ * 1. `corners` (all four found);
+ * 2. `partialCorners` when three of them were found (the fourth a start
+ *    inside the sheet, a guess);
+ * 3. `guessCorners`, the detector's rough quad around the bright region, with
+ *    each corner it did find (`partialCorners`) in place of the rough one;
+ * 4. the centred sheet.
+ *
+ * A start that would itself fail `checkManualQuad` falls through to the next.
  */
 export function defaultAdjustFrame(input: {
   readonly corners?: Quad4 | null;
   readonly partialCorners?: readonly (Point2 | null)[] | null;
+  /** F10: the detector's rough quad on a failure (`paperGuessCorners`). */
+  readonly guessCorners?: Quad4 | null;
   readonly image: FrameSize;
   readonly paperSize: PaperSize;
 }): DefaultAdjustFrame {
@@ -236,6 +249,28 @@ export function defaultAdjustFrame(input: {
           from: "partial",
         };
     }
+  }
+  const guess = input.guessCorners;
+  if (guess && guess.length === 4 && guess.every(isFinitePoint)) {
+    const found =
+      partial && partial.length === 4
+        ? partial.map((p) => p !== null && isFinitePoint(p))
+        : [false, false, false, false];
+    const merged = CORNER_INDICES.map((i) =>
+      found[i] ? { x: partial![i]!.x, y: partial![i]!.y } : { ...guess[i] },
+    ) as unknown as Quad4;
+    if (found.some(Boolean) && checkManualQuad(merged, input.image).ok)
+      return {
+        corners: merged,
+        detected: found as unknown as [boolean, boolean, boolean, boolean],
+        from: "guess",
+      };
+    if (checkManualQuad(guess, input.image).ok)
+      return {
+        corners: copyQuad(guess),
+        detected: [false, false, false, false],
+        from: "guess",
+      };
   }
   return centred;
 }

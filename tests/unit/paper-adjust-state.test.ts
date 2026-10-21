@@ -9,7 +9,6 @@ import {
   PAPER_ADJUST_LAYOUT,
   adjustConfirmAction,
   adjustEntryFor,
-  adjustFirstCodeFor,
   adjustWarningFor,
   frameMoved,
   isPaperIssue,
@@ -22,6 +21,8 @@ import {
   fitPhoto,
   isGuessedCorner,
   magnifierLayout,
+  magnifierPlacement,
+  MAGNIFIER_EDGE,
   nudgeForKey,
   pipelinePaperInput,
   pointerMoveFor,
@@ -30,6 +31,7 @@ import {
   toScreen,
   type AdjustAction,
   type AdjustState,
+  type MagnifierPlacement,
 } from "../../src/client/camera/paperAdjustState";
 import type { PhotoOverlay } from "../../src/client/photo/pipeline";
 import {
@@ -289,7 +291,6 @@ describe("adjustWarningFor: PAPER_CURLED is said before confirming (F7)", () => 
       entry: "rescue",
       overlay: overlay({ paperPartialCorners: [...RECT] }),
       paperSize: "a4",
-      firstCode: "PAPER_CURLED",
     });
     const ready = adjustReadiness(state);
     expect(ready.ok).toBe(true);
@@ -307,64 +308,99 @@ describe("adjustWarningFor: PAPER_CURLED is said before confirming (F7)", () => 
   });
 });
 
-describe("where the frame opens (F7)", () => {
-  it("adjustFirstCodeFor: a PAPER_NOT_FOUND failure with corners left from a partial detection opens the centred sheet, nothing placed (the camera's wiring)", () => {
-    const result = {
-      kind: "gateFailure" as const,
-      errors: [issue("PAPER_NOT_FOUND"), issue("HAND_NOT_FOUND")],
-      overlay: overlay({
-        paperPartialCorners: [RECT[0], RECT[1], null, RECT[3]],
-      }),
-    };
-    expect(adjustFirstCodeFor(result)).toBe("PAPER_NOT_FOUND");
-    expect(adjustEntryFor(result, false)).toBe("rescue");
+describe("where the frame opens (F7; F10: always a best guess)", () => {
+  // F10 (Kirby's second phone test 2026-10-21/22): 「即便沒有掃描成功，還是
+  // 需要先幫用戶大致拉出框線」. F7 opened PAPER_NOT_FOUND on the centred sheet
+  // (its adjustFirstCodeFor wiring is gone); now the frame opens on the best
+  // guess there is, whatever the code.
+  const GUESS: Quad4 = [
+    { x: 190, y: 310 },
+    { x: 815, y: 290 },
+    { x: 790, y: 1160 },
+    { x: 215, y: 1140 },
+  ];
+
+  it("no sheet found but a rough quad: opens on it, every corner to be confirmed", () => {
     const state = startAdjust({
       entry: "rescue",
-      overlay: result.overlay,
+      overlay: overlay({ paperGuessCorners: GUESS }),
       paperSize: "a4",
-      firstCode: adjustFirstCodeFor(result),
     });
-    expect(state.start.from).toBe("centred");
+    expect(state.start.from).toBe("guess");
+    expect(state.corners).toEqual(GUESS);
     expect(state.placed).toEqual([false, false, false, false]);
-    // Without the code, the same overlay would open on the partial corners,
-    // some of them placed: the case the wiring guards.
-    const without = startAdjust({
+    expect(adjustReadiness(state)).toEqual({ ok: false, notPlaced: 0 });
+  });
+
+  it("a tap confirms a corner of the rough quad; a drag of any size does too; all four make the frame usable (manual)", () => {
+    let s = startAdjust({
       entry: "rescue",
-      overlay: result.overlay,
+      overlay: overlay({ paperGuessCorners: GUESS }),
       paperSize: "a4",
     });
-    expect(without.placed).not.toEqual([false, false, false, false]);
+    s = run(s, { type: "select", index: 0 });
+    expect(s.placed).toEqual([true, false, false, false]);
+    expect(s.corners).toEqual(GUESS);
+    s = run(
+      s,
+      {
+        type: "pointerDown",
+        index: 1,
+        pointerId: 1,
+        pointerType: "touch",
+        point: { x: 0, y: 0 },
+      },
+      { type: "pointerMove", pointerId: 1, point: { x: 1, y: 0 }, scale: 1 },
+      { type: "pointerUp", pointerId: 1 },
+    );
+    expect(s.placed).toEqual([true, true, false, false]);
+    s = run(s, { type: "select", index: 2 }, { type: "select", index: 3 });
+    const ready = adjustReadiness(s);
+    expect(ready.ok).toBe(true);
+    if (ready.ok) expect(ready.source).toBe("manual");
   });
 
-  it("adjustFirstCodeFor: a measured photo gives no code; a failure gives its first", () => {
-    expect(
-      adjustFirstCodeFor({
-        kind: "measured",
-        overlay: overlay({ paperCorners: RECT }),
-        submission: AUTO,
+  it("a tap does NOT confirm a centred corner or the partial frame's inset guess (those must be moved)", () => {
+    const centred = run(
+      startAdjust({ entry: "rescue", overlay: overlay(), paperSize: "a4" }),
+      { type: "select", index: 0 },
+    );
+    expect(centred.start.from).toBe("centred");
+    expect(centred.placed[0]).toBe(false);
+    const partial = run(
+      startAdjust({
+        entry: "rescue",
+        overlay: overlay({
+          paperPartialCorners: [RECT[0], null, RECT[2], RECT[3]],
+          paperGuessCorners: GUESS,
+        }),
+        paperSize: "a4",
       }),
-    ).toBeUndefined();
-    expect(
-      adjustFirstCodeFor({
-        kind: "gateFailure",
-        errors: [issue("PAPER_CURLED"), issue("PAPER_NOT_FOUND")],
-        overlay: overlay(),
-      }),
-    ).toBe("PAPER_CURLED");
-    expect(
-      adjustFirstCodeFor({ kind: "gateFailure", errors: [], overlay: null }),
-    ).toBeUndefined();
+      { type: "select", index: 1 },
+    );
+    expect(partial.start.from).toBe("partial");
+    expect(partial.placed[1]).toBe(false);
   });
 
-  it("PAPER_NOT_FOUND: the centred sheet, 72 % of the photo's width, all four corners not placed", () => {
+  it("one or two corners found: those in place (placed), the rest from the rough quad (to confirm)", () => {
     const state = startAdjust({
       entry: "rescue",
-      // Even with corners left over from a partial detection.
       overlay: overlay({
-        paperPartialCorners: [RECT[0], null, RECT[2], RECT[3]],
+        paperPartialCorners: [RECT[0], null, null, RECT[3]],
+        paperGuessCorners: GUESS,
       }),
       paperSize: "a4",
-      firstCode: "PAPER_NOT_FOUND",
+    });
+    expect(state.start.from).toBe("guess");
+    expect(state.corners).toEqual([RECT[0], GUESS[1], GUESS[2], RECT[3]]);
+    expect(state.placed).toEqual([true, false, false, true]);
+  });
+
+  it("nothing known: the centred sheet, 72 % of the photo's width, all four corners not placed", () => {
+    const state = startAdjust({
+      entry: "rescue",
+      overlay: overlay(),
+      paperSize: "a4",
     });
     expect(state.start.from).toBe("centred");
     expect(state.placed).toEqual([false, false, false, false]);
@@ -376,7 +412,6 @@ describe("where the frame opens (F7)", () => {
       6,
     );
     expect(MANUAL_QUAD_LIMITS.defaultWidthFraction).toBe(0.72);
-    // Centred.
     expect((Math.max(...xs) + Math.min(...xs)) / 2).toBeCloseTo(
       IMAGE.width / 2,
       6,
@@ -385,21 +420,106 @@ describe("where the frame opens (F7)", () => {
       IMAGE.height / 2,
       6,
     );
-    // A4's shape.
     expect((Math.max(...ys) - Math.min(...ys)) / width).toBeCloseTo(
       297 / 210,
       6,
     );
-    // Nothing can be confirmed until each corner was dragged.
     expect(adjustReadiness(state)).toEqual({ ok: false, notPlaced: 0 });
   });
 
+  it("a rough quad that is not a usable frame is passed over for the centred sheet", () => {
+    const crossed: Quad4 = [GUESS[0], GUESS[2], GUESS[1], GUESS[3]];
+    const state = startAdjust({
+      entry: "rescue",
+      overlay: overlay({ paperGuessCorners: crossed }),
+      paperSize: "a4",
+    });
+    expect(state.start.from).toBe("centred");
+  });
+
+  it("the rough quad is for the rescue only: 檢查邊框 and the corner check never use it", () => {
+    const review = startAdjust({
+      entry: "review",
+      overlay: overlay({ paperCorners: RECT, paperGuessCorners: GUESS }),
+      paperSize: "a4",
+    });
+    expect(review.corners).toEqual(RECT);
+    const check = startAdjust({
+      entry: "check",
+      overlay: overlay({ paperCorners: RECT, paperGuessCorners: GUESS }),
+      paperSize: "a4",
+    });
+    expect(check.start.from).toBe("centred");
+  });
+
+  it("centre (one tap, rescue only): back to the centred sheet, nothing placed, and reset then returns there", () => {
+    let s = startAdjust({
+      entry: "rescue",
+      overlay: overlay({ paperGuessCorners: GUESS }),
+      paperSize: "a4",
+    });
+    s = run(s, { type: "select", index: 0 }, { type: "centre" });
+    expect(s.start.from).toBe("centred");
+    expect(s.placed).toEqual([false, false, false, false]);
+    const centred = startAdjust({
+      entry: "rescue",
+      overlay: overlay(),
+      paperSize: "a4",
+    });
+    expect(s.corners).toEqual(centred.corners);
+    s = run(
+      s,
+      {
+        type: "pointerDown",
+        index: 0,
+        pointerId: 1,
+        pointerType: "touch",
+        point: { x: 0, y: 0 },
+      },
+      { type: "pointerMove", pointerId: 1, point: { x: 30, y: 0 }, scale: 1 },
+      { type: "pointerUp", pointerId: 1 },
+      { type: "reset" },
+    );
+    expect(s.corners).toEqual(centred.corners);
+    const review = startAdjust({
+      entry: "review",
+      overlay: overlay({ paperCorners: RECT }),
+      paperSize: "a4",
+    });
+    expect(run(review, { type: "centre" })).toBe(review);
+  });
+
+  it("dragCancel (a second finger came down): the corner goes back to where the drag began, its placed state too", () => {
+    const s0 = startAdjust({
+      entry: "rescue",
+      overlay: overlay({ paperGuessCorners: GUESS }),
+      paperSize: "a4",
+    });
+    const s = run(
+      s0,
+      {
+        type: "pointerDown",
+        index: 2,
+        pointerId: 1,
+        pointerType: "touch",
+        point: { x: 0, y: 0 },
+      },
+      { type: "pointerMove", pointerId: 1, point: { x: 40, y: 20 }, scale: 1 },
+    );
+    expect(s.placed[2]).toBe(true);
+    const back = run(s, { type: "dragCancel" });
+    expect(back.corners).toEqual(s0.corners);
+    expect(back.placed).toEqual(s0.placed);
+    expect(back.drag).toBeNull();
+  });
+});
+
+describe("where the frame opens (F7), continued", () => {
   it("a paper gate after the four corners were found: starts from them, placed", () => {
     const state = startAdjust({
       entry: "rescue",
       overlay: overlay({ paperPartialCorners: [...RECT] }),
       paperSize: "a4",
-      firstCode: "PAPER_EDGE_HIDDEN",
     });
     expect(state.start.from).toBe("detected");
     expect(state.corners).toEqual(RECT);
@@ -419,7 +539,6 @@ describe("where the frame opens (F7)", () => {
         overlay: overlay({ paperCorners: RECT }),
         paperSize: "a4",
         previous: { corners: placed, source },
-        firstCode: "HAND_OUT_OF_BOUNDS",
       });
       expect(state.corners).toEqual(placed);
       expect(state.placed).toEqual([true, true, true, true]);
@@ -1410,7 +1529,7 @@ describe("cornerPositions: a handle is named for where it is", () => {
   });
 });
 
-describe("magnifierLayout: at least 4x, never under the finger, always on the stage", () => {
+describe("magnifierLayout: at least 4x, never under the finger, on the stage or at most MAGNIFIER_EDGE.overflowPx past it (F10)", () => {
   const L = PAPER_ADJUST_LAYOUT;
   // The stage left on a 320x568 phone, a 390x844 phone, and a desktop window.
   const stages = [
@@ -1424,7 +1543,7 @@ describe("magnifierLayout: at least 4x, never under the finger, always on the st
   });
 
   for (const stage of stages) {
-    it(`${stage.width}x${stage.height}: clear of the finger's disc and inside the stage everywhere`, () => {
+    it(`${stage.width}x${stage.height}: clear of the finger's disc and within the overflow everywhere`, () => {
       const fit = fitPhoto(IMAGE, stage, L.handleTargetPx / 2);
       for (let x = 0; x <= stage.width; x += 10)
         for (let y = 0; y <= stage.height; y += 10) {
@@ -1440,13 +1559,141 @@ describe("magnifierLayout: at least 4x, never under the finger, always on the st
           expect(gap, `at ${x},${y}`).toBeGreaterThanOrEqual(
             L.fingerRadiusPx - 1e-9,
           );
-          expect(m.left).toBeGreaterThanOrEqual(0);
-          expect(m.top).toBeGreaterThanOrEqual(0);
-          expect(m.left + m.size).toBeLessThanOrEqual(stage.width);
-          expect(m.top + m.size).toBeLessThanOrEqual(stage.height);
+          const o = MAGNIFIER_EDGE.overflowPx;
+          expect(m.left).toBeGreaterThanOrEqual(-o - 1e-9);
+          expect(m.top).toBeGreaterThanOrEqual(-o - 1e-9);
+          expect(m.left + m.size).toBeLessThanOrEqual(stage.width + o + 1e-9);
+          expect(m.top + m.size).toBeLessThanOrEqual(stage.height + o + 1e-9);
         }
     });
+
+    it(`${stage.width}x${stage.height}: also while it keeps its side (hysteresis), along every path`, () => {
+      const fit = fitPhoto(IMAGE, stage, L.handleTargetPx / 2);
+      const o = MAGNIFIER_EDGE.overflowPx;
+      for (let y = 0; y <= stage.height; y += 20) {
+        let previous: MagnifierPlacement | null = null;
+        for (let x = 0; x <= stage.width; x += 4) {
+          const m = magnifierLayout({
+            pointer: { x, y },
+            corner: { x: 500, y: 900 },
+            fit,
+            stage,
+            previous,
+          });
+          previous = m;
+          const gap =
+            Math.hypot(m.left + m.size / 2 - x, m.top + m.size / 2 - y) -
+            m.size / 2;
+          expect(gap, `at ${x},${y}`).toBeGreaterThanOrEqual(
+            L.fingerRadiusPx - 1e-9,
+          );
+          expect(m.left).toBeGreaterThanOrEqual(-o - 1e-9);
+          expect(m.left + m.size).toBeLessThanOrEqual(stage.width + o + 1e-9);
+          expect(m.top).toBeGreaterThanOrEqual(-o - 1e-9);
+          expect(m.top + m.size).toBeLessThanOrEqual(stage.height + o + 1e-9);
+        }
+      }
+    });
   }
+
+  it("the named edge margins (candidates): switch only past 24 px, overflow at most 12 px", () => {
+    expect(MAGNIFIER_EDGE.switchPx).toBe(24);
+    expect(MAGNIFIER_EDGE.overflowPx).toBe(12);
+    // Keeping a side while overflowing never brings it under the finger.
+    expect(MAGNIFIER_EDGE.overflowPx).toBeLessThan(L.fingerGapPx);
+    expect(MAGNIFIER_EDGE.switchPx).toBeGreaterThan(MAGNIFIER_EDGE.overflowPx);
+  });
+
+  it("near the top, moving left and right across the middle: it stays on one side instead of jumping every frame (Kirby 2026-10-21/22)", () => {
+    const stage = { width: 390, height: 600 };
+    // Too close to the top for "above": beside the finger.
+    const y = 60;
+    let previous: MagnifierPlacement | null = null;
+    const sides: string[] = [];
+    for (let i = 0; i < 40; i++) {
+      // Back and forth by 6 px around the middle, where the roomier side flips.
+      const x = stage.width / 2 + (i % 2 === 0 ? -3 : 3);
+      previous = magnifierPlacement({ pointer: { x, y }, stage, previous });
+      sides.push(previous.side);
+    }
+    expect(new Set(sides).size).toBe(1);
+    // Without the previous frame, the same two points DO pick opposite sides:
+    // the jumping this fixes.
+    const a = magnifierPlacement({ pointer: { x: 192, y }, stage });
+    const b = magnifierPlacement({ pointer: { x: 198, y }, stage });
+    expect(a.side).not.toBe(b.side);
+  });
+
+  it("near a side edge it overflows a little rather than switch, and switches only past the margin", () => {
+    const stage = { width: 390, height: 600 };
+    const y = 60;
+    // Start on the right, then walk the finger right toward the edge.
+    let previous: MagnifierPlacement | null = magnifierPlacement({
+      pointer: { x: 150, y },
+      stage,
+    });
+    expect(previous.side).toBe("right");
+    const switchedAt: number[] = [];
+    for (let x = 150; x <= 390; x += 2) {
+      const next = magnifierPlacement({ pointer: { x, y }, stage, previous });
+      if (next.side !== previous.side) switchedAt.push(x);
+      // While it stays right it runs at most overflowPx past the edge.
+      if (next.side === "right")
+        expect(next.left + next.size).toBeLessThanOrEqual(
+          stage.width + MAGNIFIER_EDGE.overflowPx + 1e-9,
+        );
+      previous = next;
+    }
+    expect(switchedAt).toHaveLength(1);
+    // The switch happens only where staying right would overflow by > 24 px.
+    const L0 = PAPER_ADJUST_LAYOUT;
+    const size = L0.magnifierPx;
+    const clear = L0.fingerRadiusPx + L0.fingerGapPx + size / 2;
+    const overflowAt = (x: number) => x + clear + size / 2 - stage.width;
+    expect(overflowAt(switchedAt[0])).toBeGreaterThan(MAGNIFIER_EDGE.switchPx);
+    expect(overflowAt(switchedAt[0] - 2)).toBeLessThanOrEqual(
+      MAGNIFIER_EDGE.switchPx,
+    );
+    // Walking back a little does not switch it back.
+    let back = previous!;
+    for (let x = 390; x >= 300; x -= 2) {
+      back = magnifierPlacement({ pointer: { x, y }, stage, previous: back });
+      expect(back.side).toBe("left");
+    }
+  });
+
+  it("from beside the finger it goes back above only with the margin to spare (no flicker at the top)", () => {
+    const stage = { width: 390, height: 600 };
+    const L0 = PAPER_ADJUST_LAYOUT;
+    const size = L0.magnifierPx;
+    const clear = L0.fingerRadiusPx + L0.fingerGapPx + size / 2;
+    // The finger's y at which "above" just fits (its top at 0).
+    const fitsAt = clear + size / 2;
+    let previous: MagnifierPlacement | null = magnifierPlacement({
+      pointer: { x: 100, y: fitsAt - 30 },
+      stage,
+    });
+    expect(previous.side).not.toBe("above");
+    const sides: string[] = [];
+    // Up and down by 10 px around the line where above starts to fit.
+    for (let i = 0; i < 30; i++) {
+      const y = fitsAt + (i % 2 === 0 ? -5 : 5);
+      previous = magnifierPlacement({
+        pointer: { x: 100, y },
+        stage,
+        previous,
+      });
+      sides.push(previous.side);
+    }
+    expect(new Set(sides).size).toBe(1);
+    // With the margin to spare it does go back above.
+    previous = magnifierPlacement({
+      pointer: { x: 100, y: fitsAt + MAGNIFIER_EDGE.switchPx },
+      stage,
+      previous,
+    });
+    expect(previous.side).toBe("above");
+  });
 
   it("goes above the finger when there is room, beside it near the top", () => {
     const stage = { width: 390, height: 600 };
