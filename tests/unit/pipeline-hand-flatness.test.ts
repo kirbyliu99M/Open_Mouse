@@ -326,7 +326,17 @@ describe("the fixture's acceptance and millimetres are those the pipeline always
     const result = await run(calibration, { handExplicit: true });
     expect(result.status).toBe("ok");
     if (result.status !== "ok") return;
-    expect(result.measurements.handLengthMm).toBeCloseTo(190, 6);
+    // The landmarks are drawn on the sheet (190 mm). Since landmark-raw-v3
+    // (V3.2 candidate) blank paper with no EXIF is corrected with the nominal
+    // prior, so there the 190 is the uncorrected value the shadow keeps.
+    if (result.diagnostics?.focal?.source === "nominal") {
+      expect(
+        result.diagnostics.shadowPrior?.uncorrected?.handLengthMm,
+      ).toBeCloseTo(190, 6);
+      expect(result.measurements.handLengthMm).toBeLessThan(190);
+    } else {
+      expect(result.measurements.handLengthMm).toBeCloseTo(190, 6);
+    }
     expect(result.diagnostics?.measured).toEqual({
       handLengthMm: result.measurements.handLengthMm,
       palmWidthMm: result.measurements.palmWidthMm,
