@@ -195,9 +195,11 @@ test("a frame of the video cut to the part on screen goes through the real pipel
       expect(attempt.errors, JSON.stringify(attempt.errors)).toEqual([]);
       expect(attempt.result).toBe("ok");
       expect(attempt.hand.detected).toBe(true);
-      // A canvas frame has no EXIF focal length: the parallax correction is not
-      // run for a view straight above the sheet (and says so).
-      expect(attempt.parallaxCorrected).toBe(false);
+      // A canvas frame has no EXIF focal length, and a view straight above the
+      // sheet cannot fix one: since landmark-raw-v3 (V3.2 candidate) the
+      // nominal prior corrects it (and says so).
+      expect(attempt.parallaxCorrected).toBe(true);
+      expect(attempt.focal.source).toBe("nominal");
       await expect(sheet).toHaveAccessibleName("Hand measured");
       const numbers = await sheet.innerText();
       console.log(`FRAME HAND measured sheet text:\n${numbers}`);

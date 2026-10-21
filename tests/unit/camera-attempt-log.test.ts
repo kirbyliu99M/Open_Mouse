@@ -1682,7 +1682,11 @@ describe("parallaxCheck (landmark-raw-v3, candidate): Kirby's S25 check, local o
       result: "ok",
       parallaxCheck: {
         homographyFocal: { px: Number.NaN, reliable: true },
-        uncorrected: { handLengthMm: 189, palmLengthMm: dataUrl, palmWidthMm: 65 },
+        uncorrected: {
+          handLengthMm: 189,
+          palmLengthMm: dataUrl,
+          palmWidthMm: 65,
+        },
         reported: { handLengthMm: 185, palmLengthMm: 103, palmWidthMm: 64 },
         extra: dataUrl,
       },

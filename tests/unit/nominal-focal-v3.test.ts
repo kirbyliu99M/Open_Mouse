@@ -172,18 +172,21 @@ describe("§2 error budget: the prior wrong by ±10 % (design: hand length withi
     [1.1, 5],
     [1.1, 10],
     [1.1, 15],
-  ])("e %s, tilt %i: mean bias within the budget, and far better than no correction", (e, tilt) => {
-    const b = budget(e, tilt);
-    // Measured on this scene set: |dL| 0.46-0.81, |dW| 0.12-0.24 (模擬).
-    expect(Math.abs(b.dL)).toBeLessThan(0.85);
-    expect(Math.abs(b.dW)).toBeLessThan(0.26);
-    // §5.1 item 1's looser bound for e 1.1.
-    expect(Math.abs(b.dL)).toBeLessThan(1.0);
-    expect(Math.abs(b.dW)).toBeLessThan(0.3);
-    // No correction reads about +4 to +5 mm long on the same scenes.
-    expect(b.none).toBeGreaterThan(3.5);
-    expect(Math.abs(b.dL)).toBeLessThan(b.none / 4);
-  });
+  ])(
+    "e %s, tilt %i: mean bias within the budget, and far better than no correction",
+    (e, tilt) => {
+      const b = budget(e, tilt);
+      // Measured on this scene set: |dL| 0.46-0.81, |dW| 0.12-0.24 (模擬).
+      expect(Math.abs(b.dL)).toBeLessThan(0.85);
+      expect(Math.abs(b.dW)).toBeLessThan(0.26);
+      // §5.1 item 1's looser bound for e 1.1.
+      expect(Math.abs(b.dL)).toBeLessThan(1.0);
+      expect(Math.abs(b.dW)).toBeLessThan(0.3);
+      // No correction reads about +4 to +5 mm long on the same scenes.
+      expect(b.none).toBeGreaterThan(3.5);
+      expect(Math.abs(b.dL)).toBeLessThan(b.none / 4);
+    },
+  );
 });
 
 describe("§5.1 item 2: regressions", () => {
@@ -205,7 +208,9 @@ describe("§5.1 item 2: regressions", () => {
     const principalPoint = centrePrincipalPoint(W, H);
     const estimate = estimateFocalFromHomography(homography, principalPoint)!;
     expect(estimate.reliable).toBe(true);
-    expect(resolveFocalPx({ exifFocalPx: null, homography, principalPoint })).toEqual({
+    expect(
+      resolveFocalPx({ exifFocalPx: null, homography, principalPoint }),
+    ).toEqual({
       fPx: estimate.fPx,
       source: "homography",
     });
@@ -267,25 +272,28 @@ describe("§5.1 item 3: the range check refuses a reliable but wrong estimate at
   it.each([
     ["1.55x", HIGH],
     ["0.35x", LOW],
-  ])("an estimate at %s is reliable, refused, and the prior is used instead", (_name, corners) => {
-    const estimate = estimateOf(corners);
-    expect(estimate.reliable).toBe(true);
-    expect(focalWithinPrior(estimate.fPx, PRIOR)).toBe(false);
-    const r = measureChain(corners, s.raisedPx);
-    expect(r.focalSource).toBe("nominal");
-    expect(r.fPx).toBe(PRIOR);
-    // The prior is the truth here: the refused estimate would have been worse.
-    const withEstimate = measureChain(corners, s.raisedPx, {
-      exif: estimate.fPx,
-    });
-    expect(Math.abs(r.measurements.handLengthMm - s.trueLen)).toBeLessThan(
-      Math.abs(withEstimate.measurements.handLengthMm - s.trueLen),
-    );
-    // Without a prior (pre-v3) the wrong estimate was used.
-    expect(measureChain(corners, s.raisedPx, { prior: null }).focalSource).toBe(
-      "homography",
-    );
-  });
+  ])(
+    "an estimate at %s is reliable, refused, and the prior is used instead",
+    (_name, corners) => {
+      const estimate = estimateOf(corners);
+      expect(estimate.reliable).toBe(true);
+      expect(focalWithinPrior(estimate.fPx, PRIOR)).toBe(false);
+      const r = measureChain(corners, s.raisedPx);
+      expect(r.focalSource).toBe("nominal");
+      expect(r.fPx).toBe(PRIOR);
+      // The prior is the truth here: the refused estimate would have been worse.
+      const withEstimate = measureChain(corners, s.raisedPx, {
+        exif: estimate.fPx,
+      });
+      expect(Math.abs(r.measurements.handLengthMm - s.trueLen)).toBeLessThan(
+        Math.abs(withEstimate.measurements.handLengthMm - s.trueLen),
+      );
+      // Without a prior (pre-v3) the wrong estimate was used.
+      expect(
+        measureChain(corners, s.raisedPx, { prior: null }).focalSource,
+      ).toBe("homography");
+    },
+  );
 
   it("an estimate at 1.26x (the design's §1.1 median at 3 degrees) is inside 0.7-1.4 and is still used: the range check stops only the far-off ones", () => {
     const estimate = estimateOf(INSIDE);
@@ -335,7 +343,9 @@ describe("§5.1 item 4: a frame cut on its long side takes the prior on the stre
         heightPx: 1440,
         nominalFocalPx: prior,
       }).measurements.handLengthMm - s.trueLen;
-    const right = measure(nominalPriorFor({ width: 1080, height: 1440 }, 1920)!);
+    const right = measure(
+      nominalPriorFor({ width: 1080, height: 1440 }, 1920)!,
+    );
     const wrong = measure(nominalPriorFor({ width: 1080, height: 1440 })!);
     expect(Math.abs(right)).toBeLessThan(0.1);
     expect(wrong).toBeLessThan(-1);

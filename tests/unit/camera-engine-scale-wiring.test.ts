@@ -41,7 +41,9 @@ describe("every screen that shows a scanned hand length or palm width shows the 
     expect(dims).toMatch(
       /easy\.dimPalm\(\s*shownScanMeasurements\(\s*result\.measurements,\s*result\.submission\.calibration,\s*\)\.palmWidthMm\.toFixed\(0\)/,
     );
-    expect(dims).not.toMatch(/result\.measurements\.(handLengthMm|palmWidthMm)/);
+    expect(dims).not.toMatch(
+      /result\.measurements\.(handLengthMm|palmWidthMm)/,
+    );
   });
 
   it("the scan page (printed sheet and paper edge)", () => {
@@ -54,9 +56,7 @@ describe("every screen that shows a scanned hand length or palm width shows the 
 
   it("the account page", () => {
     const view = read("src/app/account/AccountView.tsx");
-    expect(view).not.toMatch(
-      /scan\.measurements\.(handLengthMm|palmWidthMm)/,
-    );
+    expect(view).not.toMatch(/scan\.measurements\.(handLengthMm|palmWidthMm)/);
     expect(view).toContain("shownAccountMeasurements(scan).handLengthMm");
     expect(view).toContain("shownAccountMeasurements(scan).palmWidthMm");
   });

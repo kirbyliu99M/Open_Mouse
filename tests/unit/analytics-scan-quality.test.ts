@@ -629,7 +629,17 @@ describe("buildScanQuality", () => {
       priorEffect: "higher_2_plus",
     });
     const text = JSON.stringify(out);
-    for (const n of ["1442", "1823", "189", "184", "107", "102", "65.7", "63.5", "4.68"]) {
+    for (const n of [
+      "1442",
+      "1823",
+      "189",
+      "184",
+      "107",
+      "102",
+      "65.7",
+      "63.5",
+      "4.68",
+    ]) {
       expect(text).not.toContain(n);
     }
     expect(text).not.toMatch(/uncorrected|reported|homographyFocal/);

@@ -215,9 +215,7 @@ describe("fit engine (loadOwnedFit) and the feedback snapshot", () => {
 
   it("a typed scan still hands back the typed numbers", async () => {
     const typed = { handLengthMm: 190, palmLengthMm: 106.4, palmWidthMm: 85 };
-    const r = await fitFor(
-      owned(typed, { calibrationMethod: "manual-entry" }),
-    );
+    const r = await fitFor(owned(typed, { calibrationMethod: "manual-entry" }));
     expect(r.measurements).toEqual(typed);
   });
 
@@ -263,9 +261,7 @@ describe("survey contribution: bins and grip on the engine's scale", () => {
     });
     expect(write.handLengthBinMm).toBe(185);
     expect(write.palmWidthBinMm).toBe(80);
-    expect(write.gripStyle).toBe(
-      predictGrip(182.1 * 1.024, 101.2 * 1.041),
-    );
+    expect(write.gripStyle).toBe(predictGrip(182.1 * 1.024, 101.2 * 1.041));
   });
 
   it("an uncorrected scan is binned as stored, as before", () => {
@@ -312,9 +308,9 @@ describe("what the person sees is the engine-scale number (D1 = B)", () => {
   });
 
   it("shownScanMeasurements reads the submission's own calibration", () => {
-    expect(
-      shownScanMeasurements(STORED, { parallaxCorrected: true }),
-    ).toEqual(engineScaleMeasurements(STORED, true));
+    expect(shownScanMeasurements(STORED, { parallaxCorrected: true })).toEqual(
+      engineScaleMeasurements(STORED, true),
+    );
     expect(shownScanMeasurements(STORED, { parallaxCorrected: false })).toBe(
       STORED,
     );

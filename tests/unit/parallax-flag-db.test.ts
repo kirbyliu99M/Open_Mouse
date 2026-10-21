@@ -58,19 +58,19 @@ describe("parallaxCorrected is read back from the stored evidence", () => {
     const oldExif = await insert(paperEdge(true), "landmark-raw-v2");
 
     const ctx = { userId: "user-1", cookieSessionId: null, now: new Date() };
-    expect((await repo.findOwnedScan(nominal.scanId, ctx))?.parallaxCorrected).toBe(
-      true,
-    );
-    expect((await repo.findOwnedScan(none.scanId, ctx))?.parallaxCorrected).toBe(
-      false,
-    );
+    expect(
+      (await repo.findOwnedScan(nominal.scanId, ctx))?.parallaxCorrected,
+    ).toBe(true);
+    expect(
+      (await repo.findOwnedScan(none.scanId, ctx))?.parallaxCorrected,
+    ).toBe(false);
     expect(
       (await repo.findOwnedScan(oldExif.scanId, ctx))?.parallaxCorrected,
     ).toBe(true);
     // The stored numbers are never changed.
-    expect((await repo.findOwnedScan(nominal.scanId, ctx))?.measurements).toMatchObject(
-      { handLengthMm: 185, palmLengthMm: 103, palmWidthMm: 64 },
-    );
+    expect(
+      (await repo.findOwnedScan(nominal.scanId, ctx))?.measurements,
+    ).toMatchObject({ handLengthMm: 185, palmLengthMm: 103, palmWidthMm: 64 });
 
     const listed = new Map(
       (await accountRepo.listScans("user-1")).map((s) => [s.scanId, s]),
