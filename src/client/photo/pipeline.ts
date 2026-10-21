@@ -54,8 +54,9 @@ import {
   checkHandedness,
   checkLandmarkConfidence,
 } from "./gates";
-import { detectPaperQuad } from "../paper/detect";
 import { yieldToBrowser } from "./yieldToBrowser";
+import { getAnalysisRunner } from "./analysisWorkerClient";
+import type { AnalysisFrame, AnalysisThread } from "./offMainAnalysis";
 import {
   evaluateManualPaperCalibration,
   evaluatePaperEdgeCalibration,
@@ -259,6 +260,7 @@ interface PipelineTrace {
   parallaxCorrected: boolean | null;
   focal: FocalDiagnostics | null;
   shadowPrior: ShadowPriorDiagnostics | null;
+  analysisThread: AnalysisThread | null;
 }
 
 function newTrace(): PipelineTrace {
@@ -281,7 +283,45 @@ function newTrace(): PipelineTrace {
     parallaxCorrected: null,
     focal: null,
     shadowPrior: null,
+    analysisThread: null,
   };
+}
+
+/**
+ * Notes where an offloaded step ran (F8): `fallback` as soon as any step fell
+ * back to the main thread, `worker` while every one ran in the worker.
+ */
+function noteAnalysisThread(trace: PipelineTrace, thread: AnalysisThread) {
+  if (trace.analysisThread !== "fallback") trace.analysisThread = thread;
+}
+
+/**
+ * The sharpness of a frame, worked out in the worker where there is one (F8)
+ * and on the main thread otherwise: the same `rgbaToGrayscale` +
+ * `computeLaplacianVariance` either way. Where it cannot be worked out (an
+ * image too small to have an interior) it is computed again here, so the run
+ * throws exactly as it did when it was computed here in the first place.
+ */
+async function offloadedSharpness(
+  frame: AnalysisFrame,
+  reread: () => AnalysisFrame,
+  trace: PipelineTrace,
+): Promise<number> {
+  const sharp = await getAnalysisRunner().run(
+    { kind: "sharpness" },
+    frame,
+    reread,
+  );
+  noteAnalysisThread(trace, sharp.thread);
+  const { width, height, data } = sharp.frame;
+  return (
+    sharp.outcome.laplacianVariance ??
+    computeLaplacianVariance(
+      rgbaToGrayscale(data, width * height),
+      width,
+      height,
+    )
+  );
 }
 
 /** Looks for the hand, noting how long that took and what it found. */
@@ -388,6 +428,7 @@ export async function runPhotoPipeline(
         : { handLengthMm: null, palmWidthMm: null },
     focal: trace.focal,
     shadowPrior: trace.shadowPrior,
+    analysisThread: trace.analysisThread,
   };
   return { ...result, diagnostics };
 }
@@ -549,8 +590,13 @@ async function runDecodedPipeline(
     .filter((m) => (SHEET.flatMarkerIds as readonly number[]).includes(m.id))
     .flatMap((m) => m.corners);
 
-  const gray = rgbaToGrayscale(imageData.data, width * height);
-  const laplacianVariance = computeLaplacianVariance(gray, width, height);
+  // In the worker where there is one (F8); the markers and the card above
+  // have read the pixels already, and nothing below reads them again.
+  const laplacianVariance = await offloadedSharpness(
+    imageData,
+    () => getImageData(bitmap, width, height),
+    trace,
+  );
   trace.laplacianVariance = laplacianVariance;
 
   const report = runPhotoGates({
@@ -696,17 +742,26 @@ async function runPaperEdgePipeline(
       { width: fullWidth, height: fullHeight },
       crop,
     );
-    const imageData = getImageData(bitmap, width, height);
+    // The pixels go to the worker and come back with each answer (F8), so
+    // `frame` is always the copy that is here now. Where a failed worker kept
+    // them, they are read again from the same bitmap.
+    const analysedBitmap = bitmap;
+    const reread = () => getImageData(analysedBitmap, width, height);
+    let frame: AnalysisFrame = getImageData(bitmap, width, height);
+    const grayOf = () => rgbaToGrayscale(frame.data, width * height);
     // The sharpness is worked out first, so a photo that is turned back before
     // it reaches the hand gates (no sheet, no hand) still has one in its record
     // (diagnostics.ts). If it cannot be worked out here it is tried again below,
-    // exactly as before.
-    const gray = rgbaToGrayscale(imageData.data, width * height);
-    try {
-      trace.laplacianVariance = computeLaplacianVariance(gray, width, height);
-    } catch {
-      trace.laplacianVariance = null;
-    }
+    // exactly as before. It runs in the worker where there is one (F8): the
+    // same functions, with `null` where they throw, as here.
+    const sharp = await getAnalysisRunner().run(
+      { kind: "sharpness" },
+      frame,
+      reread,
+    );
+    frame = sharp.frame;
+    noteAnalysisThread(trace, sharp.thread);
+    trace.laplacianVariance = sharp.outcome.laplacianVariance;
     // A frame for the loader before the sheet is looked for, the longest
     // step on a large photo (F7).
     await yieldToBrowser();
@@ -729,7 +784,7 @@ async function runPaperEdgePipeline(
         paperSize,
         trace,
         bitmap,
-        gray,
+        grayOf,
         width,
         height,
         fullWidth,
@@ -739,7 +794,16 @@ async function runPaperEdgePipeline(
         paperStartedAt,
       });
     }
-    const quad = detectPaperQuad(imageData, paperSize, { focalPxHint });
+    // The detector runs once, in the worker where there is one (F8), else
+    // here: the same `detectPaperQuad`, the same pixels and arguments.
+    const detected = await getAnalysisRunner().run(
+      { kind: "paper", paperSize, options: { focalPxHint } },
+      frame,
+      reread,
+    );
+    frame = detected.frame;
+    noteAnalysisThread(trace, detected.thread);
+    const quad = detected.outcome.quad;
     trace.paperMs = performance.now() - paperStartedAt;
     notifyStage(input, "paper");
     await yieldToBrowser();
@@ -844,7 +908,8 @@ async function runPaperEdgePipeline(
     }
 
     const laplacianVariance =
-      trace.laplacianVariance ?? computeLaplacianVariance(gray, width, height);
+      trace.laplacianVariance ??
+      computeLaplacianVariance(grayOf(), width, height);
     trace.laplacianVariance = laplacianVariance;
 
     const finish = await finishPaperEdge({
@@ -880,7 +945,8 @@ async function finishManualPaper(args: {
   readonly paperSize: PaperSize;
   readonly trace: PipelineTrace;
   readonly bitmap: ImageBitmap;
-  readonly gray: Float64Array;
+  /** The analysed picture in grey, worked out only if the sharpness must be tried again. */
+  readonly grayOf: () => Float64Array;
   readonly width: number;
   readonly height: number;
   readonly fullWidth: number;
@@ -961,7 +1027,7 @@ async function finishManualPaper(args: {
   }
   const laplacianVariance =
     trace.laplacianVariance ??
-    computeLaplacianVariance(args.gray, width, height);
+    computeLaplacianVariance(args.grayOf(), width, height);
   trace.laplacianVariance = laplacianVariance;
   const finish = await finishPaperEdge({
     quad: { corners, paperRegionFound: true },
@@ -1051,8 +1117,12 @@ async function runUserLengthPipeline(
   if (proportionFailure)
     return { status: "error", errors: [proportionFailure], overlay };
   const imageData = getImageData(bitmap, width, height);
-  const gray = rgbaToGrayscale(imageData.data, width * height);
-  const laplacianVariance = computeLaplacianVariance(gray, width, height);
+  // In the worker where there is one (F8).
+  const laplacianVariance = await offloadedSharpness(
+    imageData,
+    () => getImageData(bitmap, width, height),
+    trace,
+  );
   trace.laplacianVariance = laplacianVariance;
   const sharpnessFailure = checkSharpness(laplacianVariance);
   const submission = assembleUserLengthSubmission({
