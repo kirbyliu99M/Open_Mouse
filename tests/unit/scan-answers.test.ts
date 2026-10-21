@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createElement, type FunctionComponent } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -528,6 +529,64 @@ describe("the send veil's phases (submitOverlayPhase.ts, V3.2 F13)", () => {
     expect(SUBMIT_OVERLAY.VEIL_OPACITY).toBe(0.7);
     expect(overlayFadeMs(false)).toBe(220);
     expect(overlayFadeMs(true)).toBe(0);
+  });
+});
+
+const source = (path: string) =>
+  readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+
+// No DOM test library: the veil's wiring is pinned by its source, so a change
+// that the static renders above cannot see (the fade timer, reduced motion,
+// the leaving rule) fails here.
+describe("the send veil's wiring (source pins, F13)", () => {
+  it("a change of busy moves the phase with overlayPhaseFor", () => {
+    const veil = source("src/client/scan/SubmitOverlay.tsx");
+    expect(veil).toContain("const reducedMotion = usePrefersReducedMotion();");
+    const adjust = veil.slice(
+      veil.indexOf("if (busy !== seenBusy) {"),
+      veil.indexOf("useEffect(() => {"),
+    );
+    expect(adjust).toContain("setSeenBusy(busy);");
+    expect(adjust).toContain("setPhase(overlayPhaseFor(phase, busy));");
+  });
+
+  it("leaving turns hidden after overlayFadeMs(reducedMotion), not a fixed time", () => {
+    const veil = source("src/client/scan/SubmitOverlay.tsx");
+    const effect = veil.slice(
+      veil.indexOf("useEffect(() => {"),
+      veil.indexOf("}, [phase, reducedMotion]);"),
+    );
+    expect(effect).toContain('if (phase !== "leaving") return;');
+    expect(effect).toMatch(
+      /setTimeout\(\n\s*\(\) => setPhase\("hidden"\),\n\s*overlayFadeMs\(reducedMotion\),\n\s*\);/,
+    );
+    expect(effect).toContain("return () => clearTimeout(timer);");
+    expect(effect).not.toContain("SUBMIT_OVERLAY.FADE_MS");
+    expect(veil).toContain("}, [phase, reducedMotion]);");
+    expect(veil).toContain('if (phase === "hidden") return null;');
+  });
+
+  it("while it fades it is see-through and catches no taps", () => {
+    const css = source("src/client/scan/submit-overlay.css");
+    const rule = css.slice(
+      css.indexOf('.submitOverlay[data-phase="leaving"] {'),
+    );
+    const body = rule.slice(0, rule.indexOf("}"));
+    expect(body).toContain("opacity: 0;");
+    expect(body).toContain("pointer-events: none;");
+  });
+
+  it("under reduced motion it neither animates in nor fades out", () => {
+    const css = source("src/client/scan/submit-overlay.css");
+    const block = css.slice(
+      css.indexOf("@media (prefers-reduced-motion: reduce) {"),
+    );
+    const rule = block.slice(
+      block.indexOf(".submitOverlay {"),
+      block.indexOf("}"),
+    );
+    expect(rule).toContain("animation: none;");
+    expect(rule).toContain("transition: none;");
   });
 });
 

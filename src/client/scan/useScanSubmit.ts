@@ -44,6 +44,15 @@ export type SubmitState =
   | { kind: "success" }
   | { kind: "error"; errorKind: SubmitScanErrorKind };
 
+/**
+ * Whether the send still holds the page. A 201 counts too: the results page
+ * has not replaced this one yet, so the send veil (V3.2 F13) and the disabled
+ * controls stay until `router.push` lands, and only a failure lets go.
+ */
+export function submitBusy(state: SubmitState): boolean {
+  return state.kind === "submitting" || state.kind === "success";
+}
+
 export function useScanSubmit(flow?: ScanFlow) {
   const [state, setState] = useState<SubmitState>({ kind: "idle" });
   const router = useRouter();
@@ -86,6 +95,6 @@ export function useScanSubmit(flow?: ScanFlow) {
     [],
   );
 
-  const busy = state.kind === "submitting" || state.kind === "success";
+  const busy = submitBusy(state);
   return { state, submit, busy, clearError };
 }

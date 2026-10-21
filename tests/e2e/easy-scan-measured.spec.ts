@@ -348,6 +348,12 @@ test.describe("the palm-thickness page (2 of 2)", () => {
     await expect(dialog.getByRole("button", { name: "Skip" })).toBeDisabled();
     await expect(dialog.getByRole("button", { name: "Back" })).toBeDisabled();
     release();
+    // After the 201 the veil stays until the results page replaces this one
+    // (busy counts "success" too); it never fades back to the page.
+    await expect(dialog.getByTestId("submit-overlay")).toHaveAttribute(
+      "data-phase",
+      "shown",
+    );
     await expect(page).toHaveURL(new RegExp(`/results/${SCAN_ID}`), {
       timeout: 30_000,
     });

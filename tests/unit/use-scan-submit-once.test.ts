@@ -44,7 +44,8 @@ vi.mock("@/client/scan/submitAndRemember", () => ({
 
 vi.mock("@/client/analytics/track", () => ({ track: () => {} }));
 
-import { useScanSubmit } from "@/client/scan/useScanSubmit";
+import { readFileSync } from "node:fs";
+import { submitBusy, useScanSubmit } from "@/client/scan/useScanSubmit";
 
 async function settle() {
   for (let i = 0; i < 5; i++) await Promise.resolve();
@@ -83,5 +84,20 @@ describe("useScanSubmit sends once (V3.2 F13: the lock, not the button text)", (
     const { submit } = useScanSubmit();
     submit({} as ScanSubmission, { paperCurled: true });
     expect(live.sends[0]?.notes).toEqual({ paperCurled: true });
+  });
+});
+
+describe("busy holds through a 201 (the veil covers until the results page, F13)", () => {
+  it("sending and sent are busy; idle and a failure are not", () => {
+    expect(submitBusy({ kind: "submitting" })).toBe(true);
+    expect(submitBusy({ kind: "success" })).toBe(true);
+    expect(submitBusy({ kind: "idle" })).toBe(false);
+    expect(submitBusy({ kind: "error", errorKind: "network" })).toBe(false);
+  });
+
+  it("the hook's busy is submitBusy(state)", () => {
+    const hook = readFileSync("src/client/scan/useScanSubmit.ts", "utf8");
+    expect(hook).toContain("const busy = submitBusy(state);");
+    expect(hook).toContain("return { state, submit, busy, clearError };");
   });
 });
