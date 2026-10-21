@@ -294,6 +294,54 @@ describe.each(worlds)("/api/survey on %s", (_name, make) => {
         expect((await world.contributions())[0]!.gripStyle).toBe(expected);
       },
     );
+
+    // F12 engine scale: a parallax-corrected scan is binned and its grip
+    // predicted on the pre-correction (engine) scale. The service must pass
+    // the scan's flag and method through; the pure builder alone is covered
+    // in engine-scale.test.ts. Simulated input (模擬): 184 / 98.5 / 77.8 is
+    // 180 x 75 fingertip as stored, 185 x 80 claw on the engine scale. The
+    // flag is faked on the way out of the repo, as asMethod does below.
+    const asCorrected = (
+      parallaxCorrected: boolean,
+      calibrationMethod: string,
+    ): Partial<SurveyDeps> => ({
+      scanRepo: {
+        ...world.scanRepo,
+        findOwnedScan: async (scanId, ctx) => {
+          const found = await world.scanRepo.findOwnedScan(scanId, ctx);
+          return found
+            ? {
+                ...found,
+                parallaxCorrected,
+                calibrationMethod: calibrationMethod as never,
+              }
+            : found;
+        },
+      },
+    });
+
+    it.each([
+      [true, 185, 80, "claw"],
+      [false, 180, 75, "fingertip"],
+    ] as const)(
+      "parallaxCorrected %s reaches the stored cells and grip (%s x %s, %s)",
+      async (corrected, handBin, palmBin, grip) => {
+        const scan = await world.addScan({
+          handLengthMm: 184,
+          palmLengthMm: 98.5,
+          palmWidthMm: 77.8,
+        });
+        const res = await post(validBody(scan), {
+          cookie: scan.cookieSessionId,
+          deps: asCorrected(corrected, "paper-edge"),
+        });
+        expect(res.status).toBe(201);
+        const [stored] = await world.contributions();
+        expect(stored!.handLengthBinMm).toBe(handBin);
+        expect(stored!.palmWidthBinMm).toBe(palmBin);
+        expect(stored!.gripStyle).toBe(grip);
+      },
+    );
   });
 
   describe("400", () => {
