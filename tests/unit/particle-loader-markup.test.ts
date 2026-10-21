@@ -21,7 +21,6 @@ import { ParticleLoader } from "../../src/components/loading/ParticleLoader";
 import { LocaleProvider as Provider } from "../../src/client/i18n/LocaleProvider";
 import { ResultsScanProvider as ScanProvider } from "../../src/app/results/[scanId]/ResultsScanProvider";
 import { loadingCopy } from "../../src/lib/copy/loading";
-import { resultsScreensCopy } from "../../src/lib/copy/results-screens";
 import {
   LOADING_TIMING,
   type LoaderInput,
@@ -131,7 +130,10 @@ describe.each(LOCALES)(
 
     it("shows the particle loader, not the old loading line", () => {
       expect(html).toContain("particleLoader");
-      expect(html).not.toContain(resultsScreensCopy(locale).loading);
+      // The old line's words (removed from results-screens.ts in V3.2 F6).
+      expect(html).not.toContain(
+        locale === "zh-TW" ? "正在載入你的結果…" : "Loading your results…",
+      );
     });
 
     it("has one role=status, the loader's, saying the working words", () => {
