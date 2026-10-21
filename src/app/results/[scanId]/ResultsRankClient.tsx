@@ -12,12 +12,9 @@ import {
   serializeFilters,
   type Filters,
 } from "@/lib/results/filters";
-import { clampCount } from "@/client/analytics/props";
 import { poorFitField } from "@/components/results/fitNotice";
 import {
-  filterAppliedSource,
-  filterSelectionProps,
-  filtersChanged,
+  filterAppliedProps,
   headerCard,
   resultsPageFields,
   type ResultsFilterChange,
@@ -67,23 +64,13 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
 
   const onFiltersChange = useCallback(
     (next: Filters, change: ResultsFilterChange) => {
-      const changed = filtersChanged(filtersRef.current, next);
+      const props = filterAppliedProps(filtersRef.current, next, change, fit);
       filtersRef.current = next;
       setFilters(next);
       // Every change, the shape toggle's included (source `shape_toggle`,
-      // V3.2), is sent as `filter_applied` with the existing fields.
-      const source = filterAppliedSource(change);
-      if (changed && source !== null) {
-        // The page after the change: a filter is only changed on the main
-        // page, whose big header is always the list's first place.
-        const after = filteredView(fit, next);
-        analytics.send("filter_applied", {
-          ...resultsPageFields(1, after.active),
-          source,
-          ...filterSelectionProps(next),
-          count: clampCount(after.count),
-        });
-      }
+      // V3.2), is sent as `filter_applied` with the existing fields; no
+      // change (a segment pressed again) sends nothing.
+      if (props !== null) analytics.send("filter_applied", props);
       const query = mergeFilterParams(window.location.search, next);
       window.history.replaceState(
         null,
