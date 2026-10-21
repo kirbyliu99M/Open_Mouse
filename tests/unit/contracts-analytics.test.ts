@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   ANALYTICS_COUNT_CAP,
   analyticsEventSchemas,
+  FILTER_SOURCES,
+  PAPER_DETECTION_STAGES,
   redactAnalyticsPath,
 } from "../../src/lib/contracts/analytics";
 
@@ -354,6 +356,61 @@ describe("2026-10-19 shadow buckets: paperCoverage, handPose, liveWait", () => {
         method: "canvas",
         attempt: 1,
         waitMs: 12400,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("V3.2 fields: scan_rejected.paperStage and the shape_toggle filter source", () => {
+  const rejected = analyticsEventSchemas.scan_rejected;
+  const base = { flow: "easy", attempt: 1, codes: ["PAPER_NOT_FOUND"] };
+
+  it("scan_rejected takes every detection stage, or none", () => {
+    expect(rejected.safeParse(base).success).toBe(true);
+    for (const paperStage of PAPER_DETECTION_STAGES)
+      expect(
+        rejected.safeParse({ ...base, paperStage }).success,
+        paperStage,
+      ).toBe(true);
+  });
+
+  it("scan_rejected refuses a stage the contract does not list, or a non-string", () => {
+    for (const paperStage of ["hand_covering", "", "NO_BRIGHT_REGION", 3, null])
+      expect(
+        rejected.safeParse({ ...base, paperStage }).success,
+        String(paperStage),
+      ).toBe(false);
+  });
+
+  it("filter_applied takes shape_toggle as a source, beside the four of before", () => {
+    expect([...FILTER_SOURCES]).toEqual([
+      "sidebar",
+      "sheet",
+      "chips",
+      "no_match",
+      "shape_toggle",
+    ]);
+    const applied = {
+      page: "main",
+      rank: 1,
+      filtered: true,
+      brand: [],
+      size: [],
+      weight: [],
+      shape: ["symmetrical"],
+      connectivity: [],
+      count: 4,
+    };
+    for (const source of FILTER_SOURCES)
+      expect(
+        analyticsEventSchemas.filter_applied.safeParse({ ...applied, source })
+          .success,
+        source,
+      ).toBe(true);
+    expect(
+      analyticsEventSchemas.filter_applied.safeParse({
+        ...applied,
+        source: "toggle",
       }).success,
     ).toBe(false);
   });

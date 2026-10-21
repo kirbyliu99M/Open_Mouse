@@ -53,7 +53,6 @@ export interface EasyScanCopy {
   editHandLength: string;
   /** The chip beside the shutter while a typed length is used. */
   lengthChip: (mm: string) => string;
-  measuring: string;
   disclosureBased: (mm: string) => string;
   disclosureNoPaper: string;
   tipTitleNoPaper: string;
@@ -114,7 +113,6 @@ export const zhTW: EasyScanCopy = {
   noPaperEntry: "沒有紙？改用尺量手長",
   editHandLength: "修改手長",
   lengthChip: (mm) => `已輸入 ${mm}${NBSP}mm`,
-  measuring: "正在測量你的手…",
   disclosureBased: (mm) => `依你輸入的手長（${mm}${NBSP}mm）`,
   disclosureNoPaper: "未使用紙張測量。",
   tipTitleNoPaper: "你的手長就是尺",
@@ -178,7 +176,6 @@ export const en: EasyScanCopy = {
   noPaperEntry: "No paper? Use a ruler instead",
   editHandLength: "Edit hand length",
   lengthChip: (mm) => `${mm}${NBSP}mm entered`,
-  measuring: "Measuring your hand…",
   disclosureBased: (mm) =>
     `Based on the hand length you entered (${mm}${NBSP}mm)`,
   disclosureNoPaper: "Measured without paper.",

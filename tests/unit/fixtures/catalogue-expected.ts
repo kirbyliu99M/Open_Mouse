@@ -26,6 +26,8 @@ export const CATALOGUE_EXPECTED = {
   publicCompilation: 383,
   /** Candidates whose descriptors are inferred. */
   inferred: 11,
+  /** Candidates whose shape values the site owner described (Kirby's 2026-10-20 MX rows), all merged into a Logitech row. */
+  byOwner: 3,
   /** CAT-2: candidates by connectivity (wireless includes wired-and-wireless mice). */
   candidateConnectivity: { wired: 78, wireless: 330, unknown: 1 },
   /** CAT-2: every built row (seed rows + imported). */

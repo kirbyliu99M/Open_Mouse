@@ -15,6 +15,7 @@ import {
   buildOfficialUrlIndex,
   comparePageConnectivity,
   deriveFormFactor,
+  descriptorsByOwner,
   isKnownConnectivity,
   LOGITECH_ALIASES,
   lookupOfficialUrl,
@@ -434,6 +435,43 @@ describe("mapCandidate", () => {
       RETRIEVED,
     );
     expect(e.descriptorsInferred).toBe(true);
+    expect(e.descriptorsByOwner).toBe(false);
+  });
+
+  it("flags a row whose descriptorBasis is the owner's description as the owner's", () => {
+    const e = mapCandidate(
+      record({
+        descriptorBasis:
+          "Kirby 2026-10-20 owner description (MX shape not stated on the product page); inferred",
+      }),
+      RETRIEVED,
+    );
+    expect(e.descriptorsByOwner).toBe(true);
+    expect(e.descriptorsInferred).toBe(true);
+    expect(
+      mapCandidate(record({ descriptorBasis: "" }), RETRIEVED)
+        .descriptorsByOwner,
+    ).toBe(false);
+  });
+
+  it("descriptorsByOwner reads the word owner only, any case, not a part of a word", () => {
+    expect(descriptorsByOwner("Kirby owner description")).toBe(true);
+    expect(descriptorsByOwner("OWNER")).toBe(true);
+    // Deliberately not the owner's for now (未拍板): the 2026-10-09 Kirby
+    // descriptions (Boomslang 20th Anniversary Edition, ULTRA 07) do not say
+    // owner, and whether they count is Kirby's decision. Not /Kirby/ either:
+    // "Kirby chose predecessor rule" marks a public-compilation row.
+    expect(descriptorsByOwner("Kirby 2026-10-09 description")).toBe(false);
+    expect(
+      descriptorsByOwner(
+        "public compilation predecessor (Kirby chose predecessor rule 2026-10-09); inferred",
+      ),
+    ).toBe(false);
+    expect(descriptorsByOwner("public compilation predecessor; inferred")).toBe(
+      false,
+    );
+    expect(descriptorsByOwner("co-owners")).toBe(false);
+    expect(descriptorsByOwner("")).toBe(false);
   });
 
   it("names the row when a value does not map", () => {

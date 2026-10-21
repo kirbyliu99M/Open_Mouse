@@ -24,6 +24,7 @@
 import type { AnalyticsEventProps, ScanFlow } from "@/lib/contracts/analytics";
 import type { AttemptMethod } from "../camera/attemptLog";
 import { GATE_THRESHOLDS } from "../photo/gates";
+import { isPaperDetectionStage } from "../paper/detectionStage";
 import type { PipelineDiagnostics } from "../photo/diagnostics";
 import { issueCodes } from "./props";
 
@@ -314,8 +315,24 @@ export function rejectedShadowProps(
 }
 
 /**
+ * The `paperStage` a rejected scan may carry (V3.2 F6, candidate): where the
+ * paper detector stopped (`diagnostics.paper.failureStage`), only when the
+ * refusal is `PAPER_NOT_FOUND` (the contract's rule). `undefined` otherwise,
+ * and the caller leaves the property out. A step of the algorithm, not a cause.
+ */
+export function rejectedPaperStage(
+  errors: readonly { readonly code: string }[],
+  diagnostics: PipelineDiagnostics | null | undefined,
+): AnalyticsEventProps<"scan_rejected">["paperStage"] {
+  if (!errors.some((e) => e.code === "PAPER_NOT_FOUND")) return undefined;
+  const stage = diagnostics?.paper?.failureStage;
+  return isPaperDetectionStage(stage) ? stage : undefined;
+}
+
+/**
  * The whole `scan_rejected` payload for a photo the pipeline refused: the flow,
- * the attempt, the issue codes and the shadow grades (`rejectedShadowProps`).
+ * the attempt, the issue codes, the shadow grades (`rejectedShadowProps`) and,
+ * for PAPER_NOT_FOUND, the detector's stage (`rejectedPaperStage`).
  * Both call sites (the easy scan and the printed-sheet page) build the event
  * here, so a grade cannot be dropped from one of them without a test failing.
  */
@@ -325,11 +342,13 @@ export function buildScanRejected(input: {
   readonly errors: readonly { readonly code: string }[];
   readonly diagnostics: PipelineDiagnostics | null | undefined;
 }): AnalyticsEventProps<"scan_rejected"> {
+  const paperStage = rejectedPaperStage(input.errors, input.diagnostics);
   return {
     flow: input.flow,
     attempt: input.attempt,
     codes: issueCodes(input.errors.map((e) => e.code)),
     ...rejectedShadowProps(input.diagnostics),
+    ...(paperStage ? { paperStage } : {}),
   };
 }
 

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -5,7 +6,14 @@ import { ResultsView } from "../../src/components/results/ResultsView";
 import { ShapeToggle } from "../../src/components/results/filter/ShapeToggle";
 import type { FitResponse } from "../../src/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "../../src/lib/copy/results-page";
-import { filterAppliedSource } from "../../src/lib/results/analyticsEvents";
+import {
+  analyticsEventSchemas,
+  FILTER_SOURCES,
+} from "../../src/lib/contracts/analytics";
+import {
+  filterAppliedProps,
+  filterAppliedSource,
+} from "../../src/lib/results/analyticsEvents";
 import {
   emptyFilters,
   filteredView,
@@ -197,13 +205,107 @@ describe("the toggle's motion", () => {
   });
 });
 
-describe("analytics: a toggle change sends no filter_applied (no contract source)", () => {
-  it("maps the contract's sources to themselves and the toggle to null", () => {
+describe("analytics: a toggle change sends filter_applied with source shape_toggle", () => {
+  it("maps every contract source, the toggle's included, to itself", () => {
     expect(filterAppliedSource("sheet")).toBe("sheet");
     expect(filterAppliedSource("sidebar")).toBe("sidebar");
     expect(filterAppliedSource("chips")).toBe("chips");
     expect(filterAppliedSource("no_match")).toBe("no_match");
-    expect(filterAppliedSource("shape_toggle")).toBeNull();
+    expect(filterAppliedSource("shape_toggle")).toBe("shape_toggle");
+    expect(FILTER_SOURCES).toContain("shape_toggle");
+  });
+
+  // Ranked in this order: s1 is the overall #1.
+  const fit = (): FitResponse =>
+    filterFit([
+      { slug: "s1", brand: "Zowie", shape: "symmetrical" },
+      { slug: "e2", brand: "Logitech", shape: "ergonomic" },
+      { slug: "s3", brand: "Razer", shape: "symmetrical" },
+      { slug: "e4", brand: "Razer", shape: "ergonomic" },
+    ]);
+
+  it("pressing another segment builds the toggle's event, and it passes the contract", () => {
+    const prev = emptyFilters();
+    const next = withSegment(prev, "ergonomic");
+    const props = filterAppliedProps(prev, next, "shape_toggle", fit());
+    expect(props).toEqual({
+      page: "main",
+      rank: 1,
+      filtered: true,
+      source: "shape_toggle",
+      brand: [],
+      size: [],
+      weight: [],
+      shape: ["ergonomic"],
+      connectivity: [],
+      count: 2,
+    });
+    expect(analyticsEventSchemas.filter_applied.safeParse(props).success).toBe(
+      true,
+    );
+    // Back to 綜合: the page is unfiltered again.
+    const back = filterAppliedProps(
+      next,
+      withSegment(next, "overall"),
+      "shape_toggle",
+      fit(),
+    );
+    expect(back).toMatchObject({
+      filtered: false,
+      source: "shape_toggle",
+      shape: [],
+      count: 4,
+    });
+  });
+
+  it("pressing the segment already checked sends nothing (the selection did not change)", () => {
+    const on = withSegment(emptyFilters(), "symmetrical");
+    expect(
+      filterAppliedProps(
+        on,
+        withSegment(on, "symmetrical"),
+        "shape_toggle",
+        fit(),
+      ),
+    ).toBeNull();
+    expect(
+      filterAppliedProps(
+        emptyFilters(),
+        withSegment(emptyFilters(), "overall"),
+        "shape_toggle",
+        fit(),
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("the toggle's change reaches analytics.send (wiring)", () => {
+  // ResultsView's press handler and ResultsRankClient's onFiltersChange are
+  // React components that cannot be clicked here, so this reads their source:
+  // the toggle must hand its change on as "shape_toggle", and the page must
+  // send exactly what filterAppliedProps builds (null sends nothing).
+  const read = (rel: string) =>
+    readFileSync(new URL(rel, import.meta.url), "utf8");
+
+  it("ResultsView hands the toggle's change on with source shape_toggle", () => {
+    const view = read("../../src/components/results/ResultsView.tsx");
+    expect(view).toMatch(
+      /const next = withSegment\(filters, segment\);[\s\S]*?onFiltersChange\(next, "shape_toggle"\)/,
+    );
+    // The toggle's handler is the only place this source is passed.
+    expect(view.match(/"shape_toggle"/g)).toHaveLength(1);
+  });
+
+  it("ResultsRankClient sends filter_applied with filterAppliedProps, only when it is not null", () => {
+    const page = read("../../src/app/results/[scanId]/ResultsRankClient.tsx");
+    expect(page).toMatch(
+      /const props = filterAppliedProps\(filtersRef\.current, next, change, fit\);/,
+    );
+    expect(page).toMatch(
+      /if \(props !== null\) analytics\.send\("filter_applied", props\);/,
+    );
+    // No second, hand-built filter_applied.
+    expect(page.match(/"filter_applied"/g)).toHaveLength(1);
   });
 });
 

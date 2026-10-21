@@ -152,8 +152,16 @@ const NO_FIELDS: DescriptorFields = {
   classifiedAt: null,
 };
 
-/** Descriptor columns carried by a catalogue entry; the model string records that they came from the public compilation. */
+/** Who the candidate's shape values come from, as `descriptor_model` names it: the site owner, or the public compilation. */
+function entrySourceLabel(
+  entry: CatalogueEntry,
+): "owner" | "public_compilation" {
+  return entry.descriptorsByOwner ? "owner" : "public_compilation";
+}
+
+/** Descriptor columns carried by a catalogue entry; the model string records where they came from (the public compilation, or the owner). */
 function entryFields(entry: CatalogueEntry): DescriptorFields {
+  const source = entrySourceLabel(entry);
   return {
     ...NO_FIELDS,
     shape: entry.shape,
@@ -162,9 +170,7 @@ function entryFields(entry: CatalogueEntry): DescriptorFields {
     frontFlare: entry.frontFlare,
     sideCurvature: entry.sideCurvature,
     thumbRest: entry.thumbRest,
-    descriptorModel: entry.descriptorsInferred
-      ? "public_compilation-inferred"
-      : "public_compilation",
+    descriptorModel: entry.descriptorsInferred ? `${source}-inferred` : source,
   };
 }
 
@@ -178,7 +184,9 @@ const first = <T>(...values: (T | null)[]): T | null =>
  * row says so. `descriptor_model` becomes the geometry model plus
  * `+public_compilation` (or `public_compilation` /
  * `public_compilation-inferred` when there is no
- * geometry record) and the candidate's source URL is appended to
+ * geometry record), or `+owner` (`owner` / `owner-inferred`) when the site
+ * owner described the candidate's values (`descriptorsByOwner`, V3.2),
+ * and the candidate's source URL is appended to
  * `descriptor_source_urls`. A row nothing was taken from the candidate for
  * keeps the geometry provenance unchanged.
  */
@@ -218,7 +226,7 @@ export function mergeSeedDescriptors(
   };
   if (fromCandidate && entry) {
     merged.descriptorModel = geometryHasProvenance
-      ? `${geometry.descriptorModel}+public_compilation`
+      ? `${geometry.descriptorModel}+${entrySourceLabel(entry)}`
       : e.descriptorModel;
     merged.descriptorSourceUrls = [
       ...(geometry.descriptorSourceUrls ?? []),

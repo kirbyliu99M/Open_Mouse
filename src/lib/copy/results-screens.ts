@@ -1,6 +1,6 @@
 /**
  * Words on the results screens that `results-page.ts` does not cover: the
- * loading, not-found, rate-limited, error and deleted screens of
+ * not-found, rate-limited, error and deleted screens of
  * `/results/[scanId]`, the written-analysis card, the delete-this-scan dialog,
  * the sub-score names and bars, the gaps table, the confidence note, the 3D
  * viewer's lines, and the page titles. The English strings are moved verbatim
@@ -30,7 +30,6 @@ export interface ResultsScreensCopy {
   stepLabel: string;
   /** The journey top bar's back link, and the error screens' action. */
   scanAgain: string;
-  loading: string;
   /** Small label above an error screen's heading. */
   eyebrow: string;
   notFound: ResultsErrorScreen;
@@ -99,7 +98,6 @@ export const zhTW: ResultsScreensCopy = {
   metaDescription: "你的滑鼠推薦排名與文字分析。",
   stepLabel: "你的推薦結果",
   scanAgain: "重新掃描",
-  loading: "正在載入你的結果…",
   eyebrow: "結果",
   notFound: {
     title: "找不到這次掃描",
@@ -181,7 +179,6 @@ export const en: ResultsScreensCopy = {
   metaDescription: "Your ranked mouse recommendations and written analysis.",
   stepLabel: "Your matches",
   scanAgain: "Scan again",
-  loading: "Loading your results…",
   eyebrow: "Results",
   notFound: {
     title: "We couldn't find this scan",
