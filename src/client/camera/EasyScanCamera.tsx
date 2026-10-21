@@ -3164,36 +3164,10 @@ export default function EasyScanCamera({
                     {paperAdjustCopy(locale).measuredNote}
                   </p>
                 )}
-              {/* 檢查邊框 (F7, candidate): the detector's frame, to confirm
-                  as it is or move; secondary to 繼續. */}
-              {adjustEntry === "review" && (
-                <button
-                  type="button"
-                  className="easyAdjustFrameButton"
-                  ref={adjustButtonRef}
-                  data-testid="frame-review-entry"
-                  onClick={openAdjust}
-                >
-                  {paperAdjustCopy(locale).review.entry}
-                </button>
-              )}
-              {adjustEntry === "check" && (
-                <>
-                  <button
-                    type="button"
-                    className="easyAdjustFrameButton"
-                    ref={adjustButtonRef}
-                    data-testid="corner-check-entry"
-                    onClick={openAdjust}
-                  >
-                    {paperAdjustCopy(locale).check.entry}
-                  </button>
-                  {cornerCheckNote && (
-                    <p className="easySheetAdjustedNote" role="status">
-                      {cornerCheckNote}
-                    </p>
-                  )}
-                </>
+              {cornerCheckNote && (
+                <p className="easySheetAdjustedNote" role="status">
+                  {cornerCheckNote}
+                </p>
               )}
               {"method" in result.submission.calibration &&
                 result.submission.calibration.method === "user-length" && (
@@ -3241,6 +3215,33 @@ export default function EasyScanCamera({
                     {scanAnswersCopy(locale).sheetContinue}
                   </button>
                 </div>
+                {/* 檢查邊框 (F7, candidate): the detector's frame, to confirm
+                    as it is or move. It follows 繼續 (DOM and on screen) as
+                    the secondary action, on a line of its own in the
+                    pinned row, so a keyboard stop on it is never under the
+                    row. */}
+                {adjustEntry === "review" && (
+                  <button
+                    type="button"
+                    className="easyAdjustFrameButton"
+                    ref={adjustButtonRef}
+                    data-testid="frame-review-entry"
+                    onClick={openAdjust}
+                  >
+                    {paperAdjustCopy(locale).review.entry}
+                  </button>
+                )}
+                {adjustEntry === "check" && (
+                  <button
+                    type="button"
+                    className="easyAdjustFrameButton"
+                    ref={adjustButtonRef}
+                    data-testid="corner-check-entry"
+                    onClick={openAdjust}
+                  >
+                    {paperAdjustCopy(locale).check.entry}
+                  </button>
+                )}
               </div>
             </>
           ) : (
