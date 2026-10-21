@@ -32,12 +32,14 @@ import {
 import { RESULTS_VIEWER_ENABLED } from "@/lib/results/features";
 import { mainResultsPath } from "@/lib/results/rankRoutes";
 import {
+  currentStamp,
   customHistoryState,
   notePendingArrival,
   pendingForPick,
   pickNavigation,
   readCurrentStamp,
   stampOnArrival,
+  type ResultsStamp,
   takeArrivalMemory,
   topBarBack,
   writeCurrentStamp,
@@ -157,7 +159,10 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
   }, [redirect, router, scanId, search]);
 
   // V3.2 F11: stamp this page's history entry once it is shown (kept on back,
-  // forward, a reload and a filter change).
+  // forward, a reload and a filter change). The page keeps its own copy:
+  // `router.refresh()` (the language switch) wipes the entry's state, and
+  // `currentStamp` puts the copy back.
+  const ownStampRef = useRef<ResultsStamp | null>(null);
   useEffect(() => {
     if (redirect) return;
     if (window.location.pathname !== pathname) return;
@@ -170,14 +175,22 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
       pending: memory.pending,
       scanHandoff: memory.scanHandoff,
     });
+    ownStampRef.current = stamp;
     writeCurrentStamp(stamp);
   }, [redirect, pathname, scanId, isMain]);
+
+  // After any render (a refresh re-renders the page): put the stamp back if
+  // the entry lost it. The clicks below check again, since a refresh need not
+  // re-render this component.
+  useEffect(() => {
+    if (!redirect) currentStamp(ownStampRef.current);
+  });
 
   const navigation = useMemo<ResultsNavigation>(
     () => ({
       onPick: (event, href, toMain) => {
         if (!plainClick(event)) return;
-        const stamp = readCurrentStamp();
+        const stamp = currentStamp(ownStampRef.current);
         const nav = pickNavigation({ fromMain: isMain, toMain, stamp });
         notePendingArrival(pendingForPick(nav, { scanId, toMain, stamp }));
         if (nav.kind === "push") return; // the link itself
@@ -187,7 +200,7 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
       },
       onBack: (event) => {
         if (!plainClick(event)) return;
-        const back = topBarBack(readCurrentStamp(), scanId);
+        const back = topBarBack(currentStamp(ownStampRef.current), scanId);
         if (back.kind === "link") return;
         event.preventDefault();
         window.history.go(-back.steps);

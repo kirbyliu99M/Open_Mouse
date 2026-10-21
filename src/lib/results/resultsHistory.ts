@@ -24,6 +24,21 @@
  * What a page knows about its place is stamped into its own history entry
  * (`history.state[RESULTS_HISTORY_KEY]`), which survives a reload and back and
  * forward; Next.js keeps keys it does not own (its patched `replaceState`).
+ * One exception: `router.refresh()` (the language switch in the footer and the
+ * menu calls it) makes Next.js rewrite the entry's state with its own keys
+ * only, so the stamp is gone. The page keeps its own copy of the stamp it
+ * wrote, and every decision reads the entry through `currentStamp`, which
+ * falls back to that copy and writes it back (`resolveStamp`).
+ *
+ * Which action does what (checked by tests/unit/results-f11.test.ts, which
+ * scans the results pages' code for anything that adds an entry, and by
+ * tests/e2e/results-back.spec.ts with `history.length`):
+ *   none: the shape toggle, a filter change, the filter sheet, Details, Other
+ *         mice, the enlarged photo, share, the feedback sheet;
+ *   push: a detail page opened from the main page;
+ *   replace: a detail page opened from a detail page;
+ *   back or replace: the first place opened from a detail page.
+ *
  * The decisions are pure; the few lines that touch `window` are at the end.
  */
 
@@ -46,27 +61,6 @@ export interface PendingArrival {
   depth: 0 | 1;
   scanBehind: boolean;
 }
-
-/** Every action on a results page and what it does to history (documented, and tested). */
-export const RESULTS_ACTION_HISTORY = {
-  shapeToggle: "none",
-  filterChange: "none",
-  filterSheetOpen: "none",
-  filterSheetClose: "none",
-  detailsToggle: "none",
-  otherMiceToggle: "none",
-  photoZoom: "none",
-  share: "none",
-  feedbackSheet: "none",
-  openDetailFromMain: "push",
-  openDetailFromDetail: "replace",
-  openMainFromDetail: "back-or-replace",
-} as const satisfies Record<
-  string,
-  "none" | "push" | "replace" | "back-or-replace"
->;
-
-export type ResultsAction = keyof typeof RESULTS_ACTION_HISTORY;
 
 /** Read a stamp from `history.state`; `null` when there is none or it is malformed. */
 export function parseStamp(state: unknown): ResultsStamp | null {
@@ -123,6 +117,25 @@ export function stampOnArrival(input: {
     depth: 0,
     scanBehind: isMain && scanHandoff === scanId,
   };
+}
+
+/**
+ * The stamp to decide with: the entry's own when it has one; otherwise the
+ * copy the page kept of the stamp it wrote (the entry lost it to
+ * `router.refresh()`), when that copy is for this scan and the path the page
+ * is on; otherwise none. `restore` says the copy should be written back.
+ */
+export function resolveStamp(input: {
+  fromHistory: ResultsStamp | null;
+  own: ResultsStamp | null;
+  scanId: string;
+  path: string;
+}): { stamp: ResultsStamp | null; restore: boolean } {
+  const { fromHistory, own, scanId, path } = input;
+  if (fromHistory) return { stamp: fromHistory, restore: false };
+  if (own && own.scanId === scanId && own.path === path)
+    return { stamp: own, restore: true };
+  return { stamp: null, restore: false };
 }
 
 export type PickNavigation =
@@ -220,6 +233,28 @@ export function readCurrentStamp(): ResultsStamp | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * The current entry's stamp, falling back to `own` (the stamp this page wrote)
+ * when the entry lost it, and writing `own` back then (never throws).
+ */
+export function currentStamp(own: ResultsStamp | null): ResultsStamp | null {
+  if (own === null) return readCurrentStamp();
+  let path: string;
+  try {
+    path = window.location.pathname;
+  } catch {
+    return readCurrentStamp();
+  }
+  const { stamp, restore } = resolveStamp({
+    fromHistory: readCurrentStamp(),
+    own,
+    scanId: own.scanId,
+    path,
+  });
+  if (restore && stamp) writeCurrentStamp(stamp);
+  return stamp;
 }
 
 /** Write `stamp` on the current entry without changing the URL (never throws). */

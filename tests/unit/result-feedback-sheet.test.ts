@@ -37,7 +37,7 @@ const base = {
   isDemo: false,
   openedDetails: false,
   coolingDown: false,
-  questionnaireAnswered: false,
+  questionnaire: "unanswered" as const,
 };
 
 describe("the constants", () => {
