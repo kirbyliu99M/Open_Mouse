@@ -21,7 +21,11 @@ import {
   computeUncorrectedShadow,
   nominalFocalPxFromLongEdge,
 } from "../../src/client/geometry/nominalFocalShadow";
+import { centrePrincipalPoint } from "../../src/client/geometry/camera-pose";
+import { estimateFocalFromHomography } from "../../src/client/geometry/focal-from-homography";
+import { FOCAL_PRIOR_RANGE } from "../../src/client/geometry/parallax";
 import { buildExifJpeg, TAG } from "./helpers/exif-jpeg";
+import { buildR6Scene } from "./helpers/r6-scene";
 import { buildShadowScene } from "./helpers/shadow-scene";
 
 const FRAME = { width: 1080, height: 1440 };
@@ -268,5 +272,89 @@ describe("finishPaperEdge shadow mode", () => {
     expect(failed.result.status).toBe("error");
     expect(failed.shadowPrior).toBeNull();
     expect(seen).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The homography's own focal estimate is local evidence for design §5.3(b):
+ * the stream's true focal length is read off the attempt log of the step-3
+ * scans tilted about 15°. So the real `finishPaperEdge` must record the
+ * estimate it made, used or not. All numbers SIMULATED (模擬).
+ */
+describe("finishPaperEdge records the homography focal estimate", () => {
+  const TRUE_F = (26 / 43.27) * Math.hypot(FRAME.width, FRAME.height);
+  // Pitch 15° (the step-3 tilt) plus a 4° roll: a tilt about one sheet axis
+  // alone leaves h31 = 0 and the estimate is never judged reliable.
+  const tilted = buildR6Scene({
+    w: FRAME.width,
+    h: FRAME.height,
+    f: TRUE_F,
+    pitchDeg: 15,
+    rollDeg: 4,
+  });
+  const tiltedQuad: SheetQuadDetection = {
+    ...quad,
+    corners: tilted.corners,
+    partialCorners: tilted.corners,
+  };
+  const tiltedEval = evaluatePaperEdgeCalibration(tiltedQuad, "a4", false);
+  const tiltedInput = (
+    over: Partial<PaperEdgeFinishInput> = {},
+  ): PaperEdgeFinishInput =>
+    input({
+      quad: tiltedQuad,
+      paperEval: tiltedEval,
+      hand: {
+        landmarksPx: [...tilted.raisedPx],
+        handedness: "right",
+        confidence: 0.95,
+      },
+      ...over,
+    });
+  // What the shadow should have computed: the same homography, the analysed
+  // image's centre as the principal point.
+  const expected = () => {
+    const h = tiltedEval.geometry?.homography;
+    if (!h) throw new Error("no homography");
+    const e = estimateFocalFromHomography(
+      h,
+      centrePrincipalPoint(FRAME.width, FRAME.height),
+    );
+    if (!e) throw new Error("no estimate");
+    return e;
+  };
+
+  it("a 15° tilt: the estimate is reliable, is used, and the log carries the same {px, reliable}", async () => {
+    const e = expected();
+    // Preconditions of the scene: reliable, near the truth.
+    expect(e.reliable).toBe(true);
+    expect(Math.abs(e.fPx / TRUE_F - 1)).toBeLessThan(0.05);
+    const got = await finishPaperEdge(tiltedInput());
+    expect(got.result.status).toBe("ok");
+    expect(got.focal?.source).toBe("homography");
+    expect(got.shadowPrior?.homographyFocal).not.toBeNull();
+    expect(got.shadowPrior?.homographyFocal).toEqual({
+      px: e.fPx,
+      reliable: true,
+    });
+  });
+
+  it("a reliable estimate that the range check turns down (the nominal prior is used) is recorded all the same", async () => {
+    const e = expected();
+    expect(e.reliable).toBe(true);
+    // A long edge that puts the prior far above the estimate, out of range.
+    const longEdge = 4000;
+    const prior = nominalFocalPxFromLongEdge(longEdge);
+    if (prior === null) throw new Error("no prior");
+    expect(e.fPx / prior).toBeLessThan(FOCAL_PRIOR_RANGE.min);
+    const got = await finishPaperEdge(
+      tiltedInput({ focalReferenceLongEdgePx: longEdge }),
+    );
+    expect(got.result.status).toBe("ok");
+    expect(got.focal).toEqual({ source: "nominal", px: prior });
+    expect(got.shadowPrior?.homographyFocal).toEqual({
+      px: e.fPx,
+      reliable: true,
+    });
   });
 });
