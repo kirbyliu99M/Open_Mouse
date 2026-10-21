@@ -48,8 +48,11 @@ same engine-scale number (D1 = B): the scan sheet, the scan page and the account
 as typed. Simulated effect on the V1 population (600 hands, seed 20261018), corrected + scaled against
 today's uncorrected scan: top-10 Jaccard 0.875-0.957 and the same first place 86.8-94.5 % depending on
 the grip (a second uncorrected scan of the same hand: 0.847-0.945, 84.2-94.0 %), `predictGrip` differs for
-2.7 % of hands (unscaled: 24.5 %). The 0.77 is unchanged: on the corrected landmark scale it would be
-about 0.75 (0.75 x 1.035 = 0.776). Summary: `docs/research/nominal-focal-r7.md`.
+2.7 % of hands (unscaled: 24.5 %). These numbers come from the real `fitScaleMeasurements` (script
+`v32-program-2026-10-21\review\R7\d12_fit_population.ts`, output `d12.out.txt`, outside the repo) and are
+pinned, with the acceptance "not below a second scan minus 0.02", by
+`tests/unit/engine-scale-population.test.ts`; rerun both when the ratios change. The 0.77 is unchanged: on
+the corrected landmark scale it would be about 0.75 (0.75 x 1.035 = 0.776). Summary: `docs/research/nominal-focal-r7.md`.
 
 ## 2. Grip
 
