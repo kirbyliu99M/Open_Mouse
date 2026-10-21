@@ -239,12 +239,20 @@ describe("survey contribution: bins and grip on the engine's scale", () => {
     ratings: [{ slug: "mouse-a", satisfaction: 4 }],
   });
   const ids = new Map([["mouse-a", "20000000-0000-4000-8000-00000000000a"]]);
-  // 182.1 x 1.024 = 186.5 (bin 185, stored bin 180); 77.8 x 1.035 = 80.5 (bin 80, stored 75).
+  // 184 x 1.024 = 188.4 (bin 185, stored bin 180); 77.8 x 1.035 = 80.5 (bin 80, stored 75).
+  // Grip crosses a threshold (simulated input): palm/hand 98.5 / 184 = 0.535
+  // is fingertip (claw from 0.54); 102.5 / 188.4 = 0.544 is claw. A reader
+  // that predicts from the stored numbers is caught.
   const measurements: HandMeasurements = {
-    handLengthMm: 182.1,
-    palmLengthMm: 101.2,
+    handLengthMm: 184,
+    palmLengthMm: 98.5,
     palmWidthMm: 77.8,
   };
+
+  it("the input really flips the grip between the two scales", () => {
+    expect(predictGrip(184, 98.5)).toBe("fingertip");
+    expect(predictGrip(184 * 1.024, 98.5 * 1.041)).toBe("claw");
+  });
 
   it("a corrected scan lands in the cell the same hand did before correction", () => {
     const write = buildContributionWrite({
@@ -261,7 +269,9 @@ describe("survey contribution: bins and grip on the engine's scale", () => {
     });
     expect(write.handLengthBinMm).toBe(185);
     expect(write.palmWidthBinMm).toBe(80);
-    expect(write.gripStyle).toBe(predictGrip(182.1 * 1.024, 101.2 * 1.041));
+    expect(write.gripStyle).toBe("claw");
+    expect(write.gripStyle).toBe(predictGrip(184 * 1.024, 98.5 * 1.041));
+    expect(write.gripStyle).not.toBe(predictGrip(184, 98.5));
   });
 
   it("an uncorrected scan is binned as stored, as before", () => {
@@ -274,7 +284,8 @@ describe("survey contribution: bins and grip on the engine's scale", () => {
     });
     expect(write.handLengthBinMm).toBe(180);
     expect(write.palmWidthBinMm).toBe(75);
-    expect(write.gripStyle).toBe(predictGrip(182.1, 101.2));
+    expect(write.gripStyle).toBe("fingertip");
+    expect(write.gripStyle).toBe(predictGrip(184, 98.5));
   });
 });
 
