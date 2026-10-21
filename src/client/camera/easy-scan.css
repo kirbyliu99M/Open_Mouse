@@ -1981,6 +1981,17 @@ main.easyScanShell {
   font-weight: 600;
   cursor: pointer;
 }
+/* On a line of its own under 繼續 and 重拍, inside the pinned row (F7): the
+   full width keeps its label on one line at large text, and the gap is in
+   pixels so it does not double at 200% text and the row stays short. */
+.easyStickyActions {
+  flex-wrap: wrap;
+  row-gap: min(0.5rem, 8px);
+}
+.easyStickyActions .easyAdjustFrameButton {
+  flex: 1 1 100%;
+  margin-top: 0;
+}
 .easyAdjustFrameButton:focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 3px;
