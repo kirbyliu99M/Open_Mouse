@@ -114,6 +114,9 @@ test.describe("results: the back button leaves the results page", () => {
     await expect(
       page.locator('.results-shapeToggle [role="radio"][aria-checked="true"]'),
     ).toHaveCount(1);
+    // The fixture's mice carry no shape, so a shape segment lists none and has
+    // no Details: go back to the first segment (Overall) before going on.
+    await page.locator('.results-shapeToggle [role="radio"]').first().click();
 
     // The filter sheet: open it, then close it with its X (48 x 48).
     await page.locator(".results-filterButton").click();
