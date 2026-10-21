@@ -24,7 +24,10 @@ import { noteScanHandoff } from "@/lib/results/resultsHistory";
 import type { ScanFlow } from "@/lib/contracts/analytics";
 import { track } from "@/client/analytics/track";
 import type { SubmitScanErrorKind } from "@/client/scan/submitScan";
-import { submitAndRemember } from "@/client/scan/submitAndRemember";
+import {
+  submitAndRemember,
+  type ScanLocalNotes,
+} from "@/client/scan/submitAndRemember";
 
 /** `localStorage`, or null where reading the property itself throws (blocked storage). */
 function safeStorage(): Storage | null {
@@ -49,27 +52,30 @@ export function useScanSubmit(flow?: ScanFlow) {
   const submittingRef = useRef(false);
 
   const submit = useCallback(
-    (submission: ScanSubmission) => {
+    (submission: ScanSubmission, notes?: ScanLocalNotes) => {
       if (submittingRef.current) return;
       submittingRef.current = true;
       setState({ kind: "submitting" });
-      // The disclosure keys are written inside, and only after a 201.
-      void submitAndRemember(submission, safeStorage()).then((outcome) => {
-        if (flow) {
-          if (outcome.status === "success") track("scan_submitted", { flow });
-          else track("scan_submit_failed", { flow, kind: outcome.kind });
-        }
-        if (outcome.status === "success") {
-          setState({ kind: "success" });
-          // V3.2 F11: the results page's top-bar back can then go back here.
-          noteScanHandoff(outcome.scanId);
-          router.push(resultsPagePath(outcome.scanId));
-          return;
-        }
-        // Release the lock on failure so the user can retry.
-        submittingRef.current = false;
-        setState({ kind: "error", errorKind: outcome.kind });
-      });
+      // The disclosure keys are written inside, and only after a 201. The
+      // fetch stays the default one (`undefined`).
+      void submitAndRemember(submission, safeStorage(), undefined, notes).then(
+        (outcome) => {
+          if (flow) {
+            if (outcome.status === "success") track("scan_submitted", { flow });
+            else track("scan_submit_failed", { flow, kind: outcome.kind });
+          }
+          if (outcome.status === "success") {
+            setState({ kind: "success" });
+            // V3.2 F11: the results page's top-bar back can then go back here.
+            noteScanHandoff(outcome.scanId);
+            router.push(resultsPagePath(outcome.scanId));
+            return;
+          }
+          // Release the lock on failure so the user can retry.
+          submittingRef.current = false;
+          setState({ kind: "error", errorKind: outcome.kind });
+        },
+      );
     },
     [router, flow],
   );

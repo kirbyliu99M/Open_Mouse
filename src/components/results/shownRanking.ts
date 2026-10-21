@@ -39,13 +39,14 @@ export interface ShownRankingRefs {
 
 /**
  * Fetch the fit again and, when it is ready and still wanted, make it the
- * one on screen (`show`). Resolves to the new fit, or null when it could not
- * be fetched or the page moved on (the old ranking stays).
+ * one on screen (`show`, told the fit it replaces too: V3.2 F13's "results
+ * updated" notice reads both). Resolves to the new fit, or null when it could
+ * not be fetched or the page moved on (the old ranking stays).
  */
 export function refreshShownFit(
   refs: ShownRankingRefs,
   fetchFit: () => Promise<FitOutcome>,
-  show: (fit: FitResponse) => void,
+  show: (fit: FitResponse, previous: FitResponse | null) => void,
 ): Promise<FitResponse | null> {
   if (refs.inflight.current) return refs.inflight.current;
   const generation = refs.generation.current;
@@ -53,8 +54,9 @@ export function refreshShownFit(
     const outcome = await fetchFit();
     if (generation !== refs.generation.current) return null;
     if (outcome.status !== "ready") return null;
+    const previous = refs.shown.current;
     refs.shown.current = outcome.response;
-    show(outcome.response);
+    show(outcome.response, previous);
     return outcome.response;
   })();
   refs.inflight.current = request;
@@ -107,7 +109,7 @@ export function shownRankingClient(input: {
   preferences: FitPreferencesInput;
   fetchImpl: typeof fetch;
   refs: ShownRankingRefs;
-  show: (fit: FitResponse) => void;
+  show: (fit: FitResponse, previous: FitResponse | null) => void;
 }): {
   refreshNow: () => Promise<FitResponse | null>;
   analyse: (stillWanted: () => boolean) => Promise<AnalysisOutcome | null>;

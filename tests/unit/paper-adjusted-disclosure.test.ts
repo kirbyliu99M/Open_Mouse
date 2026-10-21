@@ -159,7 +159,12 @@ describe("from this browser to the results page (the wiring between the two ends
         }),
         SCAN_ID,
       ),
-    ).toEqual({ enteredLength: 190, enteredManual: null, paperAdjusted: true });
+    ).toEqual({
+      enteredLength: 190,
+      enteredManual: null,
+      paperAdjusted: true,
+      paperCurled: false,
+    });
     // The adjusted note is read from its own key, not another note's.
     expect(
       readScanDisclosures(
@@ -179,6 +184,7 @@ describe("from this browser to the results page (the wiring between the two ends
       enteredLength: null,
       enteredManual: null,
       paperAdjusted: false,
+      paperCurled: false,
     });
   });
 

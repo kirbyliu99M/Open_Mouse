@@ -303,6 +303,8 @@ test.describe("the palm-thickness page (2 of 2)", () => {
     await expect(dialog.getByRole("alert")).toContainText(
       "Something went wrong on our end",
     );
+    // The veil fades out again over the error and its retry (F13).
+    await expect(dialog.getByTestId("submit-overlay")).toHaveCount(0);
     await expect(dialog.getByRole("radio", { name: /^Thin/ })).toBeChecked();
     await expect(
       dialog.getByRole("button", { name: "See results", exact: true }),
@@ -318,7 +320,7 @@ test.describe("the palm-thickness page (2 of 2)", () => {
     });
   });
 
-  test("while the scan is sent the controls are off and the button says so", async ({
+  test("while the scan is sent the controls are off, the button keeps its word and the veil is up (F13)", async ({
     page,
   }) => {
     let release: () => void = () => {};
@@ -337,9 +339,12 @@ test.describe("the palm-thickness page (2 of 2)", () => {
     await dialog
       .getByRole("button", { name: "See results", exact: true })
       .click();
+    // V3.2 F13: never 「傳送中／Sending」; the veil with the loader instead.
     await expect(
-      dialog.getByRole("button", { name: "Sending…" }),
+      dialog.getByRole("button", { name: "See results", exact: true }),
     ).toBeDisabled();
+    await expect(dialog.getByText(/Sending/)).toHaveCount(0);
+    await expect(dialog.getByTestId("submit-overlay")).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Skip" })).toBeDisabled();
     await expect(dialog.getByRole("button", { name: "Back" })).toBeDisabled();
     release();
@@ -542,8 +547,9 @@ test.describe("the browser closing the question page by itself", () => {
       .getByRole("button", { name: "See results", exact: true })
       .click();
     await expect(
-      dialog.getByRole("button", { name: "Sending…" }),
+      dialog.getByRole("button", { name: "See results", exact: true }),
     ).toBeDisabled();
+    await expect(dialog.getByTestId("submit-overlay")).toBeVisible();
     await page.keyboard.press("Escape");
     await page.keyboard.press("Escape");
     await expect(dialog).toBeVisible();

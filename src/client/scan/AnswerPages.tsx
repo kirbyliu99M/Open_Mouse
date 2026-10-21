@@ -33,6 +33,7 @@ import { scanAnswersCopy, type ChoiceCopy } from "../../lib/copy/scan-answers";
 import { scanCommonCopy } from "../../lib/copy/scan-common";
 import { useLocale } from "../i18n/LocaleProvider";
 import { gripControls, thicknessControls, type GripStyle } from "./answers";
+import { SubmitOverlay } from "./SubmitOverlay";
 import type { SubmitScanErrorKind } from "./submitScan";
 import {
   THICKNESS_HAND_DOTS,
@@ -430,10 +431,12 @@ export interface ThicknessPageProps {
   /** 跳過: the scan is sent with no thickness. */
   readonly onSkip: () => void;
   readonly onBack: () => void;
-  /** The scan is being sent (or was, and the results are opening). */
+  /**
+   * The scan is being sent (or was, and the results are opening). The
+   * controls are off and the veil with the particle loader is over the page
+   * (`SubmitOverlay`, V3.2 F13); the button keeps its own word.
+   */
   readonly busy: boolean;
-  /** The scan was stored and the results page is opening. */
-  readonly opening?: boolean;
   /** Why the last attempt to send it failed, if it did. */
   readonly errorKind: SubmitScanErrorKind | null;
   /** The banner's 重拍 (shown only for a failure whose fix is a new photo). */
@@ -453,7 +456,12 @@ export const RETAKE_ERROR_KINDS: readonly SubmitScanErrorKind[] = [
   "tooLarge",
 ];
 
-/** Palm-thickness page, step 2／2: where the scan is sent. */
+/**
+ * Palm-thickness page, step 2／2: where the scan is sent. While it is sent the
+ * button keeps saying 看結果 (Kirby 2026-10-22: never 「傳送中…」) and is off;
+ * the veil with the particle loader fades in over the page until the results
+ * open, or fades out again on a failure, above the error and its retry.
+ */
 export function ThicknessPage({
   value,
   onChange,
@@ -461,7 +469,6 @@ export function ThicknessPage({
   onSkip,
   onBack,
   busy,
-  opening = false,
   errorKind,
   onRetake,
   retakeLabel,
@@ -525,11 +532,7 @@ export function ThicknessPage({
             testId="thickness-submit"
             buttonRef={submitRef}
           >
-            {opening
-              ? common.submitButtonOpening
-              : busy
-                ? words.sending
-                : words.thicknessSubmit}
+            {words.thicknessSubmit}
           </PrimaryButton>
           {/* The visible word stays 跳過; the name says what it does here: the
               scan is sent. It contains the visible word (WCAG 2.5.3). */}
@@ -544,9 +547,6 @@ export function ThicknessPage({
           >
             {words.skip}
           </button>
-          <p className="answerSr" aria-live="polite">
-            {opening ? common.submitSuccessStatus : busy ? words.sending : ""}
-          </p>
         </div>
       }
     >
@@ -558,6 +558,8 @@ export function ThicknessPage({
         onChange={onChange}
         disabled={busy}
       />
+      {/* Fixed over the whole screen; the loader's status says 正在比對. */}
+      <SubmitOverlay busy={busy} />
     </PageShell>
   );
 }

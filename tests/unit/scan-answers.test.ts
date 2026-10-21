@@ -20,6 +20,11 @@ import {
 } from "../../src/client/scan/answers";
 import { submitScan } from "../../src/client/scan/submitScan";
 import {
+  SUBMIT_OVERLAY,
+  overlayFadeMs,
+  overlayPhaseFor,
+} from "../../src/client/scan/submitOverlayPhase";
+import {
   MEASUREMENT_MODEL_VERSION,
   scanSubmissionSchema,
   type ScanSubmission,
@@ -454,44 +459,75 @@ describe("the pages as rendered", () => {
     );
   });
 
-  it("after a successful send the button says the results are opening", () => {
-    const html = render(
+  // V3.2 F13 (Kirby 2026-10-22): the button never turns into 「傳送中…」;
+  // the veil with the particle loader comes over the page instead.
+  const sendingPage = (busy: boolean, locale: "zh-TW" | "en" = "zh-TW") =>
+    render(
       createElement(ThicknessPage, {
         value: "thin",
         onChange: noop,
         onSubmit: noop,
         onSkip: noop,
         onBack: noop,
-        busy: true,
-        opening: true,
+        busy,
         errorKind: null,
         onRetake: noop,
       }),
+      locale,
     );
-    expect(html).toContain("正在開啟結果…");
-  });
 
-  it("while sending, the button says so and every control is off", () => {
-    const html = render(
-      createElement(ThicknessPage, {
-        value: "thin",
-        onChange: noop,
-        onSubmit: noop,
-        onSkip: noop,
-        onBack: noop,
-        busy: true,
-        errorKind: null,
-        onRetake: noop,
-      }),
-    );
-    expect(html).toContain("傳送中…");
+  it("while sending, the button keeps its word, every control is off, and the veil with the loader is up", () => {
+    const html = sendingPage(true);
+    expect(html).not.toContain("傳送中");
+    expect(html).not.toContain("正在開啟結果");
     expect(html).toMatch(
-      /<button[^>]*disabled=""[^>]*data-testid="thickness-submit"/,
+      /<button[^>]*disabled=""[^>]*data-testid="thickness-submit"[^>]*>看結果<\/button>/,
     );
     expect(html).toMatch(
       /<button[^>]*disabled=""[^>]*data-testid="thickness-skip"/,
     );
     expect(html).toMatch(/<fieldset[^>]*disabled=""/);
+    expect(html).toMatch(
+      /<div class="submitOverlay" data-phase="shown" data-testid="submit-overlay" aria-busy="true"/,
+    );
+    expect(html).toContain("--submit-veil-opacity:70%");
+    expect(html).toContain("--submit-fade-ms:220ms");
+    expect(html).toMatch(/class="particleLoader submitOverlay-loader"/);
+    // The loader's status says it is matching; no word about sending.
+    expect(html).toContain('role="status">正在比對<');
+  });
+
+  it("in English too: no Sending anywhere while it is sent", () => {
+    const html = sendingPage(true, "en");
+    expect(html).not.toMatch(/Sending|Opening/);
+    expect(html).toMatch(/data-testid="thickness-submit"[^>]*>See results</);
+    expect(html).toContain('data-testid="submit-overlay"');
+  });
+
+  it("not sending: no veil, the button is the page's own", () => {
+    const html = sendingPage(false);
+    expect(html).not.toContain("submit-overlay");
+    expect(html).toMatch(
+      /<button[^>]*data-testid="thickness-submit"[^>]*>看結果<\/button>/,
+    );
+  });
+});
+
+describe("the send veil's phases (submitOverlayPhase.ts, V3.2 F13)", () => {
+  it("busy shows it; a failure fades it out, then it is gone; idle stays hidden", () => {
+    expect(overlayPhaseFor("hidden", true)).toBe("shown");
+    expect(overlayPhaseFor("shown", true)).toBe("shown");
+    expect(overlayPhaseFor("shown", false)).toBe("leaving");
+    expect(overlayPhaseFor("leaving", false)).toBe("leaving");
+    expect(overlayPhaseFor("hidden", false)).toBe("hidden");
+    // A retry while it is still fading brings it straight back.
+    expect(overlayPhaseFor("leaving", true)).toBe("shown");
+  });
+
+  it("about 70 % over the page, a 220 ms fade, none under reduced motion (candidate)", () => {
+    expect(SUBMIT_OVERLAY.VEIL_OPACITY).toBe(0.7);
+    expect(overlayFadeMs(false)).toBe(220);
+    expect(overlayFadeMs(true)).toBe(0);
   });
 });
 

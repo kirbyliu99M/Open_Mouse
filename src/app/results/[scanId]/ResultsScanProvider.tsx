@@ -35,6 +35,8 @@ import {
   type ShownRankingRefs,
 } from "@/components/results/shownRanking";
 import { sweepLegacyHandKeys } from "@/components/results/handDisclosure";
+import { rankingUpdatedNoticeDue } from "@/components/results/rankingUpdatedNotice";
+import { ResultsUpdatedNotice } from "@/components/results/ResultsUpdatedNotice";
 import { track } from "@/client/analytics/track";
 import type { ResultsAnalytics } from "@/lib/results/analyticsEvents";
 import { TopBar } from "@/components/nav/TopBar";
@@ -90,6 +92,8 @@ export interface ResultsScan {
   enteredManual: StoredManualEntry | null;
   /** V3.2 F2 (candidate): the paper frame was placed or moved by hand (read from this browser). */
   paperAdjusted: boolean;
+  /** V3.2 F13 (candidate): that frame followed a `PAPER_CURLED` result (read from this browser). */
+  paperCurled: boolean;
   analysisState: AnalysisState;
   /**
    * Ask for the written analysis. Only the main page (rank 1) gets a request
@@ -167,6 +171,10 @@ export function ResultsScanProvider({
     null,
   );
   const [paperAdjusted, setPaperAdjusted] = useState(false);
+  const [paperCurled, setPaperCurled] = useState(false);
+  // V3.2 F13 (candidate): 0 = no "results updated" line; each in-place
+  // refresh that changed the ranking bumps it (a new line, a fresh timer).
+  const [updatedNotice, setUpdatedNotice] = useState(0);
   const language = useLocale();
   const copy = resultsScreensCopy(language);
   const loaderWords = loadingCopy(language).fit;
@@ -199,10 +207,12 @@ export function ResultsScanProvider({
       sweepLegacyHandKeys(localStorage);
       setEnteredManual(notes.enteredManual);
       setPaperAdjusted(notes.paperAdjusted);
+      setPaperCurled(notes.paperCurled);
     } catch {
       setEnteredLength(null);
       setEnteredManual(null);
       setPaperAdjusted(false);
+      setPaperCurled(false);
     }
   }, [scanId]);
 
@@ -235,12 +245,19 @@ export function ResultsScanProvider({
       generation: fitGenerationRef,
       inflight: refreshInflightRef,
     };
+    // The new ranking replaces the old in place; when it really changed, a
+    // short "results updated" line says so (V3.2 F13, candidate).
+    const show = (response: FitResponse, previous: FitResponse | null) => {
+      setPageState({ kind: "ready", response });
+      if (rankingUpdatedNoticeDue(previous, response))
+        setUpdatedNotice((n) => n + 1);
+    };
     return shownRankingClient({
       scanId,
       preferences: PREFERENCES,
       fetchImpl: fetch,
       refs,
-      show: (response) => setPageState({ kind: "ready", response }),
+      show,
     });
   }, [scanId]);
   const refreshFitNow = rankingClient.refreshNow;
@@ -335,6 +352,7 @@ export function ResultsScanProvider({
     if (routeSlugRef.current) prefetchMouseLinks(routeSlugRef.current);
     setPageState({ kind: "loading" });
     setAnalysisState({ status: "idle" });
+    setUpdatedNotice(0);
     analysisStartedRef.current = false;
 
     void (async () => {
@@ -417,6 +435,7 @@ export function ResultsScanProvider({
             enteredLength,
             enteredManual,
             paperAdjusted,
+            paperCurled,
             analysisState,
             requestAnalysis,
             retryAnalysis,
@@ -431,6 +450,7 @@ export function ResultsScanProvider({
       enteredLength,
       enteredManual,
       paperAdjusted,
+      paperCurled,
       analysisState,
       requestAnalysis,
       retryAnalysis,
@@ -600,6 +620,13 @@ export function ResultsScanProvider({
   return (
     <ResultsScanContext.Provider value={scan}>
       <main className="resultsMain results-entered">
+        {updatedNotice > 0 && (
+          <ResultsUpdatedNotice
+            key={updatedNotice}
+            language={language}
+            onGone={() => setUpdatedNotice(0)}
+          />
+        )}
         {children}
         {anonymous && (
           <DeleteScanAction
