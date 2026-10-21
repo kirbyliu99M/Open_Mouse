@@ -1,7 +1,9 @@
 /**
  * Words of the paper-frame adjustment (V3.2 F2, 手動調整邊框), zh-TW and
- * English, same keys. Shown only after the automatic detection was turned back
- * for a hidden edge or corner (and, with `?debug=1`, Kirby's corner check).
+ * English, same keys. Shown after the automatic detection turned a photo back
+ * for any paper reason (or after a frame placed by hand was turned back), as
+ * 檢查邊框 on a measured photo (F7, 2026-10-21), and, with `?debug=1`, as
+ * Kirby's corner check.
  *
  * Every string here is a CANDIDATE (未拍板) until Kirby has read it. No health
  * claim, and no promise of accuracy: a frame placed by hand has no numeric
@@ -55,6 +57,18 @@ export interface PaperAdjustCopy {
   reset: string;
   /** The measured sheet's line after a frame placed by hand. */
   measuredNote: string;
+  /**
+   * Shown on the screen before confirming, after the sheet was measured as
+   * curled (`PAPER_CURLED`, F7): a frame placed by hand cannot fix that.
+   */
+  curledWarning: string;
+  /** 檢查邊框 on a measured photo (F7): the detector's frame, to confirm or move. */
+  review: {
+    entry: string;
+    title: string;
+    instruction: string;
+    confirm: string;
+  };
   /** Kirby's corner check (`?debug=1` only). */
   check: {
     entry: string;
@@ -108,6 +122,15 @@ export const zhTW: PaperAdjustCopy = {
   cancel: "取消",
   reset: "重設",
   measuredNote: "紙張邊框是手動調整的。",
+  curledWarning:
+    "紙好像沒有平貼，手動調整後量測可能不準，建議先把紙壓平再拍一次。",
+  review: {
+    entry: "檢查邊框",
+    title: "檢查紙張邊框",
+    instruction:
+      "這是自動找到的邊框。對齊了就按「邊框沒問題」；角沒對準，就把它拖到紙角上，會用新的邊框重新測量。",
+    confirm: "邊框沒問題",
+  },
   check: {
     entry: "拖角精度測試",
     instruction: "把四個角拖到紙角上，再按「記錄這次」。只記錄距離，不存照片。",
@@ -174,6 +197,15 @@ export const en: PaperAdjustCopy = {
   cancel: "Cancel",
   reset: "Reset",
   measuredNote: "The paper's frame was adjusted by hand.",
+  curledWarning:
+    "The paper doesn't seem to lie flat. After adjusting by hand the measurement may be off; we suggest pressing the paper flat and taking the photo again.",
+  review: {
+    entry: "Check the frame",
+    title: "Check the paper's frame",
+    instruction:
+      "This is the frame found automatically. If it lines up, tap “The frame is right”; if a corner is off, drag it onto the paper's corner and your hand is measured again with the new frame.",
+    confirm: "The frame is right",
+  },
   check: {
     entry: "Corner drag check",
     instruction:

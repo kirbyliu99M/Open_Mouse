@@ -45,7 +45,7 @@ import { loadingCopy } from "@/lib/copy/loading";
 import { ParticleLoader } from "@/components/loading/ParticleLoader";
 import {
   LOADING_TIMING,
-  loaderTimeline,
+  fitReveal,
   type LoaderInput,
 } from "@/lib/particles/loading";
 import type { Locale } from "@/lib/contracts/locale";
@@ -136,10 +136,12 @@ export function useResultsScan(): ResultsScan {
  *    ranking above stays visible and unaffected
  *
  * While the fit loads, the page shows the particle loader (V3.2 U1,
- * candidate): its ring follows the time curve, and the answer is held back
- * until the loader has been on screen for `MIN_DISPLAY_FIT_MS` and has filled
- * and faded (`loaderTimeline`). A failure stops the ring, dimmed, above the
- * error and its retry.
+ * candidate) only when it is really waiting (F7, Kirby's phone test
+ * 2026-10-21, `fitReveal`): an answer within `FIT_SHOW_AFTER_MS` (300 ms) is
+ * shown at once (the page fades in) with no loader; a later one is shown by
+ * the loader that appeared at 300 ms, with no minimum time: a result fills
+ * the ring and fades, a failure stops the ring, dimmed, above the error and
+ * its retry. The same on every way in: after a scan, a direct open, a reload.
  *
  * `anonymous` (issue #42) is decided server-side by `layout.tsx` (it calls
  * `auth()`), never guessed client-side: it gates the "Delete this scan now"
@@ -170,6 +172,9 @@ export function ResultsScanProvider({
   const loaderWords = loadingCopy(language).fit;
   // The loader of the current fit request: when it appeared and, once it is
   // here, when the answer came and whether it was a result.
+  // Whether the loader is on screen yet: only once the fit has taken
+  // `FIT_SHOW_AFTER_MS` (`fitReveal`).
+  const [loaderVisible, setLoaderVisible] = useState(false);
   const [loader, setLoader] = useState<LoaderInput>(() => ({
     // Replaced by the fit effect's own start; this only covers the frames
     // before it runs.
@@ -311,13 +316,19 @@ export function ResultsScanProvider({
   useEffect(() => {
     let cancelled = false;
     let reveal: ReturnType<typeof setTimeout> | undefined;
-    const startedAt = performance.now();
+    const requestedAt = performance.now();
+    // The loader's own start: when it appears, if the answer is not here yet.
+    const shownAt = requestedAt + LOADING_TIMING.FIT_SHOW_AFTER_MS;
+    setLoaderVisible(false);
     setLoader({
-      startedAt,
+      startedAt: shownAt,
       minMs: LOADING_TIMING.MIN_DISPLAY_FIT_MS,
       steps: null,
       arrival: null,
     });
+    const show = setTimeout(() => {
+      if (!cancelled) setLoaderVisible(true);
+    }, LOADING_TIMING.FIT_SHOW_AFTER_MS);
     // Ask for the links of the mouse the page will show now, so they are
     // usually in the cache by the first paint: the detail page's mouse at once
     // (in parallel with the fit), the overall #1 as soon as the fit is here.
@@ -338,20 +349,20 @@ export function ResultsScanProvider({
         const top = outcome.response.results[0];
         if (top && !routeSlugRef.current) prefetchMouseLinks(top.mouse.slug);
       }
-      setLoader({
-        startedAt,
-        minMs: LOADING_TIMING.MIN_DISPLAY_FIT_MS,
-        steps: null,
-        arrival: { at: arrivedAt, ok },
-      });
-      // Shown once the loader is done: at least the minimum time on screen,
-      // then (for a result) the fill and the fade.
-      const { doneAt } = loaderTimeline(
-        startedAt,
-        arrivedAt,
-        LOADING_TIMING.MIN_DISPLAY_FIT_MS,
-        ok,
-      );
+      clearTimeout(show);
+      // A quick answer is shown at once and no loader is drawn; a later one
+      // goes through the loader that appeared at 300 ms (a result fills and
+      // fades, a failure stops the ring), with no minimum time.
+      const { loaderShownAt, revealAt } = fitReveal(requestedAt, arrivedAt, ok);
+      if (loaderShownAt !== null) {
+        setLoaderVisible(true);
+        setLoader({
+          startedAt: loaderShownAt,
+          minMs: LOADING_TIMING.MIN_DISPLAY_FIT_MS,
+          steps: null,
+          arrival: { at: arrivedAt, ok },
+        });
+      }
       reveal = setTimeout(
         () => {
           if (cancelled) return;
@@ -364,12 +375,13 @@ export function ResultsScanProvider({
             setPageState({ kind: outcome.status });
           }
         },
-        Math.max(0, doneAt - performance.now()),
+        Math.max(0, revealAt - performance.now()),
       );
     })();
 
     return () => {
       cancelled = true;
+      clearTimeout(show);
       if (reveal !== undefined) clearTimeout(reveal);
       analysisRunRef.current += 1;
       fitGenerationRef.current += 1;
@@ -428,9 +440,10 @@ export function ResultsScanProvider({
   );
 
   // A failed fit: the loader's ring stays where it stopped, dimmed, above the
-  // error (only after a real request; a scan deleted here has none).
+  // error (only after a real request that waited long enough to show it; a
+  // quick failure and a scan deleted here have none).
   const failedLoader =
-    loader.arrival && !loader.arrival.ok ? (
+    loaderVisible && loader.arrival && !loader.arrival.ok ? (
       <ParticleLoader
         className="results-page-failedLoader"
         input={loader}
@@ -447,11 +460,17 @@ export function ResultsScanProvider({
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
         />
-        <ParticleLoader
-          className="results-page-status"
-          input={loader}
-          status={loaderWords}
-        />
+        {/* Nothing until the fit has taken 300 ms (F7): a quick answer is
+            shown at once, without a loader flashing up first. */}
+        {loaderVisible ? (
+          <ParticleLoader
+            className="results-page-status"
+            input={loader}
+            status={loaderWords}
+          />
+        ) : (
+          <div className="results-page-pending" aria-busy="true" />
+        )}
       </main>
     );
   }

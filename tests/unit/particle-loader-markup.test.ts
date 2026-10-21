@@ -128,17 +128,21 @@ describe.each(LOCALES)(
       ),
     );
 
-    it("shows the particle loader, not the old loading line", () => {
-      expect(html).toContain("particleLoader");
+    // F7 (Kirby's phone test 2026-10-21): the loader appears only once the
+    // fit has taken 300 ms (`fitReveal`, tested in particles-loading.test.ts),
+    // so the first frame has none: a quick answer is shown without a loader
+    // flashing up first.
+    it("draws no loader in its first frame, and not the old loading line", () => {
+      expect(html).not.toContain("particleLoader");
+      expect(html).toContain('class="results-page-pending" aria-busy="true"');
       // The old line's words (removed from results-screens.ts in V3.2 F6).
       expect(html).not.toContain(
         locale === "zh-TW" ? "正在載入你的結果…" : "Loading your results…",
       );
     });
 
-    it("has one role=status, the loader's, saying the working words", () => {
-      expect(statusTexts(html)).toEqual([loadingCopy(locale).fit.working]);
-      expect(html.match(/role="status"/g)).toHaveLength(1);
+    it("has no status region of its own before the loader appears", () => {
+      expect(html.match(/role="status"/g)).toBeNull();
     });
   },
 );

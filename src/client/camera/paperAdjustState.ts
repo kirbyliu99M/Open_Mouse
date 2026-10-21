@@ -64,13 +64,28 @@ export const PAPER_ADJUST_LAYOUT = {
 
 // ── When the screen is offered ──────────────────────────────────────────
 
-/** The two failures the adjustment can rescue: a hidden edge, a hidden corner. */
-export const ADJUSTABLE_CODES = [
-  "PAPER_EDGE_HIDDEN",
-  "PAPER_CORNER_HIDDEN",
-] as const;
+/**
+ * Whether an error is about the paper (F7: every one of them offers the
+ * adjustment, like Adobe Scan): any `PAPER_*` code, whatever the gate.
+ */
+export function isPaperIssue(code: string | undefined): boolean {
+  return typeof code === "string" && code.startsWith("PAPER_");
+}
 
-export type AdjustEntry = "rescue" | "check";
+/**
+ * - `rescue`: after a failure, to place the frame by hand and measure again.
+ * - `review`: 檢查邊框 on a measured photo (F7): the detector's own corners,
+ *   which may be confirmed as they are (nothing changes) or moved (measured
+ *   again from the moved frame).
+ * - `check`: Kirby's corner check (`?debug=1`), which changes no measurement.
+ */
+export type AdjustEntry = "rescue" | "review" | "check";
+
+/** A frame the person placed and measured with (`manualPaperCorners`). */
+export interface PlacedFrame {
+  readonly corners: Quad4;
+  readonly source: "adjusted" | "manual";
+}
 
 /** What `adjustEntryFor` needs to know about the result on screen. */
 export type AdjustableResult =
@@ -79,6 +94,8 @@ export type AdjustableResult =
       readonly kind: "gateFailure";
       readonly errors: readonly PipelineIssue[];
       readonly overlay: PhotoOverlay | null;
+      /** The frame this run was given, when the person placed one. */
+      readonly placedFrame?: PlacedFrame | null;
     }
   | {
       readonly kind: "measured";
@@ -86,47 +103,59 @@ export type AdjustableResult =
       readonly submission: ScanSubmission;
     };
 
+function decodedPhoto(overlay: PhotoOverlay | null): overlay is PhotoOverlay {
+  return Boolean(overlay && overlay.imageWidth > 0 && overlay.imageHeight > 0);
+}
+
 /**
- * Which adjustment, if any, the sheet offers:
+ * Which adjustment, if any, the sheet offers (F7, Kirby's phone test
+ * 2026-10-21, candidate: like Adobe Scan, a failed photo can always have its
+ * corners fixed):
  *
- * - `rescue`: the automatic detection turned the photo back, the FIRST
- *   reason is a hidden edge or corner (on a photo that decoded), and no other
- *   paper gate failed: a sheet the detector measured as curled
- *   (`PAPER_CURLED`, a number over its limit) is not rescued just because a
- *   hidden edge was listed before it. Never after a measurement.
- * - `check`: only with `?debug=1`, on a photo the detector measured from its
- *   own corners: Kirby's corner check, which changes no measurement.
+ * - `rescue`: on a photo that decoded, after ANY paper failure (every
+ *   `PAPER_*` code, wherever it is in the list), and after any failure of a
+ *   run that measured with a frame the person placed (a hand gate that turned
+ *   it back: the frame opens again where it was). Not after a hand failure
+ *   on the detector's own frame (no hand found, the hand off the sheet):
+ *   moving the frame cannot fix that, and the sheet's words say why.
+ * - `review`: on a photo measured from the detector's own corners
+ *   (`cornersSource` auto): 檢查邊框, starting from those corners.
+ * - `check`: with `?debug=1`, in place of `review` (the corner check starts
+ *   from the centred sheet, so a corner left where it was cannot read as a
+ *   perfect drag): Kirby's corner check, which changes no measurement.
  */
 export function adjustEntryFor(
   result: AdjustableResult,
   debugOn: boolean,
 ): AdjustEntry | null {
   if (result.kind === "gateFailure") {
-    const adjustable = ADJUSTABLE_CODES as readonly string[];
-    const code = result.errors[0]?.code;
-    const otherPaperFailure = result.errors.some(
-      (e) => e.code.startsWith("PAPER_") && !adjustable.includes(e.code),
-    );
-    const overlay = result.overlay;
-    if (
-      overlay &&
-      overlay.imageWidth > 0 &&
-      overlay.imageHeight > 0 &&
-      adjustable.includes(code ?? "") &&
-      !otherPaperFailure
-    )
-      return "rescue";
-    return null;
+    if (!decodedPhoto(result.overlay)) return null;
+    if (result.placedFrame) return "rescue";
+    return result.errors.some((e) => isPaperIssue(e.code)) ? "rescue" : null;
   }
-  if (result.kind === "measured" && debugOn) {
+  if (result.kind === "measured") {
     const calibration = result.submission.calibration;
     const autoCorners =
       "method" in calibration &&
       calibration.method === "paper-edge" &&
       (calibration.cornersSource ?? "auto") === "auto";
-    return autoCorners && result.overlay.paperCorners ? "check" : null;
+    if (!autoCorners || !result.overlay.paperCorners) return null;
+    return debugOn ? "check" : "review";
   }
   return null;
+}
+
+/**
+ * A line the adjustment screen shows before the frame is confirmed (F7,
+ * candidate): `curled` when the detector measured the sheet as not lying flat
+ * (`PAPER_CURLED`). A frame placed by hand cannot fix that measurement error,
+ * so the person is told, and may still go on. `null` otherwise.
+ */
+export function adjustWarningFor(result: AdjustableResult): "curled" | null {
+  return result.kind === "gateFailure" &&
+    result.errors.some((e) => e.code === "PAPER_CURLED")
+    ? "curled"
+    : null;
 }
 
 /**
@@ -195,6 +224,14 @@ export function adjustConfirmAction(input: {
   readonly entry: AdjustEntry | null;
   readonly result: AdjustableResult;
   readonly hasFile: boolean;
+  /**
+   * Whether any corner is somewhere other than where the screen opened it
+   * (`frameMoved`). Read by `review` only (F7): a frame confirmed as it opened
+   * changes nothing (`none`: the measurement on screen stays, `cornersSource`
+   * auto and the submission exactly as they were); a moved one measures again
+   * (`rerun`, `cornersSource` adjusted).
+   */
+  readonly moved?: boolean;
 }): AdjustConfirmAction {
   const { entry, result } = input;
   if (entry === "check") {
@@ -204,7 +241,24 @@ export function adjustConfirmAction(input: {
   }
   if (entry === "rescue" && result.kind === "gateFailure" && input.hasFile)
     return { kind: "rerun" };
+  if (
+    entry === "review" &&
+    result.kind === "measured" &&
+    input.hasFile &&
+    input.moved === true
+  )
+    return { kind: "rerun" };
   return { kind: "none" };
+}
+
+/** Whether any corner is now somewhere other than where the screen opened it. */
+export function frameMoved(
+  state: Pick<AdjustState, "corners" | "start">,
+): boolean {
+  return state.corners.some((c, i) => {
+    const from = state.start.corners[i as CornerIndex];
+    return c.x !== from.x || c.y !== from.y;
+  });
 }
 
 // ── Fitting the photo on screen ─────────────────────────────────────────
@@ -331,33 +385,67 @@ export interface AdjustState {
 const NONE_SOLVED = [false, false, false, false] as const;
 
 /**
- * The opening state. `rescue` starts from what the detector found
- * (`defaultAdjustFrame`); `check` always starts from the centred sheet with
- * nothing placed, so that a corner left where it started cannot read as a
- * perfect drag.
+ * The opening state:
+ *
+ * - `check` always starts from the centred sheet with nothing placed, so that
+ *   a corner left where it started cannot read as a perfect drag.
+ * - `rescue` after a run with a frame the person placed (`previous`): that
+ *   frame again, every corner placed (F7: the corners are kept). Its source
+ *   stays what it was: a frame first placed from the detector's corners is
+ *   `adjusted`, one placed where it had none `manual`.
+ * - `rescue` after `PAPER_NOT_FOUND` (`firstCode`): the centred sheet (72 %
+ *   of the photo's width), every corner not placed, to be dragged (F7).
+ * - otherwise (`rescue`, `review`) what the detector found
+ *   (`defaultAdjustFrame`): for `review`, the four corners it measured with.
  */
 export function startAdjust(input: {
   readonly entry: AdjustEntry;
   readonly overlay: PhotoOverlay;
   readonly paperSize: PaperSize;
+  /** The frame the run on screen was given, when the person placed one. */
+  readonly previous?: PlacedFrame | null;
+  /** The first reason the photo was turned back. */
+  readonly firstCode?: string;
 }): AdjustState {
   const image = {
     width: input.overlay.imageWidth,
     height: input.overlay.imageHeight,
   };
+  const centred: DefaultAdjustFrame = {
+    corners: centredPaperFrame(image, input.paperSize),
+    detected: [false, false, false, false],
+    from: "centred",
+  };
+  const previous =
+    input.entry === "rescue" &&
+    input.previous &&
+    checkManualQuad(input.previous.corners, image).ok
+      ? input.previous
+      : null;
   const start: DefaultAdjustFrame =
     input.entry === "check"
-      ? {
-          corners: centredPaperFrame(image, input.paperSize),
-          detected: [false, false, false, false],
-          from: "centred",
-        }
-      : defaultAdjustFrame({
-          corners: input.overlay.paperCorners ?? null,
-          partialCorners: input.overlay.paperPartialCorners ?? null,
-          image,
-          paperSize: input.paperSize,
-        });
+      ? centred
+      : previous
+        ? {
+            corners: [
+              { ...previous.corners[0] },
+              { ...previous.corners[1] },
+              { ...previous.corners[2] },
+              { ...previous.corners[3] },
+            ],
+            detected: [true, true, true, true],
+            // `adjustReadiness` reads the source off `from`: "detected" is
+            // adjusted, anything else manual.
+            from: previous.source === "adjusted" ? "detected" : "centred",
+          }
+        : input.entry === "rescue" && input.firstCode === "PAPER_NOT_FOUND"
+          ? centred
+          : defaultAdjustFrame({
+              corners: input.overlay.paperCorners ?? null,
+              partialCorners: input.overlay.paperPartialCorners ?? null,
+              image,
+              paperSize: input.paperSize,
+            });
   return {
     entry: input.entry,
     image,

@@ -49,8 +49,9 @@ const URL_ = "blob:http://localhost/0d6c1e0a";
 
 function render(
   extra: {
-    entry?: "rescue" | "check";
+    entry?: "rescue" | "review" | "check";
     state?: AdjustState;
+    warning?: "curled" | null;
     stage?: { width: number; height: number };
     magnifier?: boolean;
     locale?: "zh-TW" | "en";
@@ -69,6 +70,7 @@ function render(
       initialState: extra.state,
       initialStageSize: extra.stage ?? { width: 390, height: 600 },
       initialMagnifier: extra.magnifier,
+      warning: extra.warning,
     }),
   );
 }
@@ -223,6 +225,39 @@ describe("words", () => {
     expect(handles(html)[0]).toContain('aria-label="Top-left corner"');
   });
 
+  it("檢查邊框 (F7) is named as such, opens on the detector's corners, with its own button", () => {
+    for (const locale of ["zh-TW", "en"] as const) {
+      const copy = paperAdjustCopy(locale);
+      const html = render({ entry: "review", locale });
+      expect(html).toContain('data-entry="review"');
+      expect(html).toContain(copy.review.title.replace(/'/g, "&#x27;"));
+      expect(html).toContain(copy.review.confirm);
+      // Every corner is the detector's: placed.
+      expect(handles(html).every((h) => h.includes('data-placed="true"'))).toBe(
+        true,
+      );
+    }
+    expect(paperAdjustCopy("zh-TW").review.entry).toBe("檢查邊框");
+  });
+
+  it("a curled sheet is said before confirming (F7), and the confirm button stays usable", () => {
+    for (const locale of ["zh-TW", "en"] as const) {
+      const html = render({ warning: "curled", locale });
+      expect(html).toContain('data-testid="paper-adjust-warning"');
+      expect(html).toContain(
+        paperAdjustCopy(locale).curledWarning.replace(/'/g, "&#x27;"),
+      );
+      const confirm = html.match(
+        /<button[^>]*data-testid="paper-adjust-confirm"[^>]*>/,
+      )![0];
+      expect(confirm).not.toContain("aria-disabled");
+    }
+    expect(paperAdjustCopy("zh-TW").curledWarning).toBe(
+      "紙好像沒有平貼，手動調整後量測可能不準，建議先把紙壓平再拍一次。",
+    );
+    expect(render()).not.toContain("paper-adjust-warning");
+  });
+
   it("the corner check is named as such, with its own button", () => {
     const html = render({ entry: "check" });
     expect(html).toContain("拖角精度測試");
@@ -299,10 +334,27 @@ describe("where the camera offers it (EasyScanCamera.tsx)", () => {
     // each sheet sits in the file is not asserted (layout may move freely).
     const count = (needle: string) => source.split(needle).length - 1;
     expect(count('{adjustEntry === "rescue" && (')).toBe(1);
+    expect(count('{adjustEntry === "review" && (')).toBe(1);
     expect(count('{adjustEntry === "check" && (')).toBe(1);
-    expect(count("adjustEntry ===")).toBe(2);
+    expect(count("adjustEntry ===")).toBe(3);
     expect(count('data-testid="adjust-frame-entry"')).toBe(1);
+    expect(count('data-testid="frame-review-entry"')).toBe(1);
     expect(count('data-testid="corner-check-entry"')).toBe(1);
+  });
+
+  it("the failure sheet's main action stays 再拍一次; the adjustment is the button after it (F7)", () => {
+    const failure = source.slice(
+      source.indexOf('className="primaryButton easyTryAgainButton"'),
+    );
+    expect(failure.indexOf("{common.tryAgain}")).toBeGreaterThan(0);
+    expect(failure.indexOf("{common.tryAgain}")).toBeLessThan(
+      failure.indexOf('data-testid="adjust-frame-entry"'),
+    );
+    // A hand failure on a frame the person placed opens that frame again, and
+    // a curled sheet says so before confirming.
+    expect(source).toContain("previous={");
+    expect(source).toContain("result.placedFrame ?? null");
+    expect(source).toContain("warning={adjustWarningFor(result)}");
   });
 
   it("confirming goes through adjustConfirmAction; the pipeline runs only for its rerun, and nothing is sent", () => {
