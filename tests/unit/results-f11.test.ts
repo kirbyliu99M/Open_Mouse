@@ -88,7 +88,10 @@ describe("F11-6: the filter sheet's close button", () => {
       /<button[^>]*class="results-sheet-close"[^>]*>[\s\S]*?(<svg[\s\S]*?<\/svg>)/,
     )![1];
     const width = Number(svg.match(/width="([\d.]+)"/)![1]);
-    const box = svg.match(/viewBox="([\d.\s-]+)"/)![1].split(/\s+/).map(Number);
+    const box = svg
+      .match(/viewBox="([\d.\s-]+)"/)![1]
+      .split(/\s+/)
+      .map(Number);
     const scale = width / box[2];
     const d = svg.match(/<path[^>]* d="([^"]+)"/)![1];
     // Absolute end points of every M/l segment.
@@ -97,7 +100,10 @@ describe("F11-6: the filter sheet's close button", () => {
     let x = 0;
     let y = 0;
     for (const [, cmd, args] of d.matchAll(/([MmLl])\s*([-\d.\s,]+)/g)) {
-      const [a, b] = args.trim().split(/[\s,]+/).map(Number);
+      const [a, b] = args
+        .trim()
+        .split(/[\s,]+/)
+        .map(Number);
       if (cmd === "M" || cmd === "L") [x, y] = [a, b];
       else [x, y] = [x + a, y + b];
       xs.push(x);
