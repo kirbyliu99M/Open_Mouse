@@ -107,8 +107,16 @@ export const MEASUREMENT_DEFINITIONS = {
  * per-landmark heights that scale with hand length (`landmark-heights-v2`,
  * docs/research/landmark-heights-v2.md); v1 used 21 fixed heights. The stored
  * version is what tells the two apart.
+ *
+ * `landmark-raw-v3` (V3.2 candidate, 未拍板; Kirby 2026-10-22): the same
+ * distances and heights as v2, but a photo with no EXIF focal length and no
+ * trustworthy homography estimate is still corrected for parallax, with a
+ * nominal focal length (26 mm equivalent on the camera frame's long edge,
+ * design R7 `DESIGN-nominal-focal.md`). Before v3 such frames were not
+ * corrected at all. A v3 measurement says where its focal length came from
+ * (`focalSource` on the calibration evidence).
  */
-export const MEASUREMENT_MODEL_VERSION = "landmark-raw-v2";
+export const MEASUREMENT_MODEL_VERSION = "landmark-raw-v3";
 
 /**
  * Every measurement model the server accepts. Clients send the one they
@@ -121,7 +129,42 @@ export const MEASUREMENT_MODEL_VERSION = "landmark-raw-v2";
 export const MEASUREMENT_MODEL_VERSIONS = [
   "landmark-raw-v1",
   "landmark-raw-v2",
+  "landmark-raw-v3",
 ] as const;
+
+/**
+ * Where a parallax correction's focal length came from (landmark-raw-v3).
+ * `exif`: the photo's own EXIF; `homography`: estimated from the sheet and
+ * inside the plausible range around the nominal one; `nominal`: the nominal
+ * prior; `none`: no correction was made.
+ */
+export const FOCAL_LENGTH_SOURCES = [
+  "exif",
+  "homography",
+  "nominal",
+  "none",
+] as const;
+export type FocalLengthSource = (typeof FOCAL_LENGTH_SOURCES)[number];
+
+/**
+ * The engine's scale (V3.2 candidate, 未拍板; Kirby 2026-10-22, design R7).
+ * The fit engine, the hand type, the survey bins and the similar-hand cells
+ * were all tuned on frame scans with NO parallax correction. A scan that WAS
+ * corrected (`parallaxCorrected: true`, any focal source) is multiplied by
+ * these ratios before any of them reads it, so a corrected hand ranks like
+ * the same hand did before correction, while corrections stay consistent
+ * across distance, tilt and capture path. The person sees the same engine-
+ * scale numbers (Kirby, D1 = B). Simulated for a frame path at a paper fill
+ * of 0.65 (Kirby's measured average 0.653); to be replaced by the ratios
+ * measured on Kirby's S25 before production (D5).
+ */
+export const FIT_SCALE_FROM_CORRECTED = {
+  handLength: 1.024,
+  palmLength: 1.041,
+  palmWidth: 1.035,
+  referenceFill: 0.65,
+  basis: "R7 simulation 2026-10-22; replace with S25 measured ratios",
+} as const;
 export type MeasurementModelVersion =
   (typeof MEASUREMENT_MODEL_VERSIONS)[number];
 
@@ -200,6 +243,8 @@ export const printedSheetEvidenceSchema = z.strictObject({
         "Sheet and card scales disagree by more than 1% — the printer probably scaled the page.",
     }),
   parallaxCorrected: z.boolean(),
+  /** landmark-raw-v3: see `FOCAL_LENGTH_SOURCES`. Absent before v3. */
+  focalSource: z.enum(FOCAL_LENGTH_SOURCES).optional(),
 });
 
 /** Where a paper-edge calibration's four corners came from (V3.2 candidate,
@@ -248,6 +293,8 @@ export const paperEdgeEvidenceSchema = z
       })
       .optional(),
     parallaxCorrected: z.boolean(),
+    /** landmark-raw-v3: see `FOCAL_LENGTH_SOURCES`. Absent before v3. */
+    focalSource: z.enum(FOCAL_LENGTH_SOURCES).optional(),
   })
   .superRefine((e, ctx) => {
     if ((e.cornersSource ?? "auto") !== "auto") return;
@@ -351,7 +398,9 @@ export const MANUAL_ENTRY = {
   palmLengthRatio: 0.56,
   /**
    * A typed (ruler, skin-to-skin) hand width times this is the width on the
-   * scan's scale (landmarks 5 to 17), so a typed width and a scanned width
+   * engine's scale (landmarks 5 to 17; since landmark-raw-v3 the engine
+   * scale of `FIT_SCALE_FROM_CORRECTED`, about 0.75 on the corrected landmark
+   * scale), so a typed width and a scanned width
    * enter the fit on the same scale. It converts skin to landmarks only and
    * does not depend on any engine's grip-width factor (v1 x 0.88, v3 x 1.00).
    * Candidate, from ONE pair: 65.7 mm scanned against 85 mm ruler (Kirby,
