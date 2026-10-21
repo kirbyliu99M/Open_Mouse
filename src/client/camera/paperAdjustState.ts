@@ -40,6 +40,7 @@ import type {
   RunPhotoPipelineInput,
 } from "../photo/pipeline";
 import type { ScanSubmission } from "../../lib/contracts/measurement";
+import type { ReusedFocal } from "../geometry/parallax";
 
 /** The screen's named sizes. CSS px unless said otherwise. */
 export const PAPER_ADJUST_LAYOUT = {
@@ -273,6 +274,39 @@ export function frameMoved(
   });
 }
 
+// ── The focal length a placed frame keeps (F10 item 2) ─────────────────
+
+/**
+ * The focal length of a photo's automatic run that a frame placed on the same
+ * photo may keep (R6 F1, candidate 未拍板): EXIF, or the homography estimate
+ * the run judged reliable, with a finite positive value. `null` for none
+ * (`source` none: the placed frame then measures exactly as before).
+ */
+export function reusableFocal(
+  focal:
+    { readonly source: string; readonly px: number | null } | null | undefined,
+): ReusedFocal | null {
+  if (!focal || (focal.source !== "exif" && focal.source !== "homography"))
+    return null;
+  const px = focal.px;
+  if (px === null || !Number.isFinite(px) || !(px > 0)) return null;
+  return { fPx: px, source: focal.source };
+}
+
+/**
+ * What a run is told to reuse: only a run with a placed frame, and only the
+ * focal length of the automatic run of the very same file (a new photo has its
+ * own lens settings and its own run).
+ */
+export function reusedFocalFor<F>(input: {
+  readonly placedFrame: boolean;
+  readonly file: F;
+  readonly auto: { readonly file: F; readonly focal: ReusedFocal } | null;
+}): ReusedFocal | null {
+  if (!input.placedFrame || !input.auto) return null;
+  return input.auto.file === input.file ? input.auto.focal : null;
+}
+
 // ── Fitting the photo on screen ─────────────────────────────────────────
 
 export interface PhotoFit {
@@ -504,10 +538,19 @@ export type AdjustAction =
   | { readonly type: "edgeCancel" }
   | { readonly type: "reset" };
 
-function clampToImage(p: Point2, image: FrameSize): Point2 {
+/**
+ * A dragged or nudged corner may go past the photo's edge (F10, R6 F2: a sheet
+ * corner just out of frame), as far as `checkManualQuad` allows
+ * (`MANUAL_QUAD_LIMITS.maxOutsideFraction` of the photo's width or height),
+ * and no further. Clamping it to the edge instead widened the palm by 1.0 mm
+ * with the corner 2 % out (R6 E3, simulated).
+ */
+export function clampToAllowed(p: Point2, image: FrameSize): Point2 {
+  const mx = image.width * MANUAL_QUAD_LIMITS.maxOutsideFraction;
+  const my = image.height * MANUAL_QUAD_LIMITS.maxOutsideFraction;
   return {
-    x: Math.min(image.width, Math.max(0, p.x)),
-    y: Math.min(image.height, Math.max(0, p.y)),
+    x: Math.min(image.width + mx, Math.max(-mx, p.x)),
+    y: Math.min(image.height + my, Math.max(-my, p.y)),
   };
 }
 
@@ -601,7 +644,7 @@ export function adjustReducer(
       const drag = state.drag;
       if (!drag || drag.pointerId !== action.pointerId || !(action.scale > 0))
         return state;
-      const corner = clampToImage(
+      const corner = clampToAllowed(
         {
           x:
             drag.startCorner.x +
@@ -640,7 +683,7 @@ export function adjustReducer(
       return withCorner(
         { ...state, selected: action.index, notice: null },
         action.index,
-        clampToImage(
+        clampToAllowed(
           { x: c.x + action.dx * step, y: c.y + action.dy * step },
           state.image,
         ),

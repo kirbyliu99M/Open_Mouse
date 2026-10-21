@@ -75,6 +75,7 @@ import {
   type PixelRect,
 } from "../camera/visibleView";
 import { finishPaperEdge } from "./paperEdgeFinish";
+import type { ReusedFocal } from "../geometry/parallax";
 import type { IssueDetail } from "./issue-detail";
 import {
   paperMaxAngleDeviationDeg,
@@ -228,6 +229,16 @@ export interface RunPhotoPipelineInput {
     readonly corners: Quad4;
     readonly source: "adjusted" | "manual";
   };
+  /**
+   * F10 item 2 (R6 F1, candidate 未拍板): read only with `manualPaperCorners`.
+   * The focal length this same photo's automatic run used (EXIF, or a
+   * reliable homography estimate on the detector's corners), so a placed
+   * frame keeps the parallax correction that a few px of hand placement would
+   * otherwise switch off (R6: palm width +3.0 mm, hand length +4.9 mm,
+   * simulated). The photo's own EXIF still comes first. Ignored on the
+   * automatic path.
+   */
+  readonly reusedFocal?: ReusedFocal | null;
 }
 
 /** The steps `onStage` reports. */
@@ -1039,6 +1050,7 @@ async function finishManualPaper(args: {
     decoded: { width: args.fullWidth, height: args.fullHeight },
     crop,
     readJpegBytes: async () => new Uint8Array(await input.file.arrayBuffer()),
+    ...(input.reusedFocal ? { reusedFocal: input.reusedFocal } : {}),
   });
   trace.parallaxCorrected = finish.parallaxCorrected;
   trace.focal = finish.focal;

@@ -414,23 +414,53 @@ export interface ResolvedFocal {
   readonly source: FocalSource;
 }
 
+/**
+ * A focal length worked out earlier for the SAME photo (F10 item 2, R6 F1,
+ * candidate 未拍板): the automatic run's, from EXIF or from a reliable
+ * homography estimate on the detector's corners. A focal length is the
+ * lens's, not the frame's, so a frame the person placed on that photo may use
+ * it. Its `source` is the one that run recorded (the contract's
+ * `FOCAL_SOURCES` has no separate value for it).
+ */
+export interface ReusedFocal {
+  readonly fPx: number;
+  readonly source: "exif" | "homography";
+}
+
 export interface ResolveFocalOptions {
   /** Result of exif-focal.ts, or null if EXIF had no usable focal length. */
   readonly exifFocalPx: number | null;
   readonly homography: Homography;
   readonly principalPoint: PrincipalPoint;
+  /**
+   * Only for a frame placed by hand on a photo whose automatic run had a
+   * usable focal length (`ReusedFocal`). The automatic path never passes it,
+   * so nothing it measures changes.
+   */
+  readonly reusedFocal?: ReusedFocal | null;
 }
 
 /**
  * Pick which focal length (if any) to use for parallax correction: EXIF
- * first, then a well-conditioned homography-focal estimate
+ * first, then (a placed frame only, F10) the same photo's focal length from
+ * its automatic run, then a well-conditioned homography-focal estimate
  * (focal-from-homography.ts flags an unreliable — e.g. near-fronto-parallel
  * — estimate itself, so this just refuses to use one), else null (no
  * correction).
+ *
+ * Why the reused one comes before this frame's own estimate (R6, simulated):
+ * hand-placed corners are a few px off the sheet's, and a few px are enough
+ * to make the estimate unreliable (81-100 % of nudged frames lost the
+ * correction) or, 1-3 % of the time, reliable but wrong by more than 20 %.
+ * The automatic run's estimate came from the detector's sub-pixel corners.
  */
 export function resolveFocalPx(options: ResolveFocalOptions): ResolvedFocal {
   if (options.exifFocalPx !== null) {
     return { fPx: options.exifFocalPx, source: "exif" };
+  }
+  const reused = options.reusedFocal;
+  if (reused && Number.isFinite(reused.fPx) && reused.fPx > 0) {
+    return { fPx: reused.fPx, source: reused.source };
   }
   const estimate = estimateFocalFromHomography(
     options.homography,

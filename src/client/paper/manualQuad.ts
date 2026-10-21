@@ -70,9 +70,10 @@ export const MANUAL_QUAD_LIMITS = {
   minAreaFraction: MIN_QUAD_AREA_FRACTION,
   /**
    * How far outside the photo a corner may lie, as a share of the photo's
-   * width (x) or height (y). Dragged corners stay on the photo; only a corner
-   * worked out from two edges can be beyond it (a sheet corner just out of
-   * frame), and not by much.
+   * width (x) or height (y): a sheet corner just out of frame. A dragged
+   * corner may go this far too (F10, R6 F2: clamping it to the photo's edge
+   * widened the palm by 1.0 mm with the corner 2 % out, simulated), as may a
+   * corner worked out from two edges; no further.
    */
   maxOutsideFraction: 0.1,
   /** Two edges meeting at less than this many degrees are too close to parallel to say where. */

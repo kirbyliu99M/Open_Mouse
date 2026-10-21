@@ -32,6 +32,7 @@ import {
 import { estimateFocalFromExif } from "../geometry/exif-focal";
 import { computeCorrectedHandMeasurements } from "../geometry/measurements";
 import { computeNominalFocalShadow } from "../geometry/nominalFocalShadow";
+import type { ReusedFocal } from "../geometry/parallax";
 import type { PaperEdgeCalibrationResult } from "../paper/calibration";
 import type { SheetQuadDetection } from "../paper/detect";
 import {
@@ -93,6 +94,13 @@ export interface PaperEdgeFinishInput {
   readonly shadowPrior?: boolean;
   /** Replaces the shadow computation; a seam for the test that it cannot change the result. */
   readonly computeShadow?: typeof computeNominalFocalShadow;
+  /**
+   * F10 item 2 (R6 F1, candidate): a frame the person placed only. The same
+   * photo's focal length from its automatic run, used when this photo has no
+   * EXIF focal length of its own (`resolveFocalPx`). Omitted on the automatic
+   * path, which is therefore exactly what it was.
+   */
+  readonly reusedFocal?: ReusedFocal | null;
 }
 
 export interface PaperEdgeFinish {
@@ -253,6 +261,7 @@ export async function finishPaperEdge(
         exifFocalPx,
         widthPx: frames.principalFrame.width,
         heightPx: frames.principalFrame.height,
+        ...(input.reusedFocal ? { reusedFocal: input.reusedFocal } : {}),
       },
     );
   } catch {

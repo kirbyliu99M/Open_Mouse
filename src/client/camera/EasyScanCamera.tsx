@@ -30,7 +30,6 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useReducer,
   useRef,
   useState,
@@ -137,12 +136,15 @@ import { problemAreaFor } from "./problemArea";
 import { FrozenPhoto, type DimensionSpec } from "./FrozenPhoto";
 import { EasyCorners } from "./EasyCorners";
 import { PaperAdjust, type PaperAdjustConfirm } from "./PaperAdjust";
+import type { ReusedFocal } from "../geometry/parallax";
 import {
   adjustConfirmAction,
   adjustEntryFor,
   adjustFirstCodeFor,
   adjustWarningFor,
   cornerCheckDistances,
+  reusableFocal,
+  reusedFocalFor,
   pipelinePaperInput,
   type AdjustEntry,
   type PlacedFrame,
@@ -707,6 +709,13 @@ export default function EasyScanCamera({
   const resultRef = useRef(result);
   resultRef.current = result;
   const fileRef = useRef<File | null>(null);
+  // F10 item 2 (R6 F1, candidate): the focal length the automatic run of the
+  // photo on screen used (EXIF or a reliable homography estimate), kept for a
+  // frame the person places on that same photo (`reusableFocal`).
+  const autoFocalRef = useRef<{
+    readonly file: File;
+    readonly focal: ReusedFocal;
+  } | null>(null);
   const quadSourceRef = useRef<SheetQuadSource>(createPaperEdgeQuadSource());
   const handChipRef = useRef(handChip);
   handChipRef.current = handChip;
@@ -1228,6 +1237,14 @@ export default function EasyScanCamera({
         paperSize: paperSizeRef.current,
         manualPaperCorners,
       });
+      // A placed frame on the photo whose automatic run had a focal length
+      // keeps it (F10 item 2); a new automatic run forgets the old one.
+      if (!paperInput.pipeline.manualPaperCorners) autoFocalRef.current = null;
+      const reusedFocal = reusedFocalFor({
+        placedFrame: Boolean(paperInput.pipeline.manualPaperCorners),
+        file,
+        auto: autoFocalRef.current,
+      });
       const paperUsed = paperInput.paper;
       const attempt = clampAttempt(attemptCountRef.current);
       track("scan_capture_attempted", {
@@ -1256,6 +1273,7 @@ export default function EasyScanCamera({
           // The calibration, and the placed frame only with paper (a typed
           // length has no sheet to frame): `pipelinePaperInput`, read above.
           ...paperInput.pipeline,
+          ...(reusedFocal ? { reusedFocal } : {}),
           // A frame of the video is already the part the person saw on
           // screen, so nothing is cropped (no previewView). The camera's own
           // photo (takePhoto, off by default) is cut down to that part before
@@ -1286,6 +1304,10 @@ export default function EasyScanCamera({
           return;
         }
         if (pipelineResult.status === "ok") {
+          if (!paperInput.pipeline.manualPaperCorners) {
+            const focal = reusableFocal(pipelineResult.diagnostics?.focal);
+            autoFocalRef.current = focal ? { file, focal } : null;
+          }
           track("scan_measured", {
             flow: "easy",
             attempt,

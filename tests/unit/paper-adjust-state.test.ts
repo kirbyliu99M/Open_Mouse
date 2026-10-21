@@ -708,7 +708,7 @@ describe("relative drag", () => {
     expect(s.notice).toEqual({ kind: "chooseCorner" });
   });
 
-  it("follows one pointer only, stops on release, and keeps the corner on the photo", () => {
+  it("follows one pointer only, stops on release, and keeps the corner within 10 % beyond the photo (F10, R6 F2)", () => {
     let s = run(rescue(), {
       type: "pointerDown",
       index: 1,
@@ -735,14 +735,20 @@ describe("relative drag", () => {
       point: { x: 1000, y: -1000 },
       scale,
     });
-    expect(s.corners[1]).toEqual({ x: IMAGE.width, y: 0 });
+    // Not clamped to the photo's edge any more: as far out as
+    // checkManualQuad allows (maxOutsideFraction), no further.
+    const OUT = {
+      x: IMAGE.width * (1 + MANUAL_QUAD_LIMITS.maxOutsideFraction),
+      y: -IMAGE.height * MANUAL_QUAD_LIMITS.maxOutsideFraction,
+    };
+    expect(s.corners[1]).toEqual(OUT);
     s = run(
       s,
       { type: "pointerUp", pointerId: 1 },
       { type: "pointerMove", pointerId: 1, point: { x: 0, y: 0 }, scale },
     );
     expect(s.drag).toBeNull();
-    expect(s.corners[1]).toEqual({ x: IMAGE.width, y: 0 });
+    expect(s.corners[1]).toEqual(OUT);
   });
 
   it("a tap on a starting guess does not count as placing it; a move does", () => {
@@ -1317,7 +1323,8 @@ describe("adjustReadiness", () => {
   });
 
   it("two corners dragged onto the photo's corner block it as degenerate (no crash later)", () => {
-    // TR and BR both dragged past the photo's top-right: both clamp to (W, 0).
+    // TR and BR both dragged far past the photo's top-right: both stop at the
+    // same point, 10 % beyond it (F10).
     const far = { x: 5000, y: -5000 };
     const s = run(
       rescue(),
@@ -1340,8 +1347,12 @@ describe("adjustReadiness", () => {
       { type: "pointerMove", pointerId: 2, point: far, scale: 1 },
       { type: "pointerUp", pointerId: 2 },
     );
-    expect(s.corners[1]).toEqual({ x: IMAGE.width, y: 0 });
-    expect(s.corners[2]).toEqual({ x: IMAGE.width, y: 0 });
+    const out = {
+      x: IMAGE.width * (1 + MANUAL_QUAD_LIMITS.maxOutsideFraction),
+      y: -IMAGE.height * MANUAL_QUAD_LIMITS.maxOutsideFraction,
+    };
+    expect(s.corners[1]).toEqual(out);
+    expect(s.corners[2]).toEqual(out);
     expect(adjustReadiness(s)).toEqual({ ok: false, problem: "degenerate" });
   });
 
