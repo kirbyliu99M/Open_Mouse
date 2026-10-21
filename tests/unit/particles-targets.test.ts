@@ -872,15 +872,23 @@ describe("the Palmate logo", () => {
         expect(pairing.hand, label).toHaveLength(count);
         expect(pairing.mouse, label).toHaveLength(count);
         // Every particle has a place on the logo: the cloud, or a stray.
-        for (const p of pairing.logo) {
-          expect(Number.isFinite(p.x) && Number.isFinite(p.y), label).toBe(
-            true,
-          );
-          expect(p.x, label).toBeGreaterThan(-LOGO_BOX.width);
-          expect(p.x, label).toBeLessThan(2 * LOGO_BOX.width);
-          expect(p.y, label).toBeGreaterThan(-LOGO_BOX.height);
-          expect(p.y, label).toBeLessThan(2 * LOGO_BOX.height);
-        }
+        // Checked as one list of the particles out of place, not one expect()
+        // per particle: the five expect() calls per particle (about 518,000 in
+        // all) were what made this test slow, not the pairing itself
+        // (measured 2026-10-21: pairing 248 ms for all 22 budgets alone; the
+        // test 4,823 ms with per-particle expects, run on its own).
+        const outOfPlace = pairing.logo.filter(
+          (p) =>
+            !(
+              Number.isFinite(p.x) &&
+              Number.isFinite(p.y) &&
+              p.x > -LOGO_BOX.width &&
+              p.x < 2 * LOGO_BOX.width &&
+              p.y > -LOGO_BOX.height &&
+              p.y < 2 * LOGO_BOX.height
+            ),
+        );
+        expect(outOfPlace, label).toEqual([]);
         // The logo's particle count is the stage's budget, not the target's 633:
         // the surplus is made the way it always was (thinned, topped up or
         // walked along the lines), so no later state is short of particles.
