@@ -20,7 +20,7 @@ import { decodePng, type DecodedPng } from "./fixtures/png";
  * information for the person choosing.
  */
 const DEMO = "/scan/share-card-demo";
-const SITE_URL = "https://open-mouse.vercel.app";
+const SITE_URL = "https://palmate.kirby-fivesenses.com";
 
 async function withoutWebShare(page: Page) {
   await page.addInitScript(() => {
