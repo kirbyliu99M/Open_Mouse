@@ -23,24 +23,30 @@ import {
   markFeedbackDone,
   reachedEnd,
   feedbackSender,
+  markPromptShown,
+  promptCoolingDown,
   readFeedbackDone,
+  readLastPrompt,
   submitFeedback,
   shouldShowSheet,
   shownEvent,
   type SendFailure,
   type SheetPhase,
 } from "@/lib/results/resultFeedback";
+import { fetchReminderStatus } from "@/lib/results/surveyReminder";
 import { ResultFeedbackPanel } from "./ResultFeedbackPanel";
 import { resultFeedbackCopy } from "@/lib/copy/result-feedback";
 
 /**
  * The feedback sheet of the results page (v2, Kirby 2026-10-15): a bottom
  * sheet on a phone and a floating card on a desktop that does not block the
- * page (no backdrop, no focus trap) and is announced politely. It appears when
- * the end of the list has been scrolled into view, or after
- * `RESULT_FEEDBACK_DWELL_MS` of the tab being visible once the person has
- * scrolled (or the page cannot scroll), and only if `GET` says the scan was
- * not rated and this device has not closed it. The rules are in
+ * page (no backdrop, no focus trap) and is announced politely. It appears
+ * after `RESULT_FEEDBACK_MIN_DWELL_MS` of the tab being visible once the end of
+ * the list has been scrolled into view or Details was opened, or after
+ * `RESULT_FEEDBACK_DWELL_MS` once the person has scrolled (or the page cannot
+ * scroll), and only if `GET` says the scan was not rated, this device has not
+ * closed it, this device was not prompted in the last 30 days and the
+ * questionnaire is not answered (V3.2 F11, candidate). The rules are in
  * `src/lib/results/resultFeedback.ts`; what is drawn is in
  * `ResultFeedbackPanel`. Closing (X, Esc, or pulling the handle down) means
  * this device is not asked again for this scan. Renders an invisible marker
@@ -52,6 +58,7 @@ export function ResultFeedbackSheet({
   emit,
   resultFingerprint,
   onResultChanged,
+  openedDetails = false,
 }: {
   scanId: string;
   language: Locale;
@@ -68,6 +75,8 @@ export function ResultFeedbackSheet({
    * waits for the person to send again; it never sends by itself.
    */
   onResultChanged?: () => void;
+  /** The person opened the Details section of the first place (V3.2 F11). */
+  openedDetails?: boolean;
 }) {
   const copy = resultFeedbackCopy(language);
   const markerRef = useRef<HTMLDivElement>(null);
@@ -77,6 +86,10 @@ export function ResultFeedbackSheet({
 
   const [answered, setAnswered] = useState<boolean | null>(null);
   const [localDone, setLocalDone] = useState(false);
+  // V3.2 F11: until this device's memory is read it counts as cooling down,
+  // and the questionnaire as unanswered only once it is known.
+  const [coolingDown, setCoolingDown] = useState(true);
+  const [questionnaireAnswered, setQuestionnaireAnswered] = useState(false);
   const [markerInView, setMarkerInView] = useState(false);
   const [scrollMovedPx, setScrollMovedPx] = useState(0);
   const [hasScrolled, setHasScrolled] = useState(false);
@@ -90,22 +103,29 @@ export function ResultFeedbackSheet({
   const [notesOpen, setNotesOpen] = useState(false);
   const [failure, setFailure] = useState<SendFailure | null>(null);
 
-  // This device's memory and the server's status, asked once.
+  // This device's memory and the server's status, asked once. A device that
+  // is cooling down asks nothing (V3.2 F11).
   useEffect(() => {
     if (readFeedbackDone(scanId)) {
       setLocalDone(true);
       return;
     }
+    if (promptCoolingDown(readLastPrompt(), Date.now())) return;
+    setCoolingDown(false);
     const controller = new AbortController();
     void fetchAnswered(scanId, controller.signal).then((next) => {
       if (!controller.signal.aborted) setAnswered(next);
+    });
+    void fetchReminderStatus(controller.signal).then((status) => {
+      if (!controller.signal.aborted)
+        setQuestionnaireAnswered(status === "answered");
     });
     return () => controller.abort();
   }, [scanId]);
 
   // The visible-time clock: a tick counts only while the tab is visible, and
   // each tick re-measures whether the page can scroll (the list may load late).
-  const clockRunning = !opened && !localDone;
+  const clockRunning = !opened && !localDone && !coolingDown;
   useEffect(() => {
     if (!clockRunning) return;
     const measure = () =>
@@ -160,6 +180,9 @@ export function ResultFeedbackSheet({
     hasScrolled,
     canScroll,
     isDemo: false,
+    openedDetails,
+    coolingDown,
+    questionnaireAnswered,
   });
   // Once shown it stays until closed.
   useEffect(() => {
@@ -167,6 +190,8 @@ export function ResultFeedbackSheet({
     setOpened(true);
     if (shownSent.current) return;
     shownSent.current = true;
+    // One prompt per device per cool-down, whatever the scan (V3.2 F11).
+    markPromptShown(Date.now());
     const event = shownEvent(scrolledToEnd);
     emit?.(event.name, event.props);
     // `scrolledToEnd` is read at the moment the sheet first shows.

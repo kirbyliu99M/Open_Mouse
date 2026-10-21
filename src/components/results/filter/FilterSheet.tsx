@@ -207,18 +207,20 @@ export function FilterSheet({
               aria-label={copy.closeSheet}
               onClick={() => requestClose(false)}
             >
+              {/* V3.2 F11 (Kirby's phone test, 2026-10-21: the X was too
+                  small): a 24 px glyph in a 48 x 48 button (filter.css). */}
               <svg
-                width="20"
-                height="20"
-                viewBox="0 0 16 16"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
                 aria-hidden="true"
                 focusable="false"
               >
                 <path
-                  d="M3.5 3.5l9 9M12.5 3.5l-9 9"
+                  d="M6 6l12 12M18 6L6 18"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="1.8"
+                  strokeWidth="2.2"
                   strokeLinecap="round"
                 />
               </svg>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { MouseEvent } from "react";
 import type { FilteredCard } from "@/lib/results/filters";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import type { Locale } from "@/lib/contracts/locale";
@@ -19,6 +20,7 @@ export function OtherPicks({
   hrefFor,
   onSelect,
   onPick,
+  onLinkClick,
 }: {
   cards: FilteredCard[];
   language: Locale;
@@ -34,6 +36,15 @@ export function OtherPicks({
   onSelect?: (displayRank: number) => void;
   /** Called when a card is clicked (analytics only; navigation is unchanged). */
   onPick?: (card: FilteredCard) => void;
+  /**
+   * Called on a link card's click after `onPick` (V3.2 F11): it may take the
+   * navigation over (`preventDefault`) to replace or go back in history
+   * instead of adding an entry (`src/lib/results/resultsHistory.ts`).
+   */
+  onLinkClick?: (
+    card: FilteredCard,
+    event: MouseEvent<HTMLAnchorElement>,
+  ) => void;
 }) {
   if (cards.length === 0) return null;
   const copy = RESULTS_PAGE_COPY[language];
@@ -88,7 +99,14 @@ export function OtherPicks({
                   href={hrefFor(card)}
                   className="results-card"
                   data-rank={card.displayRank}
-                  onClick={onPick ? () => onPick(card) : undefined}
+                  onClick={
+                    onPick || onLinkClick
+                      ? (event) => {
+                          onPick?.(card);
+                          onLinkClick?.(card, event);
+                        }
+                      : undefined
+                  }
                 >
                   {inner}
                 </Link>

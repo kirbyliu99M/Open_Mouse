@@ -41,7 +41,7 @@ export function ResultsDetails({
   showViewer: boolean;
   analysis?: { state: AnalysisState; onRetry?: () => void };
   onViewerInteracted?: () => void;
-  /** Called each time the person opens the section (analytics only). */
+  /** Called each time the person opens the section (analytics, and the feedback sheet's timing, V3.2 F11). */
   onOpened?: () => void;
 }) {
   // The viewer mounts the first time the section is opened and stays after, so

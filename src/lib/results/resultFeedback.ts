@@ -82,6 +82,21 @@ export function dragClosesSheet(dyPx: number): boolean {
   return dyPx > RESULT_FEEDBACK_DRAG_CLOSE_PX;
 }
 
+/**
+ * V3.2 F11 (Kirby's phone test, 2026-10-21: "the questionnaire pops up too
+ * early, and again on every repeated scan"; the numbers are candidates):
+ *   - no sheet in the first 20 s of the tab being visible, even when the end of
+ *     the list is reached at once (before, reaching the end showed it at once);
+ *   - after one prompt on this device (shown, then closed or sent), no other
+ *     prompt for 30 days, whatever the scan, unless the notice version changes;
+ *   - never for a person whose questionnaire is answered (signed in: the
+ *     server's answers; signed out: this device's flag).
+ */
+export const RESULT_FEEDBACK_MIN_DWELL_MS = 20_000;
+
+/** How long one prompt keeps the next one away on this device (candidate). */
+export const RESULT_FEEDBACK_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
+
 export interface ShowSheetInput {
   /** `GET` said this scan was rated; `null` while unknown or when the call failed. */
   answered: boolean | null;
@@ -94,20 +109,109 @@ export interface ShowSheetInput {
   /** The page is taller than the window, so scrolling is possible. */
   canScroll: boolean;
   isDemo: boolean;
+  /** The person opened the Details section of the first place (V3.2 F11). */
+  openedDetails: boolean;
+  /** This device was prompted within the cool-down (`promptCoolingDown`), V3.2 F11. */
+  coolingDown: boolean;
+  /** The questionnaire is answered (`ReminderStatus` "answered"), V3.2 F11. */
+  questionnaireAnswered: boolean;
 }
 
 /**
  * Show the sheet when the status is known to be "not answered", it was not
- * closed on this device, it is not the demo, and either the end of the list
- * has been scrolled to, or the visible dwell time has passed AND the person
- * has scrolled (or the page cannot scroll, so there is nothing to scroll to).
+ * closed on this device, it is not the demo, this device is not cooling down
+ * after an earlier prompt, the questionnaire is not answered, and either
+ *   - the tab has been visible 20 s and the person has looked at the result
+ *     (scrolled to the end of the list, or opened the Details section), or
+ *   - the tab has been visible 45 s and the person has scrolled (or the page
+ *     cannot scroll, so there is nothing to scroll to).
  */
 export function shouldShowSheet(input: ShowSheetInput): boolean {
   if (input.isDemo || input.dismissedLocally) return false;
+  if (input.coolingDown || input.questionnaireAnswered) return false;
   if (input.answered !== false) return false;
-  if (input.scrolledToEnd) return true;
+  const looked = input.scrolledToEnd || input.openedDetails;
+  if (looked && input.visibleElapsedMs >= RESULT_FEEDBACK_MIN_DWELL_MS)
+    return true;
   const engaged = input.hasScrolled || !input.canScroll;
   return engaged && input.visibleElapsedMs >= RESULT_FEEDBACK_DWELL_MS;
+}
+
+/** The device-wide memory of the last prompt (V3.2 F11). */
+export const FEEDBACK_PROMPT_KEY = "palmate.resultFeedback.lastPrompt";
+
+/**
+ * What this device remembers of the last prompt: when it was shown and under
+ * which notice version, `null` when there was none (or the value cannot be
+ * read as one: it is then overwritten by the next prompt), and "unreadable"
+ * when storage is missing or throws.
+ */
+export type LastPrompt = { at: number; notice: string } | null | "unreadable";
+
+/** Read the last prompt. Never throws. */
+export function readLastPrompt(
+  getStorage: () => FlagStorage | null = browserStorage,
+): LastPrompt {
+  let raw: string | null;
+  try {
+    const storage = getStorage();
+    if (storage === null) return "unreadable";
+    raw = storage.getItem(FEEDBACK_PROMPT_KEY);
+  } catch {
+    return "unreadable";
+  }
+  if (raw === null) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      typeof (parsed as { at?: unknown }).at === "number" &&
+      Number.isFinite((parsed as { at: number }).at) &&
+      typeof (parsed as { notice?: unknown }).notice === "string"
+    ) {
+      const { at, notice } = parsed as { at: number; notice: string };
+      return { at, notice };
+    }
+  } catch {
+    // Not JSON: as if there were none.
+  }
+  return null;
+}
+
+/** Remember that the sheet was shown now. Returns whether it was written; never throws. */
+export function markPromptShown(
+  nowMs: number,
+  getStorage: () => FlagStorage | null = browserStorage,
+): boolean {
+  try {
+    const storage = getStorage();
+    if (storage === null) return false;
+    storage.setItem(
+      FEEDBACK_PROMPT_KEY,
+      JSON.stringify({ at: nowMs, notice: RESULT_FEEDBACK_NOTICE_VERSION }),
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Is this device still cooling down after the last prompt? Storage that
+ * cannot be read counts as "prompted just now", so a private window or blocked
+ * site data never means a prompt on every scan. A new notice version ends the
+ * cool-down; a time in the future (a clock set back) counts as cooling down.
+ */
+export function promptCoolingDown(
+  last: LastPrompt,
+  nowMs: number,
+  notice: string = RESULT_FEEDBACK_NOTICE_VERSION,
+): boolean {
+  if (last === "unreadable") return true;
+  if (last === null) return false;
+  if (last.notice !== notice) return false;
+  return nowMs - last.at < RESULT_FEEDBACK_COOLDOWN_MS;
 }
 
 export type SheetPhase = "form" | "sending" | "thanks" | "already";

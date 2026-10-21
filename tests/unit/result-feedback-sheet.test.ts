@@ -4,6 +4,7 @@ import {
   RESULT_FEEDBACK_AUTOCLOSE_MS,
   RESULT_FEEDBACK_DRAG_CLOSE_PX,
   RESULT_FEEDBACK_DWELL_MS,
+  RESULT_FEEDBACK_MIN_DWELL_MS,
   RESULT_FEEDBACK_TICK_MS,
   addVisibleTime,
   buildSubmission,
@@ -34,6 +35,9 @@ const base = {
   hasScrolled: false,
   canScroll: true,
   isDemo: false,
+  openedDetails: false,
+  coolingDown: false,
+  questionnaireAnswered: false,
 };
 
 describe("the constants", () => {
@@ -49,8 +53,22 @@ describe("shouldShowSheet", () => {
   it("stays away on load", () => {
     expect(shouldShowSheet(base)).toBe(false);
   });
-  it("shows at once when the end of the list was scrolled to", () => {
-    expect(shouldShowSheet({ ...base, scrolledToEnd: true })).toBe(true);
+  it("no longer shows at once at the end of the list: 20 s visible first (V3.2 F11)", () => {
+    expect(shouldShowSheet({ ...base, scrolledToEnd: true })).toBe(false);
+    expect(
+      shouldShowSheet({
+        ...base,
+        scrolledToEnd: true,
+        visibleElapsedMs: RESULT_FEEDBACK_MIN_DWELL_MS - 1,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowSheet({
+        ...base,
+        scrolledToEnd: true,
+        visibleElapsedMs: RESULT_FEEDBACK_MIN_DWELL_MS,
+      }),
+    ).toBe(true);
   });
   it("does not show on 45 s alone when the page can scroll and was not scrolled", () => {
     expect(
@@ -94,7 +112,11 @@ describe("shouldShowSheet", () => {
     ).toBe(true);
   });
   it("never shows when answered, unknown, dismissed or in the demo", () => {
-    const ready = { ...base, scrolledToEnd: true };
+    const ready = {
+      ...base,
+      scrolledToEnd: true,
+      visibleElapsedMs: RESULT_FEEDBACK_MIN_DWELL_MS,
+    };
     expect(shouldShowSheet({ ...ready, answered: true })).toBe(false);
     expect(shouldShowSheet({ ...ready, answered: null })).toBe(false);
     expect(shouldShowSheet({ ...ready, dismissedLocally: true })).toBe(false);

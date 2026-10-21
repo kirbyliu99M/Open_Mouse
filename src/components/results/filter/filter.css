@@ -506,12 +506,16 @@ dialog.results-sheet[data-leaving="true"]::backdrop {
   outline: 2px solid var(--accent-text);
   outline-offset: 4px;
 }
+/* V3.2 F11: 48 x 48 (at least the 44 x 44 pt touch target), with a 24 px
+   glyph; it never shrinks beside a long title. */
 .results-sheet-close {
   display: inline-flex;
+  flex: none;
   align-items: center;
   justify-content: center;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 3rem;
+  height: 3rem;
+  margin-right: -0.25rem;
   border: 1px solid transparent;
   border-radius: 50%;
   background: var(--facet-chip);
