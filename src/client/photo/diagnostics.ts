@@ -12,6 +12,7 @@ import { lowestCoverageSide } from "../paper/detect";
 import type { PaperDetectionStage } from "../paper/detectionStage";
 import type { FrameSize, PixelRect } from "../camera/visibleView";
 import type { HandFlatness } from "./handFlatness";
+import type { AnalysisThread } from "./offMainAnalysis";
 import type { PaperCornerSource } from "../../lib/contracts/measurement";
 
 export interface PaperDiagnostics {
@@ -157,6 +158,15 @@ export interface PipelineDiagnostics {
    * attempt log, and the `priorEffect` bucket of `scan_quality`).
    */
   readonly shadowPrior: ShadowPriorDiagnostics | null;
+  /**
+   * V3.2 F8 (candidate): where the sheet detector and the sharpness ran,
+   * `worker` (a Web Worker, off the main thread) or `fallback` (the main
+   * thread, because the worker was missing or failed; `fallback` as soon as
+   * any one step fell back); `null` where neither ran; absent in hand-built
+   * diagnostics (tests). Local attempt log
+   * only: it changes no number and is not sent to analytics.
+   */
+  readonly analysisThread?: AnalysisThread | null;
 }
 
 export interface ShadowPriorDiagnostics {

@@ -25,6 +25,7 @@ import { HAND_POSE_BUCKETS } from "@/lib/contracts/analytics";
 import type { PaperCornerSource } from "@/lib/contracts/measurement";
 import type { HandPoseGrade } from "../photo/handFlatness";
 import type { PipelineResult } from "../photo/pipeline";
+import type { AnalysisThread } from "../photo/offMainAnalysis";
 import {
   isPaperDetectionStage,
   type PaperDetectionStage,
@@ -220,6 +221,13 @@ export interface AttemptRecord {
     readonly hand: number | null;
     readonly total: number | null;
   };
+  /**
+   * V3.2 F8 (candidate): where the sheet detector and the sharpness ran,
+   * `worker` (off the main thread) or `fallback` (the main thread: no worker,
+   * or it failed); `null` where neither ran and in a record from before it was
+   * kept. Anything else read back is dropped to `null`. Local only, never sent.
+   */
+  readonly analysisThread: AnalysisThread | null;
   /**
    * V3.2 F2, Kirby's accuracy check (candidate, only with `?debug=1`): how far
    * each corner he dragged ended from the detector's own, on a photo the
@@ -462,6 +470,10 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
       hand: cleanNumber(timing?.hand, 0),
       total: cleanNumber(timing?.total, 0),
     },
+    analysisThread:
+      raw.analysisThread === "worker" || raw.analysisThread === "fallback"
+        ? raw.analysisThread
+        : null,
     cornerCheck: cleanCornerCheck(raw.cornerCheck),
     userAgent: cleanString(raw.userAgent, MAX_USER_AGENT_LENGTH) ?? "",
   };
@@ -776,6 +788,7 @@ export function buildAttemptRecord(input: {
       hand: diagnostics?.handMs ?? null,
       total: diagnostics?.totalMs ?? null,
     },
+    analysisThread: diagnostics?.analysisThread ?? null,
     cornerCheck:
       outcome.kind === "cornerCheck"
         ? {
@@ -823,6 +836,7 @@ export function buildAttemptRecord(input: {
       focal: { source: null, px: null },
       shadowPrior: { handLengthDeltaMm: null },
       timingMs: { decode: null, paper: null, hand: null, total: null },
+      analysisThread: null,
       cornerCheck: null,
       userAgent: "",
     }
