@@ -84,9 +84,11 @@ export type AdjustableResult =
 /**
  * Which adjustment, if any, the sheet offers:
  *
- * - `rescue`: the automatic detection turned the photo back, and the FIRST
- *   reason is a hidden edge or corner (on a photo that decoded). Never after a
- *   measurement.
+ * - `rescue`: the automatic detection turned the photo back, the FIRST
+ *   reason is a hidden edge or corner (on a photo that decoded), and no other
+ *   paper gate failed: a sheet the detector measured as curled
+ *   (`PAPER_CURLED`, a number over its limit) is not rescued just because a
+ *   hidden edge was listed before it. Never after a measurement.
  * - `check`: only with `?debug=1`, on a photo the detector measured from its
  *   own corners: Kirby's corner check, which changes no measurement.
  */
@@ -95,13 +97,18 @@ export function adjustEntryFor(
   debugOn: boolean,
 ): AdjustEntry | null {
   if (result.kind === "gateFailure") {
+    const adjustable = ADJUSTABLE_CODES as readonly string[];
     const code = result.errors[0]?.code;
+    const otherPaperFailure = result.errors.some(
+      (e) => e.code.startsWith("PAPER_") && !adjustable.includes(e.code),
+    );
     const overlay = result.overlay;
     if (
       overlay &&
       overlay.imageWidth > 0 &&
       overlay.imageHeight > 0 &&
-      (ADJUSTABLE_CODES as readonly string[]).includes(code ?? "")
+      adjustable.includes(code ?? "") &&
+      !otherPaperFailure
     )
       return "rescue";
     return null;
@@ -197,7 +204,19 @@ export interface EdgeMarkState {
 export type AdjustNotice =
   | { readonly kind: "edgeSolved"; readonly index: CornerIndex }
   | { readonly kind: "edgeProblem"; readonly problem: HiddenCornerProblem }
-  | { readonly kind: "chooseCorner" };
+  | { readonly kind: "chooseCorner" }
+  /**
+   * The hidden corner's edges are worked out from its two neighbours, so both
+   * must be placed first (a starting guess is not on the paper's corner):
+   * `missing` is one that is not.
+   */
+  | {
+      readonly kind: "placeNeighboursFirst";
+      readonly index: CornerIndex;
+      readonly missing: CornerIndex;
+    }
+  /** A neighbour of a worked-out corner moved, so that corner is no longer placed. */
+  | { readonly kind: "edgeUndone"; readonly index: CornerIndex };
 
 export interface AdjustState {
   readonly entry: AdjustEntry;
@@ -207,11 +226,20 @@ export interface AdjustState {
   readonly corners: Quad4;
   /** A corner is placed once it is the detector's own, or the person moved, nudged or worked it out. */
   readonly placed: readonly [boolean, boolean, boolean, boolean];
+  /**
+   * A corner worked out from its two neighbours' edges (`edgeTap`). It holds
+   * only while both neighbours stay where they were: when either moves, the
+   * corner goes back to not placed (`withCorner`), to be worked out again or
+   * dragged.
+   */
+  readonly solved: readonly [boolean, boolean, boolean, boolean];
   readonly selected: CornerIndex | null;
   readonly drag: DragState | null;
   readonly edge: EdgeMarkState | null;
   readonly notice: AdjustNotice | null;
 }
+
+const NONE_SOLVED = [false, false, false, false] as const;
 
 /**
  * The opening state. `rescue` starts from what the detector found
@@ -247,6 +275,7 @@ export function startAdjust(input: {
     start,
     corners: start.corners,
     placed: start.detected,
+    solved: NONE_SOLVED,
     selected: null,
     drag: null,
     edge: null,
@@ -293,16 +322,44 @@ function clampToImage(p: Point2, image: FrameSize): Point2 {
   };
 }
 
+/**
+ * `index` moved to `corner` and is placed. `solved` says whether it was worked
+ * out from its edges (else the person put it there). A worked-out neighbour of
+ * it was found from where `index` was, so it goes back to not placed, and the
+ * notice says so.
+ */
 function withCorner(
   state: AdjustState,
   index: CornerIndex,
   corner: Point2,
+  solvedNow = false,
 ): AdjustState {
+  const before = state.corners[index];
   const corners = [...state.corners] as [Point2, Point2, Point2, Point2];
   corners[index] = corner;
   const placed = [...state.placed] as [boolean, boolean, boolean, boolean];
   placed[index] = true;
-  return { ...state, corners, placed };
+  const solved = [...state.solved] as [boolean, boolean, boolean, boolean];
+  solved[index] = solvedNow;
+  let notice = state.notice;
+  if (before.x !== corner.x || before.y !== corner.y) {
+    for (const n of neighbourCorners(index)) {
+      if (!solved[n]) continue;
+      solved[n] = false;
+      placed[n] = false;
+      notice = { kind: "edgeUndone", index: n };
+    }
+  }
+  return { ...state, corners, placed, solved, notice };
+}
+
+/** A neighbour of `index` that is not placed, or `null` when both are. */
+function unplacedNeighbour(
+  state: AdjustState,
+  index: CornerIndex,
+): CornerIndex | null {
+  for (const n of neighbourCorners(index)) if (!state.placed[n]) return n;
+  return null;
 }
 
 /** Every change the screen makes, as one pure function. */
@@ -373,18 +430,38 @@ export function adjustReducer(
         ),
       );
     }
-    case "edgeStart":
+    case "edgeStart": {
       if (state.selected === null)
         return { ...state, notice: { kind: "chooseCorner" } };
+      const missing = unplacedNeighbour(state, state.selected);
+      if (missing !== null)
+        return {
+          ...state,
+          edge: null,
+          notice: {
+            kind: "placeNeighboursFirst",
+            index: state.selected,
+            missing,
+          },
+        };
       return {
         ...state,
         drag: null,
         edge: { index: state.selected, points: [] },
         notice: null,
       };
+    }
     case "edgeTap": {
       const edge = state.edge;
       if (!edge) return state;
+      // A neighbour may have stopped being placed since the marks began.
+      const missing = unplacedNeighbour(state, edge.index);
+      if (missing !== null)
+        return {
+          ...state,
+          edge: null,
+          notice: { kind: "placeNeighboursFirst", index: edge.index, missing },
+        };
       const points = [...edge.points, action.point];
       if (points.length < 2)
         return { ...state, edge: { ...edge, points }, notice: null };
@@ -402,7 +479,7 @@ export function adjustReducer(
           notice: { kind: "edgeProblem", problem: solved.problem },
         };
       return {
-        ...withCorner(state, edge.index, solved.corner),
+        ...withCorner(state, edge.index, solved.corner, true),
         edge: null,
         notice: { kind: "edgeSolved", index: edge.index },
       };
@@ -414,6 +491,7 @@ export function adjustReducer(
         ...state,
         corners: state.start.corners,
         placed: state.start.detected,
+        solved: NONE_SOLVED,
         selected: null,
         drag: null,
         edge: null,

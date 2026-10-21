@@ -34,6 +34,10 @@ export interface PaperAdjustCopy {
   edgeModeStart: string;
   /** Shown when that button is pressed with no corner chosen. */
   chooseCornerFirst: string;
+  /** Shown when that button is pressed while a neighbour of the hidden corner is still only a guess. */
+  placeNeighboursFirst: (hiddenCorner: string, neighbour: string) => string;
+  /** A worked-out corner whose neighbour then moved: it is no longer placed. */
+  edgeUndone: (corner: string) => string;
   /** Step 1 and 2 of marking a hidden corner's edges. */
   edgeStep: (step: 1 | 2, hiddenCorner: string, otherCorner: string) => string;
   /** Leaves the edge mode. */
@@ -74,6 +78,10 @@ export const zhTW: PaperAdjustCopy = {
   keyboardHint: "用方向鍵移動，按住 Shift 移動得更多。",
   edgeModeStart: "這個角被手遮住",
   chooseCornerFirst: "先點一下被遮住的那個角。",
+  placeNeighboursFirst: (hidden, neighbour) =>
+    `請先把${neighbour}對齊紙角，才能用紙邊算出${hidden}。`,
+  edgeUndone: (corner) =>
+    `旁邊的角移動了，${corner}需要重新標點，或直接拖到紙角上。`,
   edgeStep: (step, hidden, other) =>
     `第 ${step} 步：在${other}和${hidden}之間的紙邊上，點一下還看得到的地方。`,
   edgeModeCancel: "取消標點",
@@ -126,6 +134,10 @@ export const en: PaperAdjustCopy = {
   keyboardHint: "Use the arrow keys to move it; hold Shift to move further.",
   edgeModeStart: "My hand covers this corner",
   chooseCornerFirst: "First tap the corner that is covered.",
+  placeNeighboursFirst: (hidden, neighbour) =>
+    `First line the ${neighbour.toLowerCase()} up with the paper's corner; the ${hidden.toLowerCase()} is worked out from it.`,
+  edgeUndone: (corner) =>
+    `A corner next to it moved, so mark the ${corner.toLowerCase()}'s edges again or drag it onto the paper's corner.`,
   edgeStep: (step, hidden, other) =>
     `Step ${step}: tap the paper's edge between the ${other.toLowerCase()} and the ${hidden.toLowerCase()}, where you can still see it.`,
   edgeModeCancel: "Stop marking",

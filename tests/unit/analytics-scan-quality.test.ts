@@ -518,7 +518,9 @@ describe("rejected paper grades for a frame a person placed (V3.2 F2)", () => {
       expect(out).not.toHaveProperty("paperCoverage");
       // The hand grade does not depend on the paper's corners.
       expect(out.handPose).toBe("flat_like");
-      expect(() => analyticsEventSchemas.scan_rejected.parse(out)).not.toThrow();
+      expect(() =>
+        analyticsEventSchemas.scan_rejected.parse(out),
+      ).not.toThrow();
     }
   });
 

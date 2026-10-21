@@ -134,6 +134,46 @@ describe("adjustEntryFor: only after a hidden edge or corner", () => {
     ).toBeNull();
   });
 
+  it("never when another paper gate failed too: a hidden edge listed before PAPER_CURLED is not a way round the curl gate", () => {
+    for (const code of ADJUSTABLE_CODES) {
+      expect(
+        adjustEntryFor(
+          {
+            kind: "gateFailure",
+            errors: [issue(code), issue("PAPER_CURLED")],
+            overlay: overlay({ paperCorners: RECT }),
+          },
+          false,
+        ),
+      ).toBeNull();
+      expect(
+        adjustEntryFor(
+          {
+            kind: "gateFailure",
+            errors: [
+              issue(code),
+              issue("PAPER_CURLED"),
+              issue("HAND_OUT_OF_BOUNDS"),
+            ],
+            overlay: overlay({ paperCorners: RECT }),
+          },
+          true,
+        ),
+      ).toBeNull();
+    }
+    // Both hidden reasons together are still a rescue.
+    expect(
+      adjustEntryFor(
+        {
+          kind: "gateFailure",
+          errors: [issue("PAPER_CORNER_HIDDEN"), issue("PAPER_EDGE_HIDDEN")],
+          overlay: overlay(),
+        },
+        false,
+      ),
+    ).toBe("rescue");
+  });
+
   it("never after a measurement without ?debug=1, nor before a result", () => {
     expect(
       adjustEntryFor(
@@ -439,6 +479,185 @@ describe("a corner under the hand: two marks on its edges", () => {
     ).toBeLessThan(0.05);
     expect(s.placed[2]).toBe(true);
     expect(adjustReadiness(s)).toMatchObject({ ok: true, source: "manual" });
+  });
+
+  it("refuses to start while a neighbour of the hidden corner is only a starting guess", () => {
+    // No corners found: the centred sheet, nothing placed (also the check's start).
+    for (const entry of ["rescue", "check"] as const) {
+      let s = startAdjust({ entry, overlay: overlay(), paperSize: "a4" });
+      expect(s.start.from).toBe("centred");
+      s = run(s, { type: "select", index: 1 }, { type: "edgeStart" });
+      expect(s.edge).toBeNull();
+      expect(s.notice).toEqual({
+        kind: "placeNeighboursFirst",
+        index: 1,
+        missing: 0,
+      });
+      // Taps outside the edge mode change nothing.
+      const before = s;
+      s = run(
+        s,
+        { type: "edgeTap", point: { x: 300, y: 300 } },
+        { type: "edgeTap", point: { x: 600, y: 700 } },
+      );
+      expect(s).toBe(before);
+      expect(s.placed[1]).toBe(false);
+      // One neighbour placed is not enough.
+      s = run(s, {
+        type: "nudge",
+        index: 0,
+        dx: 1,
+        dy: 0,
+        big: false,
+        scale: 1,
+      });
+      s = run(s, { type: "select", index: 1 }, { type: "edgeStart" });
+      expect(s.notice).toEqual({
+        kind: "placeNeighboursFirst",
+        index: 1,
+        missing: 2,
+      });
+      // Both placed: the marks may begin.
+      s = run(
+        s,
+        { type: "nudge", index: 2, dx: 0, dy: 1, big: false, scale: 1 },
+        { type: "select", index: 1 },
+        { type: "edgeStart" },
+      );
+      expect(s.edge).toEqual({ index: 1, points: [] });
+      expect(s.notice).toBeNull();
+    }
+  });
+
+  it("refuses the second tap too when a neighbour stopped being placed meanwhile", () => {
+    let s = run(start(), { type: "edgeTap", point: mid(c[1], c[2]) });
+    s = { ...s, placed: [true, false, false, true] };
+    s = run(s, { type: "edgeTap", point: mid(c[3], c[2]) });
+    expect(s.edge).toBeNull();
+    expect(s.placed[2]).toBe(false);
+    expect(s.notice).toEqual({
+      kind: "placeNeighboursFirst",
+      index: 2,
+      missing: 1,
+    });
+  });
+
+  const solvedBR = () =>
+    run(
+      start(),
+      { type: "edgeTap", point: mid(c[1], c[2]) },
+      { type: "edgeTap", point: mid(c[3], c[2]) },
+    );
+
+  it("a worked-out corner goes back to not placed when either neighbour moves (drag or keys)", () => {
+    const solved = solvedBR();
+    expect(solved.placed[2]).toBe(true);
+    expect(solved.solved).toEqual([false, false, true, false]);
+
+    const keyed = run(solved, {
+      type: "nudge",
+      index: 1,
+      dx: 0,
+      dy: 1,
+      big: true,
+      scale: 1,
+    });
+    expect(keyed.placed).toEqual([true, true, false, true]);
+    expect(keyed.solved).toEqual([false, false, false, false]);
+    expect(keyed.corners[2]).toEqual(solved.corners[2]);
+    expect(keyed.notice).toEqual({ kind: "edgeUndone", index: 2 });
+    expect(adjustReadiness(keyed)).toEqual({ ok: false, notPlaced: 2 });
+
+    const dragged = run(
+      solved,
+      {
+        type: "pointerDown",
+        index: 3,
+        pointerId: 7,
+        pointerType: "touch",
+        point: { x: 100, y: 100 },
+      },
+      {
+        type: "pointerMove",
+        pointerId: 7,
+        point: { x: 104, y: 100 },
+        scale: 0.5,
+      },
+      {
+        type: "pointerMove",
+        pointerId: 7,
+        point: { x: 108, y: 100 },
+        scale: 0.5,
+      },
+      { type: "pointerUp", pointerId: 7 },
+    );
+    expect(dragged.placed[2]).toBe(false);
+    expect(dragged.notice).toEqual({ kind: "edgeUndone", index: 2 });
+    expect(adjustReadiness(dragged)).toEqual({ ok: false, notPlaced: 2 });
+
+    // The neighbour put back on the paper's corner, the marks again: placed again.
+    const again = run(
+      keyed,
+      { type: "nudge", index: 1, dx: 0, dy: -1, big: true, scale: 1 },
+      { type: "select", index: 2 },
+      { type: "edgeStart" },
+      { type: "edgeTap", point: mid(c[1], c[2]) },
+      { type: "edgeTap", point: mid(c[3], c[2]) },
+    );
+    expect(again.corners[1]).toEqual(c[1]);
+    expect(again.notice).toEqual({ kind: "edgeSolved", index: 2 });
+    expect(again.placed).toEqual([true, true, true, true]);
+    expect(
+      Math.hypot(again.corners[2].x - c[2].x, again.corners[2].y - c[2].y),
+    ).toBeLessThan(0.05);
+  });
+
+  it("a move of a corner that is not a neighbour, or a press without a move, leaves it placed", () => {
+    const solved = solvedBR();
+    const opposite = run(solved, {
+      type: "nudge",
+      index: 0,
+      dx: 1,
+      dy: 1,
+      big: false,
+      scale: 1,
+    });
+    expect(opposite.placed[2]).toBe(true);
+    expect(opposite.solved[2]).toBe(true);
+    const pressed = run(
+      solved,
+      {
+        type: "pointerDown",
+        index: 1,
+        pointerId: 3,
+        pointerType: "mouse",
+        point: { x: 50, y: 50 },
+      },
+      { type: "pointerMove", pointerId: 3, point: { x: 50, y: 50 }, scale: 1 },
+      { type: "pointerUp", pointerId: 3 },
+    );
+    expect(pressed.placed[2]).toBe(true);
+  });
+
+  it("once the person drags the worked-out corner itself, it no longer depends on its neighbours", () => {
+    let s = run(solvedBR(), {
+      type: "nudge",
+      index: 2,
+      dx: 1,
+      dy: 0,
+      big: false,
+      scale: 1,
+    });
+    expect(s.solved[2]).toBe(false);
+    s = run(s, { type: "nudge", index: 1, dx: 0, dy: 1, big: false, scale: 1 });
+    expect(s.placed[2]).toBe(true);
+    expect(s.notice).toBeNull();
+  });
+
+  it("reset forgets which corners were worked out", () => {
+    const s = run(solvedBR(), { type: "reset" });
+    expect(s.solved).toEqual([false, false, false, false]);
+    expect(s.placed).toEqual([true, true, false, true]);
   });
 
   it("says why when it cannot, leaves the corner where it was, and starts the marks again", () => {

@@ -257,15 +257,22 @@ export function PaperAdjust({
         ? copy.edgeSolved(nameOf(notice.index))
         : notice?.kind === "chooseCorner"
           ? copy.chooseCornerFirst
-          : state.edge && edgeStep
-            ? copy.edgeStep(
-                edgeStep.step,
-                nameOf(state.edge.index),
-                nameOf(edgeStep.other),
+          : notice?.kind === "placeNeighboursFirst"
+            ? copy.placeNeighboursFirst(
+                nameOf(notice.index),
+                nameOf(notice.missing),
               )
-            : !readiness.ok && "problem" in readiness
-              ? copy.quadProblem[readiness.problem]
-              : "");
+            : notice?.kind === "edgeUndone"
+              ? copy.edgeUndone(nameOf(notice.index))
+              : state.edge && edgeStep
+                ? copy.edgeStep(
+                    edgeStep.step,
+                    nameOf(state.edge.index),
+                    nameOf(edgeStep.other),
+                  )
+                : !readiness.ok && "problem" in readiness
+                  ? copy.quadProblem[readiness.problem]
+                  : "");
 
   const instruction =
     entry === "check"
