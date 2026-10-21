@@ -30,7 +30,10 @@ import {
 } from "../../src/client/photo/pipeline";
 import { visibleRectInStream } from "../../src/client/camera/visibleView";
 import { buildAttemptRecord } from "../../src/client/camera/attemptLog";
-import { buildScanQuality } from "../../src/client/analytics/scanQuality";
+import {
+  buildScanQuality,
+  buildScanRejected,
+} from "../../src/client/analytics/scanQuality";
 import { scanSubmissionSchema } from "../../src/lib/contracts/measurement";
 import type { Quad4 } from "../../src/client/paper/manualQuad";
 
@@ -260,6 +263,19 @@ describe("a placed frame through the real pipeline", () => {
     expect(r.status).toBe("error");
     if (r.status !== "error") return;
     expect(r.errors.map((e) => e.code)).toContain("HAND_OUT_OF_BOUNDS");
+    // The run's record holds the placed corners' angle, but the refused
+    // scan's event carries no paper grade: scan_rejected cannot say the
+    // corners were placed, and they are not the detector's.
+    expect(r.diagnostics!.paper!.maxAngleDeviationDeg).not.toBeNull();
+    const rejected = buildScanRejected({
+      flow: "easy",
+      attempt: 2,
+      errors: r.errors,
+      diagnostics: r.diagnostics,
+    });
+    expect(rejected).not.toHaveProperty("paperSkew");
+    expect(rejected).not.toHaveProperty("paperCoverage");
+    expect(rejected.codes).toContain("HAND_OUT_OF_BOUNDS");
   });
 
   it("refuses a frame that fails the checks before looking for a hand", async () => {
