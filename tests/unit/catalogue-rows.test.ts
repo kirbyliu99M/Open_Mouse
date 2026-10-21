@@ -303,8 +303,26 @@ describe("a merged Logitech row", () => {
           ? expect.stringMatching(
               e.descriptorsByOwner ? /\+owner$/ : /\+public_compilation$/,
             )
-          : "public_compilation-inferred",
+          : `${e.descriptorsByOwner ? "owner" : "public_compilation"}-inferred`,
       );
+  });
+
+  it("the two rows from Kirby's 2026-10-09 descriptions stay public_compilation-inferred until Kirby decides (未拍板)", () => {
+    // Their descriptorBasis is "Kirby 2026-10-09 description ...", without the
+    // word owner, so descriptorsByOwner reads false. Boomslang's basis says
+    // there was no public compilation relative, so this label is in doubt:
+    // whether a 2026-10-09 Kirby description counts as the owner's is
+    // Kirby's decision (candidate). If it does, descriptorsByOwner changes
+    // and these two expectations flip to owner-inferred.
+    for (const model of ["Boomslang 20th Anniversary Edition", "ULTRA 07"]) {
+      const e = entries.find((x) => x.model === model)!;
+      expect(e.descriptorsInferred).toBe(true);
+      expect(e.descriptorsByOwner).toBe(false);
+      expect(e.mergesInto ?? null).toBeNull();
+      expect(byModel(model).descriptorModel).toBe(
+        "public_compilation-inferred",
+      );
+    }
   });
 
   it("labels the owner's three MX rows as owner data, distinct from public_compilation, with their shape values unchanged", () => {
