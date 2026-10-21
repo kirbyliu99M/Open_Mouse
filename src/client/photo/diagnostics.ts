@@ -152,8 +152,9 @@ export interface PipelineDiagnostics {
   /** Where the parallax correction's focal length came from, and its value; `null` where the pipeline stopped before that. */
   readonly focal: FocalDiagnostics | null;
   /**
-   * SHADOW MODE (2026-10-16, candidate): what a nominal focal length would have
-   * changed, worked out beside the real measurement and used by nothing in it;
+   * SHADOW MODE (2026-10-16, candidate; turned round in landmark-raw-v3: the
+   * uncorrected numbers beside the reported ones): worked out beside the real
+   * measurement and used by nothing in it;
    * `null` where the run did not end in a measurement. Stays on the device (the
    * attempt log, and the `priorEffect` bucket of `scan_quality`).
    */
@@ -171,10 +172,43 @@ export interface PipelineDiagnostics {
 
 export interface ShadowPriorDiagnostics {
   /**
-   * The hand length with the nominal focal prior minus the one reported, in mm;
+   * Since landmark-raw-v3 (candidate): the UNCORRECTED hand length minus the
+   * one reported, in mm (before v3 it was the nominal prior's minus the
+   * reported one; the contract's `PRIOR_EFFECT_BUCKETS` says the same).
    * `null` when the shadow could not be worked out (it never fails the scan).
    */
   readonly handLengthDeltaMm: number | null;
+  /**
+   * landmark-raw-v3 (candidate), local attempt log only, never analytics: the
+   * same landmarks with no parallax correction, mm, for Kirby's S25 check of
+   * the engine-scale ratios (design R7 §5.3). Absent before v3; `null` when
+   * they could not be worked out.
+   */
+  readonly uncorrected?: {
+    readonly handLengthMm: number;
+    readonly palmLengthMm: number;
+    readonly palmWidthMm: number;
+  } | null;
+  /**
+   * landmark-raw-v3 (candidate), local attempt log only: the three lengths
+   * the scan reported, mm, beside `uncorrected` (the measured engine-scale
+   * ratios are uncorrected over reported). Absent before v3.
+   */
+  readonly reported?: {
+    readonly handLengthMm: number;
+    readonly palmLengthMm: number;
+    readonly palmWidthMm: number;
+  } | null;
+  /**
+   * landmark-raw-v3 (candidate), local attempt log only: the homography's own
+   * focal estimate, px, and whether it was judged reliable, whether or not the
+   * correction used it (design R7 §5.3 b). Absent before v3; `null` when no
+   * estimate could be made.
+   */
+  readonly homographyFocal?: {
+    readonly px: number;
+    readonly reliable: boolean;
+  } | null;
 }
 
 export interface MeasuredDiagnostics {
@@ -183,7 +217,7 @@ export interface MeasuredDiagnostics {
 }
 
 export interface FocalDiagnostics {
-  readonly source: "exif" | "homography" | "none";
+  readonly source: "exif" | "homography" | "nominal" | "none";
   /** In px; `null` when `source` is "none" (no correction was possible). */
   readonly px: number | null;
 }

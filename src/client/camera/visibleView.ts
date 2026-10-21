@@ -382,6 +382,25 @@ export function frameFocalReferenceWidthPx(
 }
 
 /**
+ * The long edge of the WHOLE camera frame a frame of the video was cut from,
+ * in the pixels the pipeline will analyse (landmark-raw-v3, candidate 未拍板;
+ * design R7 §1.3): the nominal focal prior is taken on it. The same scaling as
+ * `frameFocalReferenceWidthPx`, on `max(stream.width, stream.height)`: a frame
+ * cut on its long side (a 4 : 3 tablet screen showing a 9 : 16 stream) keeps
+ * the stream's long edge, because a cut narrows the picture, not the lens.
+ * `frame` unknown (`null`), no scaling is assumed.
+ */
+export function frameFocalReferenceLongEdgePx(
+  stream: FrameSize,
+  frame: FrameSize | null,
+): number {
+  const longEdge = Math.max(stream.width, stream.height);
+  if (!usable(frame)) return longEdge;
+  const decoded = computeDownscaleSize(frame.width, frame.height);
+  return (longEdge * decoded.width) / frame.width;
+}
+
+/**
  * The focal length in pixels the paper detector assumes for the live loop's
  * sample (a 70 degree horizontal field of view over the width of the WHOLE
  * stream, scaled to the sample's pixels). The sample is the visible part of the

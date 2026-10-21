@@ -11,7 +11,7 @@ import {
 } from "../fit/auto-calibration";
 import { resolveFitEngine, scoreFitDefault } from "../fit/engine";
 import { listedOnly } from "../fit/listed";
-import { scoringMeasurements } from "../fit/scoring-measurements";
+import { fitScaleMeasurements } from "../fit/scoring-measurements";
 import { groupShells } from "../fit/shell-groups";
 import { fingerprintOfFit } from "../fit/fingerprint";
 import type { CatalogueMouse } from "../fit/types";
@@ -29,8 +29,9 @@ const EMPTY_PREFERENCES = fitPreferencesSchema.parse({});
  * automatic survey calibration (`surveyReferencesFor`: same source, same
  * threshold; the request has no references, so the survey is read, and a
  * signed-out caller reads nothing), same-shell entries grouped as the fit route groups them, and a
- * typed hand width scored on the scan's scale (`scoringMeasurements`, as in
- * `loadOwnedFit`, so the snapshot matches the page). Nothing
+ * typed hand width scored on the scan's scale and a parallax-corrected scan
+ * on the engine's (`fitScaleMeasurements`, as in `loadOwnedFit`, so the
+ * snapshot matches the page). Nothing
  * is read from `fit_results` (the fit request no longer writes it either).
  *
  * A first-three mouse whose total has no band throws (a 500): a ranked mouse
@@ -76,7 +77,10 @@ export async function buildSnapshotAndFingerprint(
     source: calibration.source,
   });
   const engineOutput = scoreFitDefault(
-    scoringMeasurements(scan.measurements, scan.calibrationMethod),
+    fitScaleMeasurements(scan.measurements, {
+      calibrationMethod: scan.calibrationMethod,
+      parallaxCorrected: scan.parallaxCorrected,
+    }),
     listed,
     {
       ...EMPTY_PREFERENCES,

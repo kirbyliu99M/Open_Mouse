@@ -10,6 +10,7 @@ import { log } from "../log";
 import { readSessionCookie } from "../scans/cookies";
 import type { RateLimiter } from "../scans/rate-limit-config";
 import type { ScanRepo } from "../scans/repo";
+import { fitScaleMeasurements } from "../fit/scoring-measurements";
 import { binDown, resolveStoredGrip } from "../survey/profile";
 import { similarHands, type Contribution } from "./neighbours";
 import type { SimilarRepo } from "./repo";
@@ -174,14 +175,20 @@ export async function handleSimilar(
         : pooled.filter((c) => c.userId === userId).map((c) => c.id),
     );
 
+    // landmark-raw-v3 (candidate): this hand's own cell is read on the engine
+    // scale, the scale every contribution's bins were stored on.
+    const engine = fitScaleMeasurements(scan.measurements, {
+      calibrationMethod: scan.calibrationMethod,
+      parallaxCorrected: scan.parallaxCorrected,
+    });
     const answer = similarHands(
       {
-        handLengthBinMm: binDown(scan.measurements.handLengthMm),
-        palmWidthBinMm: binDown(scan.measurements.palmWidthMm),
+        handLengthBinMm: binDown(engine.handLengthMm),
+        palmWidthBinMm: binDown(engine.palmWidthMm),
         gripStyle: resolveStoredGrip(
           undefined,
           scan.gripStyleStated ?? null,
-          scan.measurements,
+          engine,
         ),
         ownContributionIds,
       },

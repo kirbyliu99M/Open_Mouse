@@ -176,7 +176,13 @@ describe("a placed frame through the real pipeline", () => {
     expect(detectPaperQuad).not.toHaveBeenCalled();
     expect(manual.measurements).toEqual(auto.measurements);
     expect(manual.overlay.paperCorners).toEqual(auto.overlay.paperCorners);
-    expect(manual.measurements.handLengthMm).toBeCloseTo(190, 1);
+    // The landmarks are drawn on the sheet (190 mm); since landmark-raw-v3
+    // the nominal prior corrects them for their assumed height, for both.
+    expect(manual.diagnostics?.focal?.source).toBe("nominal");
+    expect(manual.diagnostics?.focal).toEqual(auto.diagnostics?.focal);
+    expect(
+      manual.diagnostics?.shadowPrior?.uncorrected?.handLengthMm,
+    ).toBeCloseTo(190, 1);
   });
 
   it("the submission says where the corners came from and carries no edge numbers", async () => {
@@ -190,6 +196,7 @@ describe("a placed frame through the real pipeline", () => {
         paperSize: "a4",
         cornersSource: source,
         parallaxCorrected: expect.any(Boolean),
+        focalSource: expect.any(String),
       });
       expect(scanSubmissionSchema.safeParse(r.submission).success).toBe(true);
     }

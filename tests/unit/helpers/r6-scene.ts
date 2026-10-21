@@ -127,6 +127,12 @@ export interface R6SceneOptions {
   readonly rollDeg?: number;
   /** Shifts the whole picture (corners and hand) sideways, px: a sheet partly out of frame. */
   readonly shiftX?: number;
+  /** The hand's length, mm (R6 `handLenMm`). Default 190. */
+  readonly handLenMm?: number;
+  /** Scales the hand across (x) only (R6 `widthScale`; 0.8 gives a palm width about 0.35 of the length). Default 1. */
+  readonly widthScale?: number;
+  /** How far the wrist sits down from the sheet's centre, mm (R6 `wristV`). Default 60. */
+  readonly wristV?: number;
 }
 
 export interface R6Scene {
@@ -150,9 +156,11 @@ export function buildR6Scene(o: R6SceneOptions): R6Scene {
     rollDeg: o.rollDeg,
   });
   const raw = syntheticHand({ spread: false }, {});
-  const L = 190;
+  const L = o.handLenMm ?? 190;
   const k = L / d2(raw[0], raw[12]);
-  const handMm = raw.map((p) => ({ x: p.x * k, y: p.y * k + 60 }));
+  const ws = o.widthScale ?? 1;
+  const wristV = o.wristV ?? 60;
+  const handMm = raw.map((p) => ({ x: p.x * k * ws, y: p.y * k + wristV }));
   const sx = o.shiftX ?? 0;
   const at = (p: Point2) => ({ x: p.x + sx, y: p.y });
   const corners = [

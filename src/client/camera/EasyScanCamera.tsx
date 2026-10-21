@@ -162,6 +162,7 @@ import {
 import {
   assumedSampleFocalPx,
   frameDrawArgs,
+  frameFocalReferenceLongEdgePx,
   frameFocalReferenceWidthPx,
   visibleRegionInStream,
   type PixelRect,
@@ -241,6 +242,7 @@ import { failureOffersLengthEdit, noPaperEntryLabel } from "./noPaperEntry";
 import { freshLiveLoopSampling, sampleElapsedMs } from "./liveLoop";
 import { DetectorProgress } from "./DetectorProgress";
 import { measuredSheetNumbers } from "../photo/unverified-note";
+import { shownScanMeasurements } from "../../lib/fit/fit-scale";
 import { measuringShown } from "./measuringIndicator";
 import "../../app/scan/scan.css";
 import "./camera.css";
@@ -1286,6 +1288,17 @@ export default function EasyScanCamera({
           focalReferenceWidthPx:
             info?.captureSource === "frame" && info.frame
               ? frameFocalReferenceWidthPx(
+                  info.frame.stream,
+                  info.photoWidth !== null && info.photoHeight !== null
+                    ? { width: info.photoWidth, height: info.photoHeight }
+                    : null,
+                )
+              : undefined,
+          // landmark-raw-v3 (candidate): the nominal focal prior is taken on
+          // the stream's long edge, in the same pixels, for the same reason.
+          focalReferenceLongEdgePx:
+            info?.captureSource === "frame" && info.frame
+              ? frameFocalReferenceLongEdgePx(
                   info.frame.stream,
                   info.photoWidth !== null && info.photoHeight !== null
                     ? { width: info.photoWidth, height: info.photoHeight }
@@ -2545,13 +2558,24 @@ export default function EasyScanCamera({
                 ? easy.dimEntered(
                     String(result.submission.calibration.referenceMm),
                   )
-                : easy.dimHand(result.measurements.handLengthMm.toFixed(0)),
+                : easy.dimHand(
+                    shownScanMeasurements(
+                      result.measurements,
+                      result.submission.calibration,
+                    ).handLengthMm.toFixed(0),
+                  ),
             side: 1,
           },
           {
             a: result.overlay.landmarksPx[LANDMARK.index[0]],
             b: result.overlay.landmarksPx[LANDMARK.pinky[0]],
-            label: easy.dimPalm(result.measurements.palmWidthMm.toFixed(0)),
+            // landmark-raw-v3 (candidate, D1 = B): the engine-scale numbers.
+            label: easy.dimPalm(
+              shownScanMeasurements(
+                result.measurements,
+                result.submission.calibration,
+              ).palmWidthMm.toFixed(0),
+            ),
             side: 1,
           },
         ]

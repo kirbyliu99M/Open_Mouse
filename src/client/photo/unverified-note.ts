@@ -5,6 +5,10 @@
  * log): it does not mention a ruler or any accuracy figure, only that the
  * measurements are still being validated.
  */
+import {
+  engineScaleMeasurements,
+  parallaxCorrectedOf,
+} from "../../lib/fit/fit-scale";
 import type { Locale } from "../../lib/contracts/locale";
 import { scanCommonCopy } from "../../lib/copy/scan-common";
 
@@ -26,9 +30,19 @@ export function measuredSheetNumbers(
     typeof calibration.referenceMm === "number"
       ? calibration.referenceMm
       : undefined;
+  // landmark-raw-v3 (candidate, D1 = B): a parallax-corrected scan is shown
+  // on the engine's scale, the numbers the recommendation reads.
+  const shown = engineScaleMeasurements(
+    {
+      handLengthMm: measurements.handLengthMm,
+      palmLengthMm: Number.NaN,
+      palmWidthMm: measurements.palmWidthMm,
+    },
+    parallaxCorrectedOf(calibration),
+  );
   return measuredNumbersText({
-    handLengthMm: measurements.handLengthMm,
-    palmWidthMm: measurements.palmWidthMm,
+    handLengthMm: shown.handLengthMm,
+    palmWidthMm: shown.palmWidthMm,
     ...(entered === undefined ? {} : { enteredLengthMm: entered }),
     locale,
   });

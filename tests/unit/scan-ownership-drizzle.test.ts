@@ -62,6 +62,8 @@ describe("createDrizzleScanRepo().findOwnedScan", () => {
       palmThicknessStated: "thin",
       // Read for the hand-pool routes (a typed hand size stays out of the pool).
       calibrationMethod: "manual-entry",
+      // landmark-raw-v3: read from calibration_evidence; this row has none.
+      parallaxCorrected: null,
       measurements: {
         handLengthMm: 180,
         palmLengthMm: 100,

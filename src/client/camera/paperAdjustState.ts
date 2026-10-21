@@ -266,15 +266,21 @@ export function frameMoved(
 
 /**
  * The focal length of a photo's automatic run that a frame placed on the same
- * photo may keep (R6 F1, candidate 未拍板): EXIF, or the homography estimate
- * the run judged reliable, with a finite positive value. `null` for none
- * (`source` none: the placed frame then measures exactly as before).
+ * photo may keep (R6 F1, candidate 未拍板): EXIF, the homography estimate
+ * the run judged reliable, or (landmark-raw-v3) the nominal prior, with a
+ * finite positive value. `null` for none (`source` none: the placed frame
+ * then measures exactly as before).
  */
 export function reusableFocal(
   focal:
     { readonly source: string; readonly px: number | null } | null | undefined,
 ): ReusedFocal | null {
-  if (!focal || (focal.source !== "exif" && focal.source !== "homography"))
+  if (
+    !focal ||
+    (focal.source !== "exif" &&
+      focal.source !== "homography" &&
+      focal.source !== "nominal")
+  )
     return null;
   const px = focal.px;
   if (px === null || !Number.isFinite(px) || !(px > 0)) return null;

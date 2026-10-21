@@ -39,6 +39,7 @@ import { useLocale } from "@/client/i18n/LocaleProvider";
 import { scanCommonCopy } from "@/lib/copy/scan-common";
 import { scanSheetCopy } from "@/lib/copy/scan-sheet";
 import { navCopy } from "@/lib/copy/nav";
+import { shownScanMeasurements } from "@/lib/fit/fit-scale";
 import {
   HAND_CONNECTIONS,
   KNUCKLE_LANDMARK_IDS,
@@ -1147,7 +1148,10 @@ export default function ScanClient({
                       a: state.overlay.landmarksPx[0],
                       b: state.overlay.landmarksPx[LANDMARK.middle[3]],
                       label: sheet.dimHandLength(
-                        state.measurements.handLengthMm.toFixed(1),
+                        shownScanMeasurements(
+                          state.measurements,
+                          state.submission.calibration,
+                        ).handLengthMm.toFixed(1),
                       ),
                       side: 1,
                     },
@@ -1155,7 +1159,10 @@ export default function ScanClient({
                       a: state.overlay.landmarksPx[LANDMARK.index[0]],
                       b: state.overlay.landmarksPx[LANDMARK.pinky[0]],
                       label: sheet.dimPalmWidth(
-                        state.measurements.palmWidthMm.toFixed(1),
+                        shownScanMeasurements(
+                          state.measurements,
+                          state.submission.calibration,
+                        ).palmWidthMm.toFixed(1),
                       ),
                       side: 1,
                     },
@@ -1184,7 +1191,15 @@ export default function ScanClient({
               {JSON.stringify(state.measurements)}
             </p>
             <dl className="measurements" data-testid="scan-measurements">
-              {Object.entries(state.measurements).map(([key, value]) => (
+              {/* landmark-raw-v3 (candidate, D1 = B): a parallax-corrected
+                  scan's lengths on the engine's scale; the hidden JSON above
+                  keeps the stored values. */}
+              {Object.entries(
+                shownScanMeasurements(
+                  state.measurements,
+                  state.submission.calibration,
+                ),
+              ).map(([key, value]) => (
                 <div className="measurementRow" key={key}>
                   <dt>
                     {sheet.measurementLabels[key as keyof HandMeasurements]}

@@ -16,6 +16,7 @@ import {
   type PrintedSheetEvidence,
   type PaperCornerSource,
   type PaperEdgeEvidence,
+  type FocalLengthSource,
   type PaperSize,
   type UserLengthEvidence,
 } from "../../lib/contracts/measurement";
@@ -43,6 +44,8 @@ export function assembleScanSubmission(
     reprojectionErrorMm: input.reprojectionErrorMm,
     cardScaleRatio: input.cardScaleRatio,
     parallaxCorrected: false,
+    // landmark-raw-v3: the printed sheet is never corrected for parallax.
+    focalSource: "none",
   };
 
   const submission = {
@@ -81,6 +84,12 @@ export interface AssemblePaperEdgeSubmissionInput {
   readonly minSideCoverage?: number;
   /** Whether parallax correction actually ran (`computeCorrectedHandMeasurements`'s own flag) — unlike the printed-sheet builder, this is NOT hardcoded, since the paper-edge path always attempts it. */
   readonly parallaxCorrected: boolean;
+  /**
+   * landmark-raw-v3 (candidate): where the correction's focal length came
+   * from (`computeCorrectedHandMeasurements`'s `focalSource`). Omitted, the
+   * calibration has no `focalSource` key (as before v3).
+   */
+  readonly focalSource?: FocalLengthSource;
 }
 
 /**
@@ -107,6 +116,9 @@ export function assemblePaperEdgeSubmission(
       ? { minSideCoverage: input.minSideCoverage }
       : {}),
     parallaxCorrected: input.parallaxCorrected,
+    ...(input.focalSource !== undefined
+      ? { focalSource: input.focalSource }
+      : {}),
   };
 
   const submission = {
