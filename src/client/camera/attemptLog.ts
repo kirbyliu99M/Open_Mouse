@@ -201,13 +201,31 @@ export interface AttemptRecord {
   };
   /**
    * Where the parallax correction's focal length came from (EXIF, the
-   * homography, or neither: no correction) and its value in px; `null` for both
-   * where the run stopped before that.
+   * homography, the nominal prior since landmark-raw-v3, or none: no
+   * correction) and its value in px; `null` for both where the run stopped
+   * before that.
    */
   readonly focal: {
-    readonly source: "exif" | "homography" | "none" | null;
+    readonly source: "exif" | "homography" | "nominal" | "none" | null;
     readonly px: number | null;
   };
+  /**
+   * landmark-raw-v3 (candidate, design R7 §5.3): Kirby's S25 check. The
+   * homography's own focal estimate (px, to 1) and whether it was judged
+   * reliable, whether or not the correction used it; the same landmarks'
+   * UNCORRECTED hand length, palm length and palm width; and the reported
+   * (corrected) ones, all mm to 0.1. Local only: it is what Copy JSON shows
+   * and is never sent (analytics has no field for a px or a mm). `null` on a
+   * run that did not end in a measurement, and in a record from before v3.
+   */
+  readonly parallaxCheck: {
+    readonly homographyFocal: {
+      readonly px: number;
+      readonly reliable: boolean;
+    } | null;
+    readonly uncorrected: AttemptLengths | null;
+    readonly reported: AttemptLengths | null;
+  } | null;
   /**
    * Shadow mode (candidate, 2026-10-16): the hand length a nominal focal length
    * would have given minus the one shown, to 0.1 mm; `null` where it was not
@@ -242,6 +260,13 @@ export interface AttemptRecord {
     readonly imageLongEdgePx: number | null;
   } | null;
   readonly userAgent: string;
+}
+
+/** Three lengths of one scan, mm to 0.1 (`parallaxCheck`). */
+export interface AttemptLengths {
+  readonly handLengthMm: number;
+  readonly palmLengthMm: number;
+  readonly palmWidthMm: number;
 }
 
 // ── Sanitising: the only door into a record ───────────────────────────────
@@ -455,6 +480,7 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
       source:
         focal?.source === "exif" ||
         focal?.source === "homography" ||
+        focal?.source === "nominal" ||
         focal?.source === "none"
           ? focal.source
           : null,
@@ -475,8 +501,49 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
         ? raw.analysisThread
         : null,
     cornerCheck: cleanCornerCheck(raw.cornerCheck),
+    // Records stored before landmark-raw-v3 have none: null, not an error.
+    parallaxCheck: cleanParallaxCheck(raw.parallaxCheck),
     userAgent: cleanString(raw.userAgent, MAX_USER_AGENT_LENGTH) ?? "",
   };
+}
+
+/** Lengths of at most this many mm are kept (a hand is under 300). */
+const MAX_LENGTH_MM = 1000;
+
+/** Exactly three finite lengths in 0-1000 mm, to 0.1; anything else is `null` as a whole. */
+function cleanLengths(value: unknown): AttemptLengths | null {
+  const o = asObject(value);
+  if (!o) return null;
+  const out: number[] = [];
+  for (const key of ["handLengthMm", "palmLengthMm", "palmWidthMm"]) {
+    const n = cleanNumber(o[key], 1);
+    if (n === null || n < 0 || n > MAX_LENGTH_MM) return null;
+    out.push(n);
+  }
+  return { handLengthMm: out[0], palmLengthMm: out[1], palmWidthMm: out[2] };
+}
+
+/** Focal lengths of at most this many px are kept. */
+const MAX_FOCAL_PX = 100000;
+
+/** The S25 check, rebuilt field by field; anything that is not one is `null`. */
+function cleanParallaxCheck(value: unknown): AttemptRecord["parallaxCheck"] {
+  const check = asObject(value);
+  if (!check) return null;
+  const h = asObject(check.homographyFocal);
+  const px = cleanNumber(h?.px, 1);
+  const homographyFocal =
+    h &&
+    px !== null &&
+    px > 0 &&
+    px <= MAX_FOCAL_PX &&
+    typeof h.reliable === "boolean"
+      ? { px, reliable: h.reliable }
+      : null;
+  const uncorrected = cleanLengths(check.uncorrected);
+  const reported = cleanLengths(check.reported);
+  if (!homographyFocal && !uncorrected && !reported) return null;
+  return { homographyFocal, uncorrected, reported };
 }
 
 /** Distances of at most this many pixels are kept; anything larger is not a corner check. */
@@ -789,6 +856,14 @@ export function buildAttemptRecord(input: {
       total: diagnostics?.totalMs ?? null,
     },
     analysisThread: diagnostics?.analysisThread ?? null,
+    parallaxCheck:
+      result === "ok" && diagnostics?.shadowPrior
+        ? {
+            homographyFocal: diagnostics.shadowPrior.homographyFocal ?? null,
+            uncorrected: diagnostics.shadowPrior.uncorrected ?? null,
+            reported: diagnostics.shadowPrior.reported ?? null,
+          }
+        : null,
     cornerCheck:
       outcome.kind === "cornerCheck"
         ? {
@@ -837,6 +912,7 @@ export function buildAttemptRecord(input: {
       shadowPrior: { handLengthDeltaMm: null },
       timingMs: { decode: null, paper: null, hand: null, total: null },
       analysisThread: null,
+      parallaxCheck: null,
       cornerCheck: null,
       userAgent: "",
     }

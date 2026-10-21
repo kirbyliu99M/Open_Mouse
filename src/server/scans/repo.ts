@@ -33,6 +33,14 @@ export interface OwnedScan {
    * width, and the gap is not measured yet).
    */
   calibrationMethod?: CalibrationMethod | null;
+  /**
+   * landmark-raw-v3 (V3.2 candidate): `calibration_evidence.parallaxCorrected`
+   * (jsonb), `null` or absent when the evidence has none. Every reader of the
+   * scan's size goes through `fitScaleMeasurements`, which multiplies a
+   * corrected scan onto the engine's scale; the rule reads this flag, never
+   * the measurement version, so older corrected records are scaled too (D3).
+   */
+  parallaxCorrected?: boolean | null;
 }
 
 /**

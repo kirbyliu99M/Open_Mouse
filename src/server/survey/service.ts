@@ -218,6 +218,8 @@ export async function handleSurveySubmission(
         scan: {
           gripStyleStated: scan.gripStyleStated ?? null,
           measurements: scan.measurements,
+          calibrationMethod: scan.calibrationMethod,
+          parallaxCorrected: scan.parallaxCorrected,
         },
         mouseIdBySlug,
         now,

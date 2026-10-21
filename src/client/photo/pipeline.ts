@@ -211,6 +211,14 @@ export interface RunPhotoPipelineInput {
    */
   readonly focalReferenceWidthPx?: number;
   /**
+   * landmark-raw-v3 (candidate, design R7 §1.3): for the same frames as
+   * `focalReferenceWidthPx`, the LONG edge of the whole stream in this
+   * image's pixels (`frameFocalReferenceLongEdgePx`). The nominal focal prior
+   * is taken on it, so a frame cut on its long side keeps the stream's lens.
+   * Omitted, the whole decoded photo's long edge is used. Paper-edge only.
+   */
+  readonly focalReferenceLongEdgePx?: number;
+  /**
    * Told when a step of the analysis has finished, for the loader's ring
    * (V3.2 U1): `decoded` (the photo is decoded), `paper` (the sheet was
    * looked for; paper-edge only) and `hand` (the hand was looked for).
@@ -958,6 +966,9 @@ async function runPaperEdgePipeline(
       decoded: { width: fullWidth, height: fullHeight },
       crop,
       readJpegBytes: async () => new Uint8Array(await input.file.arrayBuffer()),
+      ...(input.focalReferenceLongEdgePx !== undefined
+        ? { focalReferenceLongEdgePx: input.focalReferenceLongEdgePx }
+        : {}),
     });
     trace.parallaxCorrected = finish.parallaxCorrected;
     trace.focal = finish.focal;
@@ -1076,6 +1087,9 @@ async function finishManualPaper(args: {
     crop,
     readJpegBytes: async () => new Uint8Array(await input.file.arrayBuffer()),
     ...(input.reusedFocal ? { reusedFocal: input.reusedFocal } : {}),
+    ...(input.focalReferenceLongEdgePx !== undefined
+      ? { focalReferenceLongEdgePx: input.focalReferenceLongEdgePx }
+      : {}),
   });
   trace.parallaxCorrected = finish.parallaxCorrected;
   trace.focal = finish.focal;

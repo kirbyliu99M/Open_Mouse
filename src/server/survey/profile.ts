@@ -1,5 +1,9 @@
 import type { GripStyle } from "../../lib/contracts/fit";
-import type { HandMeasurements } from "../../lib/contracts/measurement";
+import type {
+  CalibrationMethod,
+  HandMeasurements,
+} from "../../lib/contracts/measurement";
+import { fitScaleMeasurements } from "../../lib/fit/fit-scale";
 import {
   CONTRIBUTION_BIN_MM,
   type SurveyEdit,
@@ -57,6 +61,10 @@ export interface ContributionSource {
   scan: {
     gripStyleStated: GripStyle | null;
     measurements: HandMeasurements;
+    /** `calibration_method`; null or absent for an old row. */
+    calibrationMethod?: CalibrationMethod | null;
+    /** `calibration_evidence.parallaxCorrected`; null or absent when unknown. */
+    parallaxCorrected?: boolean | null;
   };
   /** Catalogue slug to `mice.id`, covering every slug in `body.ratings`. */
   mouseIdBySlug: ReadonlyMap<string, string>;
@@ -72,19 +80,22 @@ export function buildContributionWrite(
   source: ContributionSource,
 ): ContributionWrite {
   const { body, scan, now } = source;
+  // landmark-raw-v3 (candidate): the bins and the predicted grip read the
+  // engine scale, the scale the pool's cells were made on, so a corrected
+  // scan lands in the cell the same hand did before correction.
+  const engine = fitScaleMeasurements(scan.measurements, {
+    calibrationMethod: scan.calibrationMethod,
+    parallaxCorrected: scan.parallaxCorrected,
+  });
   return {
     scanId: body.scanId,
     userId: source.userId,
     consentVersion: body.consent.version,
     consentedAt: startOfUtcDay(now),
     markedAt: now,
-    handLengthBinMm: binDown(scan.measurements.handLengthMm),
-    palmWidthBinMm: binDown(scan.measurements.palmWidthMm),
-    gripStyle: resolveStoredGrip(
-      body.gripStyle,
-      scan.gripStyleStated,
-      scan.measurements,
-    ),
+    handLengthBinMm: binDown(engine.handLengthMm),
+    palmWidthBinMm: binDown(engine.palmWidthMm),
+    gripStyle: resolveStoredGrip(body.gripStyle, scan.gripStyleStated, engine),
     mainUse: body.mainUse ?? null,
     feedback: body.feedback ?? null,
     ratings: body.ratings.map((rating) => {

@@ -12,7 +12,10 @@ import {
   type SurveyReferenceSource,
 } from "./auto-calibration";
 import { resolveFitEngine, scoreFitDefault } from "./engine";
-import { scoringMeasurements } from "./scoring-measurements";
+import {
+  engineScaleMeasurements,
+  fitScaleMeasurements,
+} from "./scoring-measurements";
 import { listedOnly } from "./listed";
 import { withFilterFacts } from "./filter-facts";
 import { withPhotos } from "./photos";
@@ -111,10 +114,15 @@ export async function loadOwnedFit(
     catalogue,
     source: deps.surveyReferences,
   });
-  // A typed width is scored on the scan's scale; `owned.measurements` itself
-  // (returned below, shown on the page) stays as typed.
+  // A typed width is scored on the scan's scale, and a parallax-corrected scan
+  // on the engine's (landmark-raw-v3, `fitScaleMeasurements`). What is
+  // returned below for the page and the analysis is the engine scale too
+  // (D1 = B), with a typed size as typed.
   const engineOutput = scoreFitDefault(
-    scoringMeasurements(owned.measurements, owned.calibrationMethod),
+    fitScaleMeasurements(owned.measurements, {
+      calibrationMethod: owned.calibrationMethod,
+      parallaxCorrected: owned.parallaxCorrected,
+    }),
     catalogue,
     {
       ...prefs,
@@ -158,7 +166,10 @@ export async function loadOwnedFit(
   return {
     status: "ok",
     fit: validated.data,
-    measurements: owned.measurements,
+    measurements: engineScaleMeasurements(
+      owned.measurements,
+      owned.parallaxCorrected,
+    ),
     calibrationMethod: owned.calibrationMethod ?? null,
   };
 }

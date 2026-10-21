@@ -31,7 +31,10 @@ import {
 } from "../geometry/homography";
 import { estimateFocalFromExif } from "../geometry/exif-focal";
 import { computeCorrectedHandMeasurements } from "../geometry/measurements";
-import { computeNominalFocalShadow } from "../geometry/nominalFocalShadow";
+import {
+  computeUncorrectedShadow,
+  nominalFocalPxFromLongEdge,
+} from "../geometry/nominalFocalShadow";
 import type { ReusedFocal } from "../geometry/parallax";
 import type { PaperEdgeCalibrationResult } from "../paper/calibration";
 import type { SheetQuadDetection } from "../paper/detect";
@@ -87,13 +90,22 @@ export interface PaperEdgeFinishInput {
   /** The photo file's bytes, read only once the gates have passed (for the EXIF focal length). */
   readonly readJpegBytes: () => Promise<Uint8Array | null>;
   /**
-   * Shadow mode (candidate): work out what a nominal focal length would have
-   * changed, for the diagnostics only. Default true. `false` skips it; the
-   * result is the same either way (tests/unit/nominal-focal-shadow.test.ts).
+   * Shadow mode (candidate; landmark-raw-v3: the uncorrected numbers beside
+   * the reported ones): for the diagnostics only. Default true. `false` skips
+   * it; the result is the same either way
+   * (tests/unit/paper-edge-finish-shadow.test.ts).
    */
   readonly shadowPrior?: boolean;
   /** Replaces the shadow computation; a seam for the test that it cannot change the result. */
-  readonly computeShadow?: typeof computeNominalFocalShadow;
+  readonly computeShadow?: typeof computeUncorrectedShadow;
+  /**
+   * landmark-raw-v3 (candidate, design R7 §1.3): the long edge, in the decoded
+   * photo's pixels, of the whole camera frame the photo came from; the nominal
+   * focal prior is taken on it. Only a frame of the video that was cut before
+   * it got here passes it (`frameFocalReferenceLongEdgePx`); omitted (or not a
+   * finite number above 0), the whole decoded photo's long edge is used.
+   */
+  readonly focalReferenceLongEdgePx?: number;
   /**
    * F10 item 2 (R6 F1, candidate): a frame the person placed only. The same
    * photo's focal length from its automatic run, used when this photo has no
@@ -114,33 +126,92 @@ export interface PaperEdgeFinish {
 }
 
 /**
- * The shadow hand-length delta for an ok scan. Wrapped so that nothing it does,
- * a throw included, can reach the scan: the worst case is a `null` delta.
+ * The nominal focal prior for this photo, px (landmark-raw-v3, candidate): on
+ * the long edge of the whole camera frame (`focalReferenceLongEdgePx`), else
+ * on the whole decoded photo's long edge. `null` only for a size that is not
+ * a number.
+ */
+export function nominalPriorFor(
+  focalFrame: FrameSize,
+  focalReferenceLongEdgePx?: number,
+): number | null {
+  const longEdge =
+    typeof focalReferenceLongEdgePx === "number" &&
+    Number.isFinite(focalReferenceLongEdgePx) &&
+    focalReferenceLongEdgePx > 0
+      ? focalReferenceLongEdgePx
+      : Math.max(focalFrame.width, focalFrame.height);
+  return nominalFocalPxFromLongEdge(longEdge);
+}
+
+const finiteOrNull = (n: unknown): number | null =>
+  typeof n === "number" && Number.isFinite(n) ? n : null;
+
+/**
+ * The shadow for an ok scan (landmark-raw-v3: the uncorrected lengths, their
+ * hand-length delta to the reported one and the homography's own focal
+ * estimate). Wrapped so that nothing it does, a throw included, can reach the
+ * scan: the worst case is a `null` delta.
  */
 function shadowPriorOf(
   input: PaperEdgeFinishInput,
   frames: ReturnType<typeof analysisFrames>,
   homography: Homography,
-  reportedHandLengthMm: number,
+  reported: {
+    readonly handLengthMm: number;
+    readonly palmLengthMm: number;
+    readonly palmWidthMm: number;
+  },
 ): ShadowPriorDiagnostics | null {
   if (input.shadowPrior === false) return null;
-  const compute = input.computeShadow ?? computeNominalFocalShadow;
+  const compute = input.computeShadow ?? computeUncorrectedShadow;
   try {
     const shadow = compute({
       // Copies: whatever the shadow does to its input, the scan's own points stay as they are.
       landmarksPx: input.hand.landmarksPx.map((p) => ({ x: p.x, y: p.y })),
       homography,
-      focalFrame: frames.focalFrame,
       principalFrame: frames.principalFrame,
-      reportedHandLengthMm,
+      reported: {
+        handLengthMm: reported.handLengthMm,
+        palmLengthMm: reported.palmLengthMm,
+        palmWidthMm: reported.palmWidthMm,
+      },
     });
-    const delta = shadow?.handLengthDeltaMm;
+    const delta = finiteOrNull(shadow?.handLengthDeltaMm);
+    const u = shadow?.uncorrected;
+    const uncorrected =
+      u &&
+      finiteOrNull(u.handLengthMm) !== null &&
+      finiteOrNull(u.palmLengthMm) !== null &&
+      finiteOrNull(u.palmWidthMm) !== null
+        ? {
+            handLengthMm: u.handLengthMm,
+            palmLengthMm: u.palmLengthMm,
+            palmWidthMm: u.palmWidthMm,
+          }
+        : null;
+    const h = shadow?.homographyFocal;
+    const homographyFocal =
+      h && finiteOrNull(h.px) !== null && typeof h.reliable === "boolean"
+        ? { px: h.px, reliable: h.reliable }
+        : null;
     return {
-      handLengthDeltaMm:
-        typeof delta === "number" && Number.isFinite(delta) ? delta : null,
+      handLengthDeltaMm: delta,
+      uncorrected,
+      reported: {
+        handLengthMm: reported.handLengthMm,
+        palmLengthMm: reported.palmLengthMm,
+        palmWidthMm: reported.palmWidthMm,
+      },
+      homographyFocal,
     };
   } catch {
-    return { handLengthDeltaMm: null };
+    return {
+      handLengthDeltaMm: null,
+      uncorrected: null,
+      reported: null,
+      homographyFocal: null,
+    };
   }
 }
 
@@ -262,6 +333,11 @@ export async function finishPaperEdge(
         widthPx: frames.principalFrame.width,
         heightPx: frames.principalFrame.height,
         ...(input.reusedFocal ? { reusedFocal: input.reusedFocal } : {}),
+        // landmark-raw-v3 (candidate): the nominal prior, last before none.
+        nominalFocalPx: nominalPriorFor(
+          frames.focalFrame,
+          input.focalReferenceLongEdgePx,
+        ),
       },
     );
   } catch {
@@ -313,6 +389,7 @@ export async function finishPaperEdge(
     edgeFitResidualMm: calibration.edgeFitResidualMm,
     minSideCoverage: calibration.minSideCoverage,
     parallaxCorrected: corrected.parallaxCorrected,
+    focalSource: corrected.focalSource,
   });
   return {
     result: {
@@ -330,7 +407,7 @@ export async function finishPaperEdge(
       input,
       frames,
       geometry.homography,
-      corrected.measurements.handLengthMm,
+      corrected.measurements,
     ),
   };
 }

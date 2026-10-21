@@ -285,11 +285,17 @@ export interface CorrectedMeasurementsOptions {
    * passed on the automatic path.
    */
   readonly reusedFocal?: ReusedFocal | null;
+  /**
+   * landmark-raw-v3 (candidate): the nominal focal prior, px
+   * (`resolveFocalPx`'s `nominalFocalPx`). Only the product's photo pipeline
+   * passes it; omitted, the policy is the pre-v3 one.
+   */
+  readonly nominalFocalPx?: number | null;
 }
 
 export interface CorrectedMeasurementsResult {
   readonly measurements: HandMeasurements;
-  /** False when neither EXIF nor a well-conditioned homography focal estimate was available — `measurements` is then the uncorrected path's result. */
+  /** False when no focal length was available (no EXIF, no well-conditioned homography estimate, no nominal prior passed) — `measurements` is then the uncorrected path's result. */
   readonly parallaxCorrected: boolean;
   readonly focalSource: FocalSource;
   /** The focal length the correction used, in px; `null` exactly when `focalSource` is "none". */
@@ -303,7 +309,8 @@ export interface CorrectedMeasurementsResult {
  * onto the plane at its own height above the sheet (parallax.ts) instead of
  * straight onto z = 0, following the focal policy in
  * `resolveFocalPx` — EXIF focal length when present, else a
- * well-conditioned homography-focal estimate, else no correction (falls
+ * well-conditioned homography-focal estimate, else the nominal prior when
+ * the caller passed one (landmark-raw-v3), else no correction (falls
  * back to the same uncorrected projection `computeHandMeasurements` uses,
  * with `parallaxCorrected: false` so the caller — and
  * `calibrationEvidenceSchema` — can tell).
@@ -324,6 +331,7 @@ export function computeCorrectedHandMeasurements(
     homography,
     principalPoint,
     reusedFocal: options.reusedFocal,
+    nominalFocalPx: options.nominalFocalPx,
   });
 
   if (resolved.fPx === null) {
