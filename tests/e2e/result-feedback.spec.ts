@@ -4,6 +4,13 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { en } from "../../src/lib/copy/result-feedback";
 import { RESULT_FEEDBACK_NOTICE_VERSION } from "../../src/lib/contracts/result-feedback";
+import {
+  FEEDBACK_PROMPT_KEY,
+  RESULT_FEEDBACK_COOLDOWN_MS,
+  RESULT_FEEDBACK_DWELL_MS,
+  RESULT_FEEDBACK_MIN_DWELL_MS,
+  feedbackStorageKey,
+} from "../../src/lib/results/resultFeedback";
 
 /**
  * The results page's feedback sheet (v2) in a real browser. The scan routes and
@@ -78,6 +85,9 @@ async function stubScan(
     }
     return json(route, status, { error: "stub" });
   });
+  // Signed out, and the questionnaire not answered on this device: the sheet
+  // shows only once that is known (V3.2 F11).
+  await page.route("**/api/auth/session", (route) => json(route, 200, {}));
   return stub;
 }
 
@@ -95,9 +105,36 @@ async function scrollToEnd(page: Page) {
   );
 }
 
+/**
+ * V3.2 F11 (candidate): reaching the end of the list shows the sheet only
+ * once the tab has been visible for `RESULT_FEEDBACK_MIN_DWELL_MS` (20 s).
+ * The clock is installed before the page loads and keeps flowing; this moves
+ * it past the 20 s.
+ */
+async function passMinDwell(page: Page) {
+  await page.clock.runFor(RESULT_FEEDBACK_MIN_DWELL_MS + 1_000);
+}
+
+/**
+ * Reload and give the sheet every chance to come back for this scan: the
+ * device-wide cool-down (V3.2 F11) is cleared first and both timers are run
+ * after, so only this scan's own memory (closed or sent) can keep it away.
+ */
+async function reloadAndWait(page: Page) {
+  await page.evaluate(
+    (key) => localStorage.removeItem(key),
+    FEEDBACK_PROMPT_KEY,
+  );
+  await page.reload();
+  await scrollToEnd(page);
+  await page.clock.runFor(RESULT_FEEDBACK_DWELL_MS + 1_000);
+}
+
 async function openSheet(page: Page) {
+  await page.clock.install();
   await page.goto(MAIN);
   await scrollToEnd(page);
+  await passMinDwell(page);
   await expect(sheet(page)).toBeVisible();
   // Let the entrance finish, so a measured box is the resting one.
   await expect
@@ -213,9 +250,7 @@ test.describe("feedback sheet v2", () => {
     ).toHaveCount(1);
     await expect(sheet(page)).toBeHidden({ timeout: 8000 });
 
-    await page.reload();
-    await scrollToEnd(page);
-    await page.waitForTimeout(800);
+    await reloadAndWait(page);
     await expect(sheet(page)).toHaveCount(0);
   });
 
@@ -257,9 +292,7 @@ test.describe("feedback sheet v2", () => {
     );
     expect(focused).toBe("main");
 
-    await page.reload();
-    await scrollToEnd(page);
-    await page.waitForTimeout(800);
+    await reloadAndWait(page);
     await expect(sheet(page)).toHaveCount(0);
   });
 
@@ -280,6 +313,64 @@ test.describe("feedback sheet v2", () => {
     await page.goto(MAIN);
     await scrollToEnd(page);
     await page.waitForTimeout(800);
+    await expect(sheet(page)).toHaveCount(0);
+  });
+
+  test("V3.2 F11: once prompted, this device is not asked again for another scan within 30 days", async ({
+    page,
+  }) => {
+    await stubScan(page);
+    await openSheet(page);
+    await sheet(page).getByRole("button", { name: en.closeLabel }).click();
+    await expect(sheet(page)).toHaveCount(0);
+    // As if this were another scan: forget this scan's own memory, keep the
+    // device's last prompt.
+    await page.evaluate(
+      (key) => localStorage.removeItem(key),
+      feedbackStorageKey(SCAN_ID),
+    );
+    await page.reload();
+    await scrollToEnd(page);
+    await page.clock.runFor(RESULT_FEEDBACK_DWELL_MS + 1_000);
+    await expect(sheet(page)).toHaveCount(0);
+  });
+
+  test("V3.2 F11: a last prompt more than 30 days ago lets it ask again", async ({
+    page,
+  }) => {
+    await stubScan(page);
+    await page.clock.install();
+    await page.goto(MAIN);
+    await page.evaluate(
+      ({ key, ms, notice }) =>
+        localStorage.setItem(
+          key,
+          JSON.stringify({ at: Date.now() - ms - 60_000, notice }),
+        ),
+      {
+        key: FEEDBACK_PROMPT_KEY,
+        ms: RESULT_FEEDBACK_COOLDOWN_MS,
+        notice: RESULT_FEEDBACK_NOTICE_VERSION,
+      },
+    );
+    await page.reload();
+    await scrollToEnd(page);
+    await passMinDwell(page);
+    await expect(sheet(page)).toBeVisible();
+  });
+
+  test("V3.2 F11: a questionnaire status it cannot read keeps the sheet away", async ({
+    page,
+  }) => {
+    await stubScan(page);
+    // Registered after stubScan, so it answers first: a session it cannot use.
+    await page.route("**/api/auth/session", (route) =>
+      json(route, 500, { error: "stub" }),
+    );
+    await page.clock.install();
+    await page.goto(MAIN);
+    await scrollToEnd(page);
+    await page.clock.runFor(RESULT_FEEDBACK_DWELL_MS + 1_000);
     await expect(sheet(page)).toHaveCount(0);
   });
 
@@ -390,9 +481,7 @@ test.describe("feedback sheet v2", () => {
     await page.keyboard.press("Escape");
     await expect(sheet(page)).toHaveCount(0);
 
-    await page.reload();
-    await scrollToEnd(page);
-    await page.waitForTimeout(800);
+    await reloadAndWait(page);
     await expect(sheet(page)).toHaveCount(0);
   });
 
@@ -528,9 +617,7 @@ test.describe("feedback sheet v2: a phone", () => {
     await page.mouse.up();
     await expect(sheet(page)).toHaveCount(0);
 
-    await page.reload();
-    await scrollToEnd(page);
-    await page.waitForTimeout(800);
+    await reloadAndWait(page);
     await expect(sheet(page)).toHaveCount(0);
   });
 
@@ -585,6 +672,7 @@ test.describe("feedback sheet v2: a small phone", () => {
     page,
   }) => {
     await stubScan(page);
+    await page.clock.install();
     await page.goto(MAIN);
     await expect(page.locator(".results-score-rank")).toBeVisible();
     // A jump to the very bottom: the end marker is never in view.
@@ -592,6 +680,7 @@ test.describe("feedback sheet v2: a small phone", () => {
     await page.evaluate(() =>
       window.scrollTo(0, document.documentElement.scrollHeight),
     );
+    await passMinDwell(page);
     await expect(sheet(page)).toBeVisible();
     await sheet(page).getByLabel(star(3)).check({ force: true });
     const link = await sheet(page)

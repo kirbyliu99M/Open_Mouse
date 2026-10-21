@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { MouseEvent } from "react";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import type { Locale } from "@/lib/contracts/locale";
 import type { FitResponse } from "@/lib/contracts/fit";
@@ -20,6 +21,7 @@ export function ResultsTopBar({
   onSurveyReminderClick,
   onShareStarted,
   onShareFinished,
+  onBack,
 }: {
   fit: FitResponse;
   language: Locale;
@@ -28,6 +30,12 @@ export function ResultsTopBar({
   onSurveyReminderClick?: (unanswered: boolean) => void;
   onShareStarted?: () => void;
   onShareFinished?: (outcome: ShareOutcome) => void;
+  /**
+   * V3.2 F11: may take the back link over (`preventDefault`) to go back in
+   * history to the scan page when it is right behind the results, so it does
+   * what the browser's back does (`topBarBack` in resultsHistory.ts).
+   */
+  onBack?: (event: MouseEvent<HTMLAnchorElement>) => void;
 }) {
   const copy = RESULTS_PAGE_COPY[language];
   return (
@@ -38,7 +46,14 @@ export function ResultsTopBar({
         // The accessible name is the destination alone, as the shared TopBar
         // does (`backLinkName`): the chevron stays decorative.
         aria-label={copy.backTo(copy.scanAgain)}
-        onClick={onRetake}
+        onClick={
+          onRetake || onBack
+            ? (event) => {
+                onRetake?.();
+                onBack?.(event);
+              }
+            : undefined
+        }
       >
         <span aria-hidden="true">‹</span>
         <span>{copy.scanAgain}</span>

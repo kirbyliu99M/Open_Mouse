@@ -20,6 +20,7 @@ import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ScanSubmission } from "@/lib/contracts/measurement";
 import { resultsPagePath } from "@/lib/contracts/routes";
+import { noteScanHandoff } from "@/lib/results/resultsHistory";
 import type { ScanFlow } from "@/lib/contracts/analytics";
 import { track } from "@/client/analytics/track";
 import type { SubmitScanErrorKind } from "@/client/scan/submitScan";
@@ -60,6 +61,8 @@ export function useScanSubmit(flow?: ScanFlow) {
         }
         if (outcome.status === "success") {
           setState({ kind: "success" });
+          // V3.2 F11: the results page's top-bar back can then go back here.
+          noteScanHandoff(outcome.scanId);
           router.push(resultsPagePath(outcome.scanId));
           return;
         }

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type MouseEvent } from "react";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { manualEntryCopy } from "@/lib/copy/manualEntry";
@@ -61,6 +61,22 @@ import "./results.css";
 import { POOR_FIT_THRESHOLD } from "./fitNotice";
 import type { StoredManualEntry } from "./userLengthDisclosure";
 
+/**
+ * V3.2 F11: how the real results pages move between each other and back out
+ * (`src/lib/results/resultsHistory.ts`). Each handler may take a link's click
+ * over (`preventDefault`); without them the links behave as plain links.
+ */
+export interface ResultsNavigation {
+  /** A card or the 「back to list」 link: `toMain` when it opens the main page. */
+  onPick: (
+    event: MouseEvent<HTMLAnchorElement>,
+    href: string,
+    toMain: boolean,
+  ) => void;
+  /** The top bar's 「‹ 重新掃描」. */
+  onBack: (event: MouseEvent<HTMLAnchorElement>) => void;
+}
+
 const BAND_COPY = { "zh-TW": zhBands, en: enBands } as const;
 
 /**
@@ -111,6 +127,7 @@ export function ResultsView({
   analytics,
   filters = emptyFilters(),
   onFiltersChange,
+  navigation,
 }: {
   response: FitResponse;
   /**
@@ -153,6 +170,8 @@ export function ResultsView({
   filters?: Filters;
   /** Passed only by the real results page; without it there is no filter UI. */
   onFiltersChange?: (next: Filters, source: ResultsFilterChange) => void;
+  /** The real results pages only (V3.2 F11). */
+  navigation?: ResultsNavigation;
 }) {
   const view = filteredView(response, filters);
   const reducedMotion = usePrefersReducedMotion();
@@ -164,6 +183,7 @@ export function ResultsView({
     segment: ShapeSegment;
     on: Filters;
   } | null>(null);
+  const [detailsOpened, setDetailsOpened] = useState(false);
   const shownSegment =
     pressed && pressed.on === filters ? pressed.segment : segmentOf(filters);
   const selectSegment = (segment: ShapeSegment, refocus = false) => {
@@ -499,7 +519,12 @@ export function ResultsView({
                 }
               : undefined
           }
-          onOpened={analytics ? () => emit("details_opened", {}) : undefined}
+          onOpened={() => {
+            // V3.2 F11: opening Details counts as having looked at the result
+            // (the feedback sheet's timing rule).
+            setDetailsOpened(true);
+            if (analytics) emit("details_opened", {});
+          }}
         />
       )}
 
@@ -514,6 +539,16 @@ export function ResultsView({
             : undefined
         }
         onSelect={onSelectRank}
+        onLinkClick={
+          scanId && navigation
+            ? (c, event) =>
+                navigation.onPick(
+                  event,
+                  pathForEntry(scanId, c.entry, search, c.displayRank),
+                  c.displayRank === 1,
+                )
+            : undefined
+        }
         onPick={
           analytics && scanId
             ? (c) =>
@@ -585,8 +620,9 @@ export function ResultsView({
       </div>
 
       {/* The feedback sheet: the main page of a real scan only (the demo has
-          no scan id). It waits for the end of the list, or 45 s of the tab
-          being visible after a real scroll (see resultFeedback.ts). */}
+          no scan id). It waits 20 s of the tab being visible and the end of
+          the list or Details, or 45 s after a real scroll, and comes at most
+          once per device in 30 days (see resultFeedback.ts, V3.2 F11). */}
       {isMain && scanId && (
         <ResultFeedbackSheet
           key={scanId}
@@ -595,6 +631,7 @@ export function ResultsView({
           emit={analytics ? emit : undefined}
           resultFingerprint={response.resultFingerprint}
           onResultChanged={onResultChanged}
+          openedDetails={detailsOpened}
         />
       )}
     </>
@@ -615,6 +652,7 @@ export function ResultsView({
             : undefined
         }
         {...shareHandlers("top", false)}
+        onBack={navigation?.onBack}
       />
       {/* A detail page has no filter controls: it says which filter it is
           under and how to get back to the list. */}
@@ -624,6 +662,11 @@ export function ResultsView({
           language={language}
           scanId={scanId}
           count={view.count}
+          onBackToList={
+            navigation
+              ? (event, href) => navigation.onPick(event, href, true)
+              : undefined
+          }
         />
       )}
       {onFiltersChange ? (
