@@ -490,6 +490,112 @@ describe("PaperAdjust.tsx turns keys and moves into actions through the tested h
   });
 });
 
+// F10 items 3-5 on the screen itself (review of F10: the pure helpers were
+// tested, their wiring was not, so removing it left every test green). The
+// repo has no DOM test library, so the wiring is read from the source, as
+// above and in camera-reused-focal-wiring.test.ts.
+describe("PaperAdjust.tsx wires F10's magnifier, views, pinch and centred frame", () => {
+  const adjust = readFileSync("src/client/camera/PaperAdjust.tsx", "utf8")
+    .split("\r\n")
+    .join("\n");
+  const between = (from: string, to: string) => {
+    const start = adjust.indexOf(from);
+    const end = adjust.indexOf(to, start + from.length);
+    expect(start, from).toBeGreaterThan(0);
+    expect(end, to).toBeGreaterThan(start);
+    return adjust.slice(start, end);
+  };
+  const stageDown = between("const onStageDown = (", "const onStageMove = (");
+  const stageMove = between("const onStageMove = (", "const onStageUp = (");
+  const handleDown = between("const onHandleDown =", "const onStageDown = (");
+  const startPinch = between("const startPinch = (", "const beginDrag = (");
+
+  it("the magnifier keeps its side through a drag: each move passes the last placement as previous (AC4, hysteresis)", () => {
+    expect(stageMove).toMatch(
+      /setMagnifierAt\(\(prev\) =>\s*magnifierPlacement\(\{\s*pointer: point,\s*stage: stageSize,\s*previous: prev,\s*\}\),?\s*\)/,
+    );
+    // The magnifier is drawn from that remembered placement.
+    expect(adjust).toMatch(/magnifierLayout\([\s\S]*?previous: magnifierAt/);
+  });
+
+  it("a double tap on the photo switches between the whole photo and the frame (AC3)", () => {
+    expect(stageDown).toMatch(
+      /if \(isDoubleTap\(lastTapRef\.current, tap\)\) \{[\s\S]*?setView\(\s*showingWhole\s*\? \{ kind: "sheet", quad: state\.corners \}\s*: \{ kind: "whole" \},?\s*\);\s*return;\s*\}/,
+    );
+    // The first tap is remembered for the second; it still drags the chosen
+    // corner (with no handle named: it confirms no guess, review of F10).
+    expect(stageDown).toMatch(
+      /lastTapRef\.current = tap;\s*beginDrag\(null, e, point\);/,
+    );
+    // A press on a handle names its corner.
+    expect(handleDown).toContain("beginDrag(index, e, point);");
+  });
+
+  it("the view button switches between the whole photo and the frame, and says which (AC3)", () => {
+    const button = between('data-testid="paper-adjust-view"', "</button>");
+    expect(button).toMatch(
+      /setView\(\s*showingWhole\s*\? \{ kind: "sheet", quad: state\.corners \}\s*: \{ kind: "whole" \},?\s*\)/,
+    );
+    expect(button).toContain(
+      "{showingWhole ? copy.zoomToFrame : copy.wholePhoto}",
+    );
+  });
+
+  it("two fingers pinch the view through pinchView, and a second finger undoes a corner drag", () => {
+    expect(stageMove).toMatch(
+      /setView\(\{\s*kind: "free",\s*fit: pinchView\(\{\s*start: pinch\.start,\s*from: pinch\.from,\s*to: \[a, b\],\s*image: state\.image,\s*stage: stageSize,\s*\}\),?\s*\}\)/,
+    );
+    expect(startPinch).toContain(
+      'if (state.drag) dispatch({ type: "dragCancel" });',
+    );
+    expect(stageDown).toContain("if (startPinch(e.pointerId, point)) {");
+    expect(handleDown).toContain("if (startPinch(e.pointerId, point)) {");
+  });
+
+  it("the centred-frame button dispatches centre and moves the view onto the centred sheet (AC2)", () => {
+    const button = between('data-testid="paper-adjust-centre"', "</button>");
+    expect(button).toContain('dispatch({ type: "centre" });');
+    expect(button).toMatch(
+      /setView\(\{\s*kind: "sheet",\s*quad: centredPaperFrame\(state\.image, state\.paperSize\),?\s*\}\)/,
+    );
+    expect(button).toContain("{copy.centreFrame}");
+  });
+
+  const GUESS: Quad4 = [
+    { x: 190, y: 310 },
+    { x: 815, y: 290 },
+    { x: 790, y: 1160 },
+    { x: 215, y: 1140 },
+  ];
+  const guessOverlay: PhotoOverlay = {
+    ...OVERLAY,
+    paperCorners: null,
+    paperGuessCorners: GUESS,
+  };
+
+  it("a rescue opening on the rough guess shows the centred-frame button, the gesture hint and the whole-photo button", () => {
+    const html = render({ overlay: guessOverlay });
+    const copy = paperAdjustCopy("zh-TW");
+    expect(html).toContain('data-testid="paper-adjust-centre"');
+    expect(html).toContain(copy.centreFrame);
+    expect(html).toContain(copy.gestureHint);
+    expect(html).toContain('data-view="zoomed"');
+    expect(html).toContain(copy.wholePhoto);
+    expect(handles(html).every((h) => h.includes('data-placed="false"'))).toBe(
+      true,
+    );
+  });
+
+  it("no centred-frame button where it would change nothing: a centred start, or outside the rescue", () => {
+    const centred = render({
+      overlay: { ...OVERLAY, paperCorners: null },
+    });
+    expect(centred).not.toContain('data-testid="paper-adjust-centre"');
+    const review = render({ entry: "review", overlay: guessOverlay });
+    expect(review).not.toContain('data-testid="paper-adjust-centre"');
+  });
+});
+
 describe("adjustConfirmAction (what confirming does)", () => {
   const failure: AdjustableResult = {
     kind: "gateFailure",
