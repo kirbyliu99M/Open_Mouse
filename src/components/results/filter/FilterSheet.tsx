@@ -208,7 +208,10 @@ export function FilterSheet({
               onClick={() => requestClose(false)}
             >
               {/* V3.2 F11 (Kirby's phone test, 2026-10-21: the X was too
-                  small): a 24 px glyph in a 48 x 48 button (filter.css). */}
+                  small): the drawn cross spans 3.5 -> 20.5 of a 24 box, so
+                  17 CSS px wide (it was about 11 px) with a 2.4 px stroke, in
+                  a 48 x 48 button (filter.css). The size is a candidate
+                  until Kirby checks it on his phone. */}
               <svg
                 width="24"
                 height="24"
@@ -217,10 +220,10 @@ export function FilterSheet({
                 focusable="false"
               >
                 <path
-                  d="M6 6l12 12M18 6L6 18"
+                  d="M3.5 3.5l17 17M20.5 3.5l-17 17"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="2.2"
+                  strokeWidth="2.4"
                   strokeLinecap="round"
                 />
               </svg>

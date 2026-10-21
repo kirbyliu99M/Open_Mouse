@@ -12,7 +12,15 @@ import { RESULT_FEEDBACK_MIN_DWELL_MS } from "../../src/lib/results/resultFeedba
  *
  * The tests from "the enlarged photo, Other mice, share and the feedback
  * sheet" on were NOT RUN by their author (Playwright crashes the machine this
- * was written on); they are type-checked only.
+ * was written on); they are type-checked only. Until the verifier has run this
+ * file alone (`--project=chromium --workers=1`) and they pass, they are NOT
+ * evidence for acceptance 3 or 4: in particular the router.refresh test is
+ * the only browser check of "the stamp survives router.refresh" (the logic is
+ * unit-tested in tests/unit/results-f11.test.ts, "F11-8: resolveStamp"), and
+ * its selectors (`language-switcher` .last(), aria-pressed="false") and the
+ * headless share resolving at once are unconfirmed. The top-bar "‹ 重新掃描"
+ * history back is not driven here at all; its handoff wiring is unit-tested in
+ * tests/unit/use-scan-submit-handoff.test.ts.
  */
 
 const FIXTURE = JSON.parse(

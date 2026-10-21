@@ -70,7 +70,7 @@ describe("F11-6: the filter sheet's close button", () => {
     return css.slice(at, css.indexOf("}", at));
   };
 
-  it("is a button named for what it does, with a 24 px glyph", () => {
+  it("is a button named for what it does, in a 24 px icon box", () => {
     const button = html.match(
       /<button[^>]*class="results-sheet-close"[^>]*>([\s\S]*?)<\/button>/,
     );
@@ -79,6 +79,40 @@ describe("F11-6: the filter sheet's close button", () => {
     expect(button![0]).toContain('aria-label="關閉篩選"');
     expect(button![1]).toMatch(/<svg[^>]*width="24"[^>]*height="24"/);
     expect(button![1]).toContain('aria-hidden="true"');
+  });
+
+  // The drawn cross, not the svg box: before F11 the box grew (20 -> 24)
+  // while the cross only went from about 11.25 to 12 CSS px.
+  it("draws a cross at least 15 CSS px wide with a stroke of 2 px or more", () => {
+    const svg = html.match(
+      /<button[^>]*class="results-sheet-close"[^>]*>[\s\S]*?(<svg[\s\S]*?<\/svg>)/,
+    )![1];
+    const width = Number(svg.match(/width="([\d.]+)"/)![1]);
+    const box = svg.match(/viewBox="([\d.\s-]+)"/)![1].split(/\s+/).map(Number);
+    const scale = width / box[2];
+    const d = svg.match(/<path[^>]* d="([^"]+)"/)![1];
+    // Absolute end points of every M/l segment.
+    const xs: number[] = [];
+    const ys: number[] = [];
+    let x = 0;
+    let y = 0;
+    for (const [, cmd, args] of d.matchAll(/([MmLl])\s*([-\d.\s,]+)/g)) {
+      const [a, b] = args.trim().split(/[\s,]+/).map(Number);
+      if (cmd === "M" || cmd === "L") [x, y] = [a, b];
+      else [x, y] = [x + a, y + b];
+      xs.push(x);
+      ys.push(y);
+    }
+    const drawnW = (Math.max(...xs) - Math.min(...xs)) * scale;
+    const drawnH = (Math.max(...ys) - Math.min(...ys)) * scale;
+    expect(drawnW).toBeGreaterThanOrEqual(15);
+    expect(drawnH).toBeGreaterThanOrEqual(15);
+    const stroke = Number(svg.match(/stroke-width="([\d.]+)"/)![1]) * scale;
+    expect(stroke).toBeGreaterThanOrEqual(2);
+    // Round caps stay inside the box.
+    const cap = stroke / scale / 2;
+    expect(Math.min(...xs) - cap).toBeGreaterThanOrEqual(0);
+    expect(Math.max(...xs) + cap).toBeLessThanOrEqual(box[2]);
   });
 
   it("is at least 44 x 44 (3rem = 48 CSS px) and never shrinks", () => {
