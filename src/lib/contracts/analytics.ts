@@ -579,7 +579,11 @@ export const analyticsEventSchemas = {
   rescan_clicked: z.strictObject({ ...resultsPage }),
 
   /** The result-feedback sheet appeared (result-feedback.ts, candidate):
-   * `trigger` says which came first, the end of the ranking or the dwell. */
+   * `trigger` says which came first, the end of the ranking or the dwell.
+   * V3.2 (candidate, 2026-10-22): the sheet waits 20 s on screen and then
+   * needs the end of the ranking or an opened Details of the first place;
+   * `scrolled` means the end of the ranking was reached, and every other way
+   * the sheet appears (Details opened, or the longer dwell) is `dwell`. */
   result_feedback_shown: z.strictObject({
     ...resultsPage,
     trigger: z.enum(["scrolled", "dwell"]),
