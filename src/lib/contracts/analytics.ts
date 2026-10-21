@@ -54,7 +54,8 @@ export const SUBMIT_FAILURE_KINDS = [
  * length that reads about 6 mm long (a simulation, 2026-10-16; the real share
  * of `none` is what `scan_quality` is for).
  */
-export const FOCAL_SOURCES = ["exif", "homography", "none"] as const;
+/** `nominal` (landmark-raw-v3, V3.2 candidate): the nominal focal prior. */
+export const FOCAL_SOURCES = ["exif", "homography", "nominal", "none"] as const;
 
 /**
  * The scan-quality buckets. They describe the PHOTO'S CONDITIONS, never the
@@ -139,6 +140,9 @@ export const PAPER_ASPECT_BUCKETS = [
  * agree. A difference between two ways of correcting the same photo, not a
  * length: it moves by about 3 % of the hand length at most, and the steps are
  * wide enough that the hand length cannot be read back from it.
+ * Since landmark-raw-v3 (V3.2 candidate) the nominal prior IS the reported
+ * correction when nothing better exists, so the shadow compares the other
+ * way round: the uncorrected value minus the reported one, in the same steps.
  * `unavailable`: the shadow could not be worked out (no convergence, a
  * degenerate pose, a value that is not a number). It is its own step so that
  * such a scan still reports everything else, and so that the share of
