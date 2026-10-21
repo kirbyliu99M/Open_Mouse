@@ -13,7 +13,12 @@ import {
   RESOLUTION_BUCKETS,
   SHARPNESS_BUCKETS,
   analyticsEventSchemas,
+  PAPER_DETECTION_STAGES as CONTRACT_PAPER_DETECTION_STAGES,
 } from "../../src/lib/contracts/analytics";
+import {
+  PAPER_DETECTION_STAGES as CLIENT_PAPER_DETECTION_STAGES,
+  type PaperDetectionStage,
+} from "../../src/client/paper/detectionStage";
 import {
   buildScanQuality,
   buildScanRejected,
@@ -902,6 +907,79 @@ describe("buildScanRejected: the whole scan_rejected payload", () => {
       attempt: 1,
       codes: ["PAPER_EDGE_HIDDEN", "PAPER_CURLED"],
     });
+  });
+});
+
+describe("buildScanRejected: paperStage on PAPER_NOT_FOUND (V3.2 F6)", () => {
+  const notFound = (failureStage: PaperDetectionStage | null) =>
+    diag({
+      paper: {
+        ...diag().paper!,
+        cornersSeen: 0,
+        paperRegionFound: false,
+        widthFraction: null,
+        heightFraction: null,
+        maxAngleDeviationDeg: null,
+        observedAspect: null,
+        minSideCoverage: null,
+        sideCoverages: null,
+        worstSide: null,
+        gateFailures: ["PAPER_NOT_FOUND"],
+        failureStage,
+      },
+    });
+
+  it("the client's stages are the contract's list itself", () => {
+    expect(CLIENT_PAPER_DETECTION_STAGES).toBe(CONTRACT_PAPER_DETECTION_STAGES);
+  });
+
+  it.each(CONTRACT_PAPER_DETECTION_STAGES)(
+    "%s: carried on a PAPER_NOT_FOUND refusal, and the payload passes the contract",
+    (stage) => {
+      const out = buildScanRejected({
+        flow: "easy",
+        attempt: 2,
+        errors: [{ code: "PAPER_NOT_FOUND" }],
+        diagnostics: notFound(stage),
+      });
+      expect(out.paperStage).toBe(stage);
+      expect(out.codes).toEqual(["PAPER_NOT_FOUND"]);
+      expect(() =>
+        analyticsEventSchemas.scan_rejected.parse(out),
+      ).not.toThrow();
+    },
+  );
+
+  it("is left out for any other refusal, even with a stage in the diagnostics", () => {
+    const out = buildScanRejected({
+      flow: "sheet",
+      attempt: 1,
+      errors: [{ code: "PAPER_CORNERS_HIDDEN" }],
+      diagnostics: notFound("region_split"),
+    });
+    expect("paperStage" in out).toBe(false);
+  });
+
+  it("is left out when no stage was recorded (null, absent, no diagnostics)", () => {
+    for (const diagnostics of [notFound(null), diag(), undefined]) {
+      const out = buildScanRejected({
+        flow: "easy",
+        attempt: 1,
+        errors: [{ code: "PAPER_NOT_FOUND" }],
+        diagnostics,
+      });
+      expect("paperStage" in out).toBe(false);
+    }
+  });
+
+  it("refuses a value outside the list rather than send it", () => {
+    const out = buildScanRejected({
+      flow: "easy",
+      attempt: 1,
+      errors: [{ code: "PAPER_NOT_FOUND" }],
+      diagnostics: notFound("hand_covering" as never),
+    });
+    expect("paperStage" in out).toBe(false);
   });
 });
 

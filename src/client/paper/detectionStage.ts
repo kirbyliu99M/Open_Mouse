@@ -24,6 +24,7 @@
  * Diagnostic only: no stage changes whether a frame is accepted, its corners
  * or any number measured from it. Pure.
  */
+import { PAPER_DETECTION_STAGES } from "../../lib/contracts/analytics";
 import type { Locale } from "../../lib/contracts/locale";
 import {
   paperStageCopy,
@@ -31,14 +32,12 @@ import {
   type PaperStageLines,
 } from "../../lib/copy/paper-stage";
 
-export const PAPER_DETECTION_STAGES = [
-  "no_bright_region",
-  "region_split",
-  "aspect_mismatch",
-  "too_small",
-  "exception",
-  "unknown",
-] as const;
+/**
+ * The stages are the analytics contract's `PAPER_DETECTION_STAGES` (V3.2 F6):
+ * one list, so the value `scan_rejected.paperStage` carries is always one the
+ * contract accepts.
+ */
+export { PAPER_DETECTION_STAGES };
 
 export type PaperDetectionStage = (typeof PAPER_DETECTION_STAGES)[number];
 
