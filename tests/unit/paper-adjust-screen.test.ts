@@ -9,11 +9,13 @@ import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { PaperAdjust } from "../../src/client/camera/PaperAdjust";
+import { PaperAdjust, refusalText } from "../../src/client/camera/PaperAdjust";
 import {
   PAPER_ADJUST_LAYOUT,
   adjustConfirmAction,
+  adjustReadiness,
   adjustReducer,
+  cornerPositions,
   fitPhoto,
   scanMeasuredPaper,
   sheetView,
@@ -107,21 +109,89 @@ describe("the handles", () => {
     );
   });
 
-  it("three corners found: all four open placed and the frame may be confirmed at once (F14)", () => {
-    const html = render({
-      overlay: {
-        ...OVERLAY,
-        paperCorners: undefined,
-        paperPartialCorners: [RECT[0], null, RECT[2], RECT[3]],
-      },
-    });
+  const PARTIAL: PhotoOverlay = {
+    ...OVERLAY,
+    paperCorners: undefined,
+    paperPartialCorners: [RECT[0], null, RECT[2], RECT[3]],
+  };
+
+  it("three corners found: the three open placed, the guessed fourth says in its name that it is not, and confirming is refused until it moved (F14)", () => {
+    const html = render({ overlay: PARTIAL });
     const all = handles(html);
-    expect(all.every((h) => h.includes('data-placed="true"'))).toBe(true);
-    expect(all[1]).not.toContain("還沒對齊");
+    expect(all.map((h) => h.includes('data-placed="true"'))).toEqual([
+      true,
+      false,
+      true,
+      true,
+    ]);
+    expect(all[1]).toContain('aria-label="右上角，還沒對齊"');
+    expect(all[0]).not.toContain("還沒對齊");
+    expect(all[2]).not.toContain("還沒對齊");
+    expect(all[3]).not.toContain("還沒對齊");
+    expect(html).toMatch(
+      /<button[^>]*class="primaryButton paperAdjustConfirm"[^>]*aria-disabled="true"/,
+    );
+    expect(render({ overlay: PARTIAL, locale: "en" })).toContain(
+      'aria-label="Top-right corner, not placed yet"',
+    );
+  });
+
+  it("three corners found, the fourth dragged: all four placed and the frame may be confirmed", () => {
+    const start = startAdjust({
+      entry: "rescue",
+      overlay: PARTIAL,
+      paperSize: "a4",
+    });
+    const moved = adjustReducer(
+      adjustReducer(start, {
+        type: "pointerDown",
+        index: 1,
+        pointerId: 1,
+        pointerType: "touch",
+        point: { x: 0, y: 0 },
+      }),
+      {
+        type: "pointerMove",
+        pointerId: 1,
+        point: { x: 4, y: 3 },
+        scale: 1,
+      },
+    );
+    const html = render({ overlay: PARTIAL, state: moved });
+    expect(handles(html).every((h) => h.includes('data-placed="true"'))).toBe(
+      true,
+    );
+    expect(html).not.toContain("還沒對齊");
     const confirm = html.match(
       /<button[^>]*data-testid="paper-adjust-confirm"[^>]*>/,
     )![0];
     expect(confirm).not.toContain("aria-disabled");
+  });
+
+  it("a refused confirm names the corner still to line up in the status line, in both languages", () => {
+    const state = startAdjust({
+      entry: "rescue",
+      overlay: PARTIAL,
+      paperSize: "a4",
+    });
+    const readiness = adjustReadiness(state);
+    expect(readiness.ok).toBe(false);
+    if (readiness.ok) return;
+    const positions = cornerPositions(state.corners);
+    expect(refusalText(readiness, positions, paperAdjustCopy("zh-TW"))).toBe(
+      "右上角還沒對齊，請拖到紙角。",
+    );
+    expect(refusalText(readiness, positions, paperAdjustCopy("en"))).toBe(
+      "Move the top-right corner to the paper's corner.",
+    );
+    // A frame that cannot be used for another reason keeps its own words.
+    expect(
+      refusalText(
+        { ok: false, problem: "too_small" },
+        positions,
+        paperAdjustCopy("zh-TW"),
+      ),
+    ).toBe(paperAdjustCopy("zh-TW").quadProblem.too_small);
   });
 
   it("the centred sheet: its corners still say in their names that they are not placed (no visible mark), and confirming is refused until they are", () => {

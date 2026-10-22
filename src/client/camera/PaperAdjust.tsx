@@ -45,7 +45,10 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import type { Locale } from "../../lib/contracts/locale";
-import { paperAdjustCopy } from "../../lib/copy/paper-adjust";
+import {
+  paperAdjustCopy,
+  type PaperAdjustCopy,
+} from "../../lib/copy/paper-adjust";
 import type { PaperSize } from "../paper/detect";
 import {
   CORNER_INDICES,
@@ -77,6 +80,7 @@ import {
   wholeView,
   zoomViewAt,
   type AdjustEntry,
+  type AdjustReadiness,
   type AdjustState,
   type MagnifierPlacement,
   type PhotoFit,
@@ -84,6 +88,23 @@ import {
   type PointerKind,
   type StageTap,
 } from "./paperAdjustState";
+
+/**
+ * The status line after a press of the confirm button that was refused (F14):
+ * with no per-corner mark on the screen, it names the corner still to be
+ * lined up (the centred sheet's corners, or the fourth corner of a
+ * three-corner find, which starts as a guess inside the sheet), else says why
+ * the frame cannot be used.
+ */
+export function refusalText(
+  readiness: Exclude<AdjustReadiness, { ok: true }>,
+  positions: readonly [number, number, number, number],
+  copy: PaperAdjustCopy,
+): string {
+  return "notPlaced" in readiness
+    ? copy.notPlaced(copy.cornerNames[positions[readiness.notPlaced]])
+    : copy.quadProblem[readiness.problem];
+}
 
 export interface PaperAdjustConfirm {
   readonly corners: Quad4;
@@ -375,15 +396,7 @@ export function PaperAdjust({
 
   const confirm = () => {
     if (!readiness.ok) {
-      const name =
-        "notPlaced" in readiness
-          ? copy.cornerNames[positions[readiness.notPlaced]]
-          : "";
-      setRefusal(
-        "notPlaced" in readiness
-          ? copy.notPlaced(name)
-          : copy.quadProblem[readiness.problem],
-      );
+      setRefusal(refusalText(readiness, positions, copy));
       return;
     }
     onConfirm({

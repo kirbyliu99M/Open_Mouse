@@ -72,7 +72,8 @@ export const zhTW: PaperAdjustCopy = {
   handleNotPlaced: "，還沒對齊",
   keyboardHint: "用方向鍵移動，按住 Shift 移動得更多。",
   quadProblem: {
-    not_finite: "有一個角的位置無法使用，請重拍一次。",
+    // Kirby 2026-10-22 (candidate): short messages.
+    not_finite: "偵測失敗，請重試。",
     self_intersecting: "邊框交叉了。請把每個角拖回它自己的位置。",
     not_convex: "邊框凹進去了。請把四個角拖到紙的四個角上。",
     degenerate:
@@ -80,7 +81,8 @@ export const zhTW: PaperAdjustCopy = {
     outside_image: "有一個角在照片外面。請把它拖回照片裡。",
     too_small: "邊框太小了。請把四個角拖到紙的四個角上。",
   },
-  notPlaced: (corner) => `${corner}還沒對齊，請先把它拖到紙角上。`,
+  // Candidate (Kirby 2026-10-22: short messages).
+  notPlaced: (corner) => `${corner}還沒對齊，請拖到紙角。`,
   confirm: "用這個邊框測量",
   cancel: "取消",
   retake: "重拍",
@@ -116,7 +118,7 @@ export const en: PaperAdjustCopy = {
   handleNotPlaced: ", not placed yet",
   keyboardHint: "Use the arrow keys to move it; hold Shift to move further.",
   quadProblem: {
-    not_finite: "One corner can't be used. Please retake the photo.",
+    not_finite: "Please retry.",
     self_intersecting:
       "The frame crosses itself. Drag each corner back to its own place.",
     not_convex:
@@ -128,7 +130,7 @@ export const en: PaperAdjustCopy = {
       "The frame is too small. Drag the four corners onto the paper's corners.",
   },
   notPlaced: (corner) =>
-    `The ${corner.toLowerCase()} isn't placed yet. Drag it onto the paper's corner first.`,
+    `Move the ${corner.toLowerCase()} to the paper's corner.`,
   confirm: "Measure with this frame",
   cancel: "Cancel",
   retake: "Retake",

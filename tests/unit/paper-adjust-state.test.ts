@@ -508,7 +508,7 @@ describe("where the frame opens (F7; F10: always a best guess)", () => {
     expect(centred.placed).toEqual([false, false, false, false]);
   });
 
-  it("three corners found: the fourth worked out (inside the sheet) opens placed too, so the frame may be confirmed at once (manual)", () => {
+  it("three corners found: the three open placed, the fourth (a guess inside the sheet) does not, so the frame cannot be confirmed until it moved (manual)", () => {
     const partial = startAdjust({
       entry: "rescue",
       overlay: overlay({
@@ -519,10 +519,11 @@ describe("where the frame opens (F7; F10: always a best guess)", () => {
     });
     expect(partial.start.from).toBe("partial");
     expect(partial.start.detected).toEqual([true, false, true, true]);
-    expect(partial.placed).toEqual([true, true, true, true]);
-    const ready = adjustReadiness(partial);
-    expect(ready.ok).toBe(true);
-    if (ready.ok) expect(ready.source).toBe("manual");
+    // Claude's call on F14 (2026-10-22): the inferred fourth corner is not an
+    // automatic fit, so it opens not placed; the other three are placed.
+    expect(partial.placed).toEqual([true, false, true, true]);
+    expect(openingPlaced(partial.start)).toEqual([true, false, true, true]);
+    expect(adjustReadiness(partial)).toEqual({ ok: false, notPlaced: 1 });
   });
 
   it("one or two corners found: those in place, the rest from the rough quad, every corner placed", () => {
@@ -934,7 +935,7 @@ describe("startAdjust", () => {
     expect(s.placed).toEqual([true, true, true, true]);
   });
 
-  it("rescue after a hidden corner: three corners and a guess inside the sheet, all four placed (F14)", () => {
+  it("rescue after a hidden corner: three corners placed, the guess inside the sheet not (F14)", () => {
     const s = startAdjust({
       entry: "rescue",
       overlay: overlay({
@@ -944,7 +945,8 @@ describe("startAdjust", () => {
     });
     expect(s.start.from).toBe("partial");
     expect(s.start.detected).toEqual([true, false, true, true]);
-    expect(s.placed).toEqual([true, true, true, true]);
+    expect(s.placed).toEqual([true, false, true, true]);
+    expect(adjustReadiness(s)).toEqual({ ok: false, notPlaced: 1 });
   });
 
   it("check: always the centred sheet with nothing placed, even with the detector's corners at hand", () => {
@@ -1062,7 +1064,7 @@ describe("relative drag", () => {
     expect(s.corners[1]).toEqual(OUT);
   });
 
-  it("the worked-out fourth corner: a tap leaves it as it opened (placed); a drag onto the sheet's corner moves it there", () => {
+  it("the guessed fourth corner: a tap leaves it not placed; a drag onto the sheet's corner moves it there and places it", () => {
     const start = startAdjust({
       entry: "rescue",
       overlay: overlay({
@@ -1082,7 +1084,8 @@ describe("relative drag", () => {
       { type: "pointerMove", pointerId: 1, point: { x: 5, y: 5 }, scale },
       { type: "pointerUp", pointerId: 1 },
     );
-    expect(s.placed[1]).toBe(true);
+    expect(s.placed[1]).toBe(false);
+    expect(adjustReadiness(s)).toEqual({ ok: false, notPlaced: 1 });
     expect(s.corners).toEqual(start.corners);
     s = run(
       s,
@@ -1150,7 +1153,7 @@ describe("relative drag", () => {
   });
 });
 
-describe("the corner the detector did not find (F14): opens placed, and stays placed whatever moves it", () => {
+describe("the corner the detector did not find (F14): opens not placed, any move places it, the other three open placed", () => {
   const partial = () =>
     startAdjust({
       entry: "rescue",
@@ -1176,27 +1179,84 @@ describe("the corner the detector did not find (F14): opens placed, and stays pl
     ]);
   });
 
-  it("confirmed as it opened: usable at once (manual: a corner the detector did not find)", () => {
-    const ready = adjustReadiness(partial());
-    expect(ready.ok).toBe(true);
-    if (ready.ok) expect(ready.source).toBe("manual");
+  it("as it opened: not usable, the guessed corner is the one still to place", () => {
+    const s = partial();
+    expect(s.placed).toEqual([true, false, true, true]);
+    expect(adjustReadiness(s)).toEqual({ ok: false, notPlaced: 1 });
   });
 
-  it("one arrow press, ten with Shift, or a short drag: still placed, the frame still usable", () => {
-    const scale = 0.4;
-    let s = run(partial(), {
-      type: "nudge",
-      index: 1,
-      dx: 1,
-      dy: 0,
-      big: false,
-      scale,
-    });
-    expect(s.placed[1]).toBe(true);
-    s = run(s, { type: "nudge", index: 1, dx: 1, dy: 0, big: true, scale });
-    expect(s.placed[1]).toBe(true);
-    s = run(
-      s,
+  it("a tap or a press without a move, on the guessed corner or the photo, places nothing", () => {
+    const tapped = run(
+      partial(),
+      {
+        type: "pointerDown",
+        index: 1,
+        pointerId: 1,
+        pointerType: "touch",
+        point: { x: 5, y: 5 },
+      },
+      { type: "pointerMove", pointerId: 1, point: { x: 5, y: 5 }, scale: 1 },
+      { type: "pointerUp", pointerId: 1 },
+    );
+    expect(tapped.placed).toEqual([true, false, true, true]);
+    expect(adjustReadiness(tapped)).toEqual({ ok: false, notPlaced: 1 });
+    const selected = run(partial(), { type: "select", index: 1 });
+    expect(selected.placed).toEqual([true, false, true, true]);
+  });
+
+  it("dragging only the guessed corner, the other three untouched, makes the frame usable (manual)", () => {
+    const start = partial();
+    const scale = 0.5;
+    const s = run(
+      start,
+      {
+        type: "pointerDown",
+        index: 1,
+        pointerId: 1,
+        pointerType: "touch",
+        point: { x: 0, y: 0 },
+      },
+      {
+        type: "pointerMove",
+        pointerId: 1,
+        point: {
+          x: (RECT[1].x - start.corners[1].x) * scale,
+          y: (RECT[1].y - start.corners[1].y) * scale,
+        },
+        scale,
+      },
+      { type: "pointerUp", pointerId: 1 },
+    );
+    expect(s.placed).toEqual([true, true, true, true]);
+    expect([s.corners[0], s.corners[2], s.corners[3]]).toEqual([
+      RECT[0],
+      RECT[2],
+      RECT[3],
+    ]);
+    const ready = adjustReadiness(s);
+    expect(ready.ok).toBe(true);
+    if (ready.ok) {
+      expect(ready.source).toBe("manual");
+      expect(ready.corners[1].x).toBeCloseTo(RECT[1].x, 9);
+      expect(ready.corners[1].y).toBeCloseTo(RECT[1].y, 9);
+    }
+  });
+
+  it("one arrow press, ten with Shift, or a short drag: any move places the guessed corner", () => {
+    const k = 0.4;
+    for (const big of [false, true]) {
+      const nudged = run(partial(), {
+        type: "nudge",
+        index: 1,
+        dx: 1,
+        dy: 0,
+        big,
+        scale: k,
+      });
+      expect(nudged.placed[1]).toBe(true);
+    }
+    const dragged = run(
+      partial(),
       {
         type: "pointerDown",
         index: 1,
@@ -1206,8 +1266,33 @@ describe("the corner the detector did not find (F14): opens placed, and stays pl
       },
       { type: "pointerMove", pointerId: 1, point: { x: 2, y: 0 }, scale: 1 },
     );
-    expect(s.placed[1]).toBe(true);
-    expect(adjustReadiness(s).ok).toBe(true);
+    expect(dragged.placed[1]).toBe(true);
+    expect(adjustReadiness(dragged).ok).toBe(true);
+  });
+
+  it("a second finger cancels the drag: the guessed corner is not placed again", () => {
+    const s = run(
+      partial(),
+      {
+        type: "pointerDown",
+        index: 1,
+        pointerId: 1,
+        pointerType: "touch",
+        point: { x: 0, y: 0 },
+      },
+      { type: "pointerMove", pointerId: 1, point: { x: 30, y: 0 }, scale: 1 },
+      { type: "dragCancel" },
+    );
+    expect(s.placed).toEqual([true, false, true, true]);
+  });
+
+  it("reset puts it back to not placed", () => {
+    const s = run(
+      partial(),
+      { type: "nudge", index: 1, dx: 1, dy: 0, big: false, scale: 1 },
+      { type: "reset" },
+    );
+    expect(s.placed).toEqual([true, false, true, true]);
   });
 
   it("a corner the detector found is placed by any move, however small", () => {
@@ -1569,8 +1654,9 @@ describe("a corner under the hand: two marks on its edges", () => {
   it("reset forgets which corners were worked out", () => {
     const s = run(solvedBR(), { type: "reset" });
     expect(s.solved).toEqual([false, false, false, false]);
-    // Back to the opening frame, placed as it opened (F14: all four).
-    expect(s.placed).toEqual([true, true, true, true]);
+    // Back to the opening frame, placed as it opened (F14: the three found
+    // corners; the hidden one is a guess, not placed).
+    expect(s.placed).toEqual([true, true, false, true]);
     expect(s.corners).toEqual(start().corners);
   });
 
@@ -1585,8 +1671,8 @@ describe("a corner under the hand: two marks on its edges", () => {
     );
     expect(s.notice?.kind).toBe("edgeProblem");
     expect(s.corners[2]).toEqual(before);
-    // Where it opened, and as it opened (placed, F14).
-    expect(s.placed[2]).toBe(true);
+    // Where it opened, and as it opened (a guess: not placed, F14).
+    expect(s.placed[2]).toBe(false);
     expect(s.edge).toEqual({ index: 2, points: [] });
     s = run(s, { type: "edgeCancel" });
     expect(s.edge).toBeNull();

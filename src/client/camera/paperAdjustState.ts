@@ -520,7 +520,13 @@ const ALL_PLACED = [true, true, true, true] as const;
 export function openingPlaced(
   start: DefaultAdjustFrame,
 ): readonly [boolean, boolean, boolean, boolean] {
-  return start.from === "centred" ? start.detected : ALL_PLACED;
+  // The centred sheet has no clue to trust, and the fourth corner of a
+  // three-corner find starts deliberately inside the sheet (`isGuessedCorner`):
+  // neither is an automatic fit, so those corners still need a move (Claude's
+  // call on F14, 2026-10-22). Every other corner opens placed.
+  return start.from === "centred" || start.from === "partial"
+    ? start.detected
+    : ALL_PLACED;
 }
 
 /**
@@ -537,7 +543,8 @@ export function openingPlaced(
  *   after a failure, the corners it found, else its rough quad around the
  *   bright region (`paperGuessCorners`, F10: also after `PAPER_NOT_FOUND`,
  *   which F7 opened on the centred sheet), else the centred sheet. Every
- *   corner opens placed except on the centred sheet (`openingPlaced`, F14).
+ *   corner opens placed except on the centred sheet and the inferred fourth
+ *   corner of a three-corner find (`openingPlaced`, F14).
  */
 export function startAdjust(input: {
   readonly entry: AdjustEntry;
