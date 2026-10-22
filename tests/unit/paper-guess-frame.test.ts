@@ -123,9 +123,13 @@ describe("the frame a failed photo opens with (F10): the rough guess, against th
       rows.push(
         `${name}: stage ${detection.failureStage}, opens on ${opened.start.from}, mean corner distance ${g.toFixed(1)} px (centred ${c.toFixed(1)} px)`,
       );
-      // Corners of a guess are never placed: each must be confirmed.
-      if (opened.start.from === "guess")
-        expect(opened.placed).toEqual([false, false, false, false]);
+      // F14: a guess opens placed (it may be confirmed at once); only the
+      // centred sheet asks for every corner to be moved.
+      expect(opened.placed).toEqual(
+        opened.start.from === "centred"
+          ? [false, false, false, false]
+          : [true, true, true, true],
+      );
     }
     console.info(
       `[F10 item 3, simulated, 750x1000 frames]\n${rows.join("\n")}\nmean over the 4 scenes: guess ${mean(guessMeans).toFixed(1)} px, centred ${mean(centredMeans).toFixed(1)} px`,
@@ -133,7 +137,7 @@ describe("the frame a failed photo opens with (F10): the rough guess, against th
     expect(mean(guessMeans)).toBeLessThan(mean(centredMeans));
   }, 60_000);
 
-  it("a sheet found with two of its corners (clip left): the two found ones in place and placed, the rest from the rough quad", () => {
+  it("a sheet found with two of its corners (clip left): the two found ones in place, the rest from the rough quad, all placed (F14)", () => {
     const c = generateSyntheticPaper({
       width: 1000,
       height: 750,
@@ -151,7 +155,8 @@ describe("the frame a failed photo opens with (F10): the rough guess, against th
       paperSize: "a4",
     });
     expect(opened.start.from).toBe("guess");
-    expect(opened.placed.filter(Boolean)).toHaveLength(2);
+    expect(opened.start.detected.filter(Boolean)).toHaveLength(2);
+    expect(opened.placed).toEqual([true, true, true, true]);
     detection.partialCorners.forEach((p, i) => {
       if (p) expect(opened.corners[i]).toEqual(p);
     });

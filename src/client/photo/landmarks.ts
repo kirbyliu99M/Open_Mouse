@@ -21,6 +21,8 @@ const WASM_BASE_PATH = "/mediapipe/wasm";
 const MODEL_ASSET_PATH = "/mediapipe/models/hand_landmarker.task";
 
 let landmarkerPromise: Promise<HandLandmarker> | null = null;
+/** The landmarker once it has loaded, for the live loop's synchronous reading (F14). */
+let readyLandmarker: HandLandmarker | null = null;
 
 /**
  * Where the detector is in loading, for a progress display. MediaPipe loads
@@ -129,14 +131,47 @@ export function getHandLandmarker(): Promise<HandLandmarker> {
       landmarker = await create({ modelAssetPath: MODEL_ASSET_PATH });
     }
     setLoadState({ stage: "ready" });
+    readyLandmarker = landmarker;
     return landmarker;
   })().catch((error: unknown) => {
     // A transient asset failure must not poison every later retry.
     landmarkerPromise = null;
+    readyLandmarker = null;
     setLoadState({ stage: "failed" });
     throw new HandLandmarkerLoadError(error);
   });
   return landmarkerPromise;
+}
+
+/** Whether the landmarker has loaded (the live loop reads the hand only then, F14). */
+export function isHandLandmarkerReady(): boolean {
+  return readyLandmarker !== null;
+}
+
+/**
+ * V3.2 F14 (candidate): the hand's landmarks in one picture of the live
+ * preview (`source`, `width` x `height` px), read synchronously with the
+ * landmarker that is already loaded, or `undefined` while it is not loaded
+ * yet (this never starts a load or waits for one). `null` when no hand was
+ * found or the reading threw. Only whether a hand is there and held still is
+ * used (`noSheetCapture.ts`): nothing is measured from it, and the picture is
+ * not kept.
+ */
+export function readLiveHandPoints(
+  source: HTMLCanvasElement | ImageData,
+  width: number,
+  height: number,
+): Point2[] | null | undefined {
+  const landmarker = readyLandmarker;
+  if (!landmarker) return undefined;
+  try {
+    const landmarks = landmarker.detect(source).landmarks[0];
+    return landmarks && landmarks.length > 0
+      ? toPixelPoints(landmarks, width, height)
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

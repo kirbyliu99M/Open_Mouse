@@ -9,11 +9,13 @@ import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { PaperAdjust } from "../../src/client/camera/PaperAdjust";
+import { PaperAdjust, refusalText } from "../../src/client/camera/PaperAdjust";
 import {
   PAPER_ADJUST_LAYOUT,
   adjustConfirmAction,
+  adjustReadiness,
   adjustReducer,
+  cornerPositions,
   fitPhoto,
   scanMeasuredPaper,
   sheetView,
@@ -52,7 +54,7 @@ function render(
   extra: {
     entry?: "rescue" | "review" | "check";
     state?: AdjustState;
-    warning?: "curled" | null;
+    leave?: "cancel" | "retake";
     stage?: { width: number; height: number };
     magnifier?: boolean;
     locale?: "zh-TW" | "en";
@@ -71,7 +73,7 @@ function render(
       initialState: extra.state,
       initialStageSize: extra.stage ?? { width: 390, height: 600 },
       initialMagnifier: extra.magnifier,
-      warning: extra.warning,
+      leave: extra.leave,
     }),
   );
 }
@@ -107,18 +109,96 @@ describe("the handles", () => {
     );
   });
 
-  it("marks a corner still at its starting guess as not placed, in its name too", () => {
-    const html = render({
-      overlay: {
-        ...OVERLAY,
-        paperCorners: undefined,
-        paperPartialCorners: [RECT[0], null, RECT[2], RECT[3]],
-      },
-    });
+  const PARTIAL: PhotoOverlay = {
+    ...OVERLAY,
+    paperCorners: undefined,
+    paperPartialCorners: [RECT[0], null, RECT[2], RECT[3]],
+  };
+
+  it("three corners found: the three open placed, the guessed fourth says in its name that it is not, and confirming is refused until it moved (F14)", () => {
+    const html = render({ overlay: PARTIAL });
     const all = handles(html);
-    expect(all[1]).toContain('data-placed="false"');
-    expect(all[1]).toContain("還沒對齊");
-    expect(html).toContain(paperAdjustCopy("zh-TW").instructionGuess);
+    expect(all.map((h) => h.includes('data-placed="true"'))).toEqual([
+      true,
+      false,
+      true,
+      true,
+    ]);
+    expect(all[1]).toContain('aria-label="右上角，還沒對齊"');
+    expect(all[0]).not.toContain("還沒對齊");
+    expect(all[2]).not.toContain("還沒對齊");
+    expect(all[3]).not.toContain("還沒對齊");
+    expect(html).toMatch(
+      /<button[^>]*class="primaryButton paperAdjustConfirm"[^>]*aria-disabled="true"/,
+    );
+    expect(render({ overlay: PARTIAL, locale: "en" })).toContain(
+      'aria-label="Top-right corner, not placed yet"',
+    );
+  });
+
+  it("three corners found, the fourth dragged: all four placed and the frame may be confirmed", () => {
+    const start = startAdjust({
+      entry: "rescue",
+      overlay: PARTIAL,
+      paperSize: "a4",
+    });
+    const moved = adjustReducer(
+      adjustReducer(start, {
+        type: "pointerDown",
+        index: 1,
+        pointerId: 1,
+        pointerType: "touch",
+        point: { x: 0, y: 0 },
+      }),
+      {
+        type: "pointerMove",
+        pointerId: 1,
+        point: { x: 4, y: 3 },
+        scale: 1,
+      },
+    );
+    const html = render({ overlay: PARTIAL, state: moved });
+    expect(handles(html).every((h) => h.includes('data-placed="true"'))).toBe(
+      true,
+    );
+    expect(html).not.toContain("還沒對齊");
+    const confirm = html.match(
+      /<button[^>]*data-testid="paper-adjust-confirm"[^>]*>/,
+    )![0];
+    expect(confirm).not.toContain("aria-disabled");
+  });
+
+  it("a refused confirm names the corner still to line up in the status line, in both languages", () => {
+    const state = startAdjust({
+      entry: "rescue",
+      overlay: PARTIAL,
+      paperSize: "a4",
+    });
+    const readiness = adjustReadiness(state);
+    expect(readiness.ok).toBe(false);
+    if (readiness.ok) return;
+    const positions = cornerPositions(state.corners);
+    expect(refusalText(readiness, positions, paperAdjustCopy("zh-TW"))).toBe(
+      "右上角還沒對齊，請拖到紙角。",
+    );
+    expect(refusalText(readiness, positions, paperAdjustCopy("en"))).toBe(
+      "Move the top-right corner to the paper's corner.",
+    );
+    // A frame that cannot be used for another reason keeps its own words.
+    expect(
+      refusalText(
+        { ok: false, problem: "too_small" },
+        positions,
+        paperAdjustCopy("zh-TW"),
+      ),
+    ).toBe(paperAdjustCopy("zh-TW").quadProblem.too_small);
+  });
+
+  it("the centred sheet: its corners still say in their names that they are not placed (no visible mark), and confirming is refused until they are", () => {
+    const html = render({ overlay: { ...OVERLAY, paperCorners: undefined } });
+    const all = handles(html);
+    expect(all.every((h) => h.includes('data-placed="false"'))).toBe(true);
+    expect(all[0]).toContain('aria-label="左上角，還沒對齊"');
     // The primary button says it cannot be used yet, without being removed
     // from the keyboard order.
     expect(html).toMatch(
@@ -199,29 +279,93 @@ describe("the magnifier", () => {
   });
 });
 
-describe("the hidden-corner marks", () => {
-  it("says which edge to tap, step by step, and how to stop", () => {
-    let s = startAdjust({ entry: "rescue", overlay: OVERLAY, paperSize: "a4" });
-    s = adjustReducer(s, { type: "select", index: 2 });
-    s = adjustReducer(s, { type: "edgeStart" });
-    const html = render({ state: s });
-    expect(html).toContain("第 1 步");
-    expect(html).toContain("右上角和右下角之間");
-    expect(html).toContain(paperAdjustCopy("zh-TW").edgeModeCancel);
-    expect(html).toContain('data-marking="true"');
-    expect(html).toContain('data-hidden-corner="true"');
+describe("only what is needed (F14, Kirby's phone test of preview 5, 2026-10-22: no need for multiple indicators)", () => {
+  const GUESS: Quad4 = [
+    { x: 190, y: 310 },
+    { x: 815, y: 290 },
+    { x: 760, y: 1160 },
+    { x: 215, y: 1140 },
+  ];
+  const variants = () => [
+    render(),
+    render({ entry: "review" }),
+    render({ overlay: { ...OVERLAY, paperCorners: null } }),
+    render({
+      overlay: { ...OVERLAY, paperCorners: null, paperGuessCorners: GUESS },
+    }),
+    render({ locale: "en" }),
+  ];
+
+  it("no instruction or gesture lines, no hidden-corner tool, no reset, no warning box", () => {
+    for (const html of variants()) {
+      expect(html).not.toContain("paperAdjustHint");
+      expect(html).not.toContain("paperAdjustWarning");
+      expect(html).not.toContain("paper-adjust-edge-mode");
+      expect(html).not.toContain("data-marking");
+      expect(html).not.toContain("data-hidden-corner");
+      // Under the heading: nothing but the heading.
+      expect(html).toMatch(
+        /<header class="paperAdjustHeader"><h2[^>]*>[^<]*<\/h2><\/header>/,
+      );
+      // The status line is empty while the frame can be used.
+      expect(html).toMatch(/data-testid="paper-adjust-status"><\/p>/);
+    }
   });
 
-  it("says why a corner could not be worked out", () => {
-    let s = startAdjust({ entry: "rescue", overlay: OVERLAY, paperSize: "a4" });
-    s = adjustReducer(s, { type: "select", index: 2 });
-    s = adjustReducer(s, { type: "edgeStart" });
-    s = adjustReducer(s, { type: "edgeTap", point: { x: 250, y: 1150 } });
-    s = adjustReducer(s, { type: "edgeTap", point: { x: 300, y: 1150 } });
-    if (s.notice?.kind !== "edgeProblem") throw new Error("no problem");
-    expect(render({ state: s })).toContain(
-      paperAdjustCopy("zh-TW").edgeProblem[s.notice.problem],
+  it("keeps the photo, the frame, four handles, confirm, cancel and the whole / zoomed toggle; the centred frame after a failure with a clue", () => {
+    for (const html of variants()) {
+      expect(html).toContain('class="paperAdjustPhoto"');
+      expect(html).toContain("<polygon");
+      expect(handles(html)).toHaveLength(4);
+      expect(html).toContain('data-testid="paper-adjust-confirm"');
+      expect(html).toContain('data-testid="paper-adjust-cancel"');
+      expect(html).toContain('data-testid="paper-adjust-view"');
+    }
+    expect(render()).toContain('data-testid="paper-adjust-centre"');
+  });
+
+  it("the way out says 重拍 / Retake when the screen opened by itself, else 取消 / Cancel", () => {
+    const cancel = (html: string) =>
+      html.match(/data-testid="paper-adjust-cancel">([^<]*)</)?.[1];
+    expect(cancel(render())).toBe("取消");
+    expect(cancel(render({ leave: "retake" }))).toBe("重拍");
+    expect(cancel(render({ leave: "retake", locale: "en" }))).toBe("Retake");
+    expect(cancel(render({ locale: "en" }))).toBe("Cancel");
+  });
+
+  it("every handle looks the same: the per-corner marks are gone from the styles", () => {
+    const css = readFileSync("src/client/camera/easy-scan.css", "utf8");
+    expect(css).not.toMatch(/paperAdjustHandle\[data-placed/);
+    expect(css).not.toMatch(
+      /data-hidden-corner|paperAdjustEdge|paperAdjustWarning/,
     );
+  });
+
+  it("the words the screen no longer shows are gone from the copy (both languages)", () => {
+    for (const locale of ["zh-TW", "en"] as const) {
+      const keys = Object.keys(paperAdjustCopy(locale));
+      for (const gone of [
+        "instructionDetected",
+        "instructionGuess",
+        "instructionRough",
+        "gestureHint",
+        "notConfirmed",
+        "edgeModeStart",
+        "edgeModeCancel",
+        "edgeStep",
+        "edgeSolved",
+        "edgeProblem",
+        "edgeUndone",
+        "chooseCornerFirst",
+        "placeNeighboursFirst",
+        "reset",
+        "curledWarning",
+      ])
+        expect(keys).not.toContain(gone);
+      expect(Object.keys(paperAdjustCopy(locale).review)).not.toContain(
+        "instruction",
+      );
+    }
   });
 });
 
@@ -248,22 +392,15 @@ describe("words", () => {
     expect(paperAdjustCopy("zh-TW").review.entry).toBe("檢查邊框");
   });
 
-  it("a curled sheet is said before confirming (F7), and the confirm button stays usable", () => {
+  it("a curled sheet adds no line here (F14): the results page says it (F13), and the confirm button stays usable", () => {
     for (const locale of ["zh-TW", "en"] as const) {
-      const html = render({ warning: "curled", locale });
-      expect(html).toContain('data-testid="paper-adjust-warning"');
-      expect(html).toContain(
-        paperAdjustCopy(locale).curledWarning.replace(/'/g, "&#x27;"),
-      );
+      const html = render({ locale });
+      expect(html).not.toContain("paper-adjust-warning");
       const confirm = html.match(
         /<button[^>]*data-testid="paper-adjust-confirm"[^>]*>/,
       )![0];
       expect(confirm).not.toContain("aria-disabled");
     }
-    expect(paperAdjustCopy("zh-TW").curledWarning).toBe(
-      "紙好像沒有平貼，手動調整後量測可能不準，建議先把紙壓平再拍一次。",
-    );
-    expect(render()).not.toContain("paper-adjust-warning");
   });
 
   it("the corner check is named as such, with its own button", () => {
@@ -362,7 +499,10 @@ describe("where the camera offers it (EasyScanCamera.tsx)", () => {
     // a curled sheet says so before confirming.
     expect(source).toContain("previous={");
     expect(source).toContain("result.placedFrame ?? null");
-    expect(source).toContain("warning={adjustWarningFor(result)}");
+    // F14: no warning on the screen any more; the way out says 重拍 when it
+    // opened by itself.
+    expect(source).not.toContain("warning={");
+    expect(source).toContain('leave={adjustDirect ? "retake" : "cancel"}');
     // F10: no first-code special case any more (F7 opened PAPER_NOT_FOUND on
     // the centred sheet); the frame opens on the best guess in the overlay.
     expect(source).not.toContain("firstCode=");
@@ -573,15 +713,14 @@ describe("PaperAdjust.tsx wires F10's magnifier, views, pinch and centred frame"
     paperGuessCorners: GUESS,
   };
 
-  it("a rescue opening on the rough guess shows the centred-frame button, the gesture hint and the whole-photo button", () => {
+  it("a rescue opening on the rough guess shows the centred-frame button and the whole-photo button, every corner placed (F14)", () => {
     const html = render({ overlay: guessOverlay });
     const copy = paperAdjustCopy("zh-TW");
     expect(html).toContain('data-testid="paper-adjust-centre"');
     expect(html).toContain(copy.centreFrame);
-    expect(html).toContain(copy.gestureHint);
     expect(html).toContain('data-view="zoomed"');
     expect(html).toContain(copy.wholePhoto);
-    expect(handles(html).every((h) => h.includes('data-placed="false"'))).toBe(
+    expect(handles(html).every((h) => h.includes('data-placed="true"'))).toBe(
       true,
     );
   });
