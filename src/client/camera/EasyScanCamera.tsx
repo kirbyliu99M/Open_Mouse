@@ -97,11 +97,13 @@ import {
   type AutoCaptureState,
 } from "./autoCapture";
 import {
+  EMPTY_HAND_READINGS,
   INITIAL_NO_SHEET_CAPTURE_STATE,
   advanceNoSheetCapture,
   liveHandSignal,
+  recordHandReading,
   shouldSampleHand,
-  type LiveHandReading,
+  type HandReadings,
   type NoSheetCaptureState,
 } from "./noSheetCapture";
 import {
@@ -652,15 +654,12 @@ export default function EasyScanCamera({
   const prevSampleQuadRef = useRef<Quad | null>(null);
   const autoCaptureRef = useRef<AutoCaptureState>(INITIAL_AUTO_CAPTURE_STATE);
   // F14 (candidate): the second way the shutter fires by itself, when the
-  // sheet is not found but a hand is held still (noSheetCapture.ts), and the
-  // last two readings of the hand it goes by.
+  // paper checks do not pass but a hand is held still (noSheetCapture.ts),
+  // and the two readings of the hand it goes by.
   const noSheetCaptureRef = useRef<NoSheetCaptureState>(
     INITIAL_NO_SHEET_CAPTURE_STATE,
   );
-  const handReadingsRef = useRef<{
-    previous: LiveHandReading | null;
-    latest: LiveHandReading | null;
-  }>({ previous: null, latest: null });
+  const handReadingsRef = useRef<HandReadings>(EMPTY_HAND_READINGS);
   const lastSampleTimeRef = useRef(0);
   const lastDetectionAtRef = useRef(0);
   const cornerStatesRef = useRef<CornerStates>(INITIAL_CORNER_STATES);
@@ -1020,7 +1019,7 @@ export default function EasyScanCamera({
     prevSampleQuadRef.current = fresh.prevQuad;
     autoCaptureRef.current = fresh.autoCapture;
     noSheetCaptureRef.current = INITIAL_NO_SHEET_CAPTURE_STATE;
-    handReadingsRef.current = { previous: null, latest: null };
+    handReadingsRef.current = EMPTY_HAND_READINGS;
     cornerStatesRef.current = INITIAL_CORNER_STATES;
     cueDebounceRef.current = INITIAL_CUE_DEBOUNCE_STATE;
     lastCueCodeRef.current = null;
@@ -2107,25 +2106,25 @@ export default function EasyScanCamera({
 
       // The ring reads the raw sample: one or two failures pause it, the
       // third in a row empties it (autoCapture.ts).
+      const paperPassing = nextCue.allPass && previewSettledRef.current;
       autoCaptureRef.current = advanceAutoCapture(
         autoCaptureRef.current,
-        nextCue.allPass && previewSettledRef.current,
+        paperPassing,
         dtMs,
       );
       setRingFraction(autoCaptureRingFraction(autoCaptureRef.current));
 
-      // F14 (candidate): no sheet found (a light table), but a hand held
-      // still: after `noSheetCapture.waitMs` the photo is taken anyway, and
-      // its analysis opens the adjustment (adjustOpensDirectly). The hand is
-      // read from this same sample, only while no sheet is found and at most
-      // every `handSampleIntervalMs`; only whether it is there and still is
-      // used, nothing is measured from it.
-      const sheetFound = sampleQuad !== null;
-      if (sheetFound)
-        handReadingsRef.current = { previous: null, latest: null };
-      else if (
+      // F14 (candidate): the paper checks do not pass (a light table: the
+      // sheet not found, found only now and then, or a quad the gate turns
+      // back), but a hand held still: after `noSheetCapture.waitMs` the photo
+      // is taken anyway, and its analysis opens the adjustment
+      // (adjustOpensDirectly). The hand is read from this same sample, only
+      // on samples the ring does not fill on and at most every
+      // `handSampleIntervalMs`; only whether it is there and still is used,
+      // nothing is measured from it.
+      if (
         shouldSampleHand({
-          sheetFound,
+          paperPassing,
           detectorReady: isHandLandmarkerReady(),
           lastReadingAtMs: handReadingsRef.current.latest?.atMs ?? null,
           nowMs: now,
@@ -2133,10 +2132,10 @@ export default function EasyScanCamera({
       ) {
         const points = readLiveHandPoints(canvas, width, height);
         if (points !== undefined)
-          handReadingsRef.current = {
-            previous: handReadingsRef.current.latest,
-            latest: { atMs: now, points },
-          };
+          handReadingsRef.current = recordHandReading(handReadingsRef.current, {
+            atMs: now,
+            points,
+          });
       }
       const hand = liveHandSignal({
         previous: handReadingsRef.current.previous,
@@ -2147,7 +2146,7 @@ export default function EasyScanCamera({
       noSheetCaptureRef.current = advanceNoSheetCapture(
         noSheetCaptureRef.current,
         {
-          sheetFound,
+          paperPassing,
           handSeen: hand.seen,
           handSteady: hand.steady,
           sharp: sharpEnough,

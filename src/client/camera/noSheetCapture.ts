@@ -4,19 +4,27 @@
  * perform the auto scan, if it cannot identify, it has to automatically go
  * into adjustment mode."
  *
- * On a light table the live detector may never find the sheet, so the paper
- * ring (`autoCapture.ts`) never fills and nothing happens. This is the second
- * way the shutter fires by itself: while the sheet is NOT found but a hand is
- * seen, held still, in a sharp picture, for `waitMs` (about 4 s), the photo is
- * taken anyway. Its analysis then opens the adjustment screen when it fails on
- * the paper (`adjustOpensDirectly`, paperAdjustState.ts).
+ * On a light table the live detector may never find the sheet, or find it
+ * only now and then, or find a quad that does not pass the paper gate, so the
+ * paper ring (`autoCapture.ts`) never fills and nothing happens. This is the
+ * second way the shutter fires by itself: while the paper ring is NOT being
+ * fed passing samples but a hand is seen, held still, in a sharp picture, for `waitMs` (about
+ * 4 s), the photo is taken anyway. Its analysis then opens the adjustment
+ * screen when it fails on the paper (`adjustOpensDirectly`,
+ * paperAdjustState.ts).
  *
  * Everything here is pure: the live loop gives it one sample at a time.
  *
- * - The wait only runs while every condition holds; a found sheet empties it
- *   at once (the paper ring is then the one that counts).
- * - One or two samples without a steady hand only pause it (as the paper
- *   ring, scan v2); `maxConsecutiveMisses` in a row empty it.
+ * - The wait runs while the paper ring gets no passing sample. A sheet found
+ *   now and then, or a quad the gate turns back, does not touch it: only a
+ *   sample on which every paper check passes (the ring fills on it) pauses
+ *   the wait, and a sheet that keeps passing fires the ring first (800 ms
+ *   against 4 s). The wait is never emptied by the sheet.
+ * - Samples without a steady hand only pause it (as the paper ring, scan
+ *   v2); `maxConsecutiveMisses` in a row empty it. One hand reading that
+ *   missed the hand or saw it move costs at most two readings' worth of
+ *   samples (`recordHandReading` keeps the last reading that found a hand to
+ *   compare with), which is fewer than `maxConsecutiveMisses`.
  * - Before the preview has settled (exposure, focus) nothing is counted.
  * - The hand is read by the live loop at most every `handSampleIntervalMs`
  *   (`shouldSampleHand`); a reading older than `handStaleMs` counts as no
@@ -42,8 +50,13 @@ export const INITIAL_NO_SHEET_CAPTURE_STATE: NoSheetCaptureState = {
 
 /** What one live sample says. */
 export interface NoSheetSample {
-  /** The detector found the sheet's four corners in this sample. */
-  readonly sheetFound: boolean;
+  /**
+   * Every paper check passed on this sample, so the paper ring
+   * (`autoCapture.ts`) fills on it: the ring is the one that counts and this
+   * wait pauses. A found quad that does not pass, or a sheet found only now
+   * and then, leaves this false and the wait on.
+   */
+  readonly paperPassing: boolean;
   /** A hand was read recently enough (`liveHandSignal`). */
   readonly handSeen: boolean;
   /** ...and it has not moved between the last two readings. */
@@ -63,8 +76,7 @@ export function advanceNoSheetCapture(
     .maxConsecutiveMisses,
 ): NoSheetCaptureState {
   if (state.fired) return state;
-  if (sample.sheetFound) return INITIAL_NO_SHEET_CAPTURE_STATE;
-  if (!sample.settled) return state;
+  if (sample.paperPassing || !sample.settled) return state;
   if (!(sample.handSeen && sample.handSteady && sample.sharp)) {
     const missStreak = state.missStreak + 1;
     if (missStreak >= maxConsecutiveMisses)
@@ -87,24 +99,52 @@ export interface LiveHandReading {
 }
 
 /**
- * Whether the live loop reads the hand on this sample: only while the sheet
- * is not found (the paper ring needs no hand), only once the hand detector is
- * loaded, and at most every `handSampleIntervalMs`.
+ * Whether the live loop reads the hand on this sample: only when the paper
+ * checks did not pass (the ring needs no hand), only once the hand detector
+ * is loaded, and at most every `handSampleIntervalMs`.
  */
 export function shouldSampleHand(input: {
-  readonly sheetFound: boolean;
+  readonly paperPassing: boolean;
   readonly detectorReady: boolean;
   readonly lastReadingAtMs: number | null;
   readonly nowMs: number;
   readonly intervalMs?: number;
 }): boolean {
-  if (input.sheetFound || !input.detectorReady) return false;
+  if (input.paperPassing || !input.detectorReady) return false;
   const interval =
     input.intervalMs ?? CAMERA_CONSTANTS.noSheetCapture.handSampleIntervalMs;
   return (
     input.lastReadingAtMs === null ||
     input.nowMs - input.lastReadingAtMs >= interval
   );
+}
+
+/** The two hand readings `liveHandSignal` goes by. */
+export interface HandReadings {
+  /** The last reading before `latest` that found a hand (never a `null` one). */
+  readonly previous: LiveHandReading | null;
+  readonly latest: LiveHandReading | null;
+}
+
+export const EMPTY_HAND_READINGS: HandReadings = {
+  previous: null,
+  latest: null,
+};
+
+/**
+ * Adds a new reading. `previous` becomes the old `latest` only when that one
+ * found a hand: a reading that missed the hand is not something to compare
+ * with, so after one miss the next reading that finds the hand is compared
+ * with the last one that did (`liveHandSignal`, within `handStaleMs`).
+ */
+export function recordHandReading(
+  readings: HandReadings,
+  reading: LiveHandReading,
+): HandReadings {
+  return {
+    previous: readings.latest?.points ? readings.latest : readings.previous,
+    latest: reading,
+  };
 }
 
 /** The largest movement of any landmark between two readings of the same hand, in sample px. */

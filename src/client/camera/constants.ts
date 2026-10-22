@@ -101,10 +101,13 @@ export const CAMERA_CONSTANTS = {
     /**
      * Live samples in a row without a steady hand that empty the wait. The
      * hand is read only every `handSampleIntervalMs` (4 live samples at
-     * 8 Hz), so one reading that missed the hand or saw it move pauses the
-     * wait; two in a row empty it.
+     * 8 Hz). One reading that missed the hand costs 4 samples (the next one
+     * is compared with the last that found it, `recordHandReading`); one that
+     * saw the hand jump and come back costs 8 (it spoils the comparison on
+     * both sides). Either only pauses the wait; two readings in a row that
+     * missed the hand (12 samples) empty it.
      */
-    maxConsecutiveMisses: 6,
+    maxConsecutiveMisses: 9,
     /** The live loop reads the hand at most this often, and only while no sheet is found. */
     handSampleIntervalMs: 500,
     /** A hand reading older than this counts as no hand. */

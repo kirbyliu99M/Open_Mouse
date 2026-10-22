@@ -8,13 +8,20 @@
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import {
+  INITIAL_AUTO_CAPTURE_STATE,
+  advanceAutoCapture,
+} from "../../src/client/camera/autoCapture";
 import { CAMERA_CONSTANTS } from "../../src/client/camera/constants";
 import {
+  EMPTY_HAND_READINGS,
   INITIAL_NO_SHEET_CAPTURE_STATE,
   advanceNoSheetCapture,
   liveHandSignal,
   maxLandmarkMovement,
+  recordHandReading,
   shouldSampleHand,
+  type HandReadings,
   type LiveHandReading,
   type NoSheetCaptureState,
   type NoSheetSample,
@@ -23,7 +30,7 @@ import {
 const C = CAMERA_CONSTANTS.noSheetCapture;
 const STEP_MS = 1000 / CAMERA_CONSTANTS.liveLoop.maxSamplesPerSecond; // 125
 const PASS: NoSheetSample = {
-  sheetFound: false,
+  paperPassing: false,
   handSeen: true,
   handSteady: true,
   sharp: true,
@@ -42,8 +49,10 @@ describe("the named wait (candidates)", () => {
     expect(C.handSampleIntervalMs).toBe(500);
     expect(C.handStaleMs).toBe(1200);
     expect(C.maxHandMovementFraction).toBe(0.03);
-    // One hand reading that misses spans fewer live samples than empty the wait.
-    expect(C.handSampleIntervalMs / STEP_MS).toBeLessThan(
+    // One hand reading that jumps spoils the comparison on both sides of it
+    // (two readings' worth of samples): still fewer than empty the wait.
+    expect(C.maxConsecutiveMisses).toBe(9);
+    expect((2 * C.handSampleIntervalMs) / STEP_MS).toBeLessThan(
       C.maxConsecutiveMisses,
     );
     // It is much longer than the paper ring: the sheet gets its chance first.
@@ -66,7 +75,7 @@ describe("advanceNoSheetCapture", () => {
   it("stays fired (a no-op) until reset", () => {
     const done = feed(times(needed));
     expect(
-      advanceNoSheetCapture(done, { ...PASS, sheetFound: true }, STEP_MS),
+      advanceNoSheetCapture(done, { ...PASS, paperPassing: true }, STEP_MS),
     ).toBe(done);
   });
 
@@ -76,14 +85,14 @@ describe("advanceNoSheetCapture", () => {
     expect(feed(times(200, { ...PASS, sharp: false })).fired).toBe(false);
   });
 
-  it("a found sheet empties it at once (the paper ring counts then)", () => {
+  it("a sample the paper ring fills on pauses it (the ring counts then); it neither counts nor misses", () => {
     const half = feed(times(needed - 2));
-    const reset = advanceNoSheetCapture(
-      half,
-      { ...PASS, sheetFound: true },
-      STEP_MS,
-    );
-    expect(reset).toEqual(INITIAL_NO_SHEET_CAPTURE_STATE);
+    const paused = feed(times(50, { ...PASS, paperPassing: true }), half);
+    expect(paused).toEqual(half);
+    expect(
+      feed(times(50, { ...PASS, handSeen: false, paperPassing: true }), half),
+    ).toEqual(half);
+    expect(feed(times(2), paused).fired).toBe(true);
   });
 
   it("a short miss only pauses it; maxConsecutiveMisses in a row empty it", () => {
@@ -126,10 +135,18 @@ describe("the hand in the live picture", () => {
   const diagonal = Math.hypot(480, 640); // 800
 
   it("is read only while no sheet is found, once the detector is loaded, at most every handSampleIntervalMs", () => {
-    const base = { sheetFound: false, detectorReady: true, nowMs: 10_000 };
+    const base = {
+      paperPassing: false,
+      detectorReady: true,
+      nowMs: 10_000,
+    };
     expect(shouldSampleHand({ ...base, lastReadingAtMs: null })).toBe(true);
     expect(
-      shouldSampleHand({ ...base, sheetFound: true, lastReadingAtMs: null }),
+      shouldSampleHand({
+        ...base,
+        paperPassing: true,
+        lastReadingAtMs: null,
+      }),
     ).toBe(false);
     expect(
       shouldSampleHand({
@@ -205,58 +222,155 @@ describe("the hand in the live picture", () => {
     });
   });
 
-  it("a hand held still on a light table: about 4 s of readings fire it; a hand that keeps moving never does (simulated)", () => {
-    const run = (jitterPx: number) => {
-      let state = INITIAL_NO_SHEET_CAPTURE_STATE;
-      let previous: LiveHandReading | null = null;
-      let latest: LiveHandReading | null = null;
-      for (let t = STEP_MS; t <= 10_000; t += STEP_MS) {
-        if (
-          shouldSampleHand({
-            sheetFound: false,
-            detectorReady: true,
-            lastReadingAtMs: latest?.atMs ?? null,
-            nowMs: t,
-          })
-        ) {
-          previous = latest;
-          latest = {
-            atMs: t,
-            points: hand(
-              (Math.round(t / C.handSampleIntervalMs) % 2) * jitterPx,
-            ),
-          };
-        }
-        const h = liveHandSignal({
-          previous,
-          latest,
+  it("recordHandReading keeps the last reading that found a hand as the one to compare with", () => {
+    const a = { atMs: 0, points: hand() };
+    const miss = { atMs: 500, points: null };
+    const b = { atMs: 1000, points: hand(1) };
+    // A miss right after a hand: the hand becomes the one to compare with.
+    const afterMiss = recordHandReading(
+      recordHandReading(EMPTY_HAND_READINGS, a),
+      miss,
+    );
+    expect(afterMiss).toEqual({ previous: a, latest: miss });
+    // The next hand is compared with `a`, not with the miss...
+    const next = recordHandReading(afterMiss, b);
+    expect(next).toEqual({ previous: a, latest: b });
+    expect(
+      liveHandSignal({ ...next, nowMs: 1000, frameDiagonal: diagonal }),
+    ).toEqual({ seen: true, steady: true });
+    // ...and a second miss in a row keeps `a` too (it goes stale then).
+    const twoMisses = recordHandReading(afterMiss, {
+      atMs: 1000,
+      points: null,
+    });
+    expect(twoMisses.previous).toEqual(a);
+  });
+
+  /**
+   * The whole chain of one live sample, SIMULATED (模擬): the real paper ring
+   * (advanceAutoCapture), the real hand reading rules and the real wait, at
+   * 8 samples a second. `paperPass(i)` is the ring's own input on sample i
+   * (the live loop's `nextCue.allPass && settled`); `handAt(t)` is what one
+   * hand reading at t ms finds (landmark x offset in px, or null for none).
+   * Returns which way fired first and when, or null by 20 s.
+   */
+  const chain = (
+    paperPass: (i: number) => boolean,
+    handAt: (t: number) => number | null,
+  ): { by: "paper" | "no-sheet"; atMs: number } | null => {
+    let ring = INITIAL_AUTO_CAPTURE_STATE;
+    let wait = INITIAL_NO_SHEET_CAPTURE_STATE;
+    let readings: HandReadings = EMPTY_HAND_READINGS;
+    for (let i = 1; i * STEP_MS <= 20_000; i++) {
+      const t = i * STEP_MS;
+      ring = advanceAutoCapture(ring, paperPass(i), STEP_MS);
+      const paperPassing = paperPass(i);
+      if (
+        shouldSampleHand({
+          paperPassing,
+          detectorReady: true,
+          lastReadingAtMs: readings.latest?.atMs ?? null,
           nowMs: t,
-          frameDiagonal: diagonal,
-        });
-        state = advanceNoSheetCapture(
-          state,
-          {
-            sheetFound: false,
-            handSeen: h.seen,
-            handSteady: h.steady,
-            sharp: true,
-            settled: true,
-          },
-          STEP_MS,
-        );
-        if (state.fired) return t;
+        })
+      ) {
+        const dx = handAt(t);
+        const reading: LiveHandReading = {
+          atMs: t,
+          points: dx === null ? null : hand(dx),
+        };
+        readings = recordHandReading(readings, reading);
       }
-      return null;
-    };
-    const still = run(2);
-    expect(still).not.toBeNull();
-    // The first reading has nothing to compare with: the wait starts with the
-    // second, half a second later.
-    expect(still!).toBeGreaterThanOrEqual(C.waitMs);
-    expect(still!).toBeLessThanOrEqual(
+      const h = liveHandSignal({
+        ...readings,
+        nowMs: t,
+        frameDiagonal: diagonal,
+      });
+      wait = advanceNoSheetCapture(
+        wait,
+        {
+          paperPassing,
+          handSeen: h.seen,
+          handSteady: h.steady,
+          sharp: true,
+          settled: true,
+        },
+        STEP_MS,
+      );
+      if (ring.fired) return { by: "paper", atMs: t };
+      if (wait.fired) return { by: "no-sheet", atMs: t };
+    }
+    return null;
+  };
+  const never = () => false;
+  const still = () => 0;
+  // The first reading has nothing to compare with: the wait starts with the
+  // second, half a second later.
+  const onTime = (r: ReturnType<typeof chain>) => {
+    expect(r?.by).toBe("no-sheet");
+    expect(r!.atMs).toBeGreaterThanOrEqual(C.waitMs);
+    expect(r!.atMs).toBeLessThanOrEqual(
       C.waitMs + C.handSampleIntervalMs + STEP_MS,
     );
-    expect(run(40)).toBeNull();
+  };
+
+  it("a hand held still on a light table: about 4 s of readings fire it; a hand that keeps moving, or none, never does (simulated)", () => {
+    onTime(
+      chain(never, (t) => (Math.round(t / C.handSampleIntervalMs) % 2) * 2),
+    );
+    expect(
+      chain(never, (t) => (Math.round(t / C.handSampleIntervalMs) % 2) * 40),
+    ).toBeNull();
+    expect(chain(never, () => null)).toBeNull();
+  });
+
+  it("one reading that missed the hand, or saw it jump and come back, only pauses the wait (simulated)", () => {
+    // The first reading is on the first sample, then every
+    // handSampleIntervalMs; the 5th one (t = 2125 ms) finds no hand.
+    const missAt = STEP_MS + 4 * C.handSampleIntervalMs;
+    const missed = chain(never, (t) => (t === missAt ? null : 0));
+    expect(missed?.by).toBe("no-sheet");
+    // Paused for one reading's worth of samples, not started again.
+    expect(missed!.atMs).toBeLessThanOrEqual(
+      C.waitMs + 2 * C.handSampleIntervalMs + STEP_MS,
+    );
+    // The same reading sees the hand 40 px off (more than 3 % of 800 px)
+    // and the next one back: both comparisons fail, still only a pause.
+    const jumped = chain(never, (t) => (t === missAt ? 40 : 0));
+    expect(jumped?.by).toBe("no-sheet");
+    expect(jumped!.atMs).toBeLessThanOrEqual(
+      C.waitMs + 3 * C.handSampleIntervalMs + STEP_MS,
+    );
+    // Two readings in a row without the hand empty it: it starts again.
+    const twice = chain(never, (t) =>
+      t === missAt || t === missAt + C.handSampleIntervalMs ? null : 0,
+    );
+    expect(twice?.by).toBe("no-sheet");
+    expect(twice!.atMs).toBeGreaterThan(missAt + C.waitMs);
+  });
+
+  it("a sheet found only now and then, or a quad the paper gate turns back, still ends in a photo (simulated)", () => {
+    // Found every other sample: a found sample has no steady quad to compare
+    // with, so the ring's input is false on every sample. A quad found on
+    // every sample that never passes the gate: the same input.
+    onTime(chain(never, still));
+    // Passing now and then: every 4th sample, once a second, once every
+    // 2.5 s. Each passing sample pauses the wait, but the ring empties again
+    // before it fills; the wait still ends, a little later.
+    for (const every of [4, 8, 20]) {
+      const r = chain((i) => i % every === 0, still);
+      expect(r?.by).toBe("no-sheet");
+      expect(r!.atMs).toBeLessThan(2 * C.waitMs);
+    }
+  });
+
+  it("a sheet that passes keeps the paper ring first: it fires in 800 ms and the wait never does (simulated)", () => {
+    const ringMs = CAMERA_CONSTANTS.autoCapture.durationMs;
+    expect(chain(() => true, still)).toEqual({
+      by: "paper",
+      atMs: Math.ceil(ringMs / STEP_MS) * STEP_MS,
+    });
+    // Passing two samples in three still fills the ring first.
+    expect(chain((i) => i % 3 !== 0, still)?.by).toBe("paper");
   });
 });
 
@@ -273,11 +387,20 @@ describe("EasyScanCamera wires it (read from the source: the repo has no DOM tes
 
   it("each live sample advances the wait with the sheet, the hand, sharpness and the settled preview", () => {
     expect(tick).toMatch(
-      /noSheetCaptureRef\.current = advanceNoSheetCapture\(\s*noSheetCaptureRef\.current,\s*\{\s*sheetFound,\s*handSeen: hand\.seen,\s*handSteady: hand\.steady,\s*sharp: sharpEnough,\s*settled: previewSettledRef\.current,\s*\},\s*dtMs,\s*\);/,
+      /noSheetCaptureRef\.current = advanceNoSheetCapture\(\s*noSheetCaptureRef\.current,\s*\{\s*paperPassing,\s*handSeen: hand\.seen,\s*handSteady: hand\.steady,\s*sharp: sharpEnough,\s*settled: previewSettledRef\.current,\s*\},\s*dtMs,\s*\);/,
     );
-    expect(tick).toContain("const sheetFound = sampleQuad !== null;");
+    // The wait goes by the very input the paper ring fills on.
     expect(tick).toMatch(
-      /shouldSampleHand\(\{\s*sheetFound,\s*detectorReady: isHandLandmarkerReady\(\),/,
+      /const paperPassing = nextCue\.allPass && previewSettledRef\.current;\s*autoCaptureRef\.current = advanceAutoCapture\(\s*autoCaptureRef\.current,\s*paperPassing,\s*dtMs,\s*\);/,
+    );
+    expect(tick).toMatch(
+      /shouldSampleHand\(\{\s*paperPassing,\s*detectorReady: isHandLandmarkerReady\(\),/,
+    );
+    // A found quad no longer throws the hand readings away; each reading
+    // goes through recordHandReading.
+    expect(tick).not.toContain("handReadingsRef.current = EMPTY_HAND_READINGS");
+    expect(tick).toMatch(
+      /handReadingsRef\.current = recordHandReading\(\s*handReadingsRef\.current,\s*\{\s*atMs: now,\s*points,?\s*\},?\s*\);/,
     );
     expect(tick).toContain("readLiveHandPoints(canvas, width, height)");
     expect(tick).toMatch(/liveHandSignal\(\{[\s\S]*?frameDiagonal,\s*\}\)/);
@@ -298,9 +421,7 @@ describe("EasyScanCamera wires it (read from the source: the repo has no DOM tes
     expect(reset).toContain(
       "noSheetCaptureRef.current = INITIAL_NO_SHEET_CAPTURE_STATE;",
     );
-    expect(reset).toContain(
-      "handReadingsRef.current = { previous: null, latest: null };",
-    );
+    expect(reset).toContain("handReadingsRef.current = EMPTY_HAND_READINGS;");
     expect(source).toMatch(
       /autoCaptureRef\.current = resetAutoCapture\(\);\s*noSheetCaptureRef\.current = INITIAL_NO_SHEET_CAPTURE_STATE;/,
     );
