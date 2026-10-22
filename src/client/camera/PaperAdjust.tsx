@@ -17,12 +17,18 @@
  *   crosshair, never under the finger, switching side only past a margin
  *   (F10, `magnifierPlacement`);
  * - the arrow keys move the focused corner 1 screen px (Shift: 10);
- * - "這個角被手遮住": two taps on the corner's two edges work it out
- *   (`solveHiddenCorner`), or say why they cannot;
  * - F10: it opens zoomed onto the frame (`sheetView`); two fingers zoom and
- *   move the photo (`pinchView`), a double tap or a button shows the whole
- *   photo, a mouse wheel zooms. The view only changes how the photo is drawn:
- *   corners are kept in the photo's pixels.
+ *   move the photo (`pinchView`), a double tap or a small button shows the
+ *   whole photo, a mouse wheel zooms. The view only changes how the photo is
+ *   drawn: corners are kept in the photo's pixels.
+ * - F14 (Kirby's phone test of preview 5, 2026-10-22: "No need for multiple
+ *   indicators in adjustment mode, the user will know how to do it",
+ *   candidate): only what is needed is on screen. The heading, the photo with
+ *   its frame and four handles, the magnifier, the confirm button, cancel (or
+ *   重拍 when the screen opened by itself), the whole / zoomed toggle and,
+ *   after a failure, a small 改用置中框. No gesture hint, no instructions, no
+ *   per-corner marks; a line only when the frame cannot be used as it is.
+ *   The handles keep their accessible names.
  *
  * The photo is the frozen photo's own object URL, drawn by the browser; it is
  * never read, copied or sent. Only the four corner positions leave this
@@ -44,7 +50,6 @@ import type { PaperSize } from "../paper/detect";
 import {
   CORNER_INDICES,
   centredPaperFrame,
-  neighbourCorners,
   type CornerIndex,
   type FrameSize,
   type Quad4,
@@ -57,7 +62,6 @@ import {
   adjustReducer,
   clampView,
   cornerPositions,
-  edgeStepOf,
   frameMoved,
   isDoubleTap,
   isWholeView,
@@ -68,7 +72,6 @@ import {
   pointerMoveFor,
   sheetView,
   startAdjust,
-  toImage,
   toScreen,
   wheelZoomFactor,
   wholeView,
@@ -102,8 +105,12 @@ export interface PaperAdjustProps {
   readonly onConfirm: (result: PaperAdjustConfirm) => void;
   /** The frame the run on screen was given, when the person placed one (F7: it opens again). */
   readonly previous?: PlacedFrame | null;
-  /** A line shown before confirming (`adjustWarningFor`, F7): the sheet was measured as curled. */
-  readonly warning?: "curled" | null;
+  /**
+   * What the way out says (F14): `retake` when the screen opened by itself
+   * after the photo was turned back on the paper (it goes back to the
+   * camera), else `cancel` (back to the sheet it was opened from).
+   */
+  readonly leave?: "cancel" | "retake";
   /** For tests and the static render: a state to start from, and the stage's size. */
   readonly initialState?: AdjustState;
   readonly initialStageSize?: FrameSize;
@@ -133,7 +140,7 @@ export function PaperAdjust({
   onCancel,
   onConfirm,
   previous = null,
-  warning = null,
+  leave = "cancel",
   initialState,
   initialStageSize,
   initialMagnifier = true,
@@ -230,7 +237,7 @@ export function PaperAdjust({
       ([id]) => id !== pointerId,
     );
     pointersRef.current.set(pointerId, point);
-    if (others.length !== 1 || state.edge) return false;
+    if (others.length !== 1) return false;
     const [otherId, otherPoint] = others[0];
     if (state.drag) dispatch({ type: "dragCancel" });
     setMagnifierAt(null);
@@ -266,7 +273,6 @@ export function PaperAdjust({
 
   const onHandleDown =
     (index: CornerIndex) => (e: ReactPointerEvent<HTMLButtonElement>) => {
-      if (state.edge) return; // taps go to the edges while marking
       e.preventDefault();
       e.stopPropagation();
       const point = stagePoint(e);
@@ -281,10 +287,6 @@ export function PaperAdjust({
   const onStageDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (fit.width === 0) return;
     const point = stagePoint(e);
-    if (state.edge) {
-      dispatch({ type: "edgeTap", point: toImage(point, fit) });
-      return;
-    }
     if (startPinch(e.pointerId, point)) {
       capture(e.pointerId);
       return;
@@ -379,9 +381,7 @@ export function PaperAdjust({
           : "";
       setRefusal(
         "notPlaced" in readiness
-          ? state.start.from === "guess"
-            ? copy.notConfirmed(name)
-            : copy.notPlaced(name)
+          ? copy.notPlaced(name)
           : copy.quadProblem[readiness.problem],
       );
       return;
@@ -394,44 +394,15 @@ export function PaperAdjust({
     });
   };
 
-  // What the status line says: the newest thing first.
-  const notice = state.notice;
-  const edgeStep = state.edge ? edgeStepOf(state.edge) : null;
+  // The one line under the photo (F14): only when the frame cannot be used
+  // as it is (a press of the confirm button that was refused, or a frame that
+  // crosses itself or leaves the photo); empty otherwise.
   const status =
     refusal ??
-    (notice?.kind === "edgeProblem"
-      ? copy.edgeProblem[notice.problem]
-      : notice?.kind === "edgeSolved"
-        ? copy.edgeSolved(nameOf(notice.index))
-        : notice?.kind === "chooseCorner"
-          ? copy.chooseCornerFirst
-          : notice?.kind === "placeNeighboursFirst"
-            ? copy.placeNeighboursFirst(
-                nameOf(notice.index),
-                nameOf(notice.missing),
-              )
-            : notice?.kind === "edgeUndone"
-              ? copy.edgeUndone(nameOf(notice.index))
-              : state.edge && edgeStep
-                ? copy.edgeStep(
-                    edgeStep.step,
-                    nameOf(state.edge.index),
-                    nameOf(edgeStep.other),
-                  )
-                : !readiness.ok && "problem" in readiness
-                  ? copy.quadProblem[readiness.problem]
-                  : "");
+    (!readiness.ok && "problem" in readiness
+      ? copy.quadProblem[readiness.problem]
+      : "");
 
-  const instruction =
-    entry === "check"
-      ? copy.check.instruction
-      : entry === "review"
-        ? copy.review.instruction
-        : state.start.detected.every(Boolean)
-          ? copy.instructionDetected
-          : state.start.from === "guess"
-            ? copy.instructionRough
-            : copy.instructionGuess;
   const title =
     entry === "check"
       ? copy.check.entry
@@ -459,16 +430,6 @@ export function PaperAdjust({
       : null;
   const half = PAPER_ADJUST_LAYOUT.handleTargetPx / 2;
 
-  // While marking edges: the hidden corner's two edges, from each neighbour
-  // through the point marked on it (dashed), so the person sees what is used.
-  const edgeLines = state.edge
-    ? state.edge.points.map((p, i) => {
-        const from =
-          screenCorners[neighbourCorners(state.edge!.index)[i as 0 | 1]];
-        return { from, to: toScreen(p, fit) };
-      })
-    : [];
-
   return (
     <dialog
       ref={dialogRef}
@@ -478,29 +439,23 @@ export function PaperAdjust({
       data-entry={entry}
       onCancel={(e) => {
         e.preventDefault();
-        if (state.edge) dispatch({ type: "edgeCancel" });
-        else onCancel();
+        onCancel();
       }}
     >
       <header className="paperAdjustHeader">
         <h2 id="paper-adjust-title" ref={titleRef} tabIndex={-1}>
           {title}
         </h2>
-        <p className="paperAdjustHint">{instruction}</p>
-        <p className="paperAdjustHint paperAdjustGestureHint">
-          {copy.gestureHint}
-        </p>
-        {warning === "curled" && (
-          <p className="paperAdjustWarning" data-testid="paper-adjust-warning">
-            {copy.curledWarning}
-          </p>
+        {/* Kirby's corner check (?debug=1) keeps its one line: what it
+            records, and that no photo is kept. */}
+        {entry === "check" && (
+          <p className="paperAdjustHint">{copy.check.instruction}</p>
         )}
       </header>
       <div
         className="paperAdjustStage"
         ref={stageRef}
         data-testid="paper-adjust-stage"
-        data-marking={state.edge ? "true" : undefined}
         data-view={showingWhole ? "whole" : "zoomed"}
         onPointerDown={onStageDown}
         onPointerMove={onStageMove}
@@ -534,28 +489,6 @@ export function PaperAdjust({
             <polygon
               points={screenCorners.map((p) => `${p.x},${p.y}`).join(" ")}
             />
-            {edgeLines.map((line, i) => (
-              <line
-                key={i}
-                className="paperAdjustEdgeLine"
-                x1={line.from.x}
-                y1={line.from.y}
-                x2={line.from.x + (line.to.x - line.from.x) * 3}
-                y2={line.from.y + (line.to.y - line.from.y) * 3}
-              />
-            ))}
-            {state.edge?.points.map((p, i) => {
-              const s = toScreen(p, fit);
-              return (
-                <circle
-                  key={i}
-                  className="paperAdjustEdgePoint"
-                  cx={s.x}
-                  cy={s.y}
-                  r={5}
-                />
-              );
-            })}
           </svg>
         )}
         {fit.width > 0 &&
@@ -570,9 +503,6 @@ export function PaperAdjust({
                 data-testid={`paper-adjust-handle-${index}`}
                 data-placed={placed ? "true" : "false"}
                 data-selected={state.selected === index ? "true" : undefined}
-                data-hidden-corner={
-                  state.edge?.index === index ? "true" : undefined
-                }
                 aria-pressed={state.selected === index}
                 aria-label={`${copy.handleLabel(nameOf(index))}${placed ? "" : copy.handleNotPlaced}`}
                 aria-describedby="paper-adjust-keys"
@@ -619,24 +549,6 @@ export function PaperAdjust({
         {copy.keyboardHint}
       </p>
       <div className="paperAdjustTools">
-        {state.edge ? (
-          <button
-            type="button"
-            className="paperAdjustTool"
-            onClick={() => dispatch({ type: "edgeCancel" })}
-          >
-            {copy.edgeModeCancel}
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="paperAdjustTool"
-            data-testid="paper-adjust-edge-mode"
-            onClick={() => dispatch({ type: "edgeStart" })}
-          >
-            {copy.edgeModeStart}
-          </button>
-        )}
         <button
           type="button"
           className="paperAdjustTool"
@@ -650,17 +562,6 @@ export function PaperAdjust({
           }
         >
           {showingWhole ? copy.zoomToFrame : copy.wholePhoto}
-        </button>
-        <button
-          type="button"
-          className="paperAdjustTool"
-          onClick={() => {
-            setRefusal(null);
-            dispatch({ type: "reset" });
-            setView({ kind: "sheet", quad: state.start.corners });
-          }}
-        >
-          {copy.reset}
         </button>
         {entry === "rescue" && state.start.from !== "centred" && (
           <button
@@ -701,8 +602,13 @@ export function PaperAdjust({
         >
           {confirmLabel}
         </button>
-        <button type="button" className="paperAdjustCancel" onClick={onCancel}>
-          {copy.cancel}
+        <button
+          type="button"
+          className="paperAdjustCancel"
+          data-testid="paper-adjust-cancel"
+          onClick={onCancel}
+        >
+          {leave === "retake" ? copy.retake : copy.cancel}
         </button>
       </div>
     </dialog>

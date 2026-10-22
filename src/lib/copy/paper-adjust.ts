@@ -5,39 +5,27 @@
  * 檢查邊框 on a measured photo (F7, 2026-10-21), and, with `?debug=1`, as
  * Kirby's corner check.
  *
+ * F14 (2026-10-22): the screen shows no instructions, gesture hint or
+ * per-corner lines any more, so their words are gone; a line is shown only
+ * when the frame cannot be used as it is.
+ *
  * Every string here is a CANDIDATE (未拍板) until Kirby has read it. No health
  * claim, and no promise of accuracy: a frame placed by hand has no numeric
  * quality gate (R5 E3), so nothing here says the result is precise.
  */
 import type { Locale } from "../contracts/locale";
-import type {
-  HiddenCornerProblem,
-  ManualQuadProblem,
-} from "../../client/paper/manualQuad";
+import type { ManualQuadProblem } from "../../client/paper/manualQuad";
 
 export interface PaperAdjustCopy {
   /** The secondary button on the failure sheet that opens the adjustment. */
   entry: string;
   /** The screen's heading. */
   title: string;
-  /** One line under the heading, when the frame starts from the detector's corners. */
-  instructionDetected: string;
-  /** ...when some corners are only a starting guess. */
-  instructionGuess: string;
-  /**
-   * ...when the frame is the detector's rough guess around the bright region
-   * (F10): each corner is confirmed with a tap, or dragged.
-   */
-  instructionRough: string;
-  /** How to zoom and move the photo (F10). */
-  gestureHint: string;
   /** F10: show the whole photo, and zoom back onto the frame. */
   wholePhoto: string;
   zoomToFrame: string;
   /** F10 (rescue): start again from the centred frame. */
   centreFrame: string;
-  /** A corner of the rough guess not yet confirmed (F10). */
-  notConfirmed: (corner: string) => string;
   /** The four corners as the person sees them, top left first, clockwise. */
   cornerNames: readonly [string, string, string, string];
   /** A handle's accessible name. */
@@ -46,41 +34,20 @@ export interface PaperAdjustCopy {
   handleNotPlaced: string;
   /** How to move a handle from the keyboard (its description). */
   keyboardHint: string;
-  /** The button that switches a corner to "mark its edges". */
-  edgeModeStart: string;
-  /** Shown when that button is pressed with no corner chosen. */
-  chooseCornerFirst: string;
-  /** Shown when that button is pressed while a neighbour of the hidden corner is still only a guess. */
-  placeNeighboursFirst: (hiddenCorner: string, neighbour: string) => string;
-  /** A worked-out corner whose neighbour then moved: it is no longer placed. */
-  edgeUndone: (corner: string) => string;
-  /** Step 1 and 2 of marking a hidden corner's edges. */
-  edgeStep: (step: 1 | 2, hiddenCorner: string, otherCorner: string) => string;
-  /** Leaves the edge mode. */
-  edgeModeCancel: string;
-  /** A hidden corner worked out from its edges. */
-  edgeSolved: (corner: string) => string;
-  /** Why a hidden corner could not be worked out. */
-  edgeProblem: Record<HiddenCornerProblem, string>;
   /** Why the frame cannot be used as it is. */
   quadProblem: Record<ManualQuadProblem, string>;
-  /** A corner that is still only a starting guess. */
+  /** A corner of the centred frame not moved yet (F14: only that frame asks for it). */
   notPlaced: (corner: string) => string;
   confirm: string;
   cancel: string;
-  reset: string;
+  /** F14: the way out when the screen opened by itself after a paper failure (back to the camera). */
+  retake: string;
   /** The measured sheet's line after a frame placed by hand. */
   measuredNote: string;
-  /**
-   * Shown on the screen before confirming, after the sheet was measured as
-   * curled (`PAPER_CURLED`, F7): a frame placed by hand cannot fix that.
-   */
-  curledWarning: string;
   /** 檢查邊框 on a measured photo (F7): the detector's frame, to confirm or move. */
   review: {
     entry: string;
     title: string;
-    instruction: string;
     confirm: string;
   };
   /** Kirby's corner check (`?debug=1` only). */
@@ -97,41 +64,15 @@ export interface PaperAdjustCopy {
 export const zhTW: PaperAdjustCopy = {
   entry: "手動調整邊框",
   title: "調整紙張邊框",
-  instructionDetected: "把四個角對準紙的四個角。拖曳時會出現放大鏡。",
-  instructionGuess:
-    "把空心的角拖到紙角上；被手遮住的角，可以改用「這個角被手遮住」。",
-  instructionRough:
-    "我們先大致框出紙張了。逐一檢查四個角：對準了就點一下確認，沒對準就拖到紙角上。",
-  gestureHint: "兩指可以縮放、移動照片；點兩下看整張照片。",
   wholePhoto: "看整張照片",
   zoomToFrame: "放大到邊框",
   centreFrame: "改用置中框",
-  notConfirmed: (corner) =>
-    `${corner}還沒確認。對準了就點一下，沒對準就拖到紙角上。`,
   cornerNames: ["左上角", "右上角", "右下角", "左下角"],
   handleLabel: (corner) => corner,
   handleNotPlaced: "，還沒對齊",
   keyboardHint: "用方向鍵移動，按住 Shift 移動得更多。",
-  edgeModeStart: "這個角被手遮住",
-  chooseCornerFirst: "先點一下被遮住的那個角。",
-  placeNeighboursFirst: (hidden, neighbour) =>
-    `請先把${neighbour}對齊紙角，才能用紙邊算出${hidden}。`,
-  edgeUndone: (corner) =>
-    `旁邊的角移動了，${corner}需要重新標點，或直接拖到紙角上。`,
-  edgeStep: (step, hidden, other) =>
-    `第 ${step} 步：在${other}和${hidden}之間的紙邊上，點一下還看得到的地方。`,
-  edgeModeCancel: "取消標點",
-  edgeSolved: (corner) => `已由兩條紙邊算出${corner}的位置。`,
-  edgeProblem: {
-    need_points: "請點在紙邊上，離另一個角遠一點的地方。",
-    parallel: "這兩條邊太接近平行，算不出角在哪裡。請重拍，讓這個角露出來。",
-    wrong_side: "點的位置超過了這個角。請點在兩個角之間的紙邊上。",
-    too_hidden:
-      "這兩條邊被遮住太多，算出來的角不可靠。請把手移開一點，再拍一次。",
-    outside_image: "算出來的角離照片太遠。請重拍，讓整張紙都在畫面裡。",
-  },
   quadProblem: {
-    not_finite: "有一個角的位置無法使用，請按「重設」再試一次。",
+    not_finite: "有一個角的位置無法使用，請重拍一次。",
     self_intersecting: "邊框交叉了。請把每個角拖回它自己的位置。",
     not_convex: "邊框凹進去了。請把四個角拖到紙的四個角上。",
     degenerate:
@@ -142,15 +83,11 @@ export const zhTW: PaperAdjustCopy = {
   notPlaced: (corner) => `${corner}還沒對齊，請先把它拖到紙角上。`,
   confirm: "用這個邊框測量",
   cancel: "取消",
-  reset: "重設",
+  retake: "重拍",
   measuredNote: "紙張邊框是手動調整的。",
-  curledWarning:
-    "紙好像沒有平貼，手動調整後量測可能不準，建議先把紙壓平再拍一次。",
   review: {
     entry: "檢查邊框",
     title: "檢查紙張邊框",
-    instruction:
-      "這是自動找到的邊框。對齊了就按「邊框沒問題」；角沒對準，就把它拖到紙角上，會用新的邊框重新測量。",
     confirm: "邊框沒問題",
   },
   check: {
@@ -166,19 +103,9 @@ export const zhTW: PaperAdjustCopy = {
 export const en: PaperAdjustCopy = {
   entry: "Adjust the frame by hand",
   title: "Adjust the paper's frame",
-  instructionDetected:
-    "Line the four corners up with the paper's corners. A magnifier appears while you drag.",
-  instructionGuess:
-    "Drag the hollow corners onto the paper's corners. If your hand covers a corner, use “My hand covers this corner”.",
-  instructionRough:
-    "We've roughly framed the sheet for you. Check each corner: tap it if it's on the paper's corner, or drag it there.",
-  gestureHint:
-    "Pinch or drag with two fingers to zoom and move the photo; double-tap to see all of it.",
   wholePhoto: "Show the whole photo",
   zoomToFrame: "Zoom to the frame",
   centreFrame: "Start from a centred frame",
-  notConfirmed: (corner) =>
-    `The ${corner.toLowerCase()} isn't confirmed yet. Tap it if it's on the paper's corner, or drag it there.`,
   cornerNames: [
     "Top-left corner",
     "Top-right corner",
@@ -188,30 +115,8 @@ export const en: PaperAdjustCopy = {
   handleLabel: (corner) => corner,
   handleNotPlaced: ", not placed yet",
   keyboardHint: "Use the arrow keys to move it; hold Shift to move further.",
-  edgeModeStart: "My hand covers this corner",
-  chooseCornerFirst: "First tap the corner that is covered.",
-  placeNeighboursFirst: (hidden, neighbour) =>
-    `First line the ${neighbour.toLowerCase()} up with the paper's corner; the ${hidden.toLowerCase()} is worked out from it.`,
-  edgeUndone: (corner) =>
-    `A corner next to it moved, so mark the ${corner.toLowerCase()}'s edges again or drag it onto the paper's corner.`,
-  edgeStep: (step, hidden, other) =>
-    `Step ${step}: tap the paper's edge between the ${other.toLowerCase()} and the ${hidden.toLowerCase()}, where you can still see it.`,
-  edgeModeCancel: "Stop marking",
-  edgeSolved: (corner) =>
-    `The ${corner.toLowerCase()} was worked out from two edges.`,
-  edgeProblem: {
-    need_points: "Tap the paper's edge further from the other corner.",
-    parallel:
-      "These two edges are too close to parallel to say where the corner is. Retake the photo with this corner showing.",
-    wrong_side:
-      "That point is past the corner. Tap the edge between the two corners.",
-    too_hidden:
-      "Too much of these edges is covered to trust the corner. Move your hand a little and retake.",
-    outside_image:
-      "That corner would be too far outside the photo. Retake with the whole sheet in view.",
-  },
   quadProblem: {
-    not_finite: "One corner can't be used. Tap Reset and try again.",
+    not_finite: "One corner can't be used. Please retake the photo.",
     self_intersecting:
       "The frame crosses itself. Drag each corner back to its own place.",
     not_convex:
@@ -226,15 +131,11 @@ export const en: PaperAdjustCopy = {
     `The ${corner.toLowerCase()} isn't placed yet. Drag it onto the paper's corner first.`,
   confirm: "Measure with this frame",
   cancel: "Cancel",
-  reset: "Reset",
+  retake: "Retake",
   measuredNote: "The paper's frame was adjusted by hand.",
-  curledWarning:
-    "The paper doesn't seem to lie flat. After adjusting by hand the measurement may be off; we suggest pressing the paper flat and taking the photo again.",
   review: {
     entry: "Check the frame",
     title: "Check the paper's frame",
-    instruction:
-      "This is the frame found automatically. If it lines up, tap “The frame is right”; if a corner is off, drag it onto the paper's corner and your hand is measured again with the new frame.",
     confirm: "The frame is right",
   },
   check: {

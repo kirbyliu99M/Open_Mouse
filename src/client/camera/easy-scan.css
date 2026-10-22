@@ -1684,16 +1684,6 @@ main.easyScanShell {
   font-size: 0.9375rem;
   line-height: 1.5;
 }
-/* F7: the sheet was measured as curled; said before confirming. */
-.paperAdjustWarning {
-  margin: 0.5rem 0 0;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--control-border);
-  border-radius: 0.75rem;
-  color: var(--text-primary);
-  font-size: 0.9375rem;
-  line-height: 1.5;
-}
 .paperAdjustStage {
   position: relative;
   flex: 1 1 auto;
@@ -1705,9 +1695,6 @@ main.easyScanShell {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
-}
-.paperAdjustStage[data-marking="true"] {
-  cursor: crosshair;
 }
 .paperAdjustPhoto {
   position: absolute;
@@ -1725,16 +1712,6 @@ main.easyScanShell {
   stroke: var(--accent-text);
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
-}
-.paperAdjustEdgeLine {
-  stroke: var(--text-primary);
-  stroke-width: 1.5;
-  stroke-dasharray: 6 5;
-}
-.paperAdjustEdgePoint {
-  fill: var(--text-primary);
-  stroke: var(--bg);
-  stroke-width: 2;
 }
 .paperAdjustHandle {
   position: absolute;
@@ -1762,27 +1739,16 @@ main.easyScanShell {
   height: 18px;
   border-radius: 50%;
   border: 2px solid var(--accent-text);
-  background: var(--bg);
+  /* F14: every handle looks the same (no per-corner marks). */
+  background: var(--accent-text);
   box-shadow: 0 0 0 1px rgb(0 0 0 / 0.6);
   transition: transform 120ms ease-out;
-}
-/* A corner placed: a filled ring. Still a starting guess: hollow and dashed. */
-.paperAdjustHandle[data-placed="true"] .paperAdjustDot {
-  background: var(--accent-text);
-}
-.paperAdjustHandle[data-placed="false"] .paperAdjustDot {
-  border-style: dashed;
-  border-color: var(--text-primary);
 }
 .paperAdjustHandle[data-selected="true"] .paperAdjustDot {
   transform: scale(1.25);
   box-shadow:
     0 0 0 2px var(--bg),
     0 0 0 4px var(--text-primary);
-}
-.paperAdjustHandle[data-hidden-corner="true"] .paperAdjustDot {
-  background: transparent;
-  border-style: dotted;
 }
 .paperAdjustHandle:focus {
   outline: none;
@@ -1845,15 +1811,17 @@ main.easyScanShell {
   gap: 0.25rem 0.5rem;
   padding: 0.25rem 1rem 0;
 }
+/* F14: small secondary controls (the whole / zoomed toggle, 改用置中框); the
+   44 px touch target stays, the look is smaller. */
 .paperAdjustTool {
   min-height: 44px;
-  padding: 0 0.875rem;
+  padding: 0 0.75rem;
   border: 1px solid var(--control-border);
   border-radius: 999px;
   background: transparent;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   font: inherit;
-  font-size: 0.9375rem;
+  font-size: 0.8125rem;
   cursor: pointer;
 }
 .paperAdjustTool[aria-pressed="true"] {

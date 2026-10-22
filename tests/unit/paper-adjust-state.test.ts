@@ -9,8 +9,10 @@ import {
   PAPER_ADJUST_LAYOUT,
   adjustConfirmAction,
   adjustEntryFor,
+  adjustOpensDirectly,
   adjustWarningFor,
   frameMoved,
+  isHandIssue,
   isPaperIssue,
   adjustReadiness,
   adjustReducer,
@@ -20,6 +22,7 @@ import {
   edgeStepOf,
   fitPhoto,
   isGuessedCorner,
+  openingPlaced,
   magnifierLayout,
   magnifierPlacement,
   MAGNIFIER_EDGE,
@@ -254,6 +257,96 @@ describe("adjustEntryFor (F7, Kirby's phone test 2026-10-21): like Adobe Scan, e
   });
 });
 
+describe("adjustOpensDirectly (F14, Kirby's phone test of preview 5, 2026-10-22): a paper failure opens the adjustment by itself", () => {
+  const PLACED = { corners: RECT, source: "adjusted" as const };
+  const failure = (
+    codes: string[],
+    extra: { overlay?: PhotoOverlay | null; placed?: typeof PLACED } = {},
+  ) => ({
+    kind: "gateFailure" as const,
+    errors: codes.map(issue),
+    overlay: extra.overlay === undefined ? overlay() : extra.overlay,
+    placedFrame: extra.placed ?? null,
+  });
+
+  it("isHandIssue: a failure of the hand itself (HAND_*, FINGER_*), not the hand button's HANDEDNESS_MISMATCH nor a paper code", () => {
+    for (const code of [
+      "HAND_NOT_DETECTED",
+      "HAND_OUT_OF_BOUNDS",
+      "HAND_TILTED",
+      "FINGER_NOT_STRAIGHT",
+    ])
+      expect(isHandIssue(code)).toBe(true);
+    for (const code of [
+      "HANDEDNESS_MISMATCH",
+      "PAPER_NOT_FOUND",
+      "MEASUREMENT_OUT_OF_RANGE",
+      undefined,
+    ])
+      expect(isHandIssue(code)).toBe(false);
+  });
+
+  it("every PAPER_* failure on the detector's own frame, on a decoded photo: opens directly (and is a rescue)", () => {
+    for (const code of [
+      "PAPER_NOT_FOUND",
+      "PAPER_EDGE_HIDDEN",
+      "PAPER_CORNER_HIDDEN",
+      "PAPER_CURLED",
+      "PAPER_TILTED",
+    ]) {
+      const result = failure([code]);
+      expect(adjustOpensDirectly(result)).toBe(true);
+      expect(adjustEntryFor(result, false)).toBe("rescue");
+    }
+  });
+
+  it("a hand failure on the detector's frame keeps the failure sheet and its reason (a frame cannot fix it)", () => {
+    for (const code of [
+      "HAND_NOT_DETECTED",
+      "HAND_OUT_OF_BOUNDS",
+      "HAND_TILTED",
+      "FINGER_NOT_STRAIGHT",
+    ]) {
+      expect(adjustOpensDirectly(failure([code]))).toBe(false);
+      expect(adjustOpensDirectly(failure(["PAPER_CURLED", code]))).toBe(false);
+    }
+  });
+
+  it("nothing about the paper, no decoded photo, or a frame already placed by hand: the failure sheet", () => {
+    expect(adjustOpensDirectly(failure(["MEASUREMENT_OUT_OF_RANGE"]))).toBe(
+      false,
+    );
+    expect(adjustOpensDirectly(failure(["HANDEDNESS_MISMATCH"]))).toBe(false);
+    expect(
+      adjustOpensDirectly(failure(["PAPER_NOT_FOUND"], { overlay: null })),
+    ).toBe(false);
+    expect(
+      adjustOpensDirectly(
+        failure(["PAPER_NOT_FOUND"], {
+          overlay: overlay({ imageWidth: 0, imageHeight: 0 }),
+        }),
+      ),
+    ).toBe(false);
+    // A placed frame turned back again: the sheet says why, with the
+    // adjustment as its secondary way on (no reopening loop).
+    const again = failure(["PAPER_CURLED"], { placed: PLACED });
+    expect(adjustOpensDirectly(again)).toBe(false);
+    expect(adjustEntryFor(again, false)).toBe("rescue");
+  });
+
+  it("never on a measured photo or while processing", () => {
+    expect(
+      adjustOpensDirectly({
+        kind: "measured",
+        overlay: overlay({ paperCorners: RECT }),
+        submission: AUTO,
+      }),
+    ).toBe(false);
+    expect(adjustOpensDirectly({ kind: "processing" })).toBe(false);
+    expect(adjustOpensDirectly({ kind: "none" })).toBe(false);
+  });
+});
+
 describe("adjustWarningFor: PAPER_CURLED is said before confirming (F7)", () => {
   it("curled when the sheet was measured as curled, wherever it is listed; nothing otherwise", () => {
     expect(
@@ -320,7 +413,11 @@ describe("where the frame opens (F7; F10: always a best guess)", () => {
     { x: 215, y: 1140 },
   ];
 
-  it("no sheet found but a rough quad: opens on it, every corner to be confirmed", () => {
+  // F14 (Kirby's phone test of preview 5, 2026-10-22): "its auto fit may be
+  // correct, so you don't have to force the user to manually adjust every
+  // corner". Every frame with a clue opens placed; only the centred sheet
+  // still needs all four corners moved.
+  it("no sheet found but a rough quad: opens on it, every corner placed, usable at once (manual)", () => {
     const state = startAdjust({
       entry: "rescue",
       overlay: overlay({ paperGuessCorners: GUESS }),
@@ -328,19 +425,22 @@ describe("where the frame opens (F7; F10: always a best guess)", () => {
     });
     expect(state.start.from).toBe("guess");
     expect(state.corners).toEqual(GUESS);
-    expect(state.placed).toEqual([false, false, false, false]);
-    expect(adjustReadiness(state)).toEqual({ ok: false, notPlaced: 0 });
+    expect(state.placed).toEqual([true, true, true, true]);
+    expect(openingPlaced(state.start)).toEqual([true, true, true, true]);
+    const ready = adjustReadiness(state);
+    expect(ready.ok).toBe(true);
+    if (ready.ok) {
+      expect(ready.source).toBe("manual");
+      expect(ready.corners).toEqual(GUESS);
+    }
   });
 
-  it("a tap confirms a corner of the rough quad; a drag of any size does too; all four make the frame usable (manual)", () => {
+  it("only what needs fixing is dragged: one corner of the rough quad moved, the rest as they opened, still usable", () => {
     let s = startAdjust({
       entry: "rescue",
       overlay: overlay({ paperGuessCorners: GUESS }),
       paperSize: "a4",
     });
-    s = run(s, { type: "select", index: 0 });
-    expect(s.placed).toEqual([true, false, false, false]);
-    expect(s.corners).toEqual(GUESS);
     s = run(
       s,
       {
@@ -353,111 +453,65 @@ describe("where the frame opens (F7; F10: always a best guess)", () => {
       { type: "pointerMove", pointerId: 1, point: { x: 1, y: 0 }, scale: 1 },
       { type: "pointerUp", pointerId: 1 },
     );
-    expect(s.placed).toEqual([true, true, false, false]);
-    s = run(s, { type: "select", index: 2 }, { type: "select", index: 3 });
-    const ready = adjustReadiness(s);
-    expect(ready.ok).toBe(true);
-    if (ready.ok) expect(ready.source).toBe("manual");
-  });
-
-  it("a press and release on a rough-quad corner with no movement confirms it (the click goes to the capturing stage, not the handle: review of F10)", () => {
-    const tap = (state: AdjustState, index: 0 | 1 | 2 | 3, id: number) =>
-      run(
-        state,
-        {
-          type: "pointerDown",
-          index,
-          pointerId: id,
-          pointerType: "touch",
-          point: { x: 50, y: 60 },
-        },
-        { type: "pointerUp", pointerId: id },
-      );
-    let s = startAdjust({
-      entry: "rescue",
-      overlay: overlay({ paperGuessCorners: GUESS }),
-      paperSize: "a4",
-    });
-    expect(s.start.from).toBe("guess");
-    s = tap(s, 0, 1);
-    expect(s.placed).toEqual([true, false, false, false]);
-    expect(s.corners).toEqual(GUESS);
-    expect(s.drag).toBeNull();
-    // A release of another pointer confirms nothing.
-    const other = run(
-      s,
-      {
-        type: "pointerDown",
-        index: 1,
-        pointerId: 2,
-        pointerType: "touch",
-        point: { x: 50, y: 60 },
-      },
-      { type: "pointerUp", pointerId: 3 },
-    );
-    expect(other.placed[1]).toBe(false);
-    // The other three, tapped the same way: the frame may be used as it is.
-    s = tap(tap(tap(s, 1, 4), 2, 5), 3, 6);
     expect(s.placed).toEqual([true, true, true, true]);
-    expect(s.corners).toEqual(GUESS);
-    const ready = adjustReadiness(s);
-    expect(ready.ok).toBe(true);
-    if (ready.ok) expect(ready.source).toBe("manual");
+    expect(s.corners[1]).toEqual({ x: GUESS[1].x + 1, y: GUESS[1].y });
+    expect([s.corners[0], s.corners[2], s.corners[3]]).toEqual([
+      GUESS[0],
+      GUESS[2],
+      GUESS[3],
+    ]);
+    expect(adjustReadiness(s).ok).toBe(true);
   });
 
-  it("a press and release with no movement does NOT confirm a centred corner or the partial frame's inset guess", () => {
+  it("a tap or a press without a move only chooses a corner: nothing moves and nothing is placed or unplaced by it", () => {
     const tap = {
       type: "pointerDown",
       pointerId: 1,
       pointerType: "touch",
       point: { x: 5, y: 5 },
     } as const;
-    const centred = run(
-      startAdjust({ entry: "rescue", overlay: overlay(), paperSize: "a4" }),
-      { ...tap, index: 0 },
+    const guess = startAdjust({
+      entry: "rescue",
+      overlay: overlay({ paperGuessCorners: GUESS }),
+      paperSize: "a4",
+    });
+    const tapped = run(
+      guess,
+      { type: "select", index: 0 },
+      { ...tap, index: 2 },
       { type: "pointerUp", pointerId: 1 },
     );
-    expect(centred.start.from).toBe("centred");
-    expect(centred.placed[0]).toBe(false);
-    const partial = run(
-      startAdjust({
-        entry: "rescue",
-        overlay: overlay({
-          paperPartialCorners: [RECT[0], null, RECT[2], RECT[3]],
-          paperGuessCorners: GUESS,
-        }),
-        paperSize: "a4",
-      }),
-      { ...tap, index: 1 },
-      { type: "pointerUp", pointerId: 1 },
-    );
-    expect(partial.start.from).toBe("partial");
-    expect(partial.placed[1]).toBe(false);
-  });
-
-  it("a tap does NOT confirm a centred corner or the partial frame's inset guess (those must be moved)", () => {
+    expect(tapped.placed).toEqual(guess.placed);
+    expect(tapped.corners).toEqual(guess.corners);
+    expect(tapped.selected).toBe(2);
     const centred = run(
       startAdjust({ entry: "rescue", overlay: overlay(), paperSize: "a4" }),
       { type: "select", index: 0 },
+      { ...tap, index: 1 },
+      { type: "pointerUp", pointerId: 1 },
     );
     expect(centred.start.from).toBe("centred");
-    expect(centred.placed[0]).toBe(false);
-    const partial = run(
-      startAdjust({
-        entry: "rescue",
-        overlay: overlay({
-          paperPartialCorners: [RECT[0], null, RECT[2], RECT[3]],
-          paperGuessCorners: GUESS,
-        }),
-        paperSize: "a4",
-      }),
-      { type: "select", index: 1 },
-    );
-    expect(partial.start.from).toBe("partial");
-    expect(partial.placed[1]).toBe(false);
+    expect(centred.placed).toEqual([false, false, false, false]);
   });
 
-  it("one or two corners found: those in place (placed), the rest from the rough quad (to confirm)", () => {
+  it("three corners found: the fourth worked out (inside the sheet) opens placed too, so the frame may be confirmed at once (manual)", () => {
+    const partial = startAdjust({
+      entry: "rescue",
+      overlay: overlay({
+        paperPartialCorners: [RECT[0], null, RECT[2], RECT[3]],
+        paperGuessCorners: GUESS,
+      }),
+      paperSize: "a4",
+    });
+    expect(partial.start.from).toBe("partial");
+    expect(partial.start.detected).toEqual([true, false, true, true]);
+    expect(partial.placed).toEqual([true, true, true, true]);
+    const ready = adjustReadiness(partial);
+    expect(ready.ok).toBe(true);
+    if (ready.ok) expect(ready.source).toBe("manual");
+  });
+
+  it("one or two corners found: those in place, the rest from the rough quad, every corner placed", () => {
     const state = startAdjust({
       entry: "rescue",
       overlay: overlay({
@@ -468,7 +522,32 @@ describe("where the frame opens (F7; F10: always a best guess)", () => {
     });
     expect(state.start.from).toBe("guess");
     expect(state.corners).toEqual([RECT[0], GUESS[1], GUESS[2], RECT[3]]);
-    expect(state.placed).toEqual([true, false, false, true]);
+    expect(state.start.detected).toEqual([true, false, false, true]);
+    expect(state.placed).toEqual([true, true, true, true]);
+  });
+
+  it("the centred sheet: a corner is placed by any move, and only once all four moved is it usable", () => {
+    let s = startAdjust({
+      entry: "rescue",
+      overlay: overlay(),
+      paperSize: "a4",
+    });
+    expect(adjustReadiness(s)).toEqual({ ok: false, notPlaced: 0 });
+    for (const index of [0, 1, 2] as const)
+      s = run(s, {
+        type: "nudge",
+        index,
+        dx: 1,
+        dy: 0,
+        big: false,
+        scale: 1,
+      });
+    expect(s.placed).toEqual([true, true, true, false]);
+    expect(adjustReadiness(s)).toEqual({ ok: false, notPlaced: 3 });
+    s = run(s, { type: "nudge", index: 3, dx: 0, dy: 1, big: false, scale: 1 });
+    const ready = adjustReadiness(s);
+    expect(ready.ok).toBe(true);
+    if (ready.ok) expect(ready.source).toBe("manual");
   });
 
   it("nothing known: the centred sheet, 72 % of the photo's width, all four corners not placed", () => {
@@ -588,70 +667,27 @@ describe("where the frame opens (F7; F10: always a best guess)", () => {
     expect(back.drag).toBeNull();
   });
 
-  it("a tap on the photo away from every handle confirms no guessed corner, even the chosen one (review of F10)", () => {
+  it("a tap on the photo away from every handle moves nothing and leaves every corner as it opened (F14)", () => {
     const s0 = startAdjust({
       entry: "rescue",
       overlay: overlay({ paperGuessCorners: GUESS }),
       paperSize: "a4",
     });
-    const photoTap = (state: AdjustState, id: number) =>
-      run(
-        state,
-        {
-          type: "pointerDown",
-          index: null,
-          pointerId: id,
-          pointerType: "touch",
-          point: { x: 500, y: 700 },
-        },
-        { type: "pointerUp", pointerId: id },
-      );
-    // The finding's path: press on corner 0, a second finger cancels the
-    // drag (corner 0 stays chosen), then one tap on the photo.
-    let s = run(
+    const s = run(
       s0,
+      { type: "select", index: 0 },
       {
         type: "pointerDown",
-        index: 0,
-        pointerId: 1,
+        index: null,
+        pointerId: 2,
         pointerType: "touch",
-        point: { x: 0, y: 0 },
+        point: { x: 500, y: 700 },
       },
-      { type: "dragCancel" },
+      { type: "pointerUp", pointerId: 2 },
     );
-    expect(s.selected).toBe(0);
-    expect(s.placed[0]).toBe(false);
-    s = photoTap(s, 2);
-    expect(s.placed).toEqual([false, false, false, false]);
+    expect(s.placed).toEqual([true, true, true, true]);
     expect(s.corners).toEqual(GUESS);
-    // A small drag that leaves the guess not placed, then a photo tap.
-    s = run(
-      s0,
-      {
-        type: "pointerDown",
-        index: 1,
-        pointerId: 3,
-        pointerType: "touch",
-        point: { x: 0, y: 0 },
-      },
-      { type: "pointerMove", pointerId: 3, point: { x: 1, y: 0 }, scale: 1 },
-      { type: "dragCancel" },
-    );
-    s = photoTap(s, 4);
-    expect(s.placed[1]).toBe(false);
-    // A tap on the handle itself still confirms it.
-    s = run(
-      s,
-      {
-        type: "pointerDown",
-        index: 1,
-        pointerId: 5,
-        pointerType: "touch",
-        point: { x: 0, y: 0 },
-      },
-      { type: "pointerUp", pointerId: 5 },
-    );
-    expect(s.placed[1]).toBe(true);
+    expect(frameMoved(s)).toBe(false);
   });
 });
 
@@ -884,7 +920,7 @@ describe("startAdjust", () => {
     expect(s.placed).toEqual([true, true, true, true]);
   });
 
-  it("rescue after a hidden corner: three corners and a guess the person must move", () => {
+  it("rescue after a hidden corner: three corners and a guess inside the sheet, all four placed (F14)", () => {
     const s = startAdjust({
       entry: "rescue",
       overlay: overlay({
@@ -893,7 +929,8 @@ describe("startAdjust", () => {
       paperSize: "a4",
     });
     expect(s.start.from).toBe("partial");
-    expect(s.placed).toEqual([true, false, true, true]);
+    expect(s.start.detected).toEqual([true, false, true, true]);
+    expect(s.placed).toEqual([true, true, true, true]);
   });
 
   it("check: always the centred sheet with nothing placed, even with the detector's corners at hand", () => {
@@ -1011,7 +1048,7 @@ describe("relative drag", () => {
     expect(s.corners[1]).toEqual(OUT);
   });
 
-  it("a tap on a starting guess does not count as placing it; a move does", () => {
+  it("the worked-out fourth corner: a tap leaves it as it opened (placed); a drag onto the sheet's corner moves it there", () => {
     const start = startAdjust({
       entry: "rescue",
       overlay: overlay({
@@ -1031,7 +1068,8 @@ describe("relative drag", () => {
       { type: "pointerMove", pointerId: 1, point: { x: 5, y: 5 }, scale },
       { type: "pointerUp", pointerId: 1 },
     );
-    expect(s.placed[1]).toBe(false);
+    expect(s.placed[1]).toBe(true);
+    expect(s.corners).toEqual(start.corners);
     s = run(
       s,
       {
@@ -1098,7 +1136,7 @@ describe("relative drag", () => {
   });
 });
 
-describe("the corner the detector did not find: a nudge does not accept the guess", () => {
+describe("the corner the detector did not find (F14): opens placed, and stays placed whatever moves it", () => {
   const partial = () =>
     startAdjust({
       entry: "rescue",
@@ -1107,9 +1145,6 @@ describe("the corner the detector did not find: a nudge does not accept the gues
       }),
       paperSize: "a4",
     });
-  const minMove =
-    Math.hypot(IMAGE.width, IMAGE.height) *
-    MANUAL_QUAD_LIMITS.guessMinMoveFraction;
 
   it("names the guessed corner, only in a partial start", () => {
     const s = partial();
@@ -1125,10 +1160,15 @@ describe("the corner the detector did not find: a nudge does not accept the gues
       false,
       false,
     ]);
-    expect(MANUAL_QUAD_LIMITS.guessMinMoveFraction).toBe(0.03);
   });
 
-  it("one arrow press, or ten with Shift, leaves it not placed and the frame unusable", () => {
+  it("confirmed as it opened: usable at once (manual: a corner the detector did not find)", () => {
+    const ready = adjustReadiness(partial());
+    expect(ready.ok).toBe(true);
+    if (ready.ok) expect(ready.source).toBe("manual");
+  });
+
+  it("one arrow press, ten with Shift, or a short drag: still placed, the frame still usable", () => {
     const scale = 0.4;
     let s = run(partial(), {
       type: "nudge",
@@ -1138,48 +1178,22 @@ describe("the corner the detector did not find: a nudge does not accept the gues
       big: false,
       scale,
     });
-    expect(s.placed[1]).toBe(false);
-    expect(adjustReadiness(s)).toEqual({ ok: false, notPlaced: 1 });
-    s = run(s, { type: "nudge", index: 1, dx: 1, dy: 0, big: true, scale });
-    // 1 + 10 screen px at 0.4 = 27.5 photo px: still under the minimum.
-    expect(1 / scale + 10 / scale).toBeLessThan(minMove);
-    expect(s.placed[1]).toBe(false);
-    expect(adjustReadiness(s)).toEqual({ ok: false, notPlaced: 1 });
-  });
-
-  it("a drag past the minimum places it, and a drag back near its start unplaces it", () => {
-    const start = partial();
-    const from = start.corners[1];
-    const down: AdjustAction = {
-      type: "pointerDown",
-      index: 1,
-      pointerId: 1,
-      pointerType: "touch",
-      point: { x: 0, y: 0 },
-    };
-    // Just short of the minimum (photo px; scale 1).
-    let s = run(start, down, {
-      type: "pointerMove",
-      pointerId: 1,
-      point: { x: minMove - 1, y: 0 },
-      scale: 1,
-    });
-    expect(s.corners[1]).toEqual({ x: from.x + minMove - 1, y: from.y });
-    expect(s.placed[1]).toBe(false);
-    s = run(s, {
-      type: "pointerMove",
-      pointerId: 1,
-      point: { x: minMove + 1, y: 0 },
-      scale: 1,
-    });
     expect(s.placed[1]).toBe(true);
-    s = run(s, {
-      type: "pointerMove",
-      pointerId: 1,
-      point: { x: 2, y: 0 },
-      scale: 1,
-    });
-    expect(s.placed[1]).toBe(false);
+    s = run(s, { type: "nudge", index: 1, dx: 1, dy: 0, big: true, scale });
+    expect(s.placed[1]).toBe(true);
+    s = run(
+      s,
+      {
+        type: "pointerDown",
+        index: 1,
+        pointerId: 1,
+        pointerType: "touch",
+        point: { x: 0, y: 0 },
+      },
+      { type: "pointerMove", pointerId: 1, point: { x: 2, y: 0 }, scale: 1 },
+    );
+    expect(s.placed[1]).toBe(true);
+    expect(adjustReadiness(s).ok).toBe(true);
   });
 
   it("a corner the detector found is placed by any move, however small", () => {
@@ -1541,7 +1555,9 @@ describe("a corner under the hand: two marks on its edges", () => {
   it("reset forgets which corners were worked out", () => {
     const s = run(solvedBR(), { type: "reset" });
     expect(s.solved).toEqual([false, false, false, false]);
-    expect(s.placed).toEqual([true, true, false, true]);
+    // Back to the opening frame, placed as it opened (F14: all four).
+    expect(s.placed).toEqual([true, true, true, true]);
+    expect(s.corners).toEqual(start().corners);
   });
 
   it("says why when it cannot, leaves the corner where it was, and starts the marks again", () => {
@@ -1555,7 +1571,8 @@ describe("a corner under the hand: two marks on its edges", () => {
     );
     expect(s.notice?.kind).toBe("edgeProblem");
     expect(s.corners[2]).toEqual(before);
-    expect(s.placed[2]).toBe(false);
+    // Where it opened, and as it opened (placed, F14).
+    expect(s.placed[2]).toBe(true);
     expect(s.edge).toEqual({ index: 2, points: [] });
     s = run(s, { type: "edgeCancel" });
     expect(s.edge).toBeNull();
@@ -1571,14 +1588,11 @@ describe("adjustReadiness", () => {
     });
   });
 
-  it("a corner still at its starting guess blocks it, and says which", () => {
-    const s = startAdjust({
-      entry: "rescue",
-      overlay: overlay({
-        paperPartialCorners: [RECT[0], null, RECT[2], RECT[3]],
-      }),
-      paperSize: "a4",
-    });
+  it("a corner of the centred sheet not moved yet blocks it, and says which (F14: only that frame asks for it)", () => {
+    const s = run(
+      startAdjust({ entry: "rescue", overlay: overlay(), paperSize: "a4" }),
+      { type: "nudge", index: 0, dx: 1, dy: 0, big: false, scale: 1 },
+    );
     expect(adjustReadiness(s)).toEqual({ ok: false, notPlaced: 1 });
   });
 

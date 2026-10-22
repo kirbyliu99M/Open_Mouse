@@ -89,6 +89,33 @@ export const CAMERA_CONSTANTS = {
      */
     maxConsecutiveFailures: 3,
   },
+  /**
+   * V3.2 F14 (Kirby's phone test of preview 5, 2026-10-22; every number a
+   * candidate, 未拍板): the photo is taken without the sheet when the
+   * detector cannot find it (a light table) but a hand is held still
+   * (`noSheetCapture.ts`). Its analysis then opens the frame adjustment.
+   */
+  noSheetCapture: {
+    /** How long a steady hand with no sheet found is waited for before the photo is taken. */
+    waitMs: 4000,
+    /**
+     * Live samples in a row without a steady hand that empty the wait. The
+     * hand is read only every `handSampleIntervalMs` (4 live samples at
+     * 8 Hz), so one reading that missed the hand or saw it move pauses the
+     * wait; two in a row empty it.
+     */
+    maxConsecutiveMisses: 6,
+    /** The live loop reads the hand at most this often, and only while no sheet is found. */
+    handSampleIntervalMs: 500,
+    /** A hand reading older than this counts as no hand. */
+    handStaleMs: 1200,
+    /**
+     * A landmark that moved more than this share of the live picture's
+     * diagonal between two readings (`handSampleIntervalMs` apart) is not
+     * held still (the paper ring allows 0.015 per 125 ms sample).
+     */
+    maxHandMovementFraction: 0.03,
+  },
   /** Still used by the printed-sheet flow (CameraCapture). The easy scan uses `cueDebounce`. */
   cueThrottleMs: 1500,
   /** The easy scan's cue line (scan v2, candidates). */

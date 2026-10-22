@@ -147,10 +147,47 @@ export function adjustEntryFor(
 }
 
 /**
- * A line the adjustment screen shows before the frame is confirmed (F7,
- * candidate): `curled` when the detector measured the sheet as not lying flat
- * (`PAPER_CURLED`). A frame placed by hand cannot fix that measurement error,
- * so the person is told, and may still go on. `null` otherwise.
+ * Whether an error is about the hand itself (no hand found, the hand off the
+ * sheet or tilted, fingers not straight): moving the paper's frame cannot fix
+ * it. `HANDEDNESS_MISMATCH` is not one (the hand button fixes it).
+ */
+export function isHandIssue(code: string | undefined): boolean {
+  return (
+    typeof code === "string" &&
+    (code.startsWith("HAND_") || code.startsWith("FINGER_"))
+  );
+}
+
+/**
+ * V3.2 F14 (Kirby's phone test of preview 5, 2026-10-22, candidate): whether
+ * a result opens the adjustment screen by itself, in place of the failure
+ * sheet. Only a photo turned back on the paper (any `PAPER_*` code) with the
+ * detector's own frame (no frame placed by hand yet), whose photo decoded, and
+ * with no failure of the hand itself among its errors (those keep the failure
+ * sheet and its reason: a frame cannot fix them). A photo taken because the
+ * sheet was never found (`noSheetCapture.ts`) is such a photo whenever its
+ * analysis does not find the sheet either. A frame placed by hand that is
+ * turned back again shows the failure sheet, with its reason and the
+ * adjustment as the secondary way on (F7), so the screen never reopens in a
+ * loop.
+ */
+export function adjustOpensDirectly(result: AdjustableResult): boolean {
+  return (
+    result.kind === "gateFailure" &&
+    decodedPhoto(result.overlay) &&
+    !result.placedFrame &&
+    result.errors.some((e) => isPaperIssue(e.code)) &&
+    !result.errors.some((e) => isHandIssue(e.code))
+  );
+}
+
+/**
+ * `curled` when the detector measured the sheet as not lying flat
+ * (`PAPER_CURLED`, F7, candidate), `null` otherwise. A frame placed by hand
+ * cannot fix that measurement error. Since F14 the adjustment screen shows no
+ * line for it (Kirby: no need for multiple indicators); a frame confirmed over
+ * it is remembered, and the results page says it instead (F13,
+ * `paperCurledNoteFor`).
  */
 export function adjustWarningFor(result: AdjustableResult): "curled" | null {
   return result.kind === "gateFailure" &&
@@ -397,8 +434,7 @@ export interface DragState {
   readonly moved: boolean;
   /**
    * Whether the press began on this corner's handle (`pointerDown` named it),
-   * not on the photo dragging the chosen corner. Only a tap on the handle
-   * itself confirms a rough-guess corner (review of F10).
+   * not on the photo dragging the chosen corner.
    */
   readonly onHandle: boolean;
   /** The frame as it was when the press began, for `dragCancel` (F10). */
@@ -442,7 +478,12 @@ export interface AdjustState {
   /** The frame the screen opened with (`reset` goes back to it). */
   readonly start: DefaultAdjustFrame;
   readonly corners: Quad4;
-  /** A corner is placed once it is the detector's own, or the person moved, nudged or worked it out. */
+  /**
+   * Whether a corner may be used as it is (`openingPlaced`, F14): every
+   * corner of a frame with any clue opens placed; a corner of the centred
+   * frame is placed once the person moved, nudged or worked it out. A
+   * worked-out corner whose neighbour then moved is not placed any more.
+   */
   readonly placed: readonly [boolean, boolean, boolean, boolean];
   /**
    * A corner worked out from its two neighbours' edges (`edgeTap`). It holds
@@ -458,6 +499,25 @@ export interface AdjustState {
 }
 
 const NONE_SOLVED = [false, false, false, false] as const;
+const ALL_PLACED = [true, true, true, true] as const;
+
+/**
+ * Which corners a frame opens with as placed (V3.2 F14, Kirby's phone test of
+ * preview 5, 2026-10-22: "its auto fit may be correct, so you don't have to
+ * force the user to manually adjust every corner", candidate): all four,
+ * whatever the frame came from (the detector's corners, three found and the
+ * fourth worked out, the rough quad around the bright region, a frame placed
+ * before), so the person may confirm at once and drag only what is off. Only
+ * the centred sheet, which knows nothing of where the paper is, keeps every
+ * corner to be moved, so it is never measured with as it opened. (A frame
+ * placed before by hand where the detector had none also has `from`
+ * `centred`, but its corners are marked detected: it opens placed.)
+ */
+export function openingPlaced(
+  start: DefaultAdjustFrame,
+): readonly [boolean, boolean, boolean, boolean] {
+  return start.from === "centred" ? start.detected : ALL_PLACED;
+}
 
 /**
  * The opening state:
@@ -472,8 +532,8 @@ const NONE_SOLVED = [false, false, false, false] as const;
  *   (`defaultAdjustFrame`): for `review`, the four corners it measured with;
  *   after a failure, the corners it found, else its rough quad around the
  *   bright region (`paperGuessCorners`, F10: also after `PAPER_NOT_FOUND`,
- *   which F7 opened on the centred sheet), else the centred sheet. Corners
- *   that are only a guess start not placed.
+ *   which F7 opened on the centred sheet), else the centred sheet. Every
+ *   corner opens placed except on the centred sheet (`openingPlaced`, F14).
  */
 export function startAdjust(input: {
   readonly entry: AdjustEntry;
@@ -529,7 +589,7 @@ export function startAdjust(input: {
     paperSize: input.paperSize,
     start,
     corners: start.corners,
-    placed: start.detected,
+    placed: openingPlaced(start),
     solved: NONE_SOLVED,
     selected: null,
     drag: null,
@@ -610,11 +670,9 @@ export function isGuessedCorner(
 
 /**
  * `index` moved to `corner` and is placed. `solved` says whether it was worked
- * out from its edges (else the person put it there). A guessed corner
- * (`isGuessedCorner`) moved by hand is placed only once it is at least
- * `guessMinMoveFraction` of the photo's diagonal from its start, so a nudge
- * does not accept the guess. A worked-out neighbour of it was found from
- * where `index` was, so it goes back to not placed, and the notice says so.
+ * out from its edges (else the person put it there). A worked-out neighbour
+ * of it was found from where `index` was, so it goes back to not placed, and
+ * the notice says so.
  */
 function withCorner(
   state: AdjustState,
@@ -626,13 +684,7 @@ function withCorner(
   const corners = [...state.corners] as [Point2, Point2, Point2, Point2];
   corners[index] = corner;
   const placed = [...state.placed] as [boolean, boolean, boolean, boolean];
-  const from = state.start.corners[index];
-  placed[index] =
-    solvedNow ||
-    !isGuessedCorner(state, index) ||
-    Math.hypot(corner.x - from.x, corner.y - from.y) >=
-      Math.hypot(state.image.width, state.image.height) *
-        MANUAL_QUAD_LIMITS.guessMinMoveFraction;
+  placed[index] = true;
   const solved = [...state.solved] as [boolean, boolean, boolean, boolean];
   solved[index] = solvedNow;
   let notice = state.notice;
@@ -662,22 +714,10 @@ export function adjustReducer(
   action: AdjustAction,
 ): AdjustState {
   switch (action.type) {
-    case "select": {
-      // A corner of the rough guess (F10) is confirmed by a tap: the person
-      // has looked at it and it is on the paper's corner. (A centred start or
-      // the partial frame's inset guess is not: those must be moved.)
-      const confirm =
-        state.start.from === "guess" && !state.placed[action.index];
-      const placed = confirm
-        ? (state.placed.map((p, i) => p || i === action.index) as unknown as [
-            boolean,
-            boolean,
-            boolean,
-            boolean,
-          ])
-        : state.placed;
-      return { ...state, selected: action.index, notice: null, placed };
-    }
+    case "select":
+      // Only chooses the corner (F14: a tap confirms nothing any more; every
+      // corner of a frame with a clue opens placed, `openingPlaced`).
+      return { ...state, selected: action.index, notice: null };
     case "pointerDown": {
       if (state.drag) return state; // one pointer at a time
       const index = action.index ?? state.selected;
@@ -735,24 +775,6 @@ export function adjustReducer(
     case "pointerUp": {
       const drag = state.drag;
       if (drag?.pointerId !== action.pointerId) return state;
-      // A press on a corner of the rough guess that never moved is a tap, and
-      // a tap confirms it, as `select` does. The handle's own click cannot
-      // be relied on for this: the stage captures the pointer at the press,
-      // so the browser sends the click to the stage, not the handle (review
-      // of F10). A tap on the photo away from every handle (`pointerDown`
-      // with no index) only moves the chosen corner, so it confirms nothing,
-      // even when that corner is a guess still waiting to be confirmed.
-      if (
-        drag.onHandle &&
-        !drag.moved &&
-        state.start.from === "guess" &&
-        !state.placed[drag.index]
-      ) {
-        const placed = state.placed.map(
-          (p, i) => p || i === drag.index,
-        ) as unknown as [boolean, boolean, boolean, boolean];
-        return { ...state, drag: null, placed };
-      }
       return { ...state, drag: null };
     }
     case "nudge": {
@@ -863,7 +885,7 @@ export function adjustReducer(
       return {
         ...state,
         corners: state.start.corners,
-        placed: state.start.detected,
+        placed: openingPlaced(state.start),
         solved: NONE_SOLVED,
         selected: null,
         drag: null,

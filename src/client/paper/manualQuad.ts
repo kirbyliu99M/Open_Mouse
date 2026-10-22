@@ -16,11 +16,11 @@
  *    parallelogram's fourth corner pulled toward the opposite corner by
  *    `guessInsetFraction` of that diagonal. It is never offered on the
  *    parallelogram itself (R5 E2: biased by 5-8 mm under tilt, simulated;
- *    DESIGN-v3.2 F2: no parallelogram completion), it is marked not detected,
- *    and the screen counts it placed only once it is worked out from its
- *    edges or moved at least `guessMinMoveFraction` of the photo's diagonal
- *    (`paperAdjustState.ts`), so a 1 px nudge does not accept it. Otherwise a
- *    centred portrait sheet 72 % of the photo's width.
+ *    DESIGN-v3.2 F2: no parallelogram completion) and it is marked not
+ *    detected. Since F14 (Kirby, 2026-10-22: "its auto fit may be correct")
+ *    the screen opens it as placed like the other three, so the person may
+ *    confirm at once or drag only what is off (`paperAdjustState.ts`).
+ *    Otherwise a centred portrait sheet 72 % of the photo's width.
  * 2. `solveHiddenCorner`: a corner under the hand, from points the person
  *    marks on its two neighbouring edges where they are visible. Each edge is
  *    the line through its visible neighbouring corner and the marked points;
@@ -106,18 +106,11 @@ export const MANUAL_QUAD_LIMITS = {
   /**
    * The corner the detector did not find, when it found the other three,
    * starts this share of the way from the parallelogram's fourth corner back
-   * toward the opposite corner: visibly off the sheet's corner, so it must
-   * really be dragged there (or worked out from its edges).
+   * toward the opposite corner: visibly off the sheet's corner, so it is
+   * plain on screen that it needs dragging there (or working out from its
+   * edges). Since F14 it is not forced: the screen opens it placed.
    */
   guessInsetFraction: 0.25,
-  /**
-   * ...and it counts as placed by a drag or arrow keys only once it is at
-   * least this share of the photo's diagonal from where it started (0.03 of a
-   * 1024x1920 photo is 65 px; the inset start is about 5 times that from the
-   * parallelogram corner on R5's scene, simulated). Working it out from its
-   * edges places it whatever the distance.
-   */
-  guessMinMoveFraction: 0.03,
 } as const;
 
 /** The corner order every paper quad uses: 0 = TL, 1 = TR, 2 = BR, 3 = BL. */
