@@ -7,19 +7,23 @@
  * On a light table the live detector may never find the sheet, or find it
  * only now and then, or find a quad that does not pass the paper gate, so the
  * paper ring (`autoCapture.ts`) never fills and nothing happens. This is the
- * second way the shutter fires by itself: while the paper ring is NOT being
- * fed passing samples but a hand is seen, held still, in a sharp picture, for `waitMs` (about
+ * second way the shutter fires by itself: while the sheet is not found
+ * (`sheetFoundByCue`) but a hand is seen, held still, in a sharp picture, for `waitMs` (about
  * 4 s), the photo is taken anyway. Its analysis then opens the adjustment
  * screen when it fails on the paper (`adjustOpensDirectly`,
  * paperAdjustState.ts).
  *
  * Everything here is pure: the live loop gives it one sample at a time.
  *
- * - The wait runs while the paper ring gets no passing sample. A sheet found
- *   now and then, or a quad the gate turns back, does not touch it: only a
- *   sample on which every paper check passes (the ring fills on it) pauses
- *   the wait, and a sheet that keeps passing fires the ring first (800 ms
- *   against 4 s). The wait is never emptied by the sheet.
+ * - The wait runs only while the sheet is not found (`sheetFoundByCue`): no
+ *   corners, some corners, a detector stage cue, or a quad the paper gate
+ *   turns back (covered edge, curled paper). A sheet that is found and only
+ *   needs the phone moved (tilted, too far, too close, too dark, too bright,
+ *   not still, out of focus) pauses it: the live cue tells the user what to
+ *   do and the paper ring takes the photo once it is fixed. So does a sample
+ *   on which every check passes (the ring fills on it); a sheet that keeps
+ *   passing fires the ring first (800 ms against 4 s). The wait is never
+ *   emptied by the sheet.
  * - Samples without a steady hand only pause it (as the paper ring, scan
  *   v2); `maxConsecutiveMisses` in a row empty it. One hand reading that
  *   missed the hand or saw it move costs at most two readings' worth of
@@ -31,7 +35,45 @@
  *   hand (`liveHandSignal`).
  */
 import { CAMERA_CONSTANTS } from "./constants";
+import type { CueCode } from "./cues";
 import type { Point } from "./quad";
+
+/**
+ * Per live cue (`pickCue`), whether the sheet counts as found for this wait.
+ * `true`: the sheet is found and the cue asks only for the phone to be moved
+ * or held (or every check passed), so the wait pauses and the live checks keep
+ * guarding the shot. `false`: the sheet is not found, or the paper gate turns
+ * the found quad back, so the wait runs. Every code is listed: a new cue
+ * needs a decision here (candidate 未拍板, F14 review 2026-10-22).
+ */
+const SHEET_FOUND_BY_CUE: Readonly<Record<CueCode, boolean>> = {
+  "place-paper": false,
+  "no-corners": false,
+  "some-corners": false,
+  "stage-no-bright-region": false,
+  "stage-region-split": false,
+  "stage-aspect-mismatch": false,
+  "stage-too-small": false,
+  "edge-covered": false,
+  "edge-covered-top": false,
+  "edge-covered-bottom": false,
+  "edge-covered-left": false,
+  "edge-covered-right": false,
+  "paper-curled": false,
+  tilted: true,
+  "too-far": true,
+  "too-close": true,
+  dark: true,
+  bright: true,
+  "hold-still": true,
+  "out-of-focus": true,
+  perfect: true,
+};
+
+/** Whether this live cue says the sheet is found, so the wait pauses (`SHEET_FOUND_BY_CUE`). */
+export function sheetFoundByCue(code: CueCode): boolean {
+  return SHEET_FOUND_BY_CUE[code];
+}
 
 export interface NoSheetCaptureState {
   /** Milliseconds of passing-sample time so far. */
@@ -51,12 +93,13 @@ export const INITIAL_NO_SHEET_CAPTURE_STATE: NoSheetCaptureState = {
 /** What one live sample says. */
 export interface NoSheetSample {
   /**
-   * Every paper check passed on this sample, so the paper ring
-   * (`autoCapture.ts`) fills on it: the ring is the one that counts and this
-   * wait pauses. A found quad that does not pass, or a sheet found only now
-   * and then, leaves this false and the wait on.
+   * The sheet is found on this sample (`sheetFoundByCue` of the live cue):
+   * every check passed, or only the phone needs moving or holding. The live
+   * checks and the paper ring guard the shot then, and this wait pauses. No
+   * sheet, a sheet found only now and then, or a quad the paper gate turns
+   * back leaves this false and the wait on.
    */
-  readonly paperPassing: boolean;
+  readonly sheetFound: boolean;
   /** A hand was read recently enough (`liveHandSignal`). */
   readonly handSeen: boolean;
   /** ...and it has not moved between the last two readings. */
@@ -76,7 +119,7 @@ export function advanceNoSheetCapture(
     .maxConsecutiveMisses,
 ): NoSheetCaptureState {
   if (state.fired) return state;
-  if (sample.paperPassing || !sample.settled) return state;
+  if (sample.sheetFound || !sample.settled) return state;
   if (!(sample.handSeen && sample.handSteady && sample.sharp)) {
     const missStreak = state.missStreak + 1;
     if (missStreak >= maxConsecutiveMisses)
@@ -99,18 +142,18 @@ export interface LiveHandReading {
 }
 
 /**
- * Whether the live loop reads the hand on this sample: only when the paper
- * checks did not pass (the ring needs no hand), only once the hand detector
- * is loaded, and at most every `handSampleIntervalMs`.
+ * Whether the live loop reads the hand on this sample: only when the sheet
+ * is not found (the wait is paused otherwise, `sheetFoundByCue`), only once
+ * the hand detector is loaded, and at most every `handSampleIntervalMs`.
  */
 export function shouldSampleHand(input: {
-  readonly paperPassing: boolean;
+  readonly sheetFound: boolean;
   readonly detectorReady: boolean;
   readonly lastReadingAtMs: number | null;
   readonly nowMs: number;
   readonly intervalMs?: number;
 }): boolean {
-  if (input.paperPassing || !input.detectorReady) return false;
+  if (input.sheetFound || !input.detectorReady) return false;
   const interval =
     input.intervalMs ?? CAMERA_CONSTANTS.noSheetCapture.handSampleIntervalMs;
   return (

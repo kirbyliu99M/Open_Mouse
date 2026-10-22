@@ -14,12 +14,18 @@ import {
 } from "../../src/client/camera/autoCapture";
 import { CAMERA_CONSTANTS } from "../../src/client/camera/constants";
 import {
+  pickCue,
+  type CueCode,
+  type CueInput,
+} from "../../src/client/camera/cues";
+import {
   EMPTY_HAND_READINGS,
   INITIAL_NO_SHEET_CAPTURE_STATE,
   advanceNoSheetCapture,
   liveHandSignal,
   maxLandmarkMovement,
   recordHandReading,
+  sheetFoundByCue,
   shouldSampleHand,
   type HandReadings,
   type LiveHandReading,
@@ -30,7 +36,7 @@ import {
 const C = CAMERA_CONSTANTS.noSheetCapture;
 const STEP_MS = 1000 / CAMERA_CONSTANTS.liveLoop.maxSamplesPerSecond; // 125
 const PASS: NoSheetSample = {
-  paperPassing: false,
+  sheetFound: false,
   handSeen: true,
   handSteady: true,
   sharp: true,
@@ -75,7 +81,7 @@ describe("advanceNoSheetCapture", () => {
   it("stays fired (a no-op) until reset", () => {
     const done = feed(times(needed));
     expect(
-      advanceNoSheetCapture(done, { ...PASS, paperPassing: true }, STEP_MS),
+      advanceNoSheetCapture(done, { ...PASS, sheetFound: true }, STEP_MS),
     ).toBe(done);
   });
 
@@ -85,12 +91,12 @@ describe("advanceNoSheetCapture", () => {
     expect(feed(times(200, { ...PASS, sharp: false })).fired).toBe(false);
   });
 
-  it("a sample the paper ring fills on pauses it (the ring counts then); it neither counts nor misses", () => {
+  it("a sample with the sheet found pauses it (the live checks and the ring count then); it neither counts nor misses", () => {
     const half = feed(times(needed - 2));
-    const paused = feed(times(50, { ...PASS, paperPassing: true }), half);
+    const paused = feed(times(50, { ...PASS, sheetFound: true }), half);
     expect(paused).toEqual(half);
     expect(
-      feed(times(50, { ...PASS, handSeen: false, paperPassing: true }), half),
+      feed(times(50, { ...PASS, handSeen: false, sheetFound: true }), half),
     ).toEqual(half);
     expect(feed(times(2), paused).fired).toBe(true);
   });
@@ -136,7 +142,7 @@ describe("the hand in the live picture", () => {
 
   it("is read only while no sheet is found, once the detector is loaded, at most every handSampleIntervalMs", () => {
     const base = {
-      paperPassing: false,
+      sheetFound: false,
       detectorReady: true,
       nowMs: 10_000,
     };
@@ -144,7 +150,7 @@ describe("the hand in the live picture", () => {
     expect(
       shouldSampleHand({
         ...base,
-        paperPassing: true,
+        sheetFound: true,
         lastReadingAtMs: null,
       }),
     ).toBe(false);
@@ -249,13 +255,14 @@ describe("the hand in the live picture", () => {
   /**
    * The whole chain of one live sample, SIMULATED (模擬): the real paper ring
    * (advanceAutoCapture), the real hand reading rules and the real wait, at
-   * 8 samples a second. `paperPass(i)` is the ring's own input on sample i
-   * (the live loop's `nextCue.allPass && settled`); `handAt(t)` is what one
+   * 8 samples a second. `cueAt(i)` is the live cue on sample i: the ring
+   * fills on "perfect" (the live loop's `nextCue.allPass && settled`), the
+   * wait goes by `sheetFoundByCue`; `handAt(t)` is what one
    * hand reading at t ms finds (landmark x offset in px, or null for none).
    * Returns which way fired first and when, or null by 20 s.
    */
   const chain = (
-    paperPass: (i: number) => boolean,
+    cueAt: (i: number) => CueCode,
     handAt: (t: number) => number | null,
   ): { by: "paper" | "no-sheet"; atMs: number } | null => {
     let ring = INITIAL_AUTO_CAPTURE_STATE;
@@ -263,11 +270,12 @@ describe("the hand in the live picture", () => {
     let readings: HandReadings = EMPTY_HAND_READINGS;
     for (let i = 1; i * STEP_MS <= 20_000; i++) {
       const t = i * STEP_MS;
-      ring = advanceAutoCapture(ring, paperPass(i), STEP_MS);
-      const paperPassing = paperPass(i);
+      const code = cueAt(i);
+      ring = advanceAutoCapture(ring, code === "perfect", STEP_MS);
+      const sheetFound = sheetFoundByCue(code);
       if (
         shouldSampleHand({
-          paperPassing,
+          sheetFound,
           detectorReady: true,
           lastReadingAtMs: readings.latest?.atMs ?? null,
           nowMs: t,
@@ -288,7 +296,7 @@ describe("the hand in the live picture", () => {
       wait = advanceNoSheetCapture(
         wait,
         {
-          paperPassing,
+          sheetFound,
           handSeen: h.seen,
           handSteady: h.steady,
           sharp: true,
@@ -301,7 +309,11 @@ describe("the hand in the live picture", () => {
     }
     return null;
   };
-  const never = () => false;
+  const never = (): CueCode => "no-corners";
+  const passingWhen =
+    (pass: (i: number) => boolean) =>
+    (i: number): CueCode =>
+      pass(i) ? "perfect" : "no-corners";
   const still = () => 0;
   // The first reading has nothing to compare with: the wait starts with the
   // second, half a second later.
@@ -353,11 +365,23 @@ describe("the hand in the live picture", () => {
     // with, so the ring's input is false on every sample. A quad found on
     // every sample that never passes the gate: the same input.
     onTime(chain(never, still));
+    onTime(chain((i) => (i % 2 ? "some-corners" : "no-corners"), still));
+    for (const code of [
+      "edge-covered",
+      "edge-covered-top",
+      "paper-curled",
+      "stage-no-bright-region",
+      "place-paper",
+    ] as const)
+      onTime(chain(() => code, still));
     // Passing now and then: every 4th sample, once a second, once every
     // 2.5 s. Each passing sample pauses the wait, but the ring empties again
     // before it fills; the wait still ends, a little later.
     for (const every of [4, 8, 20]) {
-      const r = chain((i) => i % every === 0, still);
+      const r = chain(
+        passingWhen((i) => i % every === 0),
+        still,
+      );
       expect(r?.by).toBe("no-sheet");
       expect(r!.atMs).toBeLessThan(2 * C.waitMs);
     }
@@ -365,12 +389,90 @@ describe("the hand in the live picture", () => {
 
   it("a sheet that passes keeps the paper ring first: it fires in 800 ms and the wait never does (simulated)", () => {
     const ringMs = CAMERA_CONSTANTS.autoCapture.durationMs;
-    expect(chain(() => true, still)).toEqual({
+    expect(
+      chain(
+        passingWhen(() => true),
+        still,
+      ),
+    ).toEqual({
       by: "paper",
       atMs: Math.ceil(ringMs / STEP_MS) * STEP_MS,
     });
     // Passing two samples in three still fills the ring first.
-    expect(chain((i) => i % 3 !== 0, still)?.by).toBe("paper");
+    expect(
+      chain(
+        passingWhen((i) => i % 3 !== 0),
+        still,
+      )?.by,
+    ).toBe("paper");
+  });
+
+  it("a sheet found that only needs the phone moved or held never fires the wait: the live checks keep guarding that shot (F14 review, simulated)", () => {
+    for (const code of [
+      "tilted",
+      "too-far",
+      "too-close",
+      "dark",
+      "bright",
+      "hold-still",
+      "out-of-focus",
+    ] as const) {
+      expect(sheetFoundByCue(code)).toBe(true);
+      expect(chain(() => code, still)).toBeNull();
+    }
+    // A found sheet between no-sheet samples only pauses the wait: half the
+    // wait without the sheet, then 10 s too far, then no sheet again fires it
+    // about half a wait later.
+    const half = Math.round(C.waitMs / 2 / STEP_MS);
+    const r = chain(
+      (i) => (i > half && i <= half + 80 ? "too-far" : "no-corners"),
+      still,
+    );
+    expect(r?.by).toBe("no-sheet");
+    expect(r!.atMs).toBeGreaterThan((half + 80) * STEP_MS);
+    expect(r!.atMs).toBeLessThanOrEqual(
+      (half + 80) * STEP_MS + C.waitMs / 2 + 2 * C.handSampleIntervalMs,
+    );
+  });
+
+  it("the cue the live loop really picks: a whole sheet too far, too dark or not still pauses it; no sheet runs it", () => {
+    const quad = (widthFraction: number) => {
+      const w = 480 * widthFraction;
+      const h = w * Math.SQRT2;
+      return {
+        topLeft: { x: 10, y: 10 },
+        topRight: { x: 10 + w, y: 10 },
+        bottomRight: { x: 10 + w, y: 10 + h },
+        bottomLeft: { x: 10, y: 10 + h },
+      };
+    };
+    const base: CueInput = {
+      cornersSeen: 4,
+      quad: quad(0.75),
+      frameWidth: 480,
+      meanLuma: 140,
+      clippedFraction: 0,
+      steady: true,
+      sharpEnough: true,
+      msSinceLastDetection: 0,
+    };
+    const code = (over: Partial<CueInput>) =>
+      pickCue({ ...base, ...over }, "paper-edge", "en").code;
+    expect(code({})).toBe("perfect");
+    expect(code({ quad: quad(0.3) })).toBe("too-far");
+    expect(code({ meanLuma: 30 })).toBe("dark");
+    expect(code({ steady: false })).toBe("hold-still");
+    for (const over of [
+      { quad: quad(0.3) },
+      { meanLuma: 30 },
+      { steady: false },
+    ])
+      expect(sheetFoundByCue(code(over))).toBe(true);
+    const none = code({ cornersSeen: 0, quad: null });
+    expect(sheetFoundByCue(none)).toBe(false);
+    const some = code({ cornersSeen: 3, quad: null });
+    expect(some).toBe("some-corners");
+    expect(sheetFoundByCue(some)).toBe(false);
   });
 });
 
@@ -387,14 +489,16 @@ describe("EasyScanCamera wires it (read from the source: the repo has no DOM tes
 
   it("each live sample advances the wait with the sheet, the hand, sharpness and the settled preview", () => {
     expect(tick).toMatch(
-      /noSheetCaptureRef\.current = advanceNoSheetCapture\(\s*noSheetCaptureRef\.current,\s*\{\s*paperPassing,\s*handSeen: hand\.seen,\s*handSteady: hand\.steady,\s*sharp: sharpEnough,\s*settled: previewSettledRef\.current,\s*\},\s*dtMs,\s*\);/,
+      /noSheetCaptureRef\.current = advanceNoSheetCapture\(\s*noSheetCaptureRef\.current,\s*\{\s*sheetFound,\s*handSeen: hand\.seen,\s*handSteady: hand\.steady,\s*sharp: sharpEnough,\s*settled: previewSettledRef\.current,\s*\},\s*dtMs,\s*\);/,
     );
-    // The wait goes by the very input the paper ring fills on.
+    // The ring fills on the cue's allPass; the wait goes by the same cue,
+    // paused while the sheet is found (sheetFoundByCue).
     expect(tick).toMatch(
       /const paperPassing = nextCue\.allPass && previewSettledRef\.current;\s*autoCaptureRef\.current = advanceAutoCapture\(\s*autoCaptureRef\.current,\s*paperPassing,\s*dtMs,\s*\);/,
     );
+    expect(tick).toContain("const sheetFound = sheetFoundByCue(nextCue.code);");
     expect(tick).toMatch(
-      /shouldSampleHand\(\{\s*paperPassing,\s*detectorReady: isHandLandmarkerReady\(\),/,
+      /shouldSampleHand\(\{\s*sheetFound,\s*detectorReady: isHandLandmarkerReady\(\),/,
     );
     // A found quad no longer throws the hand readings away; each reading
     // goes through recordHandReading.

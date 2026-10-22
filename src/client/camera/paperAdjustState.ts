@@ -147,14 +147,18 @@ export function adjustEntryFor(
 }
 
 /**
- * Whether an error is about the hand itself (no hand found, the hand off the
- * sheet or tilted, fingers not straight): moving the paper's frame cannot fix
- * it. `HANDEDNESS_MISMATCH` is not one (the hand button fixes it).
+ * Whether an error is about the hand itself (no hand found, the hand read
+ * unclearly, the hand off the sheet or tilted, fingers not straight): moving
+ * the paper's frame cannot fix it. `LOW_LANDMARK_CONFIDENCE` is one (the hand
+ * detection is the same photo's, whatever the frame). `HANDEDNESS_MISMATCH`
+ * is not one (the hand button fixes it).
  */
 export function isHandIssue(code: string | undefined): boolean {
   return (
     typeof code === "string" &&
-    (code.startsWith("HAND_") || code.startsWith("FINGER_"))
+    (code.startsWith("HAND_") ||
+      code.startsWith("FINGER_") ||
+      code === "LOW_LANDMARK_CONFIDENCE")
   );
 }
 

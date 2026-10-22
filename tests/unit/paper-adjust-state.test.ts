@@ -269,9 +269,10 @@ describe("adjustOpensDirectly (F14, Kirby's phone test of preview 5, 2026-10-22)
     placedFrame: extra.placed ?? null,
   });
 
-  it("isHandIssue: a failure of the hand itself (HAND_*, FINGER_*), not the hand button's HANDEDNESS_MISMATCH nor a paper code", () => {
+  it("isHandIssue: a failure of the hand itself (HAND_*, FINGER_*, LOW_LANDMARK_CONFIDENCE), not the hand button's HANDEDNESS_MISMATCH nor a paper code", () => {
     for (const code of [
       "HAND_NOT_DETECTED",
+      "LOW_LANDMARK_CONFIDENCE",
       "HAND_OUT_OF_BOUNDS",
       "HAND_TILTED",
       "FINGER_NOT_STRAIGHT",
@@ -310,6 +311,19 @@ describe("adjustOpensDirectly (F14, Kirby's phone test of preview 5, 2026-10-22)
       expect(adjustOpensDirectly(failure([code]))).toBe(false);
       expect(adjustOpensDirectly(failure(["PAPER_CURLED", code]))).toBe(false);
     }
+  });
+
+  it("a hand read unclearly beside a paper failure keeps the failure sheet (F14 review): the hand detection is the photo's, whatever the frame", () => {
+    // Four corners found but the paper gate turned them back: the paper-edge
+    // finish runs the hand gates as well and returns both errors.
+    expect(
+      adjustOpensDirectly(
+        failure(["PAPER_EDGE_HIDDEN", "LOW_LANDMARK_CONFIDENCE"]),
+      ),
+    ).toBe(false);
+    expect(adjustOpensDirectly(failure(["LOW_LANDMARK_CONFIDENCE"]))).toBe(
+      false,
+    );
   });
 
   it("nothing about the paper, no decoded photo, or a frame already placed by hand: the failure sheet", () => {

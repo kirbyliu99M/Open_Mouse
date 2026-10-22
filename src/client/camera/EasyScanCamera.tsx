@@ -102,6 +102,7 @@ import {
   advanceNoSheetCapture,
   liveHandSignal,
   recordHandReading,
+  sheetFoundByCue,
   shouldSampleHand,
   type HandReadings,
   type NoSheetCaptureState,
@@ -2114,17 +2115,20 @@ export default function EasyScanCamera({
       );
       setRingFraction(autoCaptureRingFraction(autoCaptureRef.current));
 
-      // F14 (candidate): the paper checks do not pass (a light table: the
-      // sheet not found, found only now and then, or a quad the gate turns
-      // back), but a hand held still: after `noSheetCapture.waitMs` the photo
-      // is taken anyway, and its analysis opens the adjustment
-      // (adjustOpensDirectly). The hand is read from this same sample, only
-      // on samples the ring does not fill on and at most every
+      // F14 (candidate): the sheet is not found (a light table: no sheet,
+      // found only now and then, or a quad the gate turns back), but a hand
+      // held still: after `noSheetCapture.waitMs` the photo is taken anyway,
+      // and its analysis opens the adjustment (adjustOpensDirectly). A sheet
+      // that is found and only needs the phone moved or held (too far,
+      // tilted, dark, hold still...) pauses the wait: the live cue and the
+      // ring guard that shot (sheetFoundByCue). The hand is read from this
+      // same sample, only while the sheet is not found and at most every
       // `handSampleIntervalMs`; only whether it is there and still is used,
       // nothing is measured from it.
+      const sheetFound = sheetFoundByCue(nextCue.code);
       if (
         shouldSampleHand({
-          paperPassing,
+          sheetFound,
           detectorReady: isHandLandmarkerReady(),
           lastReadingAtMs: handReadingsRef.current.latest?.atMs ?? null,
           nowMs: now,
@@ -2146,7 +2150,7 @@ export default function EasyScanCamera({
       noSheetCaptureRef.current = advanceNoSheetCapture(
         noSheetCaptureRef.current,
         {
-          paperPassing,
+          sheetFound,
           handSeen: hand.seen,
           handSteady: hand.steady,
           sharp: sharpEnough,
