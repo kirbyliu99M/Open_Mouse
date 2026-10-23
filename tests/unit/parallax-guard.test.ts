@@ -675,3 +675,108 @@ describe("finishPaperEdge with the guard (模擬)", () => {
     expect(withExif.parallaxCorrected).toBe(true);
   });
 });
+
+describe("review fixes: what the focal-backing exception lets through, pinned (模擬)", () => {
+  it("CURRENT CANDIDATE DESIGN (b4be146d, 未拍板): a nominal correction whose ratios are outside the limits is KEPT when the homography's estimate is 0.889 x the nominal (inside focalAgreement), even where it makes the hand longer", () => {
+    // True focal length 0.889 x nominal, tilted 40 deg straight towards the
+    // wrist: the estimate is unreliable, so the nominal prior corrects it.
+    const scene = buildObliqueScene({
+      ...FRAME,
+      fPx: NOMINAL * 0.889,
+      tiltDeg: 40,
+      azimuthDeg: -90,
+      distanceMm: 450,
+    });
+    expect(inFrame(scene.corners)).toBe(true);
+    const h = homographyOf(scene.corners);
+    const estimate = estimateFocalFromHomography(h, PRINCIPAL)!;
+    expect(estimate.reliable).toBe(false);
+    expect(estimate.fPx / NOMINAL).toBeCloseTo(0.889, 3);
+    const { corrected, uncorrected, guarded } = correctOblique(scene, null);
+    expect(corrected.focalSource).toBe("nominal");
+    const v = judgeParallaxCorrection(uncorrected, corrected.measurements);
+    expect(v).toMatchObject({ accept: false, reason: "lengthened" });
+    expect(v.ratios.handLength).toBeCloseTo(0.939, 3);
+    // The cost of the exception: the corrected hand is +6.6 mm off, the
+    // uncorrected one -5.4 mm. Under the brief's literal AC2 (refuse on the
+    // ratio alone) this would be refused instead.
+    expect(
+      corrected.measurements.handLengthMm - scene.trueHandLengthMm,
+    ).toBeCloseTo(6.6, 1);
+    expect(uncorrected.handLengthMm - scene.trueHandLengthMm).toBeCloseTo(
+      -5.4,
+      1,
+    );
+    expect(guarded.corrected).toBe(corrected);
+    expect(guarded.refusal).toBeNull();
+  });
+
+  it("BY CONSTRUCTION: a correction whose focal length came from this frame's own homography (not reused) is never refused, whatever its ratios: the guard's estimate is that same estimate (ratio 1)", () => {
+    // Reliable, within the prior's range: resolveFocalPx picks the homography.
+    const scene = buildObliqueScene({
+      ...FRAME,
+      fPx: NOMINAL * 0.889,
+      tiltDeg: 40,
+      azimuthDeg: -80,
+      distanceMm: 450,
+    });
+    const h = homographyOf(scene.corners);
+    const estimate = estimateFocalFromHomography(h, PRINCIPAL)!;
+    expect(estimate.reliable).toBe(true);
+    const { corrected, uncorrected, guarded } = correctOblique(scene, null);
+    expect(corrected.focalSource).toBe("homography");
+    expect(corrected.fPx).toBe(estimate.fPx);
+    expect(focalCorroborated("homography", corrected.fPx!, estimate.fPx)).toBe(
+      true,
+    );
+    const v = judgeParallaxCorrection(uncorrected, corrected.measurements);
+    expect(v).toMatchObject({ accept: false, reason: "lengthened" });
+    expect(v.ratios.handLength).toBeCloseTo(0.972, 3);
+    expect(guarded.corrected).toBe(corrected);
+    expect(guarded.refusal).toBeNull();
+    // Here the kept correction is the right one (the true focal length).
+    expect(
+      Math.abs(corrected.measurements.handLengthMm - scene.trueHandLengthMm),
+    ).toBeLessThan(0.5);
+  });
+
+  it("a hand-placed frame reusing the automatic round's homography focal length (1442 px) that its own homography does not back (894 px): refused, the reused focal length in the log", () => {
+    const h = homographyOf(KIRBY_LIKE.corners);
+    const estimate = estimateFocalFromHomography(h, PRINCIPAL)!;
+    expect(estimate.fPx / NOMINAL).toBeLessThan(
+      PARALLAX_GUARD.focalAgreement.min,
+    );
+    const corrected = computeCorrectedHandMeasurements(
+      KIRBY_LIKE.landmarksPx,
+      h,
+      {
+        exifFocalPx: null,
+        widthPx: FRAME.width,
+        heightPx: FRAME.height,
+        nominalFocalPx: NOMINAL,
+        reusedFocal: { source: "homography", fPx: NOMINAL },
+      },
+    );
+    expect(corrected.focalSource).toBe("homography");
+    expect(corrected.fPx).toBe(NOMINAL);
+    const guarded = guardCorrection(
+      corrected,
+      KIRBY_LIKE.landmarksPx,
+      h,
+      PRINCIPAL,
+    );
+    expect(guarded.refusal).toMatchObject({
+      refused: true,
+      reason: "lengthened",
+      field: "handLength",
+      refusedFocal: { source: "homography", px: NOMINAL },
+    });
+    expect(guarded.corrected).toEqual({
+      measurements: computeHandMeasurements(KIRBY_LIKE.landmarksPx, h),
+      parallaxCorrected: false,
+      focalSource: "none",
+      fPx: null,
+      heightsMm: null,
+    });
+  });
+});

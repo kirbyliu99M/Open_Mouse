@@ -102,6 +102,12 @@ export interface FocalAgreementLimits {
  *   formulas and is flagged unreliable, yet its value is right in the
  *   simulation) must exist and be within `focalAgreement` of the one used.
  *   `null` (no estimate could be worked out) is not backed.
+ *
+ * Consequence (review 2026-10-23, candidate 未拍板): a correction whose focal
+ * length came from the same frame's own homography (not reused) is always
+ * backed, since `guardCorrection` re-estimates from that same homography
+ * (ratio 1); only a reused focal length (a hand-placed frame) or the nominal
+ * prior can be refused. Pinned in tests/unit/parallax-guard.test.ts.
  */
 export function focalCorroborated(
   source: CorrectionFocalSource,

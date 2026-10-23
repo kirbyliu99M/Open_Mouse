@@ -56,7 +56,8 @@ import {
   computeHandMeasurements,
 } from "../../src/client/geometry/measurements";
 import { scanSubmissionSchema } from "../../src/lib/contracts/measurement";
-import { guardCorrection } from "../../src/client/photo/paperEdgeFinish";
+import { estimateFocalFromHomography } from "../../src/client/geometry/focal-from-homography";
+import { judgeParallaxCorrection } from "../../src/client/geometry/parallaxGuard";
 import {
   nominalFocalPx,
   nominalFocalPxFromLongEdge,
@@ -186,21 +187,22 @@ function reference(
     paperRegionFound: true,
   };
   const { geometry } = evaluatePaperEdgeCalibration(quad, "a4", false);
-  // V3.2 F16: the pipeline's policy now ends with the safety check, which
-  // returns a correction it accepts as the very same object.
+  // The correction alone, WITHOUT the F16 guard (review fix): a reference
+  // that called the guard itself would agree with the pipeline whether the
+  // guard refused or not. Where the guard's decision matters the tests say
+  // what they expect in so many words.
   return {
     homography: geometry!.homography,
-    corrected: guardCorrection(
-      computeCorrectedHandMeasurements(landmarks, geometry!.homography, {
+    corrected: computeCorrectedHandMeasurements(
+      landmarks,
+      geometry!.homography,
+      {
         exifFocalPx: null,
         widthPx: FRAME.width,
         heightPx: FRAME.height,
         nominalFocalPx: prior,
-      }),
-      landmarks,
-      geometry!.homography,
-      { cx: FRAME.width / 2, cy: FRAME.height / 2 },
-    ).corrected,
+      },
+    ),
   };
 }
 
@@ -305,26 +307,48 @@ describe("paper-edge pipeline with a frame of the video (no EXIF, no previewView
     );
   });
 
-  it("a tilted view: whatever the focal policy decides, the flag says it and the measurements are the reference's", async () => {
+  it("a tilted view (focal estimate 0.889 x the nominal, palm width ratio 1.195, 模擬): KEPT under the current candidate design (b4be146d, 未拍板: a ratio outside the limits is refused only when the focal length is not backed)", async () => {
     const landmarks = landmarksFor(TILTED);
     arrange(TILTED, landmarks);
     const result = ok(await run());
-    const { corrected } = reference(TILTED, landmarks);
-    expect(result.diagnostics?.parallaxCorrected).toBe(
-      corrected.parallaxCorrected,
+    const { homography, corrected } = reference(TILTED, landmarks);
+    const prior = nominalFocalPx(FRAME)!;
+    // The situation (模擬): no EXIF, the homography's estimate is not
+    // reliable, so the nominal prior corrects it; the estimate is 0.889 of it,
+    // inside PARALLAX_GUARD.focalAgreement (0.85-1.4).
+    const estimate = estimateFocalFromHomography(homography, {
+      cx: FRAME.width / 2,
+      cy: FRAME.height / 2,
+    })!;
+    expect(estimate.reliable).toBe(false);
+    expect(estimate.fPx / prior).toBeCloseTo(0.889, 3);
+    // The ratios are outside the limits: the hand made longer (190.0 ->
+    // 196.7 mm), the palm width much narrower (80.0 -> 67.0 mm).
+    const uncorrected = computeHandMeasurements(landmarks, homography);
+    const verdict = judgeParallaxCorrection(
+      uncorrected,
+      corrected.measurements,
     );
-    expect(result.diagnostics?.focal).toEqual({
-      source: corrected.focalSource,
-      px: corrected.fPx,
+    expect(verdict).toMatchObject({ accept: false, reason: "lengthened" });
+    expect(verdict.ratios.handLength).toBeCloseTo(0.966, 3);
+    expect(verdict.ratios.palmWidth).toBeCloseTo(1.195, 3);
+    expect(uncorrected.handLengthMm).toBeCloseTo(190.0, 1);
+    expect(corrected.measurements.handLengthMm).toBeCloseTo(196.7, 1);
+    expect(corrected.measurements.palmWidthMm).toBeCloseTo(67.0, 1);
+    // The current design: kept. If Claude/Kirby choose the brief's literal
+    // AC2 (refuse whenever a ratio is outside), this flips to parallaxCorrected
+    // false, focal none, the uncorrected numbers.
+    expect(result.diagnostics?.parallaxCorrected).toBe(true);
+    expect(result.diagnostics?.focal).toEqual({ source: "nominal", px: prior });
+    expect(result.submission.calibration).toMatchObject({
+      parallaxCorrected: true,
+      focalSource: "nominal",
     });
+    expect(result.measurements).toEqual(corrected.measurements);
     expect(result.diagnostics?.measured).toEqual({
       handLengthMm: corrected.measurements.handLengthMm,
       palmWidthMm: corrected.measurements.palmWidthMm,
     });
-    expect(result.submission.calibration).toMatchObject({
-      parallaxCorrected: corrected.parallaxCorrected,
-    });
-    expect(result.measurements).toEqual(corrected.measurements);
   });
 
   it("a run that stops before it measures has no measured numbers and no focal length", async () => {
