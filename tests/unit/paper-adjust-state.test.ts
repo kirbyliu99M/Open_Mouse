@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 import {
   PAPER_ADJUST_LAYOUT,
+  dragSlopScreenPx,
   adjustConfirmAction,
   adjustEntryFor,
   adjustOpensDirectly,
@@ -494,14 +495,14 @@ describe("where the frame opens (F7; F10: always a best guess)", () => {
         type: "pointerDown",
         index: 1,
         pointerId: 1,
-        pointerType: "touch",
+        pointerType: "mouse",
         point: { x: 0, y: 0 },
       },
-      { type: "pointerMove", pointerId: 1, point: { x: 1, y: 0 }, scale: 1 },
+      { type: "pointerMove", pointerId: 1, point: { x: 3, y: 0 }, scale: 1 },
       { type: "pointerUp", pointerId: 1 },
     );
     expect(s.placed).toEqual([true, true, true, true]);
-    expect(s.corners[1]).toEqual({ x: GUESS[1].x + 1, y: GUESS[1].y });
+    expect(s.corners[1]).toEqual({ x: GUESS[1].x + 3, y: GUESS[1].y });
     expect([s.corners[0], s.corners[2], s.corners[3]]).toEqual([
       GUESS[0],
       GUESS[2],
@@ -770,7 +771,7 @@ describe("where the frame opens (F7), continued", () => {
           type: "pointerDown",
           index: 1,
           pointerId: 1,
-          pointerType: "touch",
+          pointerType: "mouse",
           point: { x: 0, y: 0 },
         },
         { type: "pointerMove", pointerId: 1, point: { x: 5, y: 5 }, scale: 1 },
@@ -876,6 +877,81 @@ describe("檢查邊框 on a measured photo (review, F7)", () => {
       { type: "pointerMove", pointerId: 1, point: { x: 10, y: 10 }, scale: 1 },
     );
     expect(frameMoved(back)).toBe(false);
+  });
+
+  it("F15: a finger that wobbles 1 screen px on a handle is a tap, not a move: confirmed, nothing runs again", () => {
+    const state = open();
+    const wobbled = run(
+      state,
+      {
+        type: "pointerDown",
+        index: 2,
+        pointerId: 3,
+        pointerType: "touch",
+        point: { x: 40, y: 40 },
+      },
+      // Sub-pixel and 1 px wobble, as a touch screen reports a tap.
+      {
+        type: "pointerMove",
+        pointerId: 3,
+        point: { x: 40.4, y: 40.6 },
+        scale: 0.4,
+      },
+      {
+        type: "pointerMove",
+        pointerId: 3,
+        point: { x: 41, y: 40 },
+        scale: 0.4,
+      },
+      { type: "pointerUp", pointerId: 3 },
+    );
+    expect(wobbled.corners).toEqual(state.corners);
+    expect(frameMoved(wobbled)).toBe(false);
+    expect(
+      adjustConfirmAction({
+        entry: "review",
+        result: measured,
+        hasFile: true,
+        moved: frameMoved(wobbled),
+      }),
+    ).toEqual({ kind: "none" });
+  });
+
+  it("F15: the drag slop (candidate): touch 8 screen px, mouse and pen 2; at it nothing moves, past it the corner follows the whole way", () => {
+    expect(PAPER_ADJUST_LAYOUT.dragSlopTouchScreenPx).toBe(8);
+    expect(PAPER_ADJUST_LAYOUT.dragSlopFineScreenPx).toBe(2);
+    for (const [pointerType, slop] of [
+      ["touch", 8],
+      ["mouse", 2],
+      ["pen", 2],
+    ] as const) {
+      expect(dragSlopScreenPx(pointerType)).toBe(slop);
+      const press = {
+        type: "pointerDown",
+        index: 0,
+        pointerId: 1,
+        pointerType,
+        point: { x: 100, y: 100 },
+      } as const;
+      const at = (dx: number): AdjustAction => ({
+        type: "pointerMove",
+        pointerId: 1,
+        point: { x: 100 + dx, y: 100 },
+        scale: 0.5,
+      });
+      const state = open();
+      expect(frameMoved(run(state, press, at(slop)))).toBe(false);
+      const past = run(state, press, at(slop + 1));
+      expect(past.corners[0].x - state.corners[0].x).toBeCloseTo(
+        (slop + 1) / 0.5,
+        9,
+      );
+      expect(frameMoved(past)).toBe(true);
+      // Once past it, a small way back still moves the corner (no new slop).
+      const back = run(state, press, at(slop + 1), at(1));
+      expect(back.corners[0].x - state.corners[0].x).toBeCloseTo(1 / 0.5, 9);
+      expect(frameMoved(back)).toBe(true);
+    }
   });
 
   it("moved: measured again from the moved frame, as adjusted (the pipeline's input and the event's paper say so)", () => {
@@ -1132,7 +1208,7 @@ describe("relative drag", () => {
         type: "pointerDown",
         index: null,
         pointerId: 1,
-        pointerType: "touch",
+        pointerType: "mouse",
         point: { x: 10, y: 10 },
       },
       { type: "pointerMove", pointerId: 1, point: { x: 14, y: 7 }, scale },
@@ -1373,7 +1449,7 @@ describe("the corner the detector did not find (F14): opens not placed, any move
     }
   });
 
-  it("one arrow press, ten with Shift, or a short drag: any move places the guessed corner", () => {
+  it("one arrow press, ten with Shift, or a short drag past the tap slop: any move places the guessed corner", () => {
     const k = 0.4;
     for (const big of [false, true]) {
       const nudged = run(partial(), {
@@ -1395,7 +1471,7 @@ describe("the corner the detector did not find (F14): opens not placed, any move
         pointerType: "touch",
         point: { x: 0, y: 0 },
       },
-      { type: "pointerMove", pointerId: 1, point: { x: 2, y: 0 }, scale: 1 },
+      { type: "pointerMove", pointerId: 1, point: { x: 9, y: 0 }, scale: 1 },
     );
     expect(dragged.placed[1]).toBe(true);
     expect(adjustReadiness(dragged).ok).toBe(true);
@@ -1520,6 +1596,8 @@ describe("keys and pointer moves become actions at the photo's scale (PaperAdjus
         pointerType: "touch",
         point: { x: 10, y: 7 },
       },
+      // Past the tap slop first; from then on the corner follows exactly.
+      { ...move, point: { x: 30, y: 7 } },
       move,
     );
     expect(s.corners[0].x - RECT[0].x).toBeCloseTo(1 / fit.scale, 9);
@@ -1714,7 +1792,7 @@ describe("a corner under the hand: two marks on its edges", () => {
       {
         type: "pointerMove",
         pointerId: 7,
-        point: { x: 108, y: 100 },
+        point: { x: 110, y: 100 },
         scale: 0.5,
       },
       { type: "pointerUp", pointerId: 7 },

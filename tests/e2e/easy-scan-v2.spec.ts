@@ -2,7 +2,10 @@ import { expect, test, type Page } from "@playwright/test";
 import { contrast, overWhite } from "./fixtures/contrast";
 import { installLoopFreeze, loopFrozen } from "./fixtures/freeze-loop";
 import { bestRowOff, decodePng } from "./fixtures/png";
-import { confirmAutoFrame } from "./fixtures/confirm-frame";
+import {
+  confirmAutoFrame,
+  expectNothingMeasuredShown,
+} from "./fixtures/confirm-frame";
 import { uploadGreyPhoto } from "./fixtures/slow-model";
 
 /**
@@ -2064,5 +2067,82 @@ test.describe("a retake clears the answers and the error", () => {
     // The first attempt did carry what was chosen.
     expect(bodies[0].gripStyleStated).toBe("claw");
     expect(bodies[0].palmThicknessStated).toBe("thin");
+  });
+});
+
+test.describe("F15: the adjustment that opens by itself on a measured photo", () => {
+  type LiveWindow = Window & {
+    __easyScanLiveCalls?: {
+      manualPaperCorners?: { corners: unknown; source: string };
+    }[];
+    __easyScanLiveResult?: "retake";
+  };
+  const calls = (page: Page) =>
+    page.evaluate(() =>
+      ((window as LiveWindow).__easyScanLiveCalls ?? []).map((c) => ({
+        manual: c.manualPaperCorners?.source ?? null,
+      })),
+    );
+
+  test("AC2: confirmed with no corner moved, the pipeline does not run again", async ({
+    page,
+  }) => {
+    await openLive(page);
+    await confirmAutoFrame(page);
+    await expect(
+      page.getByRole("dialog", { name: "Hand measured" }),
+    ).toBeVisible({ timeout: 20_000 });
+    // Time for a second run to start, were one sent.
+    await page.waitForTimeout(500);
+    expect(await calls(page)).toEqual([{ manual: null }]);
+  });
+
+  test("AC2: a corner nudged with the keys measures again, once, from the moved frame", async ({
+    page,
+  }) => {
+    await openLive(page);
+    const adjust = page.getByTestId("paper-adjust");
+    await expect(adjust).toBeVisible({ timeout: 20_000 });
+    await expect(adjust).toHaveAttribute("data-entry", "review");
+    await expectNothingMeasuredShown(page);
+    await page.getByTestId("paper-adjust-handle-0").focus();
+    await page.keyboard.press("Shift+ArrowRight");
+    await page.getByTestId("paper-adjust-confirm").click();
+    await expect(adjust).toBeHidden();
+    await expect(
+      page.getByRole("dialog", { name: "Hand measured" }),
+    ).toBeVisible({ timeout: 20_000 });
+    await expect
+      .poll(() => calls(page))
+      .toEqual([{ manual: null }, { manual: "adjusted" }]);
+  });
+
+  test("AC3 + review fix: 重拍 goes back to the camera, and the next (failure) sheet slides in with focus on its heading", async ({
+    page,
+  }) => {
+    await openLive(page);
+    const adjust = page.getByTestId("paper-adjust");
+    await expect(adjust).toBeVisible({ timeout: 20_000 });
+    await expect(adjust).toHaveAttribute("data-entry", "review");
+    // The next photo: a problem with the hand (no adjustment opens by itself).
+    await page.evaluate(() => {
+      (window as LiveWindow).__easyScanLiveResult = "retake";
+    });
+    await page.getByTestId("paper-adjust-cancel").click();
+    await expect(adjust).toBeHidden();
+    await expect(page.locator(".easyStage")).toHaveAttribute(
+      "data-phase",
+      "none",
+    );
+    await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
+    // The fake camera's auto-shutter takes the next photo by itself.
+    const sheet = page.getByRole("dialog", { name: "Retake needed" });
+    await expect(sheet).toBeVisible({ timeout: 30_000 });
+    await expect(adjust).toBeHidden();
+    await expect(page.locator("dialog.easyResultSheet")).not.toHaveAttribute(
+      "data-resumed",
+      "true",
+    );
+    await expect(sheet.locator(".easySheetTitle")).toBeFocused();
   });
 });

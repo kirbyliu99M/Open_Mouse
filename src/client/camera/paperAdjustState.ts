@@ -61,7 +61,24 @@ export const PAPER_ADJUST_LAYOUT = {
   /** One arrow-key press moves a corner by this much of the screen; Shift moves ten times as far. */
   keyStepScreenPx: 1,
   keyBigStepFactor: 10,
+  /**
+   * V3.2 F15 (candidate 未拍板, Kirby to decide): how far a press must travel
+   * on screen before it drags the corner. Below it the press is a tap (it only
+   * selects): a finger's wobble on a handle, now that every measured photo
+   * opens this screen, must not count as a moved frame and measure again.
+   * Touch takes the result sheet's tap slop (`TAP_SLOP_PX` 8); a mouse or pen
+   * barely wobbles. Not measured on a phone (不確定 how far a tap wobbles).
+   */
+  dragSlopTouchScreenPx: 8,
+  dragSlopFineScreenPx: 2,
 } as const;
+
+/** The drag slop for a pointer type (`PAPER_ADJUST_LAYOUT`, candidate). */
+export function dragSlopScreenPx(pointerType: string): number {
+  return pointerType === "touch"
+    ? PAPER_ADJUST_LAYOUT.dragSlopTouchScreenPx
+    : PAPER_ADJUST_LAYOUT.dragSlopFineScreenPx;
+}
 
 // ── When the screen is offered ──────────────────────────────────────────
 
@@ -800,13 +817,15 @@ export function adjustReducer(
         },
         state.image,
       );
-      // A press that has not moved yet changes nothing (a tap only selects);
-      // once it has moved, the corner is always start + movement, including
-      // a return to the very point where the press began.
+      // A press that has not moved past the drag slop changes nothing (a tap
+      // only selects, F15); once it has, the corner is always start +
+      // movement, including a return to the very point where the press began.
       const moved =
         drag.moved ||
-        action.point.x !== drag.startPointer.x ||
-        action.point.y !== drag.startPointer.y;
+        Math.hypot(
+          action.point.x - drag.startPointer.x,
+          action.point.y - drag.startPointer.y,
+        ) > dragSlopScreenPx(drag.pointerType);
       const next = {
         ...state,
         drag: { ...drag, pointer: action.point, moved },

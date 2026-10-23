@@ -10,6 +10,7 @@ export async function confirmAutoFrame(page: Page, timeout = 20_000) {
   const adjust = page.getByTestId("paper-adjust");
   await expect(adjust).toBeVisible({ timeout });
   await expect(adjust).toHaveAttribute("data-entry", "review");
+  await expectNothingMeasuredShown(page);
   await page.getByTestId("paper-adjust-confirm").click();
   await expect(adjust).toBeHidden();
 }
@@ -28,7 +29,21 @@ export async function confirmAutoFrameIfShown(page: Page, timeout = 30_000) {
     (await adjust.isVisible()) &&
     (await adjust.getAttribute("data-entry")) === "review"
   ) {
+    await expectNothingMeasuredShown(page);
     await page.getByTestId("paper-adjust-confirm").click();
     await expect(adjust).toBeHidden();
   }
+}
+
+/**
+ * F15 AC1: while the adjustment that opened by itself is on screen, the
+ * result sheet is closed and no length is drawn on the photo; both come only
+ * after the confirm.
+ */
+export async function expectNothingMeasuredShown(page: Page) {
+  await expect(page.locator("dialog.easyResultSheet[open]")).toHaveCount(0);
+  await expect(page.getByTestId("easy-sheet-numbers")).toBeHidden();
+  await expect(
+    page.locator(".easyDimLabelText, .easyFrozenSvg text"),
+  ).toHaveCount(0);
 }

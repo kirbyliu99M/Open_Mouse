@@ -225,6 +225,15 @@ describe("display <-> photo conversion through a zoomed, panned view", () => {
         pointerType: "touch",
         point: start,
       });
+      // Past the tap slop first (F15); from then on the corner follows exactly.
+      s = adjustReducer(
+        s,
+        pointerMoveFor({
+          pointerId: 1,
+          point: { x: start.x + 50, y: start.y },
+          fit: v,
+        }),
+      );
       s = adjustReducer(
         s,
         pointerMoveFor({

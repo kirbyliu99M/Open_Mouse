@@ -1751,6 +1751,11 @@ export default function EasyScanCamera({
     setResult({ kind: "none" });
     setAdjustOpen(null);
     setAdjustDirect(false);
+    // A new photo is never a return to a sheet: the next one slides in with
+    // focus on its heading, even when this one was left from the adjustment
+    // that opened by itself (F15) or a question page.
+    sheetResumedRef.current = false;
+    adjustReturnRef.current = false;
     dispatchAnswers({ type: "reset" });
     clearSubmitError();
     setPhotoInfo(null);

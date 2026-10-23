@@ -151,7 +151,7 @@ describe("the handles", () => {
       {
         type: "pointerMove",
         pointerId: 1,
-        point: { x: 4, y: 3 },
+        point: { x: 8, y: 6 },
         scale: 1,
       },
     );
@@ -516,6 +516,31 @@ describe("where the camera offers it (EasyScanCamera.tsx)", () => {
       source.indexOf("const confirmAdjust = useCallback("),
     );
     expect(cancel).toContain("if (adjustDirect) retake();");
+  });
+
+  it("F15: a retake is never a return: the next photo's sheet slides in with focus on its heading, even after 重拍 on the adjustment that opened by itself", () => {
+    const retake = source.slice(
+      source.indexOf("const retake = useCallback("),
+      source.indexOf("const adjustEntry = adjustEntryFor(result);"),
+    );
+    expect(retake).toContain("sheetResumedRef.current = false;");
+    expect(retake).toContain("adjustReturnRef.current = false;");
+    // The only other places that set them: the sheet's own layout effect
+    // (closed under a question page or the adjustment) and confirmAdjust.
+    const count = (needle: string) => source.split(needle).length - 1;
+    expect(count("sheetResumedRef.current = true;")).toBe(1);
+    expect(count("adjustReturnRef.current = true;")).toBe(1);
+  });
+
+  it("F15: confirming tells the camera whether any corner moved, from frameMoved on the screen's own state (PaperAdjust.tsx)", () => {
+    const adjust = readFileSync("src/client/camera/PaperAdjust.tsx", "utf8");
+    const confirm = adjust.slice(
+      adjust.indexOf("const confirm = () => {"),
+      adjust.indexOf("};", adjust.indexOf("onConfirm({")),
+    );
+    expect(confirm).toMatch(
+      /onConfirm\(\{\s*corners: readiness\.corners,\s*source: readiness\.source,\s*moved: frameMoved\(state\),\s*\}\)/,
+    );
   });
 
   it("F15: no length is drawn on the photo while the adjustment is open", () => {
