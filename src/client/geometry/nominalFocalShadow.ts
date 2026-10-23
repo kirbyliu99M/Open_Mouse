@@ -43,11 +43,24 @@ import {
 } from "./measurements";
 
 /**
- * The prior's lens, as a 35 mm equivalent focal length in mm. A phone's main
- * camera is commonly 24 to 28 mm; 26 is the audit's pick. Candidate, not
- * measured on any device.
+ * The prior's lens, as a 35 mm equivalent focal length in mm (V3.2 F17,
+ * Kirby's decision 2026-10-23, candidate 未拍板): 18, which gives about
+ * 998 px on a 1920 px long edge (`18 / 43.27 x 1.25 x 1920`).
+ *
+ * Basis (實測, one phone only): the sheet-homography focal estimates of
+ * Kirby's Samsung S25 frames of the live video (1024 x 1920, long edge
+ * 1920) read 1055 and 1000.8 px with clean automatic corners, 902, 894 and
+ * 934.6 px with corners placed or adjusted by hand, and 1153 and 964 px on
+ * scans he judged unreliable: all 0.62-0.80 of the earlier prior's 1442 px
+ * (26 mm). The video frame evidently is not the main camera's full 26 mm
+ * picture (a crop or a stabilised view; which one is 不確定). An iPhone, or
+ * any other phone, is not verified. Before F17 this was 26 (the audit's
+ * pick for a main camera, not measured on any device).
+ *
+ * Only the no-EXIF path uses it (parallax.ts `resolveFocalPx`); a photo with
+ * EXIF and the learning kit never read it.
  */
-export const NOMINAL_FOCAL_EQUIV_MM = 26;
+export const NOMINAL_FOCAL_EQUIV_MM = 18;
 
 /** The diagonal of a 35 mm full frame (36 x 24 mm), the reference of a 35 mm equivalent. Candidate constant of the same prior. */
 export const FULL_FRAME_DIAGONAL_MM = 43.27;
@@ -62,8 +75,8 @@ export const SENSOR_DIAGONAL_OVER_LONG_EDGE = 5 / 4;
  * The prior's focal length in px for a camera frame whose LONG edge is
  * `longEdgePx` (landmark-raw-v3, candidate 未拍板; design R7 §1.2): the 35 mm
  * equivalent over the 35 mm diagonal, scaled to the diagonal of a 4 : 3
- * sensor with that long edge, `26 / 43.27 x 1.25 x longEdgePx`, about
- * 0.751 x the long edge (1442 px for 1920). The long edge is the WHOLE camera
+ * sensor with that long edge, `18 / 43.27 x 1.25 x longEdgePx`, about
+ * 0.520 x the long edge (998 px for 1920; F17, before it 26 mm, 1442 px). The long edge is the WHOLE camera
  * frame's: a frame of the video cut to the part on screen keeps the stream's
  * long edge (`frameFocalReferenceLongEdgePx`, visibleView.ts), because a cut
  * narrows the picture, not the lens. `null` for a length that is not finite

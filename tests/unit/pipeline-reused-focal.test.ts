@@ -31,7 +31,8 @@ import { reusableFocal } from "../../src/client/camera/paperAdjustState";
 import type { Quad4 } from "../../src/client/paper/manualQuad";
 import { buildR6Scene } from "./helpers/r6-scene";
 
-const FRAME = { w: 1080, h: 1920, f: 1442 };
+// F17: a lens near the 998 px prior (Kirby's S25 estimates read 894-1153 px, 實測).
+const FRAME = { w: 1080, h: 1920, f: 1050 };
 const SCENE = buildR6Scene({ ...FRAME, pitchDeg: 10, rollDeg: 3 });
 
 function arrange() {
@@ -166,7 +167,7 @@ describe("a placed frame keeps the automatic run's focal length (real pipeline)"
     const plain = ok(await run());
     arrange();
     const given = ok(
-      await run({ reusedFocal: { fPx: 999, source: "homography" } }),
+      await run({ reusedFocal: { fPx: 777, source: "homography" } }),
     );
     expect(given.measurements).toEqual(plain.measurements);
     expect(given.diagnostics?.focal).toEqual(plain.diagnostics?.focal);

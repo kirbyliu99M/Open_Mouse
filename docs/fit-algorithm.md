@@ -26,8 +26,8 @@ stay as typed and the length is not converted. Every other calibration method sc
 
 **The engine's scale for a parallax-corrected scan (landmark-raw-v3, V3.2, candidate 未拍板; Kirby
 2026-10-22, design R7).** Since `landmark-raw-v3` a photo with no EXIF focal length and no trustworthy
-homography estimate is still corrected for parallax, with a nominal focal length (26 mm equivalent on the
-camera frame's long edge, `nominalFocalPxFromLongEdge`), so most frame scans now read a few per cent
+homography estimate is still corrected for parallax, with a nominal focal length (18 mm equivalent on the
+camera frame's long edge since V3.2 F17, 26 mm before; `nominalFocalPxFromLongEdge`), so most frame scans now read a few per cent
 shorter than before. The engine, the hand type, the survey bins, the grip prediction and the similar-hand
 cells were all tuned on UNcorrected frame scans, so every reader of a scan's size goes through
 `fitScaleMeasurements` (`src/lib/fit/fit-scale.ts`, re-exported from `scoring-measurements.ts`):

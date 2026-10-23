@@ -33,7 +33,7 @@ const FRAME = { width: 1080, height: 1440 };
 const scene = buildShadowScene({
   width: FRAME.width,
   height: FRAME.height,
-  fPx: (26 / 43.27) * Math.hypot(FRAME.width, FRAME.height),
+  fPx: nominalFocalPxFromLongEdge(FRAME.height)!,
   tiltDeg: 8,
   cameraHeightMm: 420,
   offsetMm: { x: 10, y: -20 },
@@ -52,7 +52,8 @@ const quad: SheetQuadDetection = {
 
 const JPEG_WITH_EXIF = buildExifJpeg({
   exif: [
-    { tag: TAG.focalLengthIn35mmFilm, value: { type: "short", value: 26 } },
+    // The scene's own lens (the prior's 35 mm equivalent since F17).
+    { tag: TAG.focalLengthIn35mmFilm, value: { type: "short", value: 18 } },
   ],
 });
 
@@ -282,7 +283,7 @@ describe("finishPaperEdge shadow mode", () => {
  * estimate it made, used or not. All numbers SIMULATED (模擬).
  */
 describe("finishPaperEdge records the homography focal estimate", () => {
-  const TRUE_F = (26 / 43.27) * Math.hypot(FRAME.width, FRAME.height);
+  const TRUE_F = nominalFocalPxFromLongEdge(FRAME.height)!;
   // Pitch 15° (the step-3 tilt) plus a 4° roll: a tilt about one sheet axis
   // alone leaves h31 = 0 and the estimate is never judged reliable.
   const tilted = buildR6Scene({

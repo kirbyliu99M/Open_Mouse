@@ -39,7 +39,12 @@ import { buildObliqueScene } from "./helpers/oblique-scene";
 import { buildShadowScene } from "./helpers/shadow-scene";
 
 const FRAME = { width: 1080, height: 1920 };
-const NOMINAL = nominalFocalPxFromLongEdge(FRAME.height)!;
+/** The pre-F17 prior (26 mm, 1442 px), which the failing scan was measured with. */
+const NOMINAL = (26 / 43.27) * 1.25 * FRAME.height;
+/** The long edge that makes the pipeline's own prior the pre-F17 1442 px. */
+const LONG_EDGE_FOR_26MM = (FRAME.height * 26) / 18;
+/** V3.2 F17's prior on this frame (18 mm, 998 px). */
+const F17_PRIOR = nominalFocalPxFromLongEdge(FRAME.height)!;
 
 /** tests/unit/parallax-guard.test.ts's KIRBY_LIKE (模擬): an 894 px camera tilted 25 degrees back, measured with the nominal 1442 px. */
 const KIRBY_LIKE = buildObliqueScene({
@@ -56,7 +61,7 @@ const KIRBY_LIKE = buildObliqueScene({
 const NORMAL = buildShadowScene({
   width: FRAME.width,
   height: FRAME.height,
-  fPx: NOMINAL,
+  fPx: F17_PRIOR,
   tiltDeg: 5,
   cameraHeightMm: 420,
 });
@@ -160,9 +165,11 @@ const PATHS = [
 
 describe("a refused correction reaches the diagnostics and the attempt log (模擬)", () => {
   for (const [name, extra] of PATHS) {
-    it(`${name}: measured uncorrected, the refusal in result.diagnostics and in the attempt record`, async () => {
+    it(`${name} (pre-F17 1442 px prior): measured uncorrected, the refusal in result.diagnostics and in the attempt record`, async () => {
       arrange(KIRBY_LIKE);
-      const r = ok(await run(extra));
+      const r = ok(
+        await run({ ...extra, focalReferenceLongEdgePx: LONG_EDGE_FOR_26MM }),
+      );
       if ("manualPaperCorners" in extra)
         expect(detectPaperQuad).not.toHaveBeenCalled();
       expect(r.diagnostics?.parallaxCorrected).toBe(false);
@@ -196,6 +203,21 @@ describe("a refused correction reaches the diagnostics and the attempt log (模�
     });
   }
 
+  for (const [name, extra] of PATHS) {
+    it(`F17: ${name} with today's 998 px prior: the homography's 894 px is inside its range, corrected, nothing refused, the hand within 1 mm`, async () => {
+      arrange(KIRBY_LIKE);
+      const r = ok(await run(extra));
+      expect(r.diagnostics?.parallaxCorrected).toBe(true);
+      expect(r.diagnostics?.parallaxGuard).toBeNull();
+      expect(r.diagnostics?.focal?.source).toBe("homography");
+      expect(r.diagnostics?.focal?.px).toBeCloseTo(894, 0);
+      expect(
+        Math.abs(r.measurements.handLengthMm - KIRBY_LIKE.trueHandLengthMm),
+      ).toBeLessThan(1);
+      expect(record(r).parallaxGuard).toBeNull();
+    });
+  }
+
   it("a normal scan: nothing refused, null in the diagnostics and in the log, still corrected", async () => {
     arrange(NORMAL);
     const r = ok(await run());
@@ -206,7 +228,7 @@ describe("a refused correction reaches the diagnostics and the attempt log (模�
 
   it("known gap (未拍板, for Claude): scan_quality sends a refused correction as focalSource none, parallaxCorrected false, priorEffect within_2", async () => {
     arrange(KIRBY_LIKE);
-    const r = ok(await run());
+    const r = ok(await run({ focalReferenceLongEdgePx: LONG_EDGE_FOR_26MM }));
     const q = buildScanQuality({
       flow: "easy",
       attempt: 1,

@@ -260,7 +260,7 @@ describe("paper-edge pipeline with a frame of the video (no EXIF, no previewView
       source: "nominal",
       px: nominalFocalPx(FRAME),
     });
-    expect(nominalFocalPx(FRAME)).toBeCloseTo(0.7511 * 1088, 0);
+    expect(nominalFocalPx(FRAME)).toBeCloseTo(0.52 * 1088, 0);
     expect(result.diagnostics?.measured).toEqual({
       handLengthMm: result.measurements.handLengthMm,
       palmWidthMm: result.measurements.palmWidthMm,
@@ -294,7 +294,7 @@ describe("paper-edge pipeline with a frame of the video (no EXIF, no previewView
     // FRAME's long edge is 1088; say the stream's was 1920 in these pixels.
     const result = ok(await run(noExif(), { focalReferenceLongEdgePx: 1920 }));
     const prior = nominalFocalPxFromLongEdge(1920)!;
-    expect(prior).toBeCloseTo(1442, 0);
+    expect(prior).toBeCloseTo(998.4, 0);
     expect(result.diagnostics?.focal).toEqual({
       source: "nominal",
       px: prior,
@@ -307,34 +307,35 @@ describe("paper-edge pipeline with a frame of the video (no EXIF, no previewView
     );
   });
 
-  it("a tilted view (focal estimate 0.889 x the nominal, palm width ratio 1.195, 模擬): KEPT under the current candidate design (b4be146d, 未拍板: a ratio outside the limits is refused only when the focal length is not backed)", async () => {
+  it("a tilted view (focal estimate 1.284 x the F17 nominal, palm width ratio 1.221, 模擬): KEPT under the current candidate design (b4be146d, 未拍板: a ratio outside the limits is refused only when the focal length is not backed)", async () => {
     const landmarks = landmarksFor(TILTED);
     arrange(TILTED, landmarks);
     const result = ok(await run());
     const { homography, corrected } = reference(TILTED, landmarks);
     const prior = nominalFocalPx(FRAME)!;
     // The situation (模擬): no EXIF, the homography's estimate is not
-    // reliable, so the nominal prior corrects it; the estimate is 0.889 of it,
-    // inside PARALLAX_GUARD.focalAgreement (0.85-1.4).
+    // reliable, so the nominal prior corrects it; the estimate is 1.284 of it
+    // (0.889 of the pre-F17 26 mm prior), inside PARALLAX_GUARD.focalAgreement
+    // (0.85-1.4).
     const estimate = estimateFocalFromHomography(homography, {
       cx: FRAME.width / 2,
       cy: FRAME.height / 2,
     })!;
     expect(estimate.reliable).toBe(false);
-    expect(estimate.fPx / prior).toBeCloseTo(0.889, 3);
+    expect(estimate.fPx / prior).toBeCloseTo(1.284, 3);
     // The ratios are outside the limits: the hand made longer (190.0 ->
-    // 196.7 mm), the palm width much narrower (80.0 -> 67.0 mm).
+    // 194.7 mm), the palm width much narrower (80.0 -> 65.5 mm).
     const uncorrected = computeHandMeasurements(landmarks, homography);
     const verdict = judgeParallaxCorrection(
       uncorrected,
       corrected.measurements,
     );
     expect(verdict).toMatchObject({ accept: false, reason: "lengthened" });
-    expect(verdict.ratios.handLength).toBeCloseTo(0.966, 3);
-    expect(verdict.ratios.palmWidth).toBeCloseTo(1.195, 3);
+    expect(verdict.ratios.handLength).toBeCloseTo(0.976, 3);
+    expect(verdict.ratios.palmWidth).toBeCloseTo(1.221, 3);
     expect(uncorrected.handLengthMm).toBeCloseTo(190.0, 1);
-    expect(corrected.measurements.handLengthMm).toBeCloseTo(196.7, 1);
-    expect(corrected.measurements.palmWidthMm).toBeCloseTo(67.0, 1);
+    expect(corrected.measurements.handLengthMm).toBeCloseTo(194.7, 1);
+    expect(corrected.measurements.palmWidthMm).toBeCloseTo(65.5, 1);
     // The current design: kept. If Claude/Kirby choose the brief's literal
     // AC2 (refuse whenever a ratio is outside), this flips to parallaxCorrected
     // false, focal none, the uncorrected numbers.

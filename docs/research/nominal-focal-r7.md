@@ -20,8 +20,13 @@ Since v3 the order is (`resolveFocalPx`, `src/client/geometry/parallax.ts`):
    homography estimate must be inside 0.7-1.4x of the prior.
 3. A reliable homography estimate inside 0.7-1.4x of the prior (`FOCAL_PRIOR_RANGE`). At a tilt of 3
    degrees, 70 % of the estimates judged reliable are more than 20 % off.
-4. The nominal prior: 26 mm equivalent on the WHOLE camera frame's long edge,
-   `26 / 43.27 x 1.25 x long edge` (about 0.751 x; 1442 px for 1920). A frame of the video cut to the part
+4. The nominal prior: 18 mm equivalent on the WHOLE camera frame's long edge,
+   `18 / 43.27 x 1.25 x long edge` (about 0.520 x; 998 px for 1920). V3.2 F17 (Kirby 2026-10-23,
+   candidate 未拍板) moved it from 26 mm (1442 px) to Kirby's measured S25 homography estimates (實測,
+   1024 x 1920 frames: 1055 and 1000.8 px with clean automatic corners, 902, 894 and 934.6 px hand-placed,
+   1153 and 964 px on scans he judged unreliable; all 0.62-0.80 of 1442). One phone only; an iPhone is not
+   verified (不確定). The range check keeps its ratios, now on the new prior (about 699-1398 px for a
+   1920 px long edge). A frame of the video cut to the part
    on screen passes the stream's long edge (`frameFocalReferenceLongEdgePx`): a frame cut on its long side
    would otherwise read about 1.5-2 mm short.
 5. None.

@@ -433,10 +433,19 @@ export interface ReusedFocal {
 /**
  * The plausible range of a homography focal estimate around the nominal
  * prior (design R7 §1.1, candidate 未拍板): an estimate below 0.7 or above
- * 1.4 times the prior is refused and the prior used instead. It covers a
- * 24-28 mm main camera plus about ±20 % of video crop; an ultra-wide lens
- * (13 mm, about 2x) falls outside. Simulated (模擬): at a tilt of 3 degrees,
- * 70 % of the estimates judged reliable were more than 20 % off.
+ * 1.4 times the prior is refused and the prior used instead. Simulated
+ * (模擬): at a tilt of 3 degrees, 70 % of the estimates judged reliable were
+ * more than 20 % off.
+ *
+ * V3.2 F17 (candidate 未拍板): the ratios are unchanged and are taken on the
+ * new prior (18 mm equivalent, 998 px on a 1920 px long edge,
+ * `NOMINAL_FOCAL_EQUIV_MM`), so the window is now about 699-1398 px there
+ * instead of 1009-2019 px. All of Kirby's measured S25 estimates (實測,
+ * 894-1153 px, 0.90-1.16 of the new prior) are inside it; under the 26 mm
+ * prior the hand-placed ones (894, 902, 934.6) were refused. What it means
+ * for other phones is 不確定: a video frame at the full picture of a 26 mm
+ * main camera (1442 px, 1.44x) now falls just outside, and a 13 mm
+ * ultra-wide (0.72x) just inside.
  */
 export const FOCAL_PRIOR_RANGE = { min: 0.7, max: 1.4 } as const;
 
