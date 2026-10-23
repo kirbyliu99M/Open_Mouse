@@ -1,27 +1,74 @@
-/* The cookie banner (root layout). Every size and spacing is a CANDIDATE
-   (未拍板): no Pencil frame yet, built from the tokens in tokens.css. A bar
-   fixed to the bottom edge; on a phone the buttons sit under the text. */
+/* The cookie banner (root layout), drawn as Liquid Glass (Kirby, 2026-10-24):
+   a frosted, slightly tinted pane that blurs and saturates what moves behind
+   it (the home page's particle hand), with a light edge on top and a soft
+   inner glow. Every size, spacing and alpha is a CANDIDATE (未拍板), from the
+   Pencil board "Cookie banner · GA4". A bar fixed to the bottom edge; on a
+   phone the buttons sit under the text.
+
+   Legibility comes first: the tint is 86 % of the footer colour, so over the
+   brightest possible page (white) the pane is still dark enough for 4.5:1 text
+   (tests/e2e/cookie-consent.spec.ts blends it over white and measures every
+   line of text). Where the browser cannot blur, or the visitor asks for less
+   transparency, the pane is solid. */
 .cookieBanner {
+  --glass-tint: rgb(15 23 38 / 0.86);
+  --glass-edge: rgb(255 255 255 / 0.22);
   position: fixed;
-  left: 0.75rem;
-  right: 0.75rem;
-  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 50;
-  display: grid;
-  gap: 0.875rem;
-  max-width: 44rem;
-  margin: 0 auto;
-  padding: 1rem 1.125rem;
-  border: 1px solid var(--hairline);
-  border-radius: 0.875rem;
-  background: var(--footer-bg);
+  /* The pane runs edge to edge; the content inside keeps to a readable width
+     (.cookieBanner-inner) and clears the notch and the home indicator. */
+  padding: 1rem max(1.125rem, env(safe-area-inset-right))
+    calc(1rem + env(safe-area-inset-bottom, 0px))
+    max(1.125rem, env(safe-area-inset-left));
+  border-top: 1px solid var(--glass-edge);
+  border-radius: 1.25rem 1.25rem 0 0;
+  /* The sheen (a diagonal light across the pane, 10 % white at most) over the tint. */
+  background:
+    linear-gradient(
+      135deg,
+      rgb(255 255 255 / 0.1),
+      rgb(255 255 255 / 0.02) 45%,
+      rgb(255 255 255 / 0.06)
+    ),
+    var(--glass-tint);
+  -webkit-backdrop-filter: blur(28px) saturate(1.8);
+  backdrop-filter: blur(28px) saturate(1.8);
   color: var(--text-primary);
   font-size: 0.875rem;
   line-height: 1.5;
-  box-shadow: 0 8px 32px #00000066;
-  /* Opened on a short screen the bar scrolls inside itself, never off-screen. */
-  max-height: calc(100dvh - 1.5rem);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.38),
+    inset 0 0 28px rgb(255 255 255 / 0.04),
+    0 -12px 40px rgb(0 0 0 / 0.35);
+  /* Opened on a short screen the pane scrolls inside itself, never off-screen. */
+  max-height: 85dvh;
   overflow-y: auto;
+}
+
+.cookieBanner-inner {
+  display: grid;
+  gap: 0.875rem;
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .cookieBanner {
+    background: var(--footer-bg);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .cookieBanner {
+    background: var(--footer-bg);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 .cookieBanner p {
@@ -37,27 +84,33 @@
   margin-top: 0.375rem;
 }
 
+/* Secondary text is lighter than --text-secondary: on a translucent pane it
+   must hold 4.5:1 over a bright page too. */
 .cookieBanner-current {
-  color: var(--text-secondary);
+  color: #d7ddea;
 }
 
+/* The toggle is white and underlined, not blue: the blue link colour cannot
+   hold 4.5:1 over a bright page behind the glass. */
 .cookieBanner-details summary {
   display: inline-block;
   min-height: 2.75rem;
   padding-top: 0.625rem;
-  color: var(--accent-text);
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
   cursor: pointer;
 }
 
 .cookieBanner-details summary:focus-visible,
 .cookieBanner-button:focus-visible {
-  outline: 2px solid var(--accent-text);
+  outline: 2px solid var(--text-primary);
   outline-offset: 2px;
 }
 
 .cookieBanner-details dl {
   margin: 0;
-  color: var(--text-secondary);
+  color: #d7ddea;
 }
 
 .cookieBanner-details dt {
@@ -70,7 +123,8 @@
   margin: 0;
 }
 
-/* Same size, same weight, same colours: the two answers are equal. */
+/* Same size, same weight, same colours: the two answers are equal. Each is a
+   small glass pill of its own. */
 .cookieBanner-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -80,9 +134,10 @@
 .cookieBanner-button {
   min-height: 2.75rem;
   padding: 0 1.25rem;
-  border: 1px solid var(--control-border);
-  border-radius: 0.625rem;
-  background: transparent;
+  border: 1px solid rgb(255 255 255 / 0.3);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.1);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3);
   color: var(--text-primary);
   font: inherit;
   font-weight: 600;
@@ -90,16 +145,30 @@
 }
 
 .cookieBanner-button:hover {
-  background: #ffffff14;
+  background: rgb(255 255 255 / 0.16);
 }
 
+/* Wider than a phone: text on the left, the two answers on the right. */
 @media (min-width: 40rem) {
-  .cookieBanner {
+  .cookieBanner-inner {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: end;
+    gap: 1.5rem;
   }
   .cookieBanner-actions {
     grid-template-columns: auto auto;
+  }
+}
+
+/* Room for it: the opened statement reads as a table, label then text. */
+@media (min-width: 48rem) {
+  .cookieBanner-details dl {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 0.5rem 1.5rem;
+  }
+  .cookieBanner-details dt {
+    margin-top: 0;
   }
 }
 

@@ -37,45 +37,47 @@ export function CookieBanner() {
       aria-label={copy.regionLabel}
       data-testid="cookie-banner"
     >
-      <div className="cookieBanner-text">
-        <p className="cookieBanner-title">{copy.title}</p>
-        <p>{copy.body}</p>
-        {consent !== "unset" ? (
-          <p className="cookieBanner-current" data-testid="cookie-current">
-            {consent === "granted" ? copy.currentGranted : copy.currentDenied}
-          </p>
-        ) : null}
-        <details className="cookieBanner-details">
-          <summary>{copy.detailsToggle}</summary>
-          <dl>
-            <dt>{copy.detailsWhatLabel}</dt>
-            <dd>{copy.detailsWhat}</dd>
-            <dt>{copy.detailsSentLabel}</dt>
-            <dd>{copy.detailsSent}</dd>
-            <dt>{copy.detailsNotLabel}</dt>
-            <dd>{copy.detailsNot}</dd>
-            <dt>{copy.detailsOtherLabel}</dt>
-            <dd>{copy.detailsOther}</dd>
-            <dt>{copy.detailsChangeLabel}</dt>
-            <dd>{copy.detailsChange}</dd>
-          </dl>
-        </details>
-      </div>
-      <div className="cookieBanner-actions">
-        <button
-          type="button"
-          className="cookieBanner-button"
-          onClick={() => setConsent("denied")}
-        >
-          {copy.decline}
-        </button>
-        <button
-          type="button"
-          className="cookieBanner-button"
-          onClick={() => setConsent("granted")}
-        >
-          {copy.accept}
-        </button>
+      <div className="cookieBanner-inner">
+        <div className="cookieBanner-text">
+          <p className="cookieBanner-title">{copy.title}</p>
+          <p>{copy.body}</p>
+          {consent !== "unset" ? (
+            <p className="cookieBanner-current" data-testid="cookie-current">
+              {consent === "granted" ? copy.currentGranted : copy.currentDenied}
+            </p>
+          ) : null}
+          <details className="cookieBanner-details">
+            <summary>{copy.detailsToggle}</summary>
+            <dl>
+              <dt>{copy.detailsWhatLabel}</dt>
+              <dd>{copy.detailsWhat}</dd>
+              <dt>{copy.detailsSentLabel}</dt>
+              <dd>{copy.detailsSent}</dd>
+              <dt>{copy.detailsNotLabel}</dt>
+              <dd>{copy.detailsNot}</dd>
+              <dt>{copy.detailsOtherLabel}</dt>
+              <dd>{copy.detailsOther}</dd>
+              <dt>{copy.detailsChangeLabel}</dt>
+              <dd>{copy.detailsChange}</dd>
+            </dl>
+          </details>
+        </div>
+        <div className="cookieBanner-actions">
+          <button
+            type="button"
+            className="cookieBanner-button"
+            onClick={() => setConsent("denied")}
+          >
+            {copy.decline}
+          </button>
+          <button
+            type="button"
+            className="cookieBanner-button"
+            onClick={() => setConsent("granted")}
+          >
+            {copy.accept}
+          </button>
+        </div>
       </div>
     </section>
   );

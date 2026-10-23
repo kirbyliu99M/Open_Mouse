@@ -156,13 +156,14 @@ test("the cookie statement is in the banner and names what is not sent", async (
 
 // axe cannot decide the banner's text colour: the bar is fixed over page
 // content, and a paragraph that wraps has a different page element under each
-// line, which axe reads as "partially overlaps other elements" (needs review,
-// not a violation). The generic audit (a11y-axe.spec.ts) never sees the banner
+// line, which axe reads as "partially overlaps other elements"; and the
+// glass has a sheen gradient, which axe cannot read either ("background
+// gradient"). Both are needs review, not violations. The generic audit (a11y-axe.spec.ts) never sees the banner
 // because the default e2e server has no GA ID, so this settles it here: axe may
-// report nothing but that one open item, and the contrast is measured from the
-// computed colours of every text element in the bar (the bar's own fill is
-// opaque, so the page beneath never shows through the text).
-test("the banner has no axe violations, and its text keeps 4.5:1 on the bar", async ({
+// report nothing but those open items, and the contrast is measured from the
+// computed colours of every text element, worst case: the pane is translucent
+// glass, so it is blended over a white page (the brightest there can be).
+test("the banner has no axe violations, and its text keeps 4.5:1 even over a white page", async ({
   page,
 }) => {
   await stubGoogle(page);
@@ -179,11 +180,13 @@ test("the banner has no axe violations, and its text keeps 4.5:1 on the bar", as
   for (const open of result.incomplete) {
     expect(open.id).toBe("color-contrast");
     for (const node of open.nodes) {
-      expect(JSON.stringify(node.any)).toContain("elmPartiallyObscuring");
+      expect(JSON.stringify(node.any)).toMatch(
+        /elmPartiallyObscuring|bgGradient/,
+      );
     }
   }
 
-  const ratios = await page.evaluate(() => {
+  const glass = await page.evaluate(() => {
     const channels = (css: string) =>
       (css.match(/[\d.]+/g) ?? []).slice(0, 4).map(Number);
     const lum = ([r, g, b]: number[]) => {
@@ -193,31 +196,130 @@ test("the banner has no axe violations, and its text keeps 4.5:1 on the bar", as
       };
       return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
     };
+    const over = (top: number[], alpha: number, below: number[]) =>
+      below.map((v, i) => alpha * top[i]! + (1 - alpha) * v);
     const bar = document.querySelector(".cookieBanner")!;
-    const fill = channels(getComputedStyle(bar).backgroundColor);
-    const out: Array<{ text: string; ratio: number; alpha: number }> = [];
+    const style = getComputedStyle(bar);
+    const tint = channels(style.backgroundColor);
+    // The sheen is a gradient of white: its strongest stop is the worst case.
+    const sheen = Math.max(
+      0,
+      ...[
+        ...style.backgroundImage.matchAll(/rgba\(255, 255, 255, ([\d.]+)\)/g),
+      ].map((m) => Number(m[1])),
+    );
+    // The brightest page there can be (white) behind the pane, then the tint,
+    // then the sheen: the lightest the pane can ever be under its text.
+    let pane = over(tint.slice(0, 3), tint[3] ?? 1, [255, 255, 255]);
+    pane = over([255, 255, 255], sheen, pane);
+    const out: Array<{ text: string; ratio: number }> = [];
     for (const el of bar.querySelectorAll("p, summary, dt, dd, button")) {
       const own = [...el.childNodes].some(
         (n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim(),
       );
       if (!own) continue;
+      // A button is a glass pill on the pane: its hover fill (16 % white, .cookieBanner-button:hover) is its worst case.
+      const behind =
+        el.tagName === "BUTTON" ? over([255, 255, 255], 0.16, pane) : pane;
       const c = channels(getComputedStyle(el).color);
-      const alpha = c[3] ?? 1;
-      const blended = c
-        .slice(0, 3)
-        .map((v, i) => alpha * v + (1 - alpha) * fill[i]!);
-      const [a, b] = [lum(blended), lum(fill)];
+      const text = over(c.slice(0, 3), c[3] ?? 1, behind);
+      const [a, b] = [lum(text), lum(behind)];
       out.push({
         text: (el.textContent ?? "").slice(0, 24),
         ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
-        alpha: fill[3] ?? 1,
       });
     }
-    return out;
+    return {
+      out,
+      blur:
+        style.backdropFilter ||
+        style.getPropertyValue("-webkit-backdrop-filter"),
+    };
   });
-  expect(ratios.length).toBeGreaterThan(5);
-  for (const r of ratios) {
-    expect(r.alpha, "the bar's fill is opaque").toBe(1);
+  // It really is glass: the backdrop is blurred.
+  expect(glass.blur).toContain("blur");
+  expect(glass.out.length).toBeGreaterThan(5);
+  for (const r of glass.out) {
     expect(r.ratio, r.text).toBeGreaterThanOrEqual(4.5);
   }
+});
+
+// A banner: it runs across the whole screen at every width, never scrolls the
+// page sideways, keeps its content to a readable width on a wide screen, and
+// puts the two answers beside the text only when there is room.
+for (const [name, width, height, sideBySide] of [
+  ["phone", 390, 844, false],
+  ["small phone", 320, 568, false],
+  ["tablet", 768, 1024, true],
+  ["laptop", 1440, 900, true],
+  ["ultrawide", 2560, 1080, true],
+] as const) {
+  test(`the banner spans the screen and adapts on a ${name} (${width} px)`, async ({
+    page,
+  }) => {
+    await stubGoogle(page);
+    await page.setViewportSize({ width, height });
+    await page.goto("/");
+    const banner = page.getByTestId("cookie-banner");
+    await expect(banner).toBeVisible();
+    const m = await page.evaluate(() => {
+      const box = (selector: string) => {
+        const r = document.querySelector(selector)!.getBoundingClientRect();
+        return {
+          left: r.left,
+          right: r.right,
+          top: r.top,
+          bottom: r.bottom,
+          width: r.width,
+        };
+      };
+      return {
+        bar: box(".cookieBanner"),
+        inner: box(".cookieBanner-inner"),
+        text: box(".cookieBanner-text"),
+        actions: box(".cookieBanner-actions"),
+        viewport: { w: innerWidth, h: innerHeight },
+        overflowX:
+          document.documentElement.scrollWidth >
+          document.documentElement.clientWidth,
+      };
+    });
+    // Edge to edge, resting on the bottom edge, inside the screen.
+    expect(m.bar.left).toBe(0);
+    expect(m.bar.right).toBe(m.viewport.w);
+    expect(m.bar.bottom).toBe(m.viewport.h);
+    expect(m.bar.top).toBeGreaterThanOrEqual(0);
+    expect(m.overflowX).toBe(false);
+    // The content keeps to a readable width, centred.
+    expect(m.inner.width).toBeLessThanOrEqual(72 * 16 + 1);
+    expect(
+      Math.abs(m.inner.left - (m.viewport.w - m.inner.right)),
+    ).toBeLessThanOrEqual(1);
+    // The answers sit beside the text when there is room, under it when not.
+    if (sideBySide) expect(m.actions.left).toBeGreaterThanOrEqual(m.text.right);
+    else expect(m.actions.top).toBeGreaterThanOrEqual(m.text.bottom);
+    // Both buttons stay reachable: inside the screen and tall enough to tap.
+    for (const label of ["Decline", "Accept"]) {
+      const b = (await banner
+        .getByRole("button", { name: label })
+        .boundingBox())!;
+      expect(b.height).toBeGreaterThanOrEqual(44);
+      expect(b.x).toBeGreaterThanOrEqual(0);
+      expect(b.x + b.width).toBeLessThanOrEqual(m.viewport.w);
+    }
+  });
+}
+
+test("opened on a short screen the banner scrolls inside itself and keeps the buttons reachable", async ({
+  page,
+}) => {
+  await stubGoogle(page);
+  await page.setViewportSize({ width: 320, height: 480 });
+  await page.goto("/");
+  const banner = page.getByTestId("cookie-banner");
+  await banner.getByText("Details").click();
+  const top = await banner.evaluate((el) => el.getBoundingClientRect().top);
+  expect(top).toBeGreaterThanOrEqual(0);
+  await banner.getByRole("button", { name: "Accept" }).scrollIntoViewIfNeeded();
+  await expect(banner.getByRole("button", { name: "Accept" })).toBeInViewport();
 });
