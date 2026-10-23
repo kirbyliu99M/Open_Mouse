@@ -917,9 +917,10 @@ describe("檢查邊框 on a measured photo (review, F7)", () => {
     ).toEqual({ kind: "none" });
   });
 
-  it("F15 + F17: the drag slop (candidate): touch 8 screen px, mouse and pen 2; the corner follows from the first move, and a press released at the slop is a tap (the corner goes back)", () => {
+  it("F15 + F17: the drag slop (candidate): touch 8 screen px, mouse and pen 2; the corner follows from the first move; released at the slop it stays (touch) or, within the 2 px tap, goes back (mouse, pen)", () => {
     expect(PAPER_ADJUST_LAYOUT.dragSlopTouchScreenPx).toBe(8);
     expect(PAPER_ADJUST_LAYOUT.dragSlopFineScreenPx).toBe(2);
+    expect(PAPER_ADJUST_LAYOUT.tapRevertScreenPx).toBe(2);
     for (const [pointerType, slop] of [
       ["touch", 8],
       ["mouse", 2],
@@ -951,9 +952,19 @@ describe("檢查邊框 on a measured photo (review, F7)", () => {
         type: "pointerUp",
         pointerId: 1,
       });
-      expect(released.corners).toEqual(state.corners);
-      expect(released.placed).toEqual(state.placed);
-      expect(frameMoved(released)).toBe(false);
+      if (slop > PAPER_ADJUST_LAYOUT.tapRevertScreenPx) {
+        // F17 review: more than a tap, under the slop: a fine adjustment,
+        // kept where it was let go.
+        expect(released.corners[0].x - state.corners[0].x).toBeCloseTo(
+          slop / 0.5,
+          9,
+        );
+        expect(frameMoved(released)).toBe(true);
+      } else {
+        expect(released.corners).toEqual(state.corners);
+        expect(released.placed).toEqual(state.placed);
+        expect(frameMoved(released)).toBe(false);
+      }
       const past = run(state, press, at(slop + 1));
       expect(past.drag?.moved).toBe(true);
       expect(past.corners[0].x - state.corners[0].x).toBeCloseTo(
@@ -972,6 +983,63 @@ describe("檢查邊框 on a measured photo (review, F7)", () => {
       });
       expect(kept.corners[0].x - state.corners[0].x).toBeCloseTo(1 / 0.5, 9);
     }
+  });
+
+  it("F17 review: a 6 screen px touch drag at the whole-photo fit scale 0.38 stays where it was let go (no spring back), and is a moved frame", () => {
+    const scale = 0.38;
+    const state = open();
+    const press = {
+      type: "pointerDown",
+      index: 1,
+      pointerId: 9,
+      pointerType: "touch",
+      point: { x: 200, y: 120 },
+    } as const;
+    const during = run(state, press, {
+      type: "pointerMove",
+      pointerId: 9,
+      point: { x: 206, y: 120 },
+      scale,
+    });
+    // Under the touch slop: `moved` is still false...
+    expect(during.drag?.moved).toBe(false);
+    const released = run(
+      state,
+      press,
+      { type: "pointerMove", pointerId: 9, point: { x: 206, y: 120 }, scale },
+      { type: "pointerUp", pointerId: 9 },
+    );
+    // ...but the corner stays exactly where the finger let it go.
+    expect(released.drag).toBeNull();
+    expect(released.corners[1]).toEqual(during.corners[1]);
+    expect(released.corners[1].x - state.corners[1].x).toBeCloseTo(
+      6 / scale,
+      9,
+    );
+    expect(released.corners[1].y).toBeCloseTo(state.corners[1].y, 9);
+    expect(released.placed[1]).toBe(true);
+    expect(frameMoved(released)).toBe(true);
+    expect(
+      adjustConfirmAction({
+        entry: "review",
+        result: measured,
+        hasFile: true,
+        moved: frameMoved(released),
+      }),
+    ).toEqual({ kind: "rerun" });
+    // A press that wandered further and came back to within the tap is not a
+    // tap: it keeps the corner where it was let go.
+    const wandered = run(
+      state,
+      press,
+      { type: "pointerMove", pointerId: 9, point: { x: 205, y: 120 }, scale },
+      { type: "pointerMove", pointerId: 9, point: { x: 201, y: 120 }, scale },
+      { type: "pointerUp", pointerId: 9 },
+    );
+    expect(wandered.corners[1].x - state.corners[1].x).toBeCloseTo(
+      1 / scale,
+      9,
+    );
   });
 
   it("F17 (Kirby, preview 7: the dot lagged the finger): the first pointermove of 3 screen px moves the handle 3 screen px", () => {
