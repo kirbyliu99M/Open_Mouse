@@ -66,18 +66,18 @@ const STORED: HandMeasurements = {
 
 describe("the contract's ratios (simulated, to be replaced by S25 measured ones)", () => {
   it("are the design's R7 §3.1 numbers", () => {
-    expect(K.handLength).toBe(1.024);
-    expect(K.palmLength).toBe(1.041);
-    expect(K.palmWidth).toBe(1.035);
+    expect(K.handLength).toBe(1.035);
+    expect(K.palmLength).toBe(1.061);
+    expect(K.palmWidth).toBe(1.051);
   });
 });
 
 describe("engineScaleMeasurements / fitScaleMeasurements (pure)", () => {
   it("a parallax-corrected scan: hand length, palm length and palm width times the ratios; fingers as stored", () => {
     const out = engineScaleMeasurements(STORED, true);
-    expect(out.handLengthMm).toBe(185 * 1.024);
-    expect(out.palmLengthMm).toBe(103 * 1.041);
-    expect(out.palmWidthMm).toBe(63.5 * 1.035);
+    expect(out.handLengthMm).toBe(185 * 1.035);
+    expect(out.palmLengthMm).toBe(103 * 1.061);
+    expect(out.palmWidthMm).toBe(63.5 * 1.051);
     expect(out.middleLengthMm).toBe(80);
     expect(STORED.handLengthMm).toBe(185);
   });
@@ -124,7 +124,7 @@ describe("engineScaleMeasurements / fitScaleMeasurements (pure)", () => {
       true,
     );
     expect(out.handLengthMm).toBeNaN();
-    expect(out.palmLengthMm).toBe(104.1);
+    expect(out.palmLengthMm).toBe(106.1);
   });
 
   it("parallaxCorrectedOf reads the evidence's flag and nothing else", () => {
@@ -239,19 +239,19 @@ describe("survey contribution: bins and grip on the engine's scale", () => {
     ratings: [{ slug: "mouse-a", satisfaction: 4 }],
   });
   const ids = new Map([["mouse-a", "20000000-0000-4000-8000-00000000000a"]]);
-  // 184 x 1.024 = 188.4 (bin 185, stored bin 180); 77.8 x 1.035 = 80.5 (bin 80, stored 75).
-  // Grip crosses a threshold (simulated input): palm/hand 98.5 / 184 = 0.535
+  // 181 x 1.035 = 187.3 (bin 185, stored bin 180); 77.8 x 1.051 = 81.8 (bin 80, stored 75).
+  // Grip crosses a threshold (simulated input): palm/hand 96.9 / 181 = 0.535
   // is fingertip (claw from 0.54); 102.5 / 188.4 = 0.544 is claw. A reader
   // that predicts from the stored numbers is caught.
   const measurements: HandMeasurements = {
-    handLengthMm: 184,
-    palmLengthMm: 98.5,
+    handLengthMm: 181,
+    palmLengthMm: 96.9,
     palmWidthMm: 77.8,
   };
 
   it("the input really flips the grip between the two scales", () => {
-    expect(predictGrip(184, 98.5)).toBe("fingertip");
-    expect(predictGrip(184 * 1.024, 98.5 * 1.041)).toBe("claw");
+    expect(predictGrip(181, 96.9)).toBe("fingertip");
+    expect(predictGrip(181 * 1.035, 96.9 * 1.061)).toBe("claw");
   });
 
   it("a corrected scan lands in the cell the same hand did before correction", () => {
@@ -270,8 +270,8 @@ describe("survey contribution: bins and grip on the engine's scale", () => {
     expect(write.handLengthBinMm).toBe(185);
     expect(write.palmWidthBinMm).toBe(80);
     expect(write.gripStyle).toBe("claw");
-    expect(write.gripStyle).toBe(predictGrip(184 * 1.024, 98.5 * 1.041));
-    expect(write.gripStyle).not.toBe(predictGrip(184, 98.5));
+    expect(write.gripStyle).toBe(predictGrip(181 * 1.035, 96.9 * 1.061));
+    expect(write.gripStyle).not.toBe(predictGrip(181, 96.9));
   });
 
   it("an uncorrected scan is binned as stored, as before", () => {
@@ -285,7 +285,7 @@ describe("survey contribution: bins and grip on the engine's scale", () => {
     expect(write.handLengthBinMm).toBe(180);
     expect(write.palmWidthBinMm).toBe(75);
     expect(write.gripStyle).toBe("fingertip");
-    expect(write.gripStyle).toBe(predictGrip(184, 98.5));
+    expect(write.gripStyle).toBe(predictGrip(181, 96.9));
   });
 });
 
@@ -297,13 +297,13 @@ describe("what the person sees is the engine-scale number (D1 = B)", () => {
       "en",
     );
     const asEngine = measuredSheetNumbers(
-      { handLengthMm: 185 * 1.024, palmWidthMm: 63.5 * 1.035 },
+      { handLengthMm: 185 * 1.035, palmWidthMm: 63.5 * 1.051 },
       { method: "paper-edge", parallaxCorrected: false },
       "en",
     );
     expect(corrected).toBe(asEngine);
-    expect(corrected).toContain("189");
-    expect(corrected).toContain("66");
+    expect(corrected).toContain("191");
+    expect(corrected).toContain("67");
     // A typed length is never corrected: shown as typed.
     const typed = measuredSheetNumbers(
       { handLengthMm: 185, palmWidthMm: 63.5 },
@@ -352,8 +352,8 @@ describe("what the person sees is the engine-scale number (D1 = B)", () => {
       },
     };
     expect(shownAccountMeasurements(scan)).toEqual({
-      handLengthMm: 185 * 1.024,
-      palmWidthMm: 63.5 * 1.035,
+      handLengthMm: 185 * 1.035,
+      palmWidthMm: 63.5 * 1.051,
     });
     const copy = accountCopy("en");
     const asEngine = handRows(
@@ -362,8 +362,8 @@ describe("what the person sees is the engine-scale number (D1 = B)", () => {
         parallaxCorrected: false,
         measurements: {
           ...scan.measurements,
-          handLengthMm: 185 * 1.024,
-          palmWidthMm: 63.5 * 1.035,
+          handLengthMm: 185 * 1.035,
+          palmWidthMm: 63.5 * 1.051,
         },
       },
       copy,

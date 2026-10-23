@@ -60,7 +60,7 @@ simulated, 不確定).
 The engine and everything around it were tuned on uncorrected frame scans. Fed the corrected numbers
 directly, the V1 population's top-10 Jaccard against today drops to 0.30-0.67 and `predictGrip` flips for
 24.5 % of hands. So a parallax-corrected scan reaches every reader on the engine's scale,
-`FIT_SCALE_FROM_CORRECTED` (hand length 1.024, palm length 1.041, palm width 1.035), and the page shows
+`FIT_SCALE_FROM_CORRECTED` (hand length 1.035, palm length 1.061, palm width 1.051; recomputed 2026-10-23 at the 18 mm frame prior), and the page shows
 that same number (D1 = B). See docs/fit-algorithm.md §1 for the table and the population numbers.
 
 ## Still to do before production

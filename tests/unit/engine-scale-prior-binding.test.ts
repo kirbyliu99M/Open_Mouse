@@ -64,24 +64,19 @@ function engineScaleAt(fPx: number, fill: number, handLenMm = 190) {
 describe("F17 review: the engine scale and the video frame's focal prior (模擬)", () => {
   const fill = FIT_SCALE_FROM_CORRECTED.referenceFill;
 
-  it("the method reproduces the contract at R7's basis, 1442 px (26 mm on 1920)", () => {
+  it("R7's original basis, 1442 px (26 mm on 1920), gave the old ratios 1.024 / 1.041 / 1.035", () => {
     const k = engineScaleAt(1442, fill);
-    expect(k.kL).toBeCloseTo(FIT_SCALE_FROM_CORRECTED.handLength, 2);
-    expect(k.kP).toBeCloseTo(FIT_SCALE_FROM_CORRECTED.palmLength, 2);
-    expect(k.kW).toBeCloseTo(FIT_SCALE_FROM_CORRECTED.palmWidth, 2);
+    expect(k.kL).toBeCloseTo(1.024, 2);
+    expect(k.kP).toBeCloseTo(1.041, 2);
+    expect(k.kW).toBeCloseTo(1.035, 2);
   });
 
-  it("KNOWN GAP (未拍板, Claude decides the contract): at today's prior the ratios are about 1 % above the contract's; this fails when the prior or the contract changes", () => {
+  it("the contract (Claude, 2026-10-23) is the method at today's frame prior, 998 px (18 mm on 1920)", () => {
     const prior = nominalFocalPxFromLongEdge(H)!;
     expect(prior).toBeCloseTo(998.4, 0);
     const k = engineScaleAt(prior, fill);
-    // R7's script at 998 px, fill 0.65, hand 190: 1.0348 / 1.0607 / 1.0509.
-    expect(k.kL).toBeCloseTo(1.035, 2);
-    expect(k.kP).toBeCloseTo(1.061, 2);
-    expect(k.kW).toBeCloseTo(1.051, 2);
-    expect(FIT_SCALE_FROM_CORRECTED.handLength).toBe(1.024);
-    expect(FIT_SCALE_FROM_CORRECTED.palmLength).toBe(1.041);
-    expect(FIT_SCALE_FROM_CORRECTED.palmWidth).toBe(1.035);
-    expect(k.kL - FIT_SCALE_FROM_CORRECTED.handLength).toBeGreaterThan(0.005);
+    expect(k.kL).toBeCloseTo(FIT_SCALE_FROM_CORRECTED.handLength, 2);
+    expect(k.kP).toBeCloseTo(FIT_SCALE_FROM_CORRECTED.palmLength, 2);
+    expect(k.kW).toBeCloseTo(FIT_SCALE_FROM_CORRECTED.palmWidth, 2);
   });
 });

@@ -34,7 +34,7 @@ cells were all tuned on UNcorrected frame scans, so every reader of a scan's siz
 
 | Scan                                   | What the engine reads                                                                     |
 | -------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `parallaxCorrected: true` (any source) | hand length x 1.024, palm length x 1.041, palm width x 1.035 (`FIT_SCALE_FROM_CORRECTED`) |
+| `parallaxCorrected: true` (any source) | hand length x 1.035, palm length x 1.061, palm width x 1.051 (`FIT_SCALE_FROM_CORRECTED`) |
 | `manual-entry`                         | typed width x 0.77 (`MANUAL_ENTRY.widthToLandmarkScale`), everything else as typed        |
 | anything else (uncorrected, old rows)  | as stored, the same object                                                                |
 
@@ -52,7 +52,7 @@ the grip (a second uncorrected scan of the same hand: 0.847-0.945, 84.2-94.0 %),
 `v32-program-2026-10-21\review\R7\d12_fit_population.ts`, output `d12.out.txt`, outside the repo) and are
 pinned, with the acceptance "not below a second scan minus 0.02", by
 `tests/unit/engine-scale-population.test.ts`; rerun both when the ratios change. The 0.77 is unchanged: on
-the corrected landmark scale it would be about 0.75 (0.75 x 1.035 = 0.776). Summary: `docs/research/nominal-focal-r7.md`.
+the corrected landmark scale it would be about 0.73 (0.733 x 1.051 = 0.77). Summary: `docs/research/nominal-focal-r7.md`.
 
 ## 2. Grip
 
