@@ -245,8 +245,8 @@ describe("checkManualQuad: obvious mistakes only", () => {
     });
   });
 
-  it("V3.2 F17: refuses a frame whose short side is under 1.6 px per mm of the paper's (336 px for A4, 345 px for Letter), not by area", () => {
-    expect(MANUAL_QUAD_LIMITS.minPxPerMm).toBe(1.6);
+  it("V3.2 F17 (floor 1.2 px/mm since 2026-10-24): refuses a frame whose short side is under 1.2 px per mm of the paper's (252 px for A4, 259.08 px for Letter), not by area", () => {
+    expect(MANUAL_QUAD_LIMITS.minPxPerMm).toBe(1.2);
     const sheet = (short: number, long = short * Math.SQRT2): Quad4 => [
       { x: 100, y: 100 },
       { x: 100 + short, y: 100 },
@@ -254,21 +254,21 @@ describe("checkManualQuad: obvious mistakes only", () => {
       { x: 100, y: 100 + long },
     ];
     const image = { width: 1024, height: 1920 };
-    expect(checkManualQuad(sheet(335.9), image)).toEqual({
+    expect(checkManualQuad(sheet(251.9), image)).toEqual({
       ok: false,
       problem: "too_small",
     });
-    expect(checkManualQuad(sheet(336), image).ok).toBe(true);
-    expect(checkManualQuad(sheet(340), image, "letter")).toEqual({
+    expect(checkManualQuad(sheet(252), image).ok).toBe(true);
+    expect(checkManualQuad(sheet(255), image, "letter")).toEqual({
       ok: false,
       problem: "too_small",
     });
-    expect(checkManualQuad(sheet(345.5), image, "letter").ok).toBe(true);
+    expect(checkManualQuad(sheet(259.5), image, "letter").ok).toBe(true);
     // Kirby's preview-7 photo (scenario): a sheet 0.4 of a 1024 px wide
     // frame, about 410 px, 11 % of the frame, passes.
     expect(checkManualQuad(sheet(0.4 * 1024), image).ok).toBe(true);
     // A sheet turned landscape: its short side is the vertical one.
-    expect(checkManualQuad(sheet(420, 300), image)).toEqual({
+    expect(checkManualQuad(sheet(320, 230), image)).toEqual({
       ok: false,
       problem: "too_small",
     });

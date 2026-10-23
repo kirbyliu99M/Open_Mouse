@@ -89,9 +89,14 @@ export const MANUAL_QUAD_LIMITS = {
    * px). At 410 px: 0.23 / 0.44, 1.12 / 2.11, 2.38 / 4.84 mm. The palm
    * width is about a quarter of that (0.06 / 0.12 to 0.73 / 1.33 mm at the
    * floor). Where between 300 and 380 px the floor should sit is 不確定;
-   * 1.6 is the brief's candidate.
+   * 1.6 was the brief's candidate.
+   *
+   * 2026-10-24 (Kirby, preview 8: a sheet held high still read "too small",
+   * a little lower worked): 1.2 px/mm, 252 px for A4, about 0.25 of a 1024
+   * px wide frame. At 250 px (same script, 模擬) hand length RMS / p95 is
+   * 0.42 / 0.87 mm with 0.5 px corner noise and 2.06 / 3.98 mm with 2.6 px.
    */
-  minPxPerMm: 1.6,
+  minPxPerMm: 1.2,
   /**
    * How far outside the photo a corner may lie, as a share of the photo's
    * width (x) or height (y): a sheet corner just out of frame. A dragged
