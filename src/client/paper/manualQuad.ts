@@ -203,8 +203,9 @@ export interface DefaultAdjustFrame {
  * 4. the centred sheet.
  *
  * A start that would itself fail `checkManualQuad` falls through to the next,
- * except (V3.2 F16) a rough quad whose only failure is being too small: it is
- * kept, so the screen opens where the paper is.
+ * except a rough quad (V3.2 F16) or the detector's four corners (F17 review)
+ * whose only failure is being too small: it is kept, so the screen opens
+ * where the paper is.
  */
 export function defaultAdjustFrame(input: {
   readonly corners?: Quad4 | null;
@@ -219,9 +220,18 @@ export function defaultAdjustFrame(input: {
     detected: [false, false, false, false],
     from: "centred",
   };
+  // F17 review: the detector's own four corners are kept when their only
+  // failure is the resolution floor (`minPxPerMm`, F17 B): the detector
+  // already measured from them (its floor is `MIN_QUAD_AREA_FRACTION`), and
+  // the screen must open on them, not on the centred sheet. Whether they may
+  // be confirmed is `adjustReadiness`'s (as they are, on a measured photo).
+  const detectedCheck = input.corners
+    ? checkManualQuad(input.corners, input.image, input.paperSize)
+    : null;
   if (
     input.corners &&
-    checkManualQuad(input.corners, input.image, input.paperSize).ok
+    detectedCheck &&
+    (detectedCheck.ok || detectedCheck.problem === "too_small")
   ) {
     return {
       corners: copyQuad(input.corners),

@@ -1082,12 +1082,25 @@ export type AdjustReadiness =
  * moved, R5 E2: a guessed corner is biased) and it passes `checkManualQuad`.
  * The detector's corners count as placed: confirming them unchanged is
  * allowed ("the frame looks right", R5 §0).
+ *
+ * F17 review: on a photo already measured from the detector's own corners
+ * (`review`), the frame confirmed exactly as it opened (`frameMoved` false)
+ * measures nothing again (`adjustConfirmAction` `none`), so the resolution
+ * floor (`minPxPerMm`, F17 B) is not applied to it: before F17 the floor of
+ * a placed frame was the detector's own area floor, and a frame the
+ * detector found always passed. Only a frame that will be measured from
+ * (moved, or a rescue) is held to it. Every other check still applies.
  */
 export function adjustReadiness(state: AdjustState): AdjustReadiness {
   const notPlaced = state.placed.indexOf(false);
   if (notPlaced >= 0) return { ok: false, notPlaced: notPlaced as CornerIndex };
   const check = checkManualQuad(state.corners, state.image, state.paperSize);
-  if (!check.ok) return { ok: false, problem: check.problem };
+  const asMeasured =
+    state.entry === "review" &&
+    state.start.from === "detected" &&
+    !frameMoved(state);
+  if (!check.ok && !(check.problem === "too_small" && asMeasured))
+    return { ok: false, problem: check.problem };
   return {
     ok: true,
     corners: state.corners,
