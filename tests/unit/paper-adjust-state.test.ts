@@ -11,6 +11,7 @@ import {
   adjustEntryFor,
   adjustOpensDirectly,
   adjustWarningFor,
+  confirmCornerCheck,
   frameMoved,
   isHandIssue,
   isPaperIssue,
@@ -107,40 +108,34 @@ describe("adjustEntryFor (F7, Kirby's phone test 2026-10-21): like Adobe Scan, e
     expect(isPaperIssue(undefined)).toBe(false);
   });
 
-  it("offers the rescue after every paper failure on a decoded photo, wherever it is listed, with or without ?debug=1", () => {
-    for (const code of PAPER_CODES)
-      for (const debugOn of [false, true]) {
-        expect(
-          adjustEntryFor(
-            { kind: "gateFailure", errors: [issue(code)], overlay: overlay() },
-            debugOn,
-          ),
-          code,
-        ).toBe("rescue");
-        // Listed after a hand reason, or together with another paper reason.
-        expect(
-          adjustEntryFor(
-            {
-              kind: "gateFailure",
-              errors: [issue("HAND_OUT_OF_BOUNDS"), issue(code)],
-              overlay: overlay(),
-            },
-            debugOn,
-          ),
-          code,
-        ).toBe("rescue");
-        expect(
-          adjustEntryFor(
-            {
-              kind: "gateFailure",
-              errors: [issue("PAPER_EDGE_HIDDEN"), issue(code)],
-              overlay: overlay({ paperCorners: RECT }),
-            },
-            debugOn,
-          ),
-          code,
-        ).toBe("rescue");
-      }
+  it("offers the rescue after every paper failure on a decoded photo, wherever it is listed", () => {
+    for (const code of PAPER_CODES) {
+      expect(
+        adjustEntryFor({
+          kind: "gateFailure",
+          errors: [issue(code)],
+          overlay: overlay(),
+        }),
+        code,
+      ).toBe("rescue");
+      // Listed after a hand reason, or together with another paper reason.
+      expect(
+        adjustEntryFor({
+          kind: "gateFailure",
+          errors: [issue("HAND_OUT_OF_BOUNDS"), issue(code)],
+          overlay: overlay(),
+        }),
+        code,
+      ).toBe("rescue");
+      expect(
+        adjustEntryFor({
+          kind: "gateFailure",
+          errors: [issue("PAPER_EDGE_HIDDEN"), issue(code)],
+          overlay: overlay({ paperCorners: RECT }),
+        }),
+        code,
+      ).toBe("rescue");
+    }
   });
 
   it("not after a hand failure on the detector's own frame: moving it cannot help, and the sheet keeps its explanation", () => {
@@ -151,15 +146,12 @@ describe("adjustEntryFor (F7, Kirby's phone test 2026-10-21): like Adobe Scan, e
     ])
       for (const placedFrame of [undefined, null])
         expect(
-          adjustEntryFor(
-            {
-              kind: "gateFailure",
-              errors: [issue(code)],
-              overlay: overlay({ paperCorners: RECT }),
-              placedFrame,
-            },
-            false,
-          ),
+          adjustEntryFor({
+            kind: "gateFailure",
+            errors: [issue(code)],
+            overlay: overlay({ paperCorners: RECT }),
+            placedFrame,
+          }),
           code,
         ).toBeNull();
   });
@@ -168,15 +160,12 @@ describe("adjustEntryFor (F7, Kirby's phone test 2026-10-21): like Adobe Scan, e
     for (const code of HAND_CODES)
       for (const source of ["adjusted", "manual"] as const)
         expect(
-          adjustEntryFor(
-            {
-              kind: "gateFailure",
-              errors: [issue(code)],
-              overlay: overlay(),
-              placedFrame: { corners: RECT, source },
-            },
-            false,
-          ),
+          adjustEntryFor({
+            kind: "gateFailure",
+            errors: [issue(code)],
+            overlay: overlay(),
+            placedFrame: { corners: RECT, source },
+          }),
           code,
         ).toBe("rescue");
   });
@@ -188,39 +177,34 @@ describe("adjustEntryFor (F7, Kirby's phone test 2026-10-21): like Adobe Scan, e
       "PROCESSING_FAILED",
     ]) {
       expect(
-        adjustEntryFor(
-          { kind: "gateFailure", errors: [issue(code)], overlay: null },
-          false,
-        ),
+        adjustEntryFor({
+          kind: "gateFailure",
+          errors: [issue(code)],
+          overlay: null,
+        }),
       ).toBeNull();
       expect(
-        adjustEntryFor(
-          {
-            kind: "gateFailure",
-            errors: [issue(code)],
-            overlay: overlay({ imageWidth: 0, imageHeight: 0 }),
-            placedFrame: PLACED,
-          },
-          false,
-        ),
+        adjustEntryFor({
+          kind: "gateFailure",
+          errors: [issue(code)],
+          overlay: overlay({ imageWidth: 0, imageHeight: 0 }),
+          placedFrame: PLACED,
+        }),
       ).toBeNull();
     }
-    expect(adjustEntryFor({ kind: "none" }, true)).toBeNull();
-    expect(adjustEntryFor({ kind: "processing" }, true)).toBeNull();
+    expect(adjustEntryFor({ kind: "none" })).toBeNull();
+    expect(adjustEntryFor({ kind: "processing" })).toBeNull();
   });
 
-  it("on a photo measured from the detector's own corners: 檢查邊框 (review); with ?debug=1, Kirby's corner check instead", () => {
+  it("on a photo measured from the detector's own corners: review (F15: opened by itself, never a button; no ?debug=1 corner check any more)", () => {
     const measured = {
       kind: "measured" as const,
       overlay: overlay({ paperCorners: RECT }),
       submission: AUTO,
     };
-    expect(adjustEntryFor(measured, false)).toBe("review");
-    expect(adjustEntryFor(measured, true)).toBe("check");
+    expect(adjustEntryFor(measured)).toBe("review");
     // No corners to review.
-    expect(
-      adjustEntryFor({ ...measured, overlay: overlay() }, false),
-    ).toBeNull();
+    expect(adjustEntryFor({ ...measured, overlay: overlay() })).toBeNull();
   });
 
   it("not on a photo measured from a frame placed by hand, nor with a typed length", () => {
@@ -230,30 +214,26 @@ describe("adjustEntryFor (F7, Kirby's phone test 2026-10-21): like Adobe Scan, e
       cornersSource: "adjusted",
       parallaxCorrected: true,
     });
-    for (const debugOn of [false, true])
-      expect(
-        adjustEntryFor(
-          {
-            kind: "measured",
-            overlay: overlay({ paperCorners: RECT }),
-            submission: adjusted,
-          },
-          debugOn,
-        ),
-      ).toBeNull();
+    expect(
+      adjustEntryFor({
+        kind: "measured",
+        overlay: overlay({ paperCorners: RECT }),
+        submission: adjusted,
+      }),
+    ).toBeNull();
     const typed = submission({
       method: "user-length",
       referenceMeasurement: "handLengthMm",
       referenceMm: 186,
       parallaxCorrected: false,
     });
-    for (const debugOn of [false, true])
-      expect(
-        adjustEntryFor(
-          { kind: "measured", overlay: overlay(), submission: typed },
-          debugOn,
-        ),
-      ).toBeNull();
+    expect(
+      adjustEntryFor({
+        kind: "measured",
+        overlay: overlay(),
+        submission: typed,
+      }),
+    ).toBeNull();
   });
 });
 
@@ -297,7 +277,7 @@ describe("adjustOpensDirectly (F14, Kirby's phone test of preview 5, 2026-10-22)
     ]) {
       const result = failure([code]);
       expect(adjustOpensDirectly(result)).toBe(true);
-      expect(adjustEntryFor(result, false)).toBe("rescue");
+      expect(adjustEntryFor(result)).toBe("rescue");
     }
   });
 
@@ -345,19 +325,72 @@ describe("adjustOpensDirectly (F14, Kirby's phone test of preview 5, 2026-10-22)
     // adjustment as its secondary way on (no reopening loop).
     const again = failure(["PAPER_CURLED"], { placed: PLACED });
     expect(adjustOpensDirectly(again)).toBe(false);
-    expect(adjustEntryFor(again, false)).toBe("rescue");
+    expect(adjustEntryFor(again)).toBe("rescue");
   });
 
-  it("never on a measured photo or while processing", () => {
+  it("never while processing or with nothing on screen", () => {
+    expect(adjustOpensDirectly({ kind: "processing" })).toBe(false);
+    expect(adjustOpensDirectly({ kind: "none" })).toBe(false);
+  });
+
+  it("F15 (Kirby, 2026-10-23): a photo measured from the detector's own four corners opens it by itself, as review, before any length is shown", () => {
+    const measured = {
+      kind: "measured" as const,
+      overlay: overlay({ paperCorners: RECT }),
+      submission: AUTO,
+    };
+    expect(adjustOpensDirectly(measured)).toBe(true);
+    expect(adjustEntryFor(measured)).toBe("review");
+    // cornersSource auto spelled out, as the pipeline writes it.
+    expect(
+      adjustOpensDirectly({
+        ...measured,
+        submission: submission({
+          method: "paper-edge",
+          paperSize: "a4",
+          cornersSource: "auto",
+          edgeFitResidualMm: 0.4,
+          minSideCoverage: 0.9,
+          parallaxCorrected: true,
+        }),
+      }),
+    ).toBe(true);
+  });
+
+  it("F15: a photo measured with a frame placed or moved by hand, with a typed length, or with no corners shows its sheet at once (no reopening loop)", () => {
+    for (const cornersSource of ["adjusted", "manual"] as const)
+      expect(
+        adjustOpensDirectly({
+          kind: "measured",
+          overlay: overlay({ paperCorners: RECT }),
+          submission: submission({
+            method: "paper-edge",
+            paperSize: "a4",
+            cornersSource,
+            parallaxCorrected: true,
+          }),
+        }),
+        cornersSource,
+      ).toBe(false);
     expect(
       adjustOpensDirectly({
         kind: "measured",
-        overlay: overlay({ paperCorners: RECT }),
+        overlay: overlay(),
+        submission: submission({
+          method: "user-length",
+          referenceMeasurement: "handLengthMm",
+          referenceMm: 186,
+          parallaxCorrected: false,
+        }),
+      }),
+    ).toBe(false);
+    expect(
+      adjustOpensDirectly({
+        kind: "measured",
+        overlay: overlay(),
         submission: AUTO,
       }),
     ).toBe(false);
-    expect(adjustOpensDirectly({ kind: "processing" })).toBe(false);
-    expect(adjustOpensDirectly({ kind: "none" })).toBe(false);
   });
 });
 
@@ -606,19 +639,13 @@ describe("where the frame opens (F7; F10: always a best guess)", () => {
     expect(state.start.from).toBe("centred");
   });
 
-  it("the rough quad is for the rescue only: 檢查邊框 and the corner check never use it", () => {
+  it("the rough quad is for the rescue only: a measured photo's review never uses it", () => {
     const review = startAdjust({
       entry: "review",
       overlay: overlay({ paperCorners: RECT, paperGuessCorners: GUESS }),
       paperSize: "a4",
     });
     expect(review.corners).toEqual(RECT);
-    const check = startAdjust({
-      entry: "check",
-      overlay: overlay({ paperCorners: RECT, paperGuessCorners: GUESS }),
-      paperSize: "a4",
-    });
-    expect(check.start.from).toBe("centred");
   });
 
   it("centre (one tap, rescue only): back to the centred sheet, nothing placed, and reset then returns there", () => {
@@ -900,6 +927,109 @@ describe("檢查邊框 on a measured photo (review, F7)", () => {
       }),
     ).toEqual({ kind: "none" });
   });
+
+  it("F15: no entry ever records instead of measuring: confirm is rerun or none, nothing else", () => {
+    for (const entry of ["rescue", "review", null] as const)
+      for (const moved of [false, true])
+        for (const hasFile of [false, true])
+          for (const result of [
+            measured,
+            {
+              kind: "gateFailure" as const,
+              errors: [issue("PAPER_CURLED")],
+              overlay: overlay({ paperCorners: RECT }),
+            },
+          ])
+            expect(["rerun", "none"]).toContain(
+              adjustConfirmAction({ entry, result, hasFile, moved }).kind,
+            );
+  });
+});
+
+describe("confirmCornerCheck (F15: the corner record written on every confirm of review, in place of the ?debug=1 check)", () => {
+  const measured = {
+    kind: "measured" as const,
+    overlay: overlay({ paperCorners: RECT }),
+    submission: AUTO,
+  };
+
+  it("confirmed as it opened: four zero distances, the photo's long edge, the magnifier on", () => {
+    expect(
+      confirmCornerCheck({ entry: "review", result: measured, corners: RECT }),
+    ).toEqual({
+      magnifier: true,
+      distancesPx: [0, 0, 0, 0],
+      imageLongEdgePx: 1920,
+    });
+  });
+
+  it("moved: how far each corner is from the detector's, corner to corner (simulated, 模擬)", () => {
+    const moved: Quad4 = [
+      { x: 203, y: 304 },
+      RECT[1],
+      RECT[2],
+      { x: 200, y: 1162 },
+    ];
+    const check = confirmCornerCheck({
+      entry: "review",
+      result: measured,
+      corners: moved,
+    });
+    expect(check?.distancesPx).toEqual([5, 0, 0, 12]);
+    // A frame given starting from another corner is still compared corner to corner.
+    const rotated: Quad4 = [moved[2], moved[3], moved[0], moved[1]];
+    expect(
+      confirmCornerCheck({
+        entry: "review",
+        result: measured,
+        corners: rotated,
+      })?.distancesPx,
+    ).toEqual([5, 0, 0, 12]);
+  });
+
+  it("nothing for a rescue, for no entry, for a result that is not a measurement, or with no detector corners", () => {
+    expect(
+      confirmCornerCheck({ entry: "rescue", result: measured, corners: RECT }),
+    ).toBeNull();
+    expect(
+      confirmCornerCheck({ entry: null, result: measured, corners: RECT }),
+    ).toBeNull();
+    expect(
+      confirmCornerCheck({
+        entry: "review",
+        result: {
+          kind: "gateFailure",
+          errors: [issue("PAPER_CURLED")],
+          overlay: overlay({ paperCorners: RECT }),
+        },
+        corners: RECT,
+      }),
+    ).toBeNull();
+    expect(
+      confirmCornerCheck({
+        entry: "review",
+        result: { ...measured, overlay: overlay() },
+        corners: RECT,
+      }),
+    ).toBeNull();
+  });
+
+  it("an undecoded photo's long edge is recorded as unknown", () => {
+    expect(
+      confirmCornerCheck({
+        entry: "review",
+        result: {
+          ...measured,
+          overlay: overlay({
+            paperCorners: RECT,
+            imageWidth: 0,
+            imageHeight: 0,
+          }),
+        },
+        corners: RECT,
+      })?.imageLongEdgePx,
+    ).toBeNull();
+  });
 });
 
 describe("fitPhoto", () => {
@@ -949,15 +1079,16 @@ describe("startAdjust", () => {
     expect(adjustReadiness(s)).toEqual({ ok: false, notPlaced: 1 });
   });
 
-  it("check: always the centred sheet with nothing placed, even with the detector's corners at hand", () => {
+  it("F15: review opens on the detector's own corners, all placed, so it may be confirmed at once", () => {
     const s = startAdjust({
-      entry: "check",
+      entry: "review",
       overlay: overlay({ paperCorners: RECT }),
       paperSize: "a4",
     });
-    expect(s.start.from).toBe("centred");
-    expect(s.placed).toEqual([false, false, false, false]);
-    expect(s.corners).not.toEqual(RECT);
+    expect(s.start.from).toBe("detected");
+    expect(s.placed).toEqual([true, true, true, true]);
+    expect(s.corners).toEqual(RECT);
+    expect(adjustReadiness(s)).toMatchObject({ ok: true, source: "adjusted" });
   });
 });
 
@@ -1479,8 +1610,8 @@ describe("a corner under the hand: two marks on its edges", () => {
   });
 
   it("refuses to start while a neighbour of the hidden corner is only a starting guess", () => {
-    // No corners found: the centred sheet, nothing placed (also the check's start).
-    for (const entry of ["rescue", "check"] as const) {
+    // No corners found: the centred sheet, nothing placed.
+    for (const entry of ["rescue"] as const) {
       let s = startAdjust({ entry, overlay: overlay(), paperSize: "a4" });
       expect(s.start.from).toBe("centred");
       s = run(s, { type: "select", index: 1 }, { type: "edgeStart" });
@@ -1753,10 +1884,10 @@ describe("adjustReadiness", () => {
     expect("problem" in r && r.problem).toMatch(/self_intersecting|not_convex/);
   });
 
-  it("the corner check needs all four corners placed by hand", () => {
+  it("the centred sheet needs all four corners placed by hand", () => {
     let s = startAdjust({
-      entry: "check",
-      overlay: overlay({ paperCorners: RECT }),
+      entry: "rescue",
+      overlay: overlay(),
       paperSize: "a4",
     });
     expect(adjustReadiness(s)).toEqual({ ok: false, notPlaced: 0 });

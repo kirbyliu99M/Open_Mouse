@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { buildDemoPhotoUrl } from "../../src/app/scan/demo-photo";
+import { confirmAutoFrame } from "./fixtures/confirm-frame";
 
 const OUTPUT = "docs/design/scan-v2-2026-09-30/built";
 
@@ -223,6 +224,7 @@ test.describe("scan v2 storyboard, built (real motion)", () => {
     await page.evaluate(() =>
       (window as Window & { __release?: () => void }).__release?.(),
     );
+    await confirmAutoFrame(page);
     await expect(
       page.getByRole("dialog", { name: "Hand measured" }),
     ).toBeVisible({ timeout: 20_000 });
@@ -284,6 +286,7 @@ test.describe("scan v2 storyboard, built (real motion)", () => {
       await page.evaluate(() =>
         (window as Window & { __release?: () => void }).__release?.(),
       );
+      await confirmAutoFrame(page);
       await expect(
         page.getByRole("dialog", { name: "Hand measured" }),
       ).toBeVisible({ timeout: 20_000 });

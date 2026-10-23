@@ -75,12 +75,12 @@ export function isPaperIssue(code: string | undefined): boolean {
 
 /**
  * - `rescue`: after a failure, to place the frame by hand and measure again.
- * - `review`: 檢查邊框 on a measured photo (F7): the detector's own corners,
- *   which may be confirmed as they are (nothing changes) or moved (measured
- *   again from the moved frame).
- * - `check`: Kirby's corner check (`?debug=1`), which changes no measurement.
+ * - `review`: a photo measured from the detector's own corners (F7; since
+ *   V3.2 F15 it opens by itself before any length is shown): those corners,
+ *   which may be confirmed as they are (the measurement already made is
+ *   shown, nothing runs again) or moved (measured again from the moved frame).
  */
-export type AdjustEntry = "rescue" | "review" | "check";
+export type AdjustEntry = "rescue" | "review";
 
 /** A frame the person placed and measured with (`manualPaperCorners`). */
 export interface PlacedFrame {
@@ -120,15 +120,13 @@ function decodedPhoto(overlay: PhotoOverlay | null): overlay is PhotoOverlay {
  *   on the detector's own frame (no hand found, the hand off the sheet):
  *   moving the frame cannot fix that, and the sheet's words say why.
  * - `review`: on a photo measured from the detector's own corners
- *   (`cornersSource` auto): 檢查邊框, starting from those corners.
- * - `check`: with `?debug=1`, in place of `review` (the corner check starts
- *   from the centred sheet, so a corner left where it was cannot read as a
- *   perfect drag): Kirby's corner check, which changes no measurement.
+ *   (`cornersSource` auto), starting from those corners. Since V3.2 F15 it
+ *   is not a button on the sheet: it opens by itself (`adjustOpensDirectly`)
+ *   before the sheet and its lengths are shown. (F15 also removed Kirby's
+ *   `?debug=1` corner check: every confirm of `review` records it instead,
+ *   `confirmCornerCheck`.)
  */
-export function adjustEntryFor(
-  result: AdjustableResult,
-  debugOn: boolean,
-): AdjustEntry | null {
+export function adjustEntryFor(result: AdjustableResult): AdjustEntry | null {
   if (result.kind === "gateFailure") {
     if (!decodedPhoto(result.overlay)) return null;
     if (result.placedFrame) return "rescue";
@@ -141,7 +139,7 @@ export function adjustEntryFor(
       calibration.method === "paper-edge" &&
       (calibration.cornersSource ?? "auto") === "auto";
     if (!autoCorners || !result.overlay.paperCorners) return null;
-    return debugOn ? "check" : "review";
+    return "review";
   }
   return null;
 }
@@ -163,9 +161,21 @@ export function isHandIssue(code: string | undefined): boolean {
 }
 
 /**
- * V3.2 F14 (Kirby's phone test of preview 5, 2026-10-22, candidate): whether
- * a result opens the adjustment screen by itself, in place of the failure
- * sheet. Only a photo turned back on the paper (any `PAPER_*` code) with the
+ * Whether a result opens the adjustment screen by itself, in place of its
+ * sheet.
+ *
+ * V3.2 F15 (Kirby's phone test of preview 5, 2026-10-23, candidate: "after
+ * the photo lines up, go straight into the adjustment page; once the user
+ * confirms, show the calculated lengths"): a photo measured from the
+ * detector's own four corners (`adjustEntryFor` is `review`) always does, so
+ * no length is shown before the frame is confirmed. A photo measured with a
+ * frame placed or moved by hand (`cornersSource` not auto), or with a typed
+ * length, shows its sheet at once (the frame was just confirmed, or there is
+ * none).
+ *
+ * V3.2 F14 (Kirby's phone test of preview 5, 2026-10-22, candidate): a
+ * failure opens it in place of the failure sheet when it is a photo turned
+ * back on the paper. Only a photo turned back on the paper (any `PAPER_*` code) with the
  * detector's own frame (no frame placed by hand yet), whose photo decoded, and
  * with no failure of the hand itself among its errors (those keep the failure
  * sheet and its reason: a frame cannot fix them). A photo taken because the
@@ -176,6 +186,7 @@ export function isHandIssue(code: string | undefined): boolean {
  * loop.
  */
 export function adjustOpensDirectly(result: AdjustableResult): boolean {
+  if (result.kind === "measured") return adjustEntryFor(result) === "review";
   return (
     result.kind === "gateFailure" &&
     decodedPhoto(result.overlay) &&
@@ -270,17 +281,16 @@ export function pipelinePaperInput(input: {
  * What confirming the adjustment does, from the entry that was open and the
  * result on screen now:
  *
- * - `recordCheck`: the corner check on a measured photo with the detector's
- *   corners: record how far each placed corner is from them, nothing else.
- * - `rerun`: a rescue on a photo still turned back, with the file at hand:
- *   the same pipeline again, on the same file, with the frame.
- * - `none`: anything else (the result changed meanwhile, no file, no entry):
- *   nothing runs, and no measurement changes.
+ * - `rerun`: a rescue on a photo still turned back, or a moved frame on a
+ *   measured photo (`review`), with the file at hand: the same pipeline
+ *   again, on the same file, with the frame.
+ * - `none`: anything else (a `review` frame confirmed as it opened, the
+ *   result changed meanwhile, no file, no entry): nothing runs, and no
+ *   measurement changes; a measured photo's sheet then shows the measurement
+ *   already made.
  */
 export type AdjustConfirmAction =
-  | { readonly kind: "recordCheck"; readonly detected: Quad4 }
-  | { readonly kind: "rerun" }
-  | { readonly kind: "none" };
+  { readonly kind: "rerun" } | { readonly kind: "none" };
 
 export function adjustConfirmAction(input: {
   readonly entry: AdjustEntry | null;
@@ -296,11 +306,6 @@ export function adjustConfirmAction(input: {
   readonly moved?: boolean;
 }): AdjustConfirmAction {
   const { entry, result } = input;
-  if (entry === "check") {
-    const detected =
-      result.kind === "measured" ? result.overlay.paperCorners : null;
-    return detected ? { kind: "recordCheck", detected } : { kind: "none" };
-  }
   if (entry === "rescue" && result.kind === "gateFailure" && input.hasFile)
     return { kind: "rerun" };
   if (
@@ -311,6 +316,41 @@ export function adjustConfirmAction(input: {
   )
     return { kind: "rerun" };
   return { kind: "none" };
+}
+
+/**
+ * The corner record a confirm writes to this device's attempt log (V3.2 F15,
+ * in place of the `?debug=1` corner check, candidate): on the screen that
+ * opened by itself on a measured photo (`review`), how far each confirmed
+ * corner is from the detector's own (`cornerCheckDistances`, photo px; all
+ * zero when nothing moved) and the photo's long edge. `null` for any other
+ * entry or a result with no detector corners. Never sent anywhere: only the
+ * local attempt log reads it. The magnifier is always on (its switch went
+ * with the corner check).
+ */
+export function confirmCornerCheck(input: {
+  readonly entry: AdjustEntry | null;
+  readonly result: AdjustableResult;
+  readonly corners: Quad4;
+}): {
+  readonly magnifier: true;
+  readonly distancesPx: readonly [number, number, number, number];
+  readonly imageLongEdgePx: number | null;
+} | null {
+  const { entry, result } = input;
+  if (entry !== "review" || result.kind !== "measured") return null;
+  const detected = result.overlay.paperCorners;
+  if (!detected) return null;
+  const longEdge = Math.max(
+    result.overlay.imageWidth,
+    result.overlay.imageHeight,
+  );
+  return {
+    magnifier: true,
+    distancesPx: cornerCheckDistances(input.corners, detected),
+    imageLongEdgePx:
+      Number.isFinite(longEdge) && longEdge > 0 ? longEdge : null,
+  };
 }
 
 /** Whether any corner is now somewhere other than where the screen opened it. */
@@ -532,8 +572,6 @@ export function openingPlaced(
 /**
  * The opening state:
  *
- * - `check` always starts from the centred sheet with nothing placed, so that
- *   a corner left where it started cannot read as a perfect drag.
  * - `rescue` after a run with a frame the person placed (`previous`): that
  *   frame again, every corner placed (F7: the corners are kept). Its source
  *   stays what it was: a frame first placed from the detector's corners is
@@ -557,43 +595,35 @@ export function startAdjust(input: {
     width: input.overlay.imageWidth,
     height: input.overlay.imageHeight,
   };
-  const centred: DefaultAdjustFrame = {
-    corners: centredPaperFrame(image, input.paperSize),
-    detected: [false, false, false, false],
-    from: "centred",
-  };
   const previous =
     input.entry === "rescue" &&
     input.previous &&
     checkManualQuad(input.previous.corners, image).ok
       ? input.previous
       : null;
-  const start: DefaultAdjustFrame =
-    input.entry === "check"
-      ? centred
-      : previous
-        ? {
-            corners: [
-              { ...previous.corners[0] },
-              { ...previous.corners[1] },
-              { ...previous.corners[2] },
-              { ...previous.corners[3] },
-            ],
-            detected: [true, true, true, true],
-            // `adjustReadiness` reads the source off `from`: "detected" is
-            // adjusted, anything else manual.
-            from: previous.source === "adjusted" ? "detected" : "centred",
-          }
-        : defaultAdjustFrame({
-            corners: input.overlay.paperCorners ?? null,
-            partialCorners: input.overlay.paperPartialCorners ?? null,
-            guessCorners:
-              input.entry === "rescue"
-                ? (input.overlay.paperGuessCorners ?? null)
-                : null,
-            image,
-            paperSize: input.paperSize,
-          });
+  const start: DefaultAdjustFrame = previous
+    ? {
+        corners: [
+          { ...previous.corners[0] },
+          { ...previous.corners[1] },
+          { ...previous.corners[2] },
+          { ...previous.corners[3] },
+        ],
+        detected: [true, true, true, true],
+        // `adjustReadiness` reads the source off `from`: "detected" is
+        // adjusted, anything else manual.
+        from: previous.source === "adjusted" ? "detected" : "centred",
+      }
+    : defaultAdjustFrame({
+        corners: input.overlay.paperCorners ?? null,
+        partialCorners: input.overlay.paperPartialCorners ?? null,
+        guessCorners:
+          input.entry === "rescue"
+            ? (input.overlay.paperGuessCorners ?? null)
+            : null,
+        image,
+        paperSize: input.paperSize,
+      });
   return {
     entry: input.entry,
     image,
@@ -1498,7 +1528,7 @@ export function magnifierLayout(input: {
 }
 
 /**
- * Kirby's corner check: how far each corner he placed is from the detector's,
+ * The corner record (`confirmCornerCheck`): how far each corner placed is from the detector's,
  * px in the photo, both frames ordered the same way round (`orderQuadCorners`)
  * so that a frame placed starting from another corner is still compared
  * corner to corner.

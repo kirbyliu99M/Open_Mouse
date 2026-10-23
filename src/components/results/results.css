@@ -586,7 +586,10 @@
   }
 }
 
-.results-handNotice {
+/* F15: .results-measureNote ("still being validated", moved here from the
+   scan's sheet) looks like the other notes about how the scan was made. */
+.results-handNotice,
+.results-measureNote {
   line-height: 1.5;
 }
 
@@ -597,7 +600,8 @@
 
 .results-fitNotice,
 .results-coverageNotice,
-.results-handNotice {
+.results-handNotice,
+.results-measureNote {
   color: #b5b5bd;
 }
 
@@ -1527,6 +1531,7 @@
 .results-disclosure-hint:lang(zh-TW),
 :lang(zh-TW) > .results-disclosure-hint,
 .results-handNotice:lang(zh-TW),
+.results-measureNote:lang(zh-TW),
 .results-coverageNotice:lang(zh-TW),
 .results-fitNotice:lang(zh-TW) {
   line-height: 1.6;
@@ -1672,7 +1677,8 @@
   .results-sizeNotice,
   .results-fitNotice,
   .results-coverageNotice,
-  .results-handNotice {
+  .results-handNotice,
+  .results-measureNote {
     color: var(--text-secondary);
   }
 

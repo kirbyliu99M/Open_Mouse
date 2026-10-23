@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { contrast, overWhite } from "./fixtures/contrast";
 import { installLoopFreeze, loopFrozen } from "./fixtures/freeze-loop";
 import { bestRowOff, decodePng } from "./fixtures/png";
+import { confirmAutoFrame } from "./fixtures/confirm-frame";
 import { uploadGreyPhoto } from "./fixtures/slow-model";
 
 /**
@@ -81,6 +82,7 @@ test.describe("AC1: the stage never changes shape", () => {
     const processing = await box(page, ".easyStage");
 
     await release(page);
+    await confirmAutoFrame(page);
     await expect(
       page.getByRole("dialog", { name: "Hand measured" }),
     ).toBeVisible({ timeout: 20_000 });
@@ -243,6 +245,7 @@ test.describe("AC6: the debug panel", () => {
     expect(json.capture.ringCompleteToFrozenMs).toBeGreaterThan(0);
 
     await release(page);
+    await confirmAutoFrame(page);
     await expect(
       page.getByRole("dialog", { name: "Hand measured" }),
     ).toBeVisible({ timeout: 20_000 });
@@ -321,6 +324,7 @@ async function captureAndMeasure(page: Page) {
     scanLine: await page.locator(".easyScanLine").count(),
   };
   await release(page);
+  await confirmAutoFrame(page);
   const sheet = page.getByRole("dialog", { name: "Hand measured" });
   await expect(sheet).toBeVisible({ timeout: 20_000 });
   return { whileProcessing, sheet };
@@ -804,6 +808,7 @@ test.describe("AC6: the debug panel once a sheet is open", () => {
       { timeout: 20_000 },
     );
     await release(page);
+    await confirmAutoFrame(page);
     const sheet = page.getByRole("dialog", { name: "Hand measured" });
     await expect(sheet).toBeVisible({ timeout: 20_000 });
     // Only one panel at a time: the page's is behind the modal sheet.
@@ -1064,6 +1069,8 @@ test.describe("fix round 1: reduced motion cross-fades, it does not blink", () =
       });
       w.__release?.();
     });
+    // F15: the measured layer appears once the frame is confirmed.
+    await confirmAutoFrame(page);
     await page.waitForFunction(
       () => (window as Window & { __frozen?: boolean }).__frozen === true,
     );
@@ -1277,6 +1284,7 @@ test.describe("fix round 1: the close button is a circle", () => {
     const contrastMore = await closeBox(page);
     await page.emulateMedia({ contrast: "no-preference" });
     await release(page);
+    await confirmAutoFrame(page);
     await expect(
       page.getByRole("dialog", { name: "Hand measured" }),
     ).toBeVisible({ timeout: 20_000 });
@@ -1345,6 +1353,7 @@ test.describe("fix round 2: large text", () => {
         { timeout: 20_000 },
       );
       await release(page);
+      await confirmAutoFrame(page);
       const sheet = page.getByRole("dialog", { name: "Hand measured" });
       await expect(sheet).toBeVisible({ timeout: 20_000 });
       await expect(page.locator(".easyStageContent.moved")).toBeAttached();
@@ -1455,6 +1464,7 @@ async function pinnedLayout(
     { timeout: 20_000 },
   );
   await release(page);
+  if (kind === "measured") await confirmAutoFrame(page);
   const sheet = page.getByRole("dialog", {
     name: kind === "retake" ? "Retake needed" : "Hand measured",
   });
@@ -1926,6 +1936,7 @@ test.describe("fix round 3: a retake on the upload path starts clean", () => {
     // The upload path: pick a file, reach the result.
     await uploadGreyPhoto(page);
     await release(page);
+    await confirmAutoFrame(page);
     const sheet = page.getByRole("dialog", { name: "Hand measured" });
     await expect(sheet).toBeVisible({ timeout: 20_000 });
 
@@ -2010,6 +2021,7 @@ test.describe("a retake clears the answers and the error", () => {
     const sheet = page.getByRole("dialog", { name: "Hand measured" });
     const grip = page.getByRole("dialog", { name: "How you hold a mouse" });
     const thickness = page.getByRole("dialog", { name: "Palm thickness" });
+    await confirmAutoFrame(page);
     await expect(sheet).toBeVisible({ timeout: 20_000 });
     await sheet.getByRole("button", { name: "Continue" }).click();
     await grip.getByRole("radio", { name: /^Claw/ }).check();
@@ -2026,6 +2038,7 @@ test.describe("a retake clears the answers and the error", () => {
     await sheet.getByRole("button", { name: "Retake photo" }).click();
     await expect(sheet).toBeHidden();
     // The fake camera's auto-shutter takes the next photo by itself.
+    await confirmAutoFrame(page, 30_000);
     await expect(sheet).toBeVisible({ timeout: 30_000 });
     await sheet.getByRole("button", { name: "Continue" }).click();
     for (const radio of await grip.getByRole("radio").all())

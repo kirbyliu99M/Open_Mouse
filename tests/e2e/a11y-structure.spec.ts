@@ -277,27 +277,29 @@ test("Tab to the upload input shows a ring on the upload icon next to a live cam
   expect(contrast(ring.outlineColor, ring.shell)).toBeGreaterThanOrEqual(3);
 });
 
-// ── The measured numbers say they are still being validated ───────────────
+// ── The measured numbers ─────────────────────────────────────────────────
+// V3.2 F15 (candidate): the easy-scan sheet shows only its title, numbers,
+// retake and continue; "still being validated" is said on the results page.
 
-test("the easy-scan measured sheet says the measurements are still being validated, next to the numbers", async ({
+test("the easy-scan measured sheet says its numbers in text, and nothing else under them (F15)", async ({
   page,
 }) => {
   await page.goto("/scan/easy/measured-demo");
   const sheet = page.getByRole("dialog", { name: "Hand measured" });
   await expect(sheet).toBeVisible();
-  await expect(sheet.locator(".easySheetNote")).toHaveText(
-    "Measurements are still being validated.",
-  );
+  await expect(sheet.locator(".easySheetNote")).toHaveCount(0);
+  await expect(
+    sheet.getByText("Measurements are still being validated."),
+  ).toHaveCount(0);
   // The drawing on the photo shows the numbers, but it is an image to a screen
-  // reader, so the sheet says them in text too, and the note is the very next
-  // thing after them.
+  // reader, so the sheet says them in text too, and the buttons come next.
   await expect(page.getByText("Hand 190 mm")).toBeVisible();
   await expect(page.getByText("Palm 84 mm")).toBeVisible();
   const numbers = sheet.getByTestId("easy-sheet-numbers");
   await expect(numbers).toHaveText("Hand length 190 mm · Palm width 84 mm");
-  expect(await numbers.evaluate((el) => el.nextElementSibling?.className)).toBe(
-    "easySheetNote",
-  );
+  expect(
+    await numbers.evaluate((el) => el.nextElementSibling?.className),
+  ).toContain("easyStickyActions");
   // The words the drawing shows are in what the sheet says.
   const drawn = await page.evaluate(() =>
     [...document.querySelectorAll(".easyDimLabelText, .easyFrozenSvg text")]
@@ -317,9 +319,7 @@ test("a typed hand length is said to be entered, in the sheet's text and on the 
   await expect(sheet.getByTestId("easy-sheet-numbers")).toHaveText(
     "Hand length 186 mm (entered) · Palm width 80 mm",
   );
-  await expect(sheet.locator(".easySheetNote")).toHaveText(
-    "Measurements are still being validated.",
-  );
+  await expect(sheet.locator(".easySheetNote")).toHaveCount(0);
   // The no-paper line says how it was measured and does not compare accuracy.
   await expect(sheet.locator(".easyLengthDisclosure p").last()).toHaveText(
     "Measured without paper.",

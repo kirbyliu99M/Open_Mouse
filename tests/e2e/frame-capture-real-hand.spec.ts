@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { confirmAutoFrameIfShown } from "./fixtures/confirm-frame";
 import {
   chromium,
   devices,
@@ -163,6 +164,8 @@ test("a frame of the video cut to the part on screen goes through the real pipel
       const page = await context.newPage();
       await page.goto("/scan/easy?debug=1");
       await page.getByRole("button", { name: "Got it" }).click();
+      // F15: a measured photo's frame is confirmed first, as it opened.
+      await confirmAutoFrameIfShown(page, 90_000);
       const sheet = page.getByRole("dialog", {
         name: /Hand measured|Retake needed/,
       });
