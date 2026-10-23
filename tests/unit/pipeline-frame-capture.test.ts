@@ -61,6 +61,7 @@ import { judgeParallaxCorrection } from "../../src/client/geometry/parallaxGuard
 import {
   nominalFocalPx,
   nominalFocalPxFromLongEdge,
+  NOMINAL_FOCAL_EQUIV_MM_STILL,
 } from "../../src/client/geometry/nominalFocalShadow";
 import {
   runPhotoPipeline,
@@ -161,6 +162,10 @@ function run(
     hand: "right",
     handExplicit: true,
     calibration: { method: "paper-edge", paperSize: "a4" },
+    // A frame of the video: the camera always passes the stream's long edge
+    // (here the frame's own), which marks it as a video frame and gives it
+    // the 18 mm prior (F17 review). An upload passes `undefined`.
+    focalReferenceLongEdgePx: Math.max(FRAME.width, FRAME.height),
     ...extra,
   });
 }
@@ -285,6 +290,23 @@ describe("paper-edge pipeline with a frame of the video (no EXIF, no previewView
     expect(result.diagnostics?.shadowPrior?.handLengthDeltaMm).toBeCloseTo(
       uncorrected.handLengthMm - result.measurements.handLengthMm,
       9,
+    );
+  });
+
+  it("F17 review: the same pixels as an upload with no EXIF (no stream edge passed) are a still and get the 26 mm prior, not the video frame's 18 mm", async () => {
+    const landmarks = landmarksFor(FRONTAL);
+    arrange(FRONTAL, landmarks);
+    const result = ok(
+      await run(noExif(), { focalReferenceLongEdgePx: undefined }),
+    );
+    const still = nominalFocalPxFromLongEdge(
+      Math.max(FRAME.width, FRAME.height),
+      NOMINAL_FOCAL_EQUIV_MM_STILL,
+    )!;
+    expect(result.diagnostics?.focal).toEqual({ source: "nominal", px: still });
+    expect(still / nominalFocalPx(FRAME)!).toBeCloseTo(26 / 18, 9);
+    expect(result.measurements).toEqual(
+      reference(FRONTAL, landmarks, still).corrected.measurements,
     );
   });
 

@@ -28,7 +28,12 @@ Since v3 the order is (`resolveFocalPx`, `src/client/geometry/parallax.ts`):
    verified (不確定). The range check keeps its ratios, now on the new prior (about 699-1398 px for a
    1920 px long edge). A frame of the video cut to the part
    on screen passes the stream's long edge (`frameFocalReferenceLongEdgePx`): a frame cut on its long side
-   would otherwise read about 1.5-2 mm short.
+   would otherwise read about 1.5-2 mm short. The 18 mm lens is for frames of the live video ONLY (F17
+   review, candidate 未拍板): a still with no EXIF (an upload whose EXIF was stripped, or the camera's
+   takePhoto picture) keeps 26 mm on its own long edge (`NOMINAL_FOCAL_EQUIV_MM_STILL`, about 0.751 x;
+   3004 px for 4000), because the measurements are of video frames only and a 26 mm main-camera still
+   would read 1.44x of an 18 mm prior, outside the range (模擬). Passing the stream's long edge is what
+   marks a photo as a video frame (`frameNominalReferenceLongEdgePx`).
 5. None.
 
 The learning kit (`src/lib/learning/plane.ts`) passes no prior and is unchanged; the M2 baseline stays

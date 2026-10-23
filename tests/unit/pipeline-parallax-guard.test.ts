@@ -101,6 +101,9 @@ function run(extra: Partial<RunPhotoPipelineInput> = {}) {
     hand: "right",
     handExplicit: true,
     calibration: { method: "paper-edge", paperSize: "a4" },
+    // A frame of the live video: the stream's long edge is passed, which
+    // gives it the 18 mm video-frame prior (F17 review).
+    focalReferenceLongEdgePx: FRAME.height,
     ...extra,
   });
 }

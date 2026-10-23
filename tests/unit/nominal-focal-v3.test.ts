@@ -21,12 +21,14 @@ import {
   computeNominalFocalShadow,
   nominalFocalPx,
   nominalFocalPxFromLongEdge,
+  NOMINAL_FOCAL_EQUIV_MM_STILL,
 } from "../../src/client/geometry/nominalFocalShadow";
 import { estimateFocalFromHomography } from "../../src/client/geometry/focal-from-homography";
 import { centrePrincipalPoint } from "../../src/client/geometry/camera-pose";
 import {
   frameFocalReferenceLongEdgePx,
   frameFocalReferenceWidthPx,
+  frameNominalReferenceLongEdgePx,
 } from "../../src/client/camera/visibleView";
 import { nominalPriorFor } from "../../src/client/photo/paperEdgeFinish";
 import { reusableFocal } from "../../src/client/camera/paperAdjustState";
@@ -332,10 +334,13 @@ describe("§5.1 item 4: a frame cut on its long side takes the prior on the stre
     expect(nominalPriorFor(frame, edge)).not.toBe(
       nominalFocalPxFromLongEdge(1440),
     );
-    // Not passed (an upload, the camera's photo): the photo's own long edge.
-    expect(nominalPriorFor(frame)).toBe(nominalFocalPxFromLongEdge(1440));
+    // Not passed (an upload, the camera's photo): a still, the photo's own
+    // long edge at the still lens (26 mm, F17 review).
+    expect(nominalPriorFor(frame)).toBe(
+      nominalFocalPxFromLongEdge(1440, NOMINAL_FOCAL_EQUIV_MM_STILL),
+    );
     expect(nominalPriorFor(frame, Number.NaN)).toBe(
-      nominalFocalPxFromLongEdge(1440),
+      nominalFocalPxFromLongEdge(1440, NOMINAL_FOCAL_EQUIV_MM_STILL),
     );
   });
 
@@ -363,9 +368,91 @@ describe("§5.1 item 4: a frame cut on its long side takes the prior on the stre
     const right = measure(
       nominalPriorFor({ width: 1080, height: 1440 }, 1920)!,
     );
-    const wrong = measure(nominalPriorFor({ width: 1080, height: 1440 })!);
+    // The same lens on the cut frame's own long edge.
+    const wrong = measure(nominalFocalPxFromLongEdge(1440)!);
     expect(Math.abs(right)).toBeLessThan(0.1);
     expect(wrong).toBeLessThan(-1);
+  });
+});
+
+describe("F17 review: a still with no EXIF keeps the 26 mm prior (the 18 mm one is the video frame's)", () => {
+  // An upload whose EXIF was stripped: a 4000 x 3000 main-camera still held
+  // upright (3000 x 4000), its lens a true 26 mm equivalent. 模擬.
+  const still = { width: 3000, height: 4000 };
+  const fTrue = nominalFocalPxFromLongEdge(4000, 26)!;
+  const measureWith = (pitchDeg: number, rollDeg: number, prior: number) => {
+    const s = buildR6Scene({ w: 3000, h: 4000, f: fTrue, pitchDeg, rollDeg });
+    const r = computeCorrectedHandMeasurements(
+      s.raisedPx,
+      buildPaperHomography(s.corners, "a4"),
+      {
+        exifFocalPx: null,
+        widthPx: 3000,
+        heightPx: 4000,
+        nominalFocalPx: prior,
+      },
+    );
+    return { r, error: r.measurements.handLengthMm - s.trueLen };
+  };
+
+  it("the prior of a still (no focalReferenceLongEdgePx) is 26 mm on its long edge, about 3004 px; a video frame's is 18 mm", () => {
+    expect(NOMINAL_FOCAL_EQUIV_MM_STILL).toBe(26);
+    expect(nominalPriorFor(still)).toBeCloseTo(fTrue, 9);
+    expect(nominalPriorFor(still)).toBeCloseTo(3004, 0);
+    expect(nominalPriorFor({ width: 1024, height: 1920 }, 1920)).toBe(PRIOR);
+  });
+
+  it("the camera passes a stream edge for a frame of the video only (frameNominalReferenceLongEdgePx)", () => {
+    const stream = { width: 1080, height: 1920 };
+    expect(
+      frameNominalReferenceLongEdgePx({
+        captureSource: "frame",
+        frame: { stream },
+        photoWidth: 1080,
+        photoHeight: 1440,
+      }),
+    ).toBe(
+      frameFocalReferenceLongEdgePx(stream, { width: 1080, height: 1440 }),
+    );
+    // A frame whose stream size was not recorded is its own stream.
+    expect(
+      frameNominalReferenceLongEdgePx({
+        captureSource: "frame",
+        photoWidth: 1024,
+        photoHeight: 1920,
+      }),
+    ).toBe(1920);
+    for (const captureSource of ["upload", "takePhoto", null])
+      expect(
+        frameNominalReferenceLongEdgePx({
+          captureSource,
+          frame: { stream },
+          photoWidth: 3000,
+          photoHeight: 4000,
+        }),
+      ).toBeUndefined();
+    expect(frameNominalReferenceLongEdgePx(null)).toBeUndefined();
+    expect(
+      frameNominalReferenceLongEdgePx({ captureSource: "frame" }),
+    ).toBeUndefined();
+  });
+
+  it("a reliable homography estimate of the true 26 mm is inside the range of the still's prior and is used; under the 18 mm prior it would have been refused (1.44x)", () => {
+    const prior = nominalPriorFor(still)!;
+    const { r, error } = measureWith(12, 4, prior);
+    expect(r.focalSource).toBe("homography");
+    expect(Math.abs(error)).toBeLessThan(1);
+    const frameLens = nominalFocalPxFromLongEdge(4000)!;
+    expect(fTrue / frameLens).toBeGreaterThan(FOCAL_PRIOR_RANGE.max);
+    expect(focalWithinPrior(fTrue, frameLens)).toBe(false);
+    expect(focalWithinPrior(fTrue, prior)).toBe(true);
+  });
+
+  it("seen flat from above (no usable estimate) the still's prior is the true focal length, so the hand is within 0.5 mm", () => {
+    const { r, error } = measureWith(0, 0, nominalPriorFor(still)!);
+    expect(r.focalSource).toBe("nominal");
+    expect(r.fPx).toBeCloseTo(fTrue, 6);
+    expect(Math.abs(error)).toBeLessThan(0.5);
   });
 });
 

@@ -46,6 +46,8 @@ import {
 import { centrePrincipalPoint } from "../geometry/camera-pose";
 import {
   computeUncorrectedShadow,
+  NOMINAL_FOCAL_EQUIV_MM,
+  NOMINAL_FOCAL_EQUIV_MM_STILL,
   nominalFocalPxFromLongEdge,
 } from "../geometry/nominalFocalShadow";
 import type { ReusedFocal } from "../geometry/parallax";
@@ -119,8 +121,10 @@ export interface PaperEdgeFinishInput {
    * landmark-raw-v3 (candidate, design R7 §1.3): the long edge, in the decoded
    * photo's pixels, of the whole camera frame the photo came from; the nominal
    * focal prior is taken on it. Only a frame of the video that was cut before
-   * it got here passes it (`frameFocalReferenceLongEdgePx`); omitted (or not a
-   * finite number above 0), the whole decoded photo's long edge is used.
+   * it got here passes it (`frameFocalReferenceLongEdgePx`), and passing it
+   * is what marks the photo as a video frame (18 mm prior). Omitted (or not a
+   * finite number above 0), the photo is a still: the whole decoded photo's
+   * long edge at the still lens (26 mm, `nominalPriorFor`).
    */
   readonly focalReferenceLongEdgePx?: number;
   /**
@@ -218,22 +222,33 @@ export function guardCorrection(
 }
 
 /**
- * The nominal focal prior for this photo, px (landmark-raw-v3, candidate): on
- * the long edge of the whole camera frame (`focalReferenceLongEdgePx`), else
- * on the whole decoded photo's long edge. `null` only for a size that is not
- * a number.
+ * The nominal focal prior for this photo, px (landmark-raw-v3, candidate).
+ * A frame of the live video (`focalReferenceLongEdgePx` passed) gets the
+ * video frame's lens (`NOMINAL_FOCAL_EQUIV_MM`, 18 mm, Kirby's S25 frames,
+ * 實測) on the whole stream's long edge. Anything else (an upload, the
+ * camera's takePhoto picture) is a still: the still lens
+ * (`NOMINAL_FOCAL_EQUIV_MM_STILL`, 26 mm, candidate 未拍板, F17 review) on the
+ * whole decoded photo's long edge. `null` only for a size that is not a
+ * number.
  */
 export function nominalPriorFor(
   focalFrame: FrameSize,
   focalReferenceLongEdgePx?: number,
 ): number | null {
-  const longEdge =
+  if (
     typeof focalReferenceLongEdgePx === "number" &&
     Number.isFinite(focalReferenceLongEdgePx) &&
     focalReferenceLongEdgePx > 0
-      ? focalReferenceLongEdgePx
-      : Math.max(focalFrame.width, focalFrame.height);
-  return nominalFocalPxFromLongEdge(longEdge);
+  ) {
+    return nominalFocalPxFromLongEdge(
+      focalReferenceLongEdgePx,
+      NOMINAL_FOCAL_EQUIV_MM,
+    );
+  }
+  return nominalFocalPxFromLongEdge(
+    Math.max(focalFrame.width, focalFrame.height),
+    NOMINAL_FOCAL_EQUIV_MM_STILL,
+  );
 }
 
 const finiteOrNull = (n: unknown): number | null =>

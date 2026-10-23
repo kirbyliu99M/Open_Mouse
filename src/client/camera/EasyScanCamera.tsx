@@ -183,8 +183,8 @@ import {
 import {
   assumedSampleFocalPx,
   frameDrawArgs,
-  frameFocalReferenceLongEdgePx,
   frameFocalReferenceWidthPx,
+  frameNominalReferenceLongEdgePx,
   visibleRegionInStream,
   type PixelRect,
 } from "./visibleView";
@@ -1342,15 +1342,11 @@ export default function EasyScanCamera({
               : undefined,
           // landmark-raw-v3 (candidate): the nominal focal prior is taken on
           // the stream's long edge, in the same pixels, for the same reason.
-          focalReferenceLongEdgePx:
-            info?.captureSource === "frame" && info.frame
-              ? frameFocalReferenceLongEdgePx(
-                  info.frame.stream,
-                  info.photoWidth !== null && info.photoHeight !== null
-                    ? { width: info.photoWidth, height: info.photoHeight }
-                    : null,
-                )
-              : undefined,
+          // Passing it is also what gives a frame of the video the video
+          // frame's 18 mm prior (F17 review); a still (upload, takePhoto)
+          // passes nothing and keeps 26 mm. A frame whose stream size was not
+          // known is its own stream.
+          focalReferenceLongEdgePx: frameNominalReferenceLongEdgePx(info),
         });
         void logAttempt(info, { kind: "result", result: pipelineResult });
         if (runId !== runIdRef.current) return;

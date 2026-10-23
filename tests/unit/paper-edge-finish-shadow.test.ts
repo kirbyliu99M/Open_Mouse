@@ -19,6 +19,7 @@ import {
 } from "../../src/client/photo/paperEdgeFinish";
 import {
   computeUncorrectedShadow,
+  NOMINAL_FOCAL_EQUIV_MM_STILL,
   nominalFocalPxFromLongEdge,
 } from "../../src/client/geometry/nominalFocalShadow";
 import { centrePrincipalPoint } from "../../src/client/geometry/camera-pose";
@@ -71,8 +72,11 @@ function input(over: Partial<PaperEdgeFinishInput> = {}): PaperEdgeFinishInput {
     laplacianVariance: 150,
     decoded: FRAME,
     crop: null,
-    // A frame of the live video has no EXIF.
+    // A frame of the live video has no EXIF, and the camera passes the
+    // stream's long edge (here the frame's own), which gives it the video
+    // frame's 18 mm prior (F17 review).
     readJpegBytes: async () => null,
+    focalReferenceLongEdgePx: FRAME.height,
     ...over,
   };
 }
@@ -131,6 +135,17 @@ describe("finishPaperEdge shadow mode", () => {
     expect(["nominal", "homography"]).toContain(passed.focal?.source);
     if (passed.focal?.source === "nominal") {
       expect(passed.focal.px).toBe(nominalFocalPxFromLongEdge(1920));
+    }
+    // Not passed: a still (an upload with no EXIF), the still lens (26 mm)
+    // on the decoded photo's own long edge (F17 review).
+    const still = await finishPaperEdge(
+      input({ focalReferenceLongEdgePx: undefined }),
+    );
+    expect(["nominal", "homography"]).toContain(still.focal?.source);
+    if (still.focal?.source === "nominal") {
+      expect(still.focal.px).toBe(
+        nominalFocalPxFromLongEdge(FRAME.height, NOMINAL_FOCAL_EQUIV_MM_STILL),
+      );
     }
   });
 
@@ -226,6 +241,8 @@ describe("finishPaperEdge shadow mode", () => {
         decoded: { width: 1500, height: 2000 },
         crop: { x: 210, y: 0, width: 1080, height: 2000 },
         computeShadow: seen,
+        // A cropped still (the camera's takePhoto picture): no stream edge.
+        focalReferenceLongEdgePx: undefined,
       }),
     );
     expect(seen).toHaveBeenCalledTimes(1);
@@ -239,9 +256,12 @@ describe("finishPaperEdge shadow mode", () => {
       palmLengthMm: cropped.result.measurements.palmLengthMm,
       palmWidthMm: cropped.result.measurements.palmWidthMm,
     });
-    // The prior is the whole decoded photo's (2000 px long edge), not the crop's.
+    // The prior is the whole decoded photo's (2000 px long edge), not the
+    // crop's, at the still lens (F17 review).
     if (cropped.focal?.source === "nominal") {
-      expect(cropped.focal.px).toBe(nominalFocalPxFromLongEdge(2000));
+      expect(cropped.focal.px).toBe(
+        nominalFocalPxFromLongEdge(2000, NOMINAL_FOCAL_EQUIV_MM_STILL),
+      );
     }
   });
 

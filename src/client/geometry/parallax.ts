@@ -445,7 +445,9 @@ export interface ReusedFocal {
  * prior the hand-placed ones (894, 902, 934.6) were refused. What it means
  * for other phones is 不確定: a video frame at the full picture of a 26 mm
  * main camera (1442 px, 1.44x) now falls just outside, and a 13 mm
- * ultra-wide (0.72x) just inside.
+ * ultra-wide (0.72x) just inside. A still with no EXIF (upload, takePhoto)
+ * is not a video frame and keeps the 26 mm prior (F17 review,
+ * `NOMINAL_FOCAL_EQUIV_MM_STILL`), so its window is what it was before F17.
  */
 export const FOCAL_PRIOR_RANGE = { min: 0.7, max: 1.4 } as const;
 

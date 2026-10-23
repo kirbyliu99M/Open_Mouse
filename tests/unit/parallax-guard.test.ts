@@ -634,6 +634,9 @@ describe("finishPaperEdge with the guard (模擬)", () => {
       decoded: FRAME,
       crop: null,
       readJpegBytes: async () => null,
+      // A frame of the live video: the camera passes the stream's long edge
+      // (the 18 mm video-frame prior; F17 review).
+      focalReferenceLongEdgePx: Math.max(FRAME.width, FRAME.height),
       ...over,
     };
   }
@@ -868,6 +871,7 @@ describe("V3.2 F17: the guard re-checked under the 998 px prior (模擬; Kirby's
       decoded: FRAME,
       crop: null,
       readJpegBytes: async () => null,
+      focalReferenceLongEdgePx: Math.max(FRAME.width, FRAME.height),
     });
     expect(out.parallaxGuard).toBeNull();
     expect(out.parallaxCorrected).toBe(true);

@@ -21,10 +21,10 @@ const callStart = run.indexOf("await runPhotoPipelineImpl({");
 const call = run.slice(callStart, run.indexOf("void logAttempt(", callStart));
 
 describe("the camera's pipeline call", () => {
-  it("passes the stream's long edge for a frame of the video, scaled like the width reference", () => {
+  it("passes the stream's long edge for a frame of the video, scaled like the width reference, and nothing for a still (F17 review: frameNominalReferenceLongEdgePx)", () => {
     expect(callStart).toBeGreaterThan(0);
     expect(call).toMatch(
-      /focalReferenceLongEdgePx:\s*info\?\.captureSource === "frame" && info\.frame\s*\?\s*frameFocalReferenceLongEdgePx\(\s*info\.frame\.stream,/,
+      /focalReferenceLongEdgePx:\s*frameNominalReferenceLongEdgePx\(info\)/,
     );
   });
 });

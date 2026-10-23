@@ -58,9 +58,24 @@ import {
  * pick for a main camera, not measured on any device).
  *
  * Only the no-EXIF path uses it (parallax.ts `resolveFocalPx`); a photo with
- * EXIF and the learning kit never read it.
+ * EXIF and the learning kit never read it. Only a FRAME OF THE LIVE VIDEO
+ * gets it (the pipeline is told the stream's long edge,
+ * `focalReferenceLongEdgePx`); a still photo with no EXIF (an upload whose
+ * EXIF was stripped, or the camera's own takePhoto picture) keeps
+ * `NOMINAL_FOCAL_EQUIV_MM_STILL` (F17 review): the measurements above are of
+ * video frames only, and a 4000 x 3000 main-camera still at 26 mm would read
+ * 1.44x of an 18 mm prior, outside `FOCAL_PRIOR_RANGE` (模擬).
  */
 export const NOMINAL_FOCAL_EQUIV_MM = 18;
+
+/**
+ * The prior's lens for a still photo with no EXIF focal length (an upload or
+ * the camera's takePhoto picture), 35 mm equivalent mm (candidate 未拍板,
+ * F17 review 2026-10-23): 26, the audit's pick for a phone's main camera, as
+ * before F17. Not measured on any device (不確定); Kirby's S25 estimates are
+ * of video frames and say nothing about a full-sensor still.
+ */
+export const NOMINAL_FOCAL_EQUIV_MM_STILL = 26;
 
 /** The diagonal of a 35 mm full frame (36 x 24 mm), the reference of a 35 mm equivalent. Candidate constant of the same prior. */
 export const FULL_FRAME_DIAGONAL_MM = 43.27;
@@ -79,13 +94,19 @@ export const SENSOR_DIAGONAL_OVER_LONG_EDGE = 5 / 4;
  * 0.520 x the long edge (998 px for 1920; F17, before it 26 mm, 1442 px). The long edge is the WHOLE camera
  * frame's: a frame of the video cut to the part on screen keeps the stream's
  * long edge (`frameFocalReferenceLongEdgePx`, visibleView.ts), because a cut
- * narrows the picture, not the lens. `null` for a length that is not finite
+ * narrows the picture, not the lens. `equivMm` is the lens (default the
+ * video frame's `NOMINAL_FOCAL_EQUIV_MM`; a still photo passes
+ * `NOMINAL_FOCAL_EQUIV_MM_STILL`). `null` for a length that is not finite
  * and above zero.
  */
-export function nominalFocalPxFromLongEdge(longEdgePx: number): number | null {
+export function nominalFocalPxFromLongEdge(
+  longEdgePx: number,
+  equivMm: number = NOMINAL_FOCAL_EQUIV_MM,
+): number | null {
   if (!Number.isFinite(longEdgePx) || !(longEdgePx > 0)) return null;
+  if (!Number.isFinite(equivMm) || !(equivMm > 0)) return null;
   const fPx =
-    (NOMINAL_FOCAL_EQUIV_MM / FULL_FRAME_DIAGONAL_MM) *
+    (equivMm / FULL_FRAME_DIAGONAL_MM) *
     SENSOR_DIAGONAL_OVER_LONG_EDGE *
     longEdgePx;
   return Number.isFinite(fPx) && fPx > 0 ? fPx : null;
