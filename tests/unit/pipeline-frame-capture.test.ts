@@ -56,6 +56,7 @@ import {
   computeHandMeasurements,
 } from "../../src/client/geometry/measurements";
 import { scanSubmissionSchema } from "../../src/lib/contracts/measurement";
+import { guardCorrection } from "../../src/client/photo/paperEdgeFinish";
 import {
   nominalFocalPx,
   nominalFocalPxFromLongEdge,
@@ -185,18 +186,20 @@ function reference(
     paperRegionFound: true,
   };
   const { geometry } = evaluatePaperEdgeCalibration(quad, "a4", false);
+  // V3.2 F16: the pipeline's policy now ends with the safety check, which
+  // returns a correction it accepts as the very same object.
   return {
     homography: geometry!.homography,
-    corrected: computeCorrectedHandMeasurements(
-      landmarks,
-      geometry!.homography,
-      {
+    corrected: guardCorrection(
+      computeCorrectedHandMeasurements(landmarks, geometry!.homography, {
         exifFocalPx: null,
         widthPx: FRAME.width,
         heightPx: FRAME.height,
         nominalFocalPx: prior,
-      },
-    ),
+      }),
+      landmarks,
+      geometry!.homography,
+    ).corrected,
   };
 }
 
