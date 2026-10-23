@@ -539,8 +539,11 @@ describe("EasyScanCamera wires it (read from the source: the repo has no DOM tes
     expect(run).toMatch(
       /setResult\(failure\);[\s\S]*?if \(adjustOpensDirectly\(failure\)\) \{[\s\S]*?setAdjustDirect\(true\);\s*setAdjustOpen\("rescue"\);/,
     );
-    // Only one place opens it by itself.
-    expect(source.split("adjustOpensDirectly(").length - 1).toBe(1);
+    // Only two places open it by itself: a paper failure (F14) and a photo
+    // measured from the detector's own corners (F15).
+    expect(source.split("adjustOpensDirectly(").length - 1).toBe(2);
+    expect(source.split("adjustOpensDirectly(failure)").length - 1).toBe(1);
+    expect(source.split("adjustOpensDirectly(measured)").length - 1).toBe(1);
     const cancel = source.slice(
       source.indexOf("const cancelAdjust = useCallback("),
       source.indexOf("const confirmAdjust = useCallback("),

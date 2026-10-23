@@ -3,6 +3,7 @@ import {
   ATTEMPT_LOG_KEY,
   type AttemptRecord,
 } from "../../src/client/camera/attemptLog";
+import { confirmAutoFrameIfShown } from "./fixtures/confirm-frame";
 import { buildPaperScenePng } from "./fixtures/paper-scene";
 
 /**
@@ -287,7 +288,9 @@ test.describe("frame capture: the shutter takes the part of the video that is on
     expect(attempt.paper?.cornersSeen).toBe(4);
     expect(attempt.paper!.widthFraction).toBeGreaterThan(0.76);
     expect(attempt.paper!.widthFraction).toBeLessThan(0.84);
-    // The panel's list and the copied JSON say "frame" too.
+    // The panel's list and the copied JSON say "frame" too (F15: once a
+    // measured photo's frame is confirmed).
+    await confirmAutoFrameIfShown(page);
     const sheet = page.getByRole("dialog", {
       name: /Retake needed|Hand measured/,
     });
@@ -371,6 +374,7 @@ test.describe("frame capture: the shutter takes the part of the video that is on
     expect(attempt.method).toBe("canvas");
     expect(attempt.captureSource).toBe("frame");
     expect(attempt.photo).toMatchObject({ width: 600, height: 1300 });
+    await confirmAutoFrameIfShown(page);
     await expect(
       page.getByRole("dialog", { name: /Retake needed|Hand measured/ }),
     ).toBeVisible({ timeout: 30_000 });
@@ -519,6 +523,7 @@ test.describe("the attempt log", () => {
     expect(json.length).toBeLessThan(2000);
 
     // The debug panel (inside the sheet that has opened) lists it, and Copy JSON carries it.
+    await confirmAutoFrameIfShown(page);
     const sheet = page.getByRole("dialog", {
       name: /Retake needed|Hand measured/,
     });
@@ -665,6 +670,7 @@ test.describe("the attempt log", () => {
       .getByRole("button", { name: "Got it" })
       .click({ timeout: 15_000 });
     await uploadSyntheticPhoto(page);
+    await confirmAutoFrameIfShown(page, 60_000);
     const sheet = page.getByRole("dialog", {
       name: /Retake needed|Hand measured/,
     });

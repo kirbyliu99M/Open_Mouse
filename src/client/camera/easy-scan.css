@@ -250,16 +250,13 @@
   color: var(--scan-error-fg, #ff9d90);
 }
 
+/* F15: the numbers are the sheet's last line of text (the "still being
+   validated" note moved to the results page), so they keep the room above
+   the buttons that the note used to leave. */
 .easySheetNumbers {
-  margin: -0.5rem 0 0.25rem;
+  margin: -0.5rem 0 1rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-}
-/* Directly under the numbers it is about. */
-.easySheetNote {
-  margin: 0 0 1rem;
-  color: var(--scan-muted, #b5b5bd);
-  font-size: 0.875rem;
 }
 
 /* flex-start, not center: the submit panel is taller than its button (it
@@ -1659,6 +1656,14 @@ main.easyScanShell {
   display: flex;
   flex-direction: column;
 }
+/* F15 (candidate): the screen fades in over the frozen photo once the photo
+   is analysed (no loading screen in between); under reduced motion it is
+   simply there. */
+@media (prefers-reduced-motion: no-preference) {
+  .paperAdjust[open] {
+    animation: easyFadeIn 180ms ease-out both;
+  }
+}
 .paperAdjust::backdrop {
   background: var(--bg);
 }
@@ -1677,12 +1682,6 @@ main.easyScanShell {
 .paperAdjustHeader h2:focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 3px;
-}
-.paperAdjustHint {
-  margin: 0.25rem 0 0;
-  color: var(--text-secondary);
-  font-size: 0.9375rem;
-  line-height: 1.5;
 }
 .paperAdjustStage {
   position: relative;
@@ -1893,12 +1892,6 @@ main.easyScanShell {
   .paperAdjustCancel {
     border-color: currentColor;
   }
-}
-/* The measured sheet's one line after a frame placed by hand. */
-.easySheetAdjustedNote {
-  margin: 0.25rem 0 0;
-  color: var(--text-secondary);
-  font-size: 0.875rem;
 }
 /* The failure sheet's secondary action (the same text-link look as 修改數字). */
 /* Secondary but plain to see (F7): an outlined button under the main one. */

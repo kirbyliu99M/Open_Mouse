@@ -2,6 +2,7 @@ import { useRef, useState, type MouseEvent } from "react";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { manualEntryCopy } from "@/lib/copy/manualEntry";
+import { scanCommonCopy } from "@/lib/copy/scan-common";
 import { formatCentimetres } from "@/lib/scan/manualEntry";
 import { en as enBands, zhTW as zhBands } from "@/lib/copy/fit-bands";
 import { bandOf } from "@/lib/fit/bands";
@@ -418,6 +419,17 @@ export function ResultsView({
               <WhyList entry={entry} language={language} />
 
               {/* Cautions about how the scan was made come before any link to a shop. */}
+              {/* V3.2 F15 (candidate): moved here from the scan's result
+                  sheet, so the sheet shows only its numbers. Not for numbers
+                  the person typed in (nothing was measured). */}
+              {enteredManual === null && (
+                <p
+                  className="results-measureNote"
+                  data-testid="results-unverified-note"
+                >
+                  {scanCommonCopy(language).unverifiedNote}
+                </p>
+              )}
               {enteredLengthMm !== null && (
                 <p className="results-handNotice">
                   {copy.enteredLengthNotice(enteredLengthMm)}

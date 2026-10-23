@@ -42,6 +42,10 @@ export interface ScanCommonCopy {
     palmWidth: string;
     entered: boolean;
   }) => string;
+  /**
+   * Under /scan's numbers, and (V3.2 F15) on the results page's notes about
+   * how the scan was made; no longer on the easy scan's result sheet.
+   */
   unverifiedNote: string;
   /** "Enter a hand length between 135 and 265 mm." */
   lengthRange: (min: number, max: number) => string;

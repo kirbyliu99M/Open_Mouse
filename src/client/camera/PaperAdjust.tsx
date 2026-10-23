@@ -29,6 +29,11 @@
  *   after a failure, a small 改用置中框. No gesture hint, no instructions, no
  *   per-corner marks; a line only when the frame cannot be used as it is.
  *   The handles keep their accessible names.
+ * - F15 (Kirby, 2026-10-23, candidate): it also opens by itself on every
+ *   photo measured from the detector's own corners (`review`), before any
+ *   length is shown, with the same heading and confirm button; Kirby's
+ *   `?debug=1` corner check (its record button, magnifier switch and line)
+ *   is gone, and the magnifier is always on.
  *
  * The photo is the frozen photo's own object URL, drawn by the browser; it is
  * never read, copied or sent. Only the four corner positions leave this
@@ -109,8 +114,6 @@ export function refusalText(
 export interface PaperAdjustConfirm {
   readonly corners: Quad4;
   readonly source: "adjusted" | "manual";
-  /** Whether the magnifier was on (always true outside the corner check). */
-  readonly magnifier: boolean;
   /** Whether any corner is somewhere other than where the screen opened it (`frameMoved`). */
   readonly moved: boolean;
 }
@@ -135,7 +138,6 @@ export interface PaperAdjustProps {
   /** For tests and the static render: a state to start from, and the stage's size. */
   readonly initialState?: AdjustState;
   readonly initialStageSize?: FrameSize;
-  readonly initialMagnifier?: boolean;
 }
 
 /**
@@ -164,7 +166,6 @@ export function PaperAdjust({
   leave = "cancel",
   initialState,
   initialStageSize,
-  initialMagnifier = true,
 }: PaperAdjustProps) {
   const copy = paperAdjustCopy(locale);
   const [state, dispatch] = useReducer(
@@ -179,7 +180,6 @@ export function PaperAdjust({
     kind: "sheet",
     quad: state.start.corners,
   }));
-  const [magnifierOn, setMagnifierOn] = useState(initialMagnifier);
   // Where the magnifier was on the last frame of this drag (F10: hysteresis).
   const [magnifierAt, setMagnifierAt] = useState<MagnifierPlacement | null>(
     null,
@@ -402,7 +402,6 @@ export function PaperAdjust({
     onConfirm({
       corners: readiness.corners,
       source: readiness.source,
-      magnifier: entry === "check" ? magnifierOn : true,
       moved: frameMoved(state),
     });
   };
@@ -416,23 +415,10 @@ export function PaperAdjust({
       ? copy.quadProblem[readiness.problem]
       : "");
 
-  const title =
-    entry === "check"
-      ? copy.check.entry
-      : entry === "review"
-        ? copy.review.title
-        : copy.title;
-  const confirmLabel =
-    entry === "check"
-      ? copy.check.confirm
-      : entry === "review"
-        ? copy.review.confirm
-        : copy.confirm;
-
   const screenCorners = state.corners.map((c) => toScreen(c, fit));
   const drag = state.drag;
   const magnifier =
-    drag && magnifierOn && stageSize
+    drag && stageSize
       ? magnifierLayout({
           pointer: drag.pointer,
           corner: state.corners[drag.index],
@@ -457,13 +443,8 @@ export function PaperAdjust({
     >
       <header className="paperAdjustHeader">
         <h2 id="paper-adjust-title" ref={titleRef} tabIndex={-1}>
-          {title}
+          {copy.title}
         </h2>
-        {/* Kirby's corner check (?debug=1) keeps its one line: what it
-            records, and that no photo is kept. */}
-        {entry === "check" && (
-          <p className="paperAdjustHint">{copy.check.instruction}</p>
-        )}
       </header>
       <div
         className="paperAdjustStage"
@@ -593,17 +574,6 @@ export function PaperAdjust({
             {copy.centreFrame}
           </button>
         )}
-        {entry === "check" && (
-          <button
-            type="button"
-            className="paperAdjustTool"
-            aria-pressed={magnifierOn}
-            data-testid="paper-adjust-magnifier-toggle"
-            onClick={() => setMagnifierOn((on) => !on)}
-          >
-            {magnifierOn ? copy.check.magnifierOn : copy.check.magnifierOff}
-          </button>
-        )}
       </div>
       <div className="paperAdjustActions">
         <button
@@ -613,7 +583,7 @@ export function PaperAdjust({
           aria-disabled={readiness.ok ? undefined : "true"}
           onClick={confirm}
         >
-          {confirmLabel}
+          {copy.confirm}
         </button>
         <button
           type="button"

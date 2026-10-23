@@ -1,9 +1,11 @@
 /**
  * Words of the paper-frame adjustment (V3.2 F2, 手動調整邊框), zh-TW and
  * English, same keys. Shown after the automatic detection turned a photo back
- * for any paper reason (or after a frame placed by hand was turned back), as
- * 檢查邊框 on a measured photo (F7, 2026-10-21), and, with `?debug=1`, as
- * Kirby's corner check.
+ * for any paper reason (or after a frame placed by hand was turned back), and,
+ * since F15 (2026-10-23), by itself on every photo measured from the
+ * detector's own corners, before its lengths are shown. The same heading and
+ * confirm button serve both (F15 removed 檢查邊框, Kirby's corner check and
+ * the sheet's "adjusted by hand" line; the results page says that instead).
  *
  * F14 (2026-10-22): the screen shows no instructions, gesture hint or
  * per-corner lines any more, so their words are gone; a line is shown only
@@ -42,23 +44,6 @@ export interface PaperAdjustCopy {
   cancel: string;
   /** F14: the way out when the screen opened by itself after a paper failure (back to the camera). */
   retake: string;
-  /** The measured sheet's line after a frame placed by hand. */
-  measuredNote: string;
-  /** 檢查邊框 on a measured photo (F7): the detector's frame, to confirm or move. */
-  review: {
-    entry: string;
-    title: string;
-    confirm: string;
-  };
-  /** Kirby's corner check (`?debug=1` only). */
-  check: {
-    entry: string;
-    instruction: string;
-    magnifierOn: string;
-    magnifierOff: string;
-    confirm: string;
-    recorded: (largestPx: string) => string;
-  };
 }
 
 export const zhTW: PaperAdjustCopy = {
@@ -86,20 +71,6 @@ export const zhTW: PaperAdjustCopy = {
   confirm: "用這個邊框測量",
   cancel: "取消",
   retake: "重拍",
-  measuredNote: "紙張邊框是手動調整的。",
-  review: {
-    entry: "檢查邊框",
-    title: "檢查紙張邊框",
-    confirm: "邊框沒問題",
-  },
-  check: {
-    entry: "拖角精度測試",
-    instruction: "把四個角拖到紙角上，再按「記錄這次」。只記錄距離，不存照片。",
-    magnifierOn: "放大鏡：開",
-    magnifierOff: "放大鏡：關",
-    confirm: "記錄這次",
-    recorded: (largest) => `已記錄。最大的差距是 ${largest} px。`,
-  },
 };
 
 export const en: PaperAdjustCopy = {
@@ -134,21 +105,6 @@ export const en: PaperAdjustCopy = {
   confirm: "Measure with this frame",
   cancel: "Cancel",
   retake: "Retake",
-  measuredNote: "The paper's frame was adjusted by hand.",
-  review: {
-    entry: "Check the frame",
-    title: "Check the paper's frame",
-    confirm: "The frame is right",
-  },
-  check: {
-    entry: "Corner drag check",
-    instruction:
-      "Drag the four corners onto the paper's corners, then tap Record. Only the distances are kept; no photo.",
-    magnifierOn: "Magnifier: on",
-    magnifierOff: "Magnifier: off",
-    confirm: "Record",
-    recorded: (largest) => `Recorded. The largest gap is ${largest} px.`,
-  },
 };
 
 const TABLES: Record<Locale, PaperAdjustCopy> = { "zh-TW": zhTW, en };

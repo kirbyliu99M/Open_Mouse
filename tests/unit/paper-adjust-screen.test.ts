@@ -52,11 +52,10 @@ const URL_ = "blob:http://localhost/0d6c1e0a";
 
 function render(
   extra: {
-    entry?: "rescue" | "review" | "check";
+    entry?: "rescue" | "review";
     state?: AdjustState;
     leave?: "cancel" | "retake";
     stage?: { width: number; height: number };
-    magnifier?: boolean;
     locale?: "zh-TW" | "en";
     overlay?: PhotoOverlay;
   } = {},
@@ -72,7 +71,6 @@ function render(
       onConfirm: () => undefined,
       initialState: extra.state,
       initialStageSize: extra.stage ?? { width: 390, height: 600 },
-      initialMagnifier: extra.magnifier,
       leave: extra.leave,
     }),
   );
@@ -153,7 +151,7 @@ describe("the handles", () => {
       {
         type: "pointerMove",
         pointerId: 1,
-        point: { x: 4, y: 3 },
+        point: { x: 8, y: 6 },
         scale: 1,
       },
     );
@@ -236,7 +234,7 @@ describe("the handles", () => {
 });
 
 describe("the magnifier", () => {
-  const dragging = (entry: "rescue" | "check" = "rescue") =>
+  const dragging = (entry: "rescue" | "review" = "rescue") =>
     adjustReducer(startAdjust({ entry, overlay: OVERLAY, paperSize: "a4" }), {
       type: "pointerDown",
       index: 0,
@@ -261,21 +259,15 @@ describe("the magnifier", () => {
     expect(m).toContain('data-side="above"');
   });
 
-  it("the corner check can switch it off, and says which", () => {
-    const off = render({
-      entry: "check",
-      state: dragging("check"),
-      magnifier: false,
-    });
-    expect(off).not.toContain("paperAdjustMagnifier");
-    expect(off).toMatch(/aria-pressed="false"[^>]*>放大鏡：關/);
-    const on = render({ entry: "check", state: dragging("check") });
-    expect(on).toContain("paperAdjustMagnifier");
-    expect(on).toMatch(/aria-pressed="true"[^>]*>放大鏡：開/);
-  });
-
-  it("the rescue has no switch: the magnifier is always on there", () => {
-    expect(render()).not.toContain("paper-adjust-magnifier-toggle");
+  it("no switch on any entry (F15 removed the corner check's): the magnifier is always on", () => {
+    for (const entry of ["rescue", "review"] as const) {
+      expect(render({ entry })).not.toContain("paper-adjust-magnifier-toggle");
+      expect(render({ entry, state: dragging(entry) })).toContain(
+        "paperAdjustMagnifier",
+      );
+    }
+    const adjust = readFileSync("src/client/camera/PaperAdjust.tsx", "utf8");
+    expect(adjust).not.toMatch(/magnifierOn|initialMagnifier/);
   });
 });
 
@@ -360,11 +352,13 @@ describe("only what is needed (F14, Kirby's phone test of preview 5, 2026-10-22:
         "placeNeighboursFirst",
         "reset",
         "curledWarning",
+        // F15: 檢查邊框, Kirby's corner check and the sheet's "adjusted by
+        // hand" line are gone (the results page says that one).
+        "review",
+        "check",
+        "measuredNote",
       ])
         expect(keys).not.toContain(gone);
-      expect(Object.keys(paperAdjustCopy(locale).review)).not.toContain(
-        "instruction",
-      );
     }
   });
 });
@@ -377,19 +371,25 @@ describe("words", () => {
     expect(handles(html)[0]).toContain('aria-label="Top-left corner"');
   });
 
-  it("檢查邊框 (F7) is named as such, opens on the detector's corners, with its own button", () => {
+  it("F15: the screen that opens by itself on a measured photo has the same heading and confirm button as the rescue, on the detector's corners, all placed and ready", () => {
     for (const locale of ["zh-TW", "en"] as const) {
       const copy = paperAdjustCopy(locale);
-      const html = render({ entry: "review", locale });
+      const html = render({ entry: "review", locale, leave: "retake" });
       expect(html).toContain('data-entry="review"');
-      expect(html).toContain(copy.review.title.replace(/'/g, "&#x27;"));
-      expect(html).toContain(copy.review.confirm);
-      // Every corner is the detector's: placed.
+      expect(html).toContain(copy.title.replace(/'/g, "&#x27;"));
+      expect(html).toContain(copy.confirm);
+      expect(html).toContain(
+        `data-testid="paper-adjust-cancel">${copy.retake}<`,
+      );
+      // Every corner is the detector's: placed, and confirm is usable at once.
       expect(handles(html).every((h) => h.includes('data-placed="true"'))).toBe(
         true,
       );
+      const confirm = html.match(
+        /<button[^>]*data-testid="paper-adjust-confirm"[^>]*>/,
+      )![0];
+      expect(confirm).not.toContain("aria-disabled");
     }
-    expect(paperAdjustCopy("zh-TW").review.entry).toBe("檢查邊框");
   });
 
   it("a curled sheet adds no line here (F14): the results page says it (F13), and the confirm button stays usable", () => {
@@ -403,11 +403,13 @@ describe("words", () => {
     }
   });
 
-  it("the corner check is named as such, with its own button", () => {
-    const html = render({ entry: "check" });
-    expect(html).toContain("拖角精度測試");
-    expect(html).toContain("記錄這次");
-    expect(html).toContain('data-entry="check"');
+  it("F15: the corner check's and 檢查邊框's words are nowhere on the screen", () => {
+    for (const entry of ["rescue", "review"] as const) {
+      const html = render({ entry });
+      expect(html).not.toContain("拖角精度測試");
+      expect(html).not.toContain("記錄這次");
+      expect(html).not.toContain("檢查邊框");
+    }
   });
 
   it("claims no accuracy and no health effect", () => {
@@ -445,16 +447,21 @@ describe("styles (easy-scan.css)", () => {
     expect(rule(".paperAdjustStage")).toContain("touch-action: none");
   });
 
-  it("reduced motion removes the only transition, and nothing here animates on its own", () => {
+  it("reduced motion removes the only transition; the one animation is the screen's fade-in (F15), and only with motion allowed", () => {
     const reduced = section.slice(
       section.indexOf("@media (prefers-reduced-motion: reduce)"),
     );
     expect(reduced).toMatch(/\.paperAdjustDot \{\s*transition: none;/);
-    expect(section).not.toMatch(/@keyframes|animation:/);
+    const own = section.slice(0, section.indexOf(".easyAdjustFrameButton"));
+    expect(own).not.toMatch(/@keyframes/);
+    expect(own.match(/animation:/g)).toHaveLength(1);
+    expect(own).toMatch(
+      /@media \(prefers-reduced-motion: no-preference\) \{\s*\.paperAdjust\[open\] \{\s*animation: easyFadeIn \d+ms ease-out both;\s*\}\s*\}/,
+    );
   });
 
   it("uses the dark theme's tokens: no new colour", () => {
-    const end = section.indexOf(".easySheetAdjustedNote");
+    const end = section.indexOf(".easyAdjustFrameButton");
     const own = section.slice(0, end);
     expect(own).not.toMatch(/#[0-9a-f]{3,8}\b/i);
     expect(own).toContain("var(--bg)");
@@ -465,26 +472,100 @@ describe("styles (easy-scan.css)", () => {
 describe("where the camera offers it (EasyScanCamera.tsx)", () => {
   const source = readFileSync("src/client/camera/EasyScanCamera.tsx", "utf8");
 
-  it("decides with adjustEntryFor, from the result on screen and ?debug=1 alone", () => {
-    expect(source).toContain(
-      "const adjustEntry = adjustEntryFor(result, debugOn);",
+  it("decides with adjustEntryFor, from the result on screen alone (F15: ?debug=1 no longer changes it)", () => {
+    expect(source).toContain("const adjustEntry = adjustEntryFor(result);");
+    expect(source).not.toMatch(/adjustEntryFor\([^)]*debugOn/);
+  });
+
+  it("F15: the one button left is the failure sheet's rescue; 檢查邊框 and the corner check are gone", () => {
+    const count = (needle: string) => source.split(needle).length - 1;
+    expect(count('{adjustEntry === "rescue" && (')).toBe(1);
+    expect(count('{adjustEntry === "review"')).toBe(0);
+    expect(count('"check"')).toBe(0);
+    expect(count('data-testid="adjust-frame-entry"')).toBe(1);
+    expect(count("frame-review-entry")).toBe(0);
+    expect(count("corner-check-entry")).toBe(0);
+    expect(source).not.toMatch(
+      /cornerCheckNote|\.review\.|\.check\.|measuredNote/,
     );
-    expect(source).toMatch(
-      /new URLSearchParams\(window\.location\.search\)\.get\("debug"\) === "1"/,
+    // The button opens only the rescue.
+    const open = source.slice(
+      source.indexOf("const openAdjust = useCallback("),
+      source.indexOf("const cancelAdjust = useCallback("),
+    );
+    expect(open).toContain(
+      'if (adjustEntry !== "rescue" || manualActiveRef.current) return;',
     );
   });
 
-  it("each button is drawn on its own entry alone, by the exact condition", () => {
-    // The condition itself, so a widened one (`|| debugOn`) fails here; where
-    // each sheet sits in the file is not asserted (layout may move freely).
+  it("F15: a measured photo opens the adjustment by itself (adjustOpensDirectly), as review, with no sheet under it, right where the result is set", () => {
+    const run = source.slice(
+      source.indexOf("const runPipeline = useCallback("),
+      source.indexOf("const confirmAdjust = useCallback("),
+    );
+    expect(run).toMatch(
+      /setResult\(measured\);\s*(?:\/\/[^\n]*\n\s*)*if \(adjustOpensDirectly\(measured\)\) \{\s*setAdjustDirect\(true\);\s*setAdjustOpen\("review"\);\s*\}/,
+    );
+    // F14's paper failures still open the rescue the same way.
+    expect(run).toMatch(
+      /if \(adjustOpensDirectly\(failure\)\) \{\s*setAdjustDirect\(true\);\s*setAdjustOpen\("rescue"\);\s*\}/,
+    );
+    // Its way out goes back to the camera, as F14's.
+    const cancel = source.slice(
+      source.indexOf("const cancelAdjust = useCallback("),
+      source.indexOf("const confirmAdjust = useCallback("),
+    );
+    expect(cancel).toContain("if (adjustDirect) retake();");
+  });
+
+  it("F15: a retake is never a return: the next photo's sheet slides in with focus on its heading, even after 重拍 on the adjustment that opened by itself", () => {
+    const retake = source.slice(
+      source.indexOf("const retake = useCallback("),
+      source.indexOf("const adjustEntry = adjustEntryFor(result);"),
+    );
+    expect(retake).toContain("sheetResumedRef.current = false;");
+    expect(retake).toContain("adjustReturnRef.current = false;");
+    // The only other places that set them: the sheet's own layout effect
+    // (closed under a question page or the adjustment) and confirmAdjust.
     const count = (needle: string) => source.split(needle).length - 1;
-    expect(count('{adjustEntry === "rescue" && (')).toBe(1);
-    expect(count('{adjustEntry === "review" && (')).toBe(1);
-    expect(count('{adjustEntry === "check" && (')).toBe(1);
-    expect(count("adjustEntry ===")).toBe(3);
-    expect(count('data-testid="adjust-frame-entry"')).toBe(1);
-    expect(count('data-testid="frame-review-entry"')).toBe(1);
-    expect(count('data-testid="corner-check-entry"')).toBe(1);
+    expect(count("sheetResumedRef.current = true;")).toBe(1);
+    expect(count("adjustReturnRef.current = true;")).toBe(1);
+  });
+
+  it("F15: confirming tells the camera whether any corner moved, from frameMoved on the screen's own state (PaperAdjust.tsx)", () => {
+    const adjust = readFileSync("src/client/camera/PaperAdjust.tsx", "utf8");
+    const confirm = adjust.slice(
+      adjust.indexOf("const confirm = () => {"),
+      adjust.indexOf("};", adjust.indexOf("onConfirm({")),
+    );
+    expect(confirm).toMatch(
+      /onConfirm\(\{\s*corners: readiness\.corners,\s*source: readiness\.source,\s*moved: frameMoved\(state\),\s*\}\)/,
+    );
+  });
+
+  it("F15: no length is drawn on the photo while the adjustment is open", () => {
+    expect(source).toMatch(
+      /const dimensions: readonly DimensionSpec\[\] \| null =\s*result\.kind === "measured" && result\.overlay\.landmarksPx && !adjustOpen/,
+    );
+  });
+
+  it("F15: the measured sheet has only its title, numbers, retake, continue (and Debug with ?debug=1)", () => {
+    const sheet = source.slice(
+      source.indexOf('{result.kind === "measured" ? ('),
+      source.indexOf('className="easySheetTitle easySheetTitleError"'),
+    );
+    expect(sheet.length).toBeGreaterThan(0);
+    expect(sheet).toContain("{common.handMeasured}");
+    expect(sheet).toContain('data-testid="easy-sheet-numbers"');
+    expect(sheet).toContain("aria-label={common.retakePhoto}");
+    expect(sheet).toContain('data-testid="answers-continue-button"');
+    expect(sheet).not.toContain("unverifiedNote");
+    expect(sheet).not.toContain("easy-sheet-adjusted-note");
+    expect(sheet).not.toContain("easySheetNote");
+    expect(sheet.split("<button").length - 1).toBe(2);
+    // The typed-length disclosure is untouched.
+    expect(sheet).toContain("easy.disclosureBased(");
+    expect(source).toContain("{debugOn && debugSnapshot && (");
   });
 
   it("the failure sheet's main action stays 再拍一次; the adjustment is the button after it (F7)", () => {
@@ -527,8 +608,21 @@ describe("where the camera offers it (EasyScanCamera.tsx)", () => {
     // a moved 檢查邊框 frame would close without measuring again (F7).
     expect(confirm).toContain("moved: placed.moved,");
     expect(confirm).not.toMatch(/fetch\(|sendBeacon|XMLHttpRequest|track\(/);
-    // The check only writes the local attempt log.
-    expect(confirm).toContain('kind: "cornerCheck"');
+    // F15: every confirm writes the corner record to the local attempt log
+    // (confirmCornerCheck decides), before and whatever the action is.
+    expect(confirm).toContain("const check = confirmCornerCheck({");
+    expect(confirm).toMatch(
+      /if \(check\)\s*void logAttempt\(captureInfoRef\.current, \{\s*kind: "cornerCheck",\s*magnifier: check\.magnifier,\s*distancesPx: check\.distancesPx,\s*imageLongEdgePx: check\.imageLongEdgePx,\s*\}\);/,
+    );
+    expect(confirm.indexOf("confirmCornerCheck({")).toBeLessThan(
+      confirm.indexOf("adjustConfirmAction({"),
+    );
+    expect(confirm.split("logAttempt(").length - 1).toBe(1);
+    // The sheet that follows a screen that opened by itself slides in as a
+    // new result (not a return), with focus on its heading.
+    expect(confirm).toMatch(
+      /if \(direct\) \{\s*sheetResumedRef\.current = false;\s*adjustReturnRef\.current = false;\s*\}/,
+    );
   });
 
   it("confirming without a rerun leaves the result alone: it returns before anything is run, and nothing in it writes the result (F7)", () => {
@@ -582,8 +676,8 @@ describe("where the camera offers it (EasyScanCamera.tsx)", () => {
     expect(rerun).toContain("resultRef.current.placedFrame ?? undefined,");
   });
 
-  it("a measurement from a placed frame says so on the sheet; its paper and the pipeline's frame come from one pipelinePaperInput", () => {
-    expect(source).toContain("paperAdjustCopy(locale).measuredNote");
+  it("a measurement's paper and the pipeline's frame come from one pipelinePaperInput (F15: the sheet no longer says the frame was adjusted; the results page does)", () => {
+    expect(source).not.toContain("measuredNote");
     const run = source.slice(
       source.indexOf("const runPipeline = useCallback("),
       source.indexOf("const confirmAdjust = useCallback("),
@@ -778,22 +872,34 @@ describe("adjustConfirmAction (what confirming does)", () => {
       ).toEqual({ kind: "none" });
   });
 
-  it("the check only records, against the detector's corners, on a measured photo", () => {
+  it("F15: review confirmed as it opened is none (the sheet shows the result already made); moved, with its file, is a rerun", () => {
     expect(
-      adjustConfirmAction({ entry: "check", result: measured, hasFile: true }),
-    ).toEqual({ kind: "recordCheck", detected: RECT });
-    // Never a rerun, even on a failure with its file.
+      adjustConfirmAction({
+        entry: "review",
+        result: measured,
+        hasFile: true,
+        moved: false,
+      }),
+    ).toEqual({ kind: "none" });
+    // `moved` left out is not a move.
     expect(
-      adjustConfirmAction({ entry: "check", result: failure, hasFile: true }),
+      adjustConfirmAction({ entry: "review", result: measured, hasFile: true }),
     ).toEqual({ kind: "none" });
     expect(
       adjustConfirmAction({
-        entry: "check",
-        result: {
-          ...measured,
-          overlay: { ...OVERLAY, paperCorners: null },
-        } as AdjustableResult,
+        entry: "review",
+        result: measured,
         hasFile: true,
+        moved: true,
+      }),
+    ).toEqual({ kind: "rerun" });
+    // Never a rerun of a failure from review.
+    expect(
+      adjustConfirmAction({
+        entry: "review",
+        result: failure,
+        hasFile: true,
+        moved: true,
       }),
     ).toEqual({ kind: "none" });
   });

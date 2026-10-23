@@ -155,7 +155,7 @@ import {
   adjustEntryFor,
   adjustOpensDirectly,
   adjustWarningFor,
-  cornerCheckDistances,
+  confirmCornerCheck,
   paperCurledNoteFor,
   reusableFocal,
   reusedFocalFor,
@@ -764,15 +764,15 @@ export default function EasyScanCamera({
   const gotItRef = useRef<HTMLButtonElement>(null);
   const tryAgainRef = useRef<HTMLButtonElement>(null);
   // 手動調整邊框 (V3.2 F2, candidate): which adjustment is open over the photo
-  // (the sheet closes under it), the button that opened it (focus goes back
-  // there when it is cancelled), and Kirby's last corner check (?debug=1).
+  // (the sheet closes under it), and the button that opened it (focus goes
+  // back there when it is cancelled).
   const [adjustOpen, setAdjustOpen] = useState<AdjustEntry | null>(null);
-  // F14: the adjustment opened by itself after a paper failure (no failure
-  // sheet under it): its way out goes back to the camera.
+  // F14/F15: the adjustment opened by itself (after a paper failure, or on a
+  // photo measured from the detector's own corners), with no sheet under it:
+  // its way out goes back to the camera.
   const [adjustDirect, setAdjustDirect] = useState(false);
   const adjustButtonRef = useRef<HTMLButtonElement>(null);
   const adjustReturnRef = useRef(false);
-  const [cornerCheckNote, setCornerCheckNote] = useState<string | null>(null);
 
   // The attempts kept on this device (attemptLog.ts), read once so the debug
   // panel shows the earlier ones too.
@@ -1375,7 +1375,7 @@ export default function EasyScanCamera({
           setHandChip((prev) =>
             applyDetectedHandedness(prev, pipelineResult.overlay.handedness),
           );
-          setResult({
+          const measured: ResultState = {
             kind: "measured",
             previewUrl,
             overlay: pipelineResult.overlay,
@@ -1383,7 +1383,16 @@ export default function EasyScanCamera({
             submission: pipelineResult.submission,
             imageWidth: pipelineResult.overlay.imageWidth,
             imageHeight: pipelineResult.overlay.imageHeight,
-          });
+          };
+          setResult(measured);
+          // F15 (candidate): a photo measured from the detector's own four
+          // corners opens the adjustment by itself, before its sheet and
+          // lengths: confirmed as it is, the sheet shows this very result;
+          // moved, the photo is measured again with the frame.
+          if (adjustOpensDirectly(measured)) {
+            setAdjustDirect(true);
+            setAdjustOpen("review");
+          }
         } else if (pipelineResult.status === "error") {
           // How straight on the shot was and how much of the sheet's worst
           // side was seen (only where its four corners were found), and how
@@ -1416,7 +1425,6 @@ export default function EasyScanCamera({
           // the failure sheet (a photo taken because the sheet was never
           // found, too). A hand failure keeps the sheet and its reason.
           if (adjustOpensDirectly(failure)) {
-            setCornerCheckNote(null);
             setAdjustDirect(true);
             setAdjustOpen("rescue");
           }
@@ -1743,7 +1751,11 @@ export default function EasyScanCamera({
     setResult({ kind: "none" });
     setAdjustOpen(null);
     setAdjustDirect(false);
-    setCornerCheckNote(null);
+    // A new photo is never a return to a sheet: the next one slides in with
+    // focus on its heading, even when this one was left from the adjustment
+    // that opened by itself (F15) or a question page.
+    sheetResumedRef.current = false;
+    adjustReturnRef.current = false;
     dispatchAnswers({ type: "reset" });
     clearSubmitError();
     setPhotoInfo(null);
@@ -1756,14 +1768,14 @@ export default function EasyScanCamera({
     if (canUseCamera && deviceFit === "phone") void startCamera();
   }, [result, startCamera, deviceFit, clearSubmitError]);
 
-  // 手動調整邊框 (V3.2 F2, candidate). Offered by `adjustEntryFor`: after any
-  // paper failure or a failure with a frame placed by hand (rescue, F7), as
-  // 檢查邊框 on a measured photo (review, F7), or with ?debug=1 on a measured
-  // photo (Kirby's corner check). Nothing here reads the photo's pixels.
-  const adjustEntry = adjustEntryFor(result, debugOn);
+  // 手動調整邊框 (V3.2 F2, candidate). A button only on the failure sheet:
+  // after any paper failure or a failure with a frame placed by hand (rescue,
+  // F7). A photo measured from the detector's own corners (review) opens it
+  // by itself (F15, `adjustOpensDirectly`), never from a button. Nothing here
+  // reads the photo's pixels.
+  const adjustEntry = adjustEntryFor(result);
   const openAdjust = useCallback(() => {
-    if (!adjustEntry || manualActiveRef.current) return;
-    setCornerCheckNote(null);
+    if (adjustEntry !== "rescue" || manualActiveRef.current) return;
     setAdjustOpen(adjustEntry);
   }, [adjustEntry]);
   // Cancel: back to the sheet it was opened from, or, when it opened by itself
@@ -1776,40 +1788,41 @@ export default function EasyScanCamera({
     (placed: PaperAdjustConfirm) => {
       const current = resultRef.current;
       const entry = adjustOpen;
+      const direct = adjustDirect;
       setAdjustOpen(null);
       setAdjustDirect(false);
+      // F15 (candidate): every confirm of the screen that opened by itself on
+      // a measured photo records, on this device only, how far each corner
+      // is from the detector's (in place of the ?debug=1 corner check). It
+      // changes no measurement and is sent nowhere.
+      const check = confirmCornerCheck({
+        entry,
+        result: current,
+        corners: placed.corners,
+      });
+      if (check)
+        void logAttempt(captureInfoRef.current, {
+          kind: "cornerCheck",
+          magnifier: check.magnifier,
+          distancesPx: check.distancesPx,
+          imageLongEdgePx: check.imageLongEdgePx,
+        });
       const action = adjustConfirmAction({
         entry,
         result: current,
         hasFile: fileRef.current !== null,
         moved: placed.moved,
       });
-      if (action.kind === "recordCheck" && current.kind === "measured") {
-        // The check changes no measurement: it only records, on this device,
-        // how far each placed corner is from the detector's.
-        const distancesPx = cornerCheckDistances(
-          placed.corners,
-          action.detected,
-        );
-        const longEdge = Math.max(
-          current.overlay.imageWidth,
-          current.overlay.imageHeight,
-        );
-        void logAttempt(captureInfoRef.current, {
-          kind: "cornerCheck",
-          magnifier: placed.magnifier,
-          distancesPx,
-          imageLongEdgePx: longEdge > 0 ? longEdge : null,
-        });
-        setCornerCheckNote(
-          paperAdjustCopy(localeRef.current).check.recorded(
-            Math.max(...distancesPx).toFixed(1),
-          ),
-        );
-        return;
+      // The screen opened by itself (F15), so the sheet is not a return to
+      // something already seen: it slides in as any result does, with focus
+      // on its heading.
+      if (direct) {
+        sheetResumedRef.current = false;
+        adjustReturnRef.current = false;
       }
-      // A rescue on the failure, or a moved frame on 檢查邊框 (F7); a frame
-      // confirmed as it opened changes nothing.
+      // A rescue on the failure, or a moved frame on a measured photo (F7,
+      // F15); a frame confirmed as it opened changes nothing: the sheet shows
+      // the measurement already made.
       if (
         action.kind !== "rerun" ||
         (current.kind !== "gateFailure" && current.kind !== "measured") ||
@@ -1828,7 +1841,7 @@ export default function EasyScanCamera({
         source: placed.source,
       });
     },
-    [adjustOpen, logAttempt, runPipeline],
+    [adjustOpen, adjustDirect, logAttempt, runPipeline],
   );
 
   const changePaperSize = useCallback((size: PaperSize) => {
@@ -2656,8 +2669,10 @@ export default function EasyScanCamera({
   const unitsPerPx = frozenLayout
     ? overlayUnitsPerPx(frozenLayout, overlayToStill, layerScale)
     : 1;
+  // F15: no length is drawn on the photo before the frame is confirmed (the
+  // adjustment screen is open over it).
   const dimensions: readonly DimensionSpec[] | null =
-    result.kind === "measured" && result.overlay.landmarksPx
+    result.kind === "measured" && result.overlay.landmarksPx && !adjustOpen
       ? [
           {
             a: result.overlay.landmarksPx[0],
@@ -3209,23 +3224,10 @@ export default function EasyScanCamera({
                   locale,
                 )}
               </p>
-              <p className="easySheetNote">{common.unverifiedNote}</p>
-              {"method" in result.submission.calibration &&
-                result.submission.calibration.method === "paper-edge" &&
-                (result.submission.calibration.cornersSource ?? "auto") !==
-                  "auto" && (
-                  <p
-                    className="easySheetAdjustedNote"
-                    data-testid="easy-sheet-adjusted-note"
-                  >
-                    {paperAdjustCopy(locale).measuredNote}
-                  </p>
-                )}
-              {cornerCheckNote && (
-                <p className="easySheetAdjustedNote" role="status">
-                  {cornerCheckNote}
-                </p>
-              )}
+              {/* F15 (candidate): only the title, the numbers, retake and
+                  continue (and Debug with ?debug=1). "Still being
+                  validated" and "adjusted by hand" are said on the results
+                  page. */}
               {"method" in result.submission.calibration &&
                 result.submission.calibration.method === "user-length" && (
                   <div className="easyLengthDisclosure">
@@ -3272,33 +3274,6 @@ export default function EasyScanCamera({
                     {scanAnswersCopy(locale).sheetContinue}
                   </button>
                 </div>
-                {/* 檢查邊框 (F7, candidate): the detector's frame, to confirm
-                    as it is or move. It follows 繼續 (DOM and on screen) as
-                    the secondary action, on a line of its own in the
-                    pinned row, so a keyboard stop on it is never under the
-                    row. */}
-                {adjustEntry === "review" && (
-                  <button
-                    type="button"
-                    className="easyAdjustFrameButton"
-                    ref={adjustButtonRef}
-                    data-testid="frame-review-entry"
-                    onClick={openAdjust}
-                  >
-                    {paperAdjustCopy(locale).review.entry}
-                  </button>
-                )}
-                {adjustEntry === "check" && (
-                  <button
-                    type="button"
-                    className="easyAdjustFrameButton"
-                    ref={adjustButtonRef}
-                    data-testid="corner-check-entry"
-                    onClick={openAdjust}
-                  >
-                    {paperAdjustCopy(locale).check.entry}
-                  </button>
-                )}
               </div>
             </>
           ) : (
