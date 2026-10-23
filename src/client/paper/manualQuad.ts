@@ -178,7 +178,9 @@ export interface DefaultAdjustFrame {
  *    each corner it did find (`partialCorners`) in place of the rough one;
  * 4. the centred sheet.
  *
- * A start that would itself fail `checkManualQuad` falls through to the next.
+ * A start that would itself fail `checkManualQuad` falls through to the next,
+ * except (V3.2 F16) a rough quad whose only failure is being too small: it is
+ * kept, so the screen opens where the paper is.
  */
 export function defaultAdjustFrame(input: {
   readonly corners?: Quad4 | null;
@@ -259,6 +261,28 @@ export function defaultAdjustFrame(input: {
         from: "guess",
       };
     if (checkManualQuad(guess, input.image).ok)
+      return {
+        corners: copyQuad(guess),
+        detected: [false, false, false, false],
+        from: "guess",
+      };
+    // V3.2 F16 (candidate, 未拍板; Kirby's preview-6 test, a phone held too
+    // high): a rough quad that fails ONLY for being under the area floor is
+    // where the paper is, so the screen opens on it (and zoomed onto it)
+    // instead of on a centred sheet far bigger than the paper. The floor
+    // itself is unchanged: such a frame is still refused when it is confirmed,
+    // with the words saying to move the phone closer.
+    const mergedCheck = found.some(Boolean)
+      ? checkManualQuad(merged, input.image)
+      : null;
+    if (mergedCheck && !mergedCheck.ok && mergedCheck.problem === "too_small")
+      return {
+        corners: merged,
+        detected: found as unknown as [boolean, boolean, boolean, boolean],
+        from: "guess",
+      };
+    const guessCheck = checkManualQuad(guess, input.image);
+    if (!guessCheck.ok && guessCheck.problem === "too_small")
       return {
         corners: copyQuad(guess),
         detected: [false, false, false, false],

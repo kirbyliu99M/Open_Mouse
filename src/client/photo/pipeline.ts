@@ -86,6 +86,7 @@ import {
   type HandDiagnostics,
   type PaperDiagnostics,
   type PipelineDiagnostics,
+  type ParallaxGuardDiagnostics,
   type ShadowPriorDiagnostics,
   type ViewDiagnostics,
 } from "./diagnostics";
@@ -287,6 +288,7 @@ interface PipelineTrace {
   parallaxCorrected: boolean | null;
   focal: FocalDiagnostics | null;
   shadowPrior: ShadowPriorDiagnostics | null;
+  parallaxGuard: ParallaxGuardDiagnostics | null;
   analysisThread: AnalysisThread | null;
 }
 
@@ -310,6 +312,7 @@ function newTrace(): PipelineTrace {
     parallaxCorrected: null,
     focal: null,
     shadowPrior: null,
+    parallaxGuard: null,
     analysisThread: null,
   };
 }
@@ -455,6 +458,7 @@ export async function runPhotoPipeline(
         : { handLengthMm: null, palmWidthMm: null },
     focal: trace.focal,
     shadowPrior: trace.shadowPrior,
+    parallaxGuard: trace.parallaxGuard,
     analysisThread: trace.analysisThread,
   };
   return { ...result, diagnostics };
@@ -973,6 +977,7 @@ async function runPaperEdgePipeline(
     trace.parallaxCorrected = finish.parallaxCorrected;
     trace.focal = finish.focal;
     trace.shadowPrior = finish.shadowPrior;
+    trace.parallaxGuard = finish.parallaxGuard;
     return finish.result;
   } finally {
     if (bitmap !== decoded.bitmap) bitmap.close();
@@ -1094,6 +1099,7 @@ async function finishManualPaper(args: {
   trace.parallaxCorrected = finish.parallaxCorrected;
   trace.focal = finish.focal;
   trace.shadowPrior = finish.shadowPrior;
+  trace.parallaxGuard = finish.parallaxGuard;
   return finish.result;
 }
 

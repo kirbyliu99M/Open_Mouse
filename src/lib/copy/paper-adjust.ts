@@ -64,7 +64,10 @@ export const zhTW: PaperAdjustCopy = {
     degenerate:
       "有兩個角疊在一起，或三個角排成一直線。請把四個角拖到紙的四個角上。",
     outside_image: "有一個角在照片外面。請把它拖回照片裡。",
-    too_small: "邊框太小了。請把四個角拖到紙的四個角上。",
+    // V3.2 F16 (candidate, 未拍板): a frame on a sheet that is itself this
+    // small cannot be measured; the way out is a closer photo.
+    too_small:
+      "邊框太小了。請把四個角拖到紙的四個角上；如果紙在照片裡就這麼小，請把手機拿近一點重拍。",
   },
   // Candidate (Kirby 2026-10-22: short messages).
   notPlaced: (corner) => `${corner}還沒對齊，請拖到紙角。`,
@@ -97,8 +100,9 @@ export const en: PaperAdjustCopy = {
     degenerate:
       "Two corners are on top of each other, or three are in a line. Drag the four corners onto the paper's corners.",
     outside_image: "A corner is outside the photo. Drag it back in.",
+    // V3.2 F16 (candidate).
     too_small:
-      "The frame is too small. Drag the four corners onto the paper's corners.",
+      "The frame is too small. Drag the four corners onto the paper's corners; if the paper really is this small in the photo, move the phone closer and retake.",
   },
   notPlaced: (corner) =>
     `Move the ${corner.toLowerCase()} to the paper's corner.`,

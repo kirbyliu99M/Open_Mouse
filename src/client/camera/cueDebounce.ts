@@ -19,6 +19,12 @@
  *   starts the count again. The first sample with nothing on screen is held
  *   the same way. The four detector-stage cues (scan S2) are one reason the
  *   same way; samples that name different stages put up "no-corners".
+ * - V3.2 F16 (candidate): an ordinary cue (not a paper-gate one, not
+ *   "perfect") replaces another cue on screen only after
+ *   `switchConfirmSamples` consecutive samples carried that SAME code. Two
+ *   conflicting detections that alternate sample by sample no longer swap the
+ *   text every 500 ms. Nothing on screen yet, and leaving "perfect", keep
+ *   their own rules.
  *
  * Pure: the caller keeps the state and passes the sample's code and the time.
  * It debounces the WORDS only; the ring reducer reads the raw sample.
@@ -33,7 +39,10 @@ export interface CueDebounceState {
   readonly shownAtMs: number;
   /** While "perfect" is shown: consecutive non-perfect samples so far. */
   readonly offPerfectStreak: number;
-  /** The paper-gate cue the latest samples keep carrying, `null` when the latest sample carried none. */
+  /**
+   * The paper-gate cue the latest samples keep carrying (or, V3.2 F16, the
+   * ordinary cue the latest samples repeat), `null` when there is none.
+   */
   readonly pending: CueCode | null;
   /** How many samples in a row carried `pending`. */
   readonly pendingCount: number;
@@ -52,6 +61,8 @@ export interface CueDebounceOptions {
   readonly minTextChangeMs: number;
   /** Samples in a row a paper-gate cue must carry before it is shown; defaults to the constant. */
   readonly confirmSamples?: number;
+  /** V3.2 F16: samples in a row an ordinary cue must repeat to replace another cue on screen; defaults to the constant. */
+  readonly switchConfirmSamples?: number;
 }
 
 const DEFAULT_OPTIONS: CueDebounceOptions = CAMERA_CONSTANTS.cueDebounce;
@@ -86,25 +97,52 @@ export function advanceCueDebounce(
   // it). If the samples of the run name different sides, the run stands for
   // the plain reason text: a side that flips is not a side to name.
   const reason = paperGateReason(sample);
+  // V3.2 F16 (candidate): a detector stage that is on screen coming back ends
+  // a run, so one stray stage in between (a far sheet read as too small, then
+  // once as split) does not put up the plain text and then the stage again.
+  // Covered sides keep their rule: a side that flips settles on the plain text.
+  const backToShownStage = reason === "paper-stage" && sample === state.shown;
   const continuingRun =
+    !backToShownStage &&
     reason !== null &&
     state.pending !== null &&
     paperGateReason(state.pending) === reason;
+  // V3.2 F16: an ordinary cue counts its own repeats.
+  const ordinary = reason === null && sample !== "perfect";
   const pending: CueCode | null =
     reason === null
-      ? null
+      ? ordinary
+        ? sample
+        : null
       : continuingRun && state.pending !== sample
         ? GENERIC_FOR_REASON[reason]
         : continuingRun
           ? state.pending
           : sample;
   const pendingCount =
-    reason === null ? 0 : continuingRun ? state.pendingCount + 1 : 1;
+    reason === null
+      ? ordinary
+        ? state.pending === sample
+          ? state.pendingCount + 1
+          : 1
+        : 0
+      : continuingRun
+        ? state.pendingCount + 1
+        : 1;
   // What would go on screen if this sample is the one that lets it.
   const target: CueCode = pending ?? sample;
   const confirmSamples =
     options.confirmSamples ?? CAMERA_CONSTANTS.cueDebounce.confirmSamples;
-  const unconfirmed = reason !== null && pendingCount < confirmSamples;
+  const switchConfirmSamples =
+    options.switchConfirmSamples ??
+    CAMERA_CONSTANTS.cueDebounce.switchConfirmSamples;
+  const unconfirmed =
+    (reason !== null && pendingCount < confirmSamples) ||
+    // Replacing another cue (not "perfect", which has its own rule below).
+    (ordinary &&
+      state.shown !== null &&
+      state.shown !== "perfect" &&
+      pendingCount < switchConfirmSamples);
 
   if (state.shown === null) {
     return unconfirmed

@@ -1060,8 +1060,15 @@ export function adjustReadiness(state: AdjustState): AdjustReadiness {
 
 /** The view's named limits (candidates). */
 export const PAPER_ADJUST_VIEW = {
-  /** The closest zoom, as a multiple of the whole-photo scale. */
-  maxZoom: 6,
+  /**
+   * The closest zoom, as a multiple of the whole-photo scale. V3.2 F16
+   * (candidate, Kirby's preview-6 test: 「手機拿太高…放大不了」): was 6. A sheet
+   * at 0.3 of a 1080x1920 frame's width opens at about 4x already (it fills
+   * the stage), so 6 left two fingers only about 1.4x more; 10 leaves about
+   * 2.4x, and a sheet down to about 0.18 of the width still opens filling
+   * the stage.
+   */
+  maxZoom: 10,
   /**
    * Room kept between the frame's outermost corners and the stage's edge when
    * the view opens on the frame, beyond half a handle (so every handle is
