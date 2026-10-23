@@ -550,4 +550,58 @@ describe("blank paper pipeline: the detector's failure stage (scan S2)", () => {
     expect(vi.mocked(detectPaperQuad)).toHaveBeenCalledTimes(1);
     expect(result.diagnostics?.paper?.failureStage).toBeNull();
   });
+
+  // F17 review: the hand is looked for before the paper's verdict since F17.
+  // A hand detector that fails to LOAD (offline) must not turn a no-sheet
+  // photo's paper error, and the adjustment it opens, into a thrown error.
+  const loadError = () =>
+    Object.assign(new Error("Failed to load the MediaPipe HandLandmarker."), {
+      name: "HandLandmarkerLoadError",
+    });
+
+  it("F17 review: no sheet and the hand detector fails to load: still the PAPER_* error with its partial corners, no second look", async () => {
+    arrange("right");
+    vi.mocked(detectHandLandmarks).mockRejectedValue(loadError());
+    vi.mocked(detectPaperQuad).mockReturnValue({
+      ...(noSheet("region_split") as object),
+      paperRegionFound: true,
+      cornersSeen: 2,
+      cornersFound: [true, true, false, false],
+      partialCorners: [
+        { x: 60, y: 120 },
+        { x: 690, y: 120 },
+        null,
+        null,
+      ],
+    } as never);
+    const result = await run(
+      { method: "paper-edge", paperSize: "a4" },
+      { handExplicit: true },
+    );
+    expect(vi.mocked(detectPaperQuad)).toHaveBeenCalledTimes(1);
+    if (result.status !== "error") throw new Error("expected an error");
+    expect(result.errors[0]!.code).toMatch(/^PAPER_/);
+    expect(result.overlay?.paperPartialCorners?.filter(Boolean)).toHaveLength(
+      2,
+    );
+  });
+
+  it("F17 review: a found sheet and the hand detector fails to load: the load error is thrown, as before F17", async () => {
+    arrange("right");
+    const error = loadError();
+    vi.mocked(detectHandLandmarks).mockRejectedValue(error);
+    await expect(
+      run({ method: "paper-edge", paperSize: "a4" }, { handExplicit: true }),
+    ).rejects.toBe(error);
+  });
+
+  it("F17 review: any other hand failure with no sheet is still thrown", async () => {
+    arrange("right");
+    const error = new Error("wasm crashed");
+    vi.mocked(detectHandLandmarks).mockRejectedValue(error);
+    vi.mocked(detectPaperQuad).mockReturnValue(noSheet("region_split"));
+    await expect(
+      run({ method: "paper-edge", paperSize: "a4" }, { handExplicit: true }),
+    ).rejects.toBe(error);
+  });
 });

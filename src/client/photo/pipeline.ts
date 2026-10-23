@@ -359,6 +359,15 @@ async function offloadedSharpness(
   );
 }
 
+/**
+ * Whether an error is the hand detector failing to load
+ * (`HandLandmarkerLoadError`, landmarks.ts). By name, not `instanceof`, so a
+ * test that fakes the landmarks module without the class still works.
+ */
+function isHandLoaderFailure(error: unknown): boolean {
+  return error instanceof Error && error.name === "HandLandmarkerLoadError";
+}
+
 /** Looks for the hand, noting how long that took and what it found. */
 async function detectHandTraced(
   bitmap: ImageBitmap,
@@ -912,7 +921,21 @@ async function runPaperEdgePipeline(
     // detector looks again with the palm (palmChoice.ts) and its answer is
     // taken only if it chose another bright region. A photo with no hand, or
     // a sheet that holds the palm, goes on exactly as before.
-    const hand = await detectHandTraced(bitmap, trace, input);
+    // F17 review: the hand detector failing to LOAD (offline, the model or
+    // its wasm not downloaded) is taken as no palm here, so a photo with no
+    // sheet still gets its paper error and its partial corners (and the
+    // adjustment opens) exactly as before F17; the load error itself is
+    // thrown once the sheet is found, where the hand was looked for before
+    // F17. Any other failure is thrown here as it was.
+    let hand: Awaited<ReturnType<typeof detectHandTraced>>;
+    let handLoadError: unknown = null;
+    try {
+      hand = await detectHandTraced(bitmap, trace, input);
+    } catch (error) {
+      if (!isHandLoaderFailure(error)) throw error;
+      hand = null;
+      handLoadError = error;
+    }
     const palm = hand ? palmPointsOf(hand.landmarksPx) : null;
     const holdsPalm =
       paperEval?.geometry != null &&
@@ -991,6 +1014,8 @@ async function runPaperEdgePipeline(
         overlay: { ...overlayBase, landmarksPx: null },
       };
     }
+
+    if (handLoadError !== null) throw handLoadError;
 
     if (!hand) {
       return {
