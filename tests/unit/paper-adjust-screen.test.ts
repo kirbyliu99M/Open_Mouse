@@ -21,6 +21,7 @@ import {
   sheetView,
   startAdjust,
   toScreen,
+  wholeView,
   type AdjustableResult,
   type AdjustState,
 } from "../../src/client/camera/paperAdjustState";
@@ -93,13 +94,16 @@ describe("the handles", () => {
       expect(all[i]).toContain('data-placed="true"');
     });
     expect(html).toContain(copy.keyboardHint);
-    // F10: the screen opens zoomed onto the frame (sheetView), not on the
-    // whole photo.
-    const fit = sheetView(IMAGE, { width: 390, height: 600 }, RECT);
-    expect(fit.scale).toBeGreaterThan(
+    // V3.2 F17 (Adobe-style): the screen opens on the WHOLE photo, the frame
+    // on the sheet; it never opens zoomed onto the frame (sheetView, F10).
+    const fit = wholeView(IMAGE, { width: 390, height: 600 });
+    expect(fit.scale).toBeLessThan(
+      sheetView(IMAGE, { width: 390, height: 600 }, RECT).scale,
+    );
+    expect(fit.scale).toBeLessThanOrEqual(
       fitPhoto(IMAGE, { width: 390, height: 600 }, 24).scale,
     );
-    expect(html).toContain('data-view="zoomed"');
+    expect(html).toContain('data-view="whole"');
     const p = toScreen(RECT[2], fit);
     const half = PAPER_ADJUST_LAYOUT.handleTargetPx / 2;
     expect(all[2]).toContain(
@@ -250,8 +254,8 @@ describe("the magnifier", () => {
     expect(m).toBeDefined();
     expect(m).toContain('aria-hidden="true"');
     expect(m).toContain(`background-image:url(&quot;${URL_}&quot;)`);
-    // Four times the photo as it is shown now (zoomed onto the frame, F10).
-    const fit = sheetView(IMAGE, { width: 390, height: 600 }, RECT);
+    // Four times the photo as it is shown now (the whole photo, F17).
+    const fit = wholeView(IMAGE, { width: 390, height: 600 });
     expect(m).toContain(
       `background-size:${fit.width * PAPER_ADJUST_LAYOUT.magnifierZoom}px`,
     );
@@ -304,16 +308,19 @@ describe("only what is needed (F14, Kirby's phone test of preview 5, 2026-10-22:
     }
   });
 
-  it("keeps the photo, the frame, four handles, confirm, cancel and the whole / zoomed toggle; the centred frame after a failure with a clue", () => {
+  it("F17: keeps the photo, the frame, four handles, confirm and cancel only: no whole / zoomed toggle and no centred-frame button, on any entry", () => {
     for (const html of variants()) {
       expect(html).toContain('class="paperAdjustPhoto"');
       expect(html).toContain("<polygon");
       expect(handles(html)).toHaveLength(4);
       expect(html).toContain('data-testid="paper-adjust-confirm"');
       expect(html).toContain('data-testid="paper-adjust-cancel"');
-      expect(html).toContain('data-testid="paper-adjust-view"');
+      expect(html).not.toContain('data-testid="paper-adjust-view"');
+      expect(html).not.toContain('data-testid="paper-adjust-centre"');
+      expect(html).not.toContain("paperAdjustTools");
+      expect(html).toContain('data-view="whole"');
+      expect(html.match(/<button/g)).toHaveLength(6);
     }
-    expect(render()).toContain('data-testid="paper-adjust-centre"');
   });
 
   it("the way out says 重拍 / Retake when the screen opened by itself, else 取消 / Cancel", () => {
@@ -357,6 +364,10 @@ describe("only what is needed (F14, Kirby's phone test of preview 5, 2026-10-22:
         "review",
         "check",
         "measuredNote",
+        // F17: the whole / zoomed toggle and 改用置中框 are gone.
+        "wholePhoto",
+        "zoomToFrame",
+        "centreFrame",
       ])
         expect(keys).not.toContain(gone);
     }
@@ -439,8 +450,9 @@ describe("styles (easy-scan.css)", () => {
     expect(rule(".paperAdjustDot")).toContain(
       `width: ${PAPER_ADJUST_LAYOUT.handleDotPx}px`,
     );
-    for (const s of [".paperAdjustTool", ".paperAdjustCancel"])
-      expect(rule(s)).toContain("min-height: 44px");
+    expect(rule(".paperAdjustCancel")).toContain("min-height: 44px");
+    // F17: the small tool buttons are gone, and so are their styles.
+    expect(section).not.toContain(".paperAdjustTool");
   });
 
   it("the stage takes the pointer itself (no page scroll or zoom while dragging)", () => {
@@ -715,10 +727,14 @@ describe("PaperAdjust.tsx turns keys and moves into actions through the tested h
     expect(adjust).not.toMatch(/type: "nudge"/);
   });
 
-  it("a pointer move goes through pointerMoveFor with the fit", () => {
+  it("a pointer move goes through pointerMoveFor with the fit (F17: the newest move, once per animation frame)", () => {
     expect(adjust).toMatch(
-      /pointerMoveFor\(\{ pointerId: e\.pointerId, point, fit \}\)/,
+      /dispatch\(pointerMoveFor\(\{ \.\.\.move, fit \}\)\)/,
     );
+    expect(adjust).toMatch(
+      /pendingMoveRef\.current = \{ pointerId: e\.pointerId, point \};/,
+    );
+    expect(adjust).toContain("requestAnimationFrame(");
     expect(adjust).toContain("const point = stagePoint(e);");
     expect(adjust).not.toMatch(/type: "pointerMove"/);
   });
@@ -744,35 +760,38 @@ describe("PaperAdjust.tsx wires F10's magnifier, views, pinch and centred frame"
   const handleDown = between("const onHandleDown =", "const onStageDown = (");
   const startPinch = between("const startPinch = (", "const beginDrag = (");
 
+  const applyMove = between("const applyMove = (", "const dropPendingMove = (");
+  const stageUp = between("const onStageUp = (", "const onStageWheel = (");
+
   it("the magnifier keeps its side through a drag: each move passes the last placement as previous (AC4, hysteresis)", () => {
-    expect(stageMove).toMatch(
-      /setMagnifierAt\(\(prev\) =>\s*magnifierPlacement\(\{\s*pointer: point,\s*stage: stageSize,\s*previous: prev,\s*\}\),?\s*\)/,
+    expect(applyMove).toMatch(
+      /setMagnifierAt\(\(prev\) =>\s*magnifierPlacement\(\{\s*pointer: move\.point,\s*stage: stageSize,\s*previous: prev,\s*\}\),?\s*\)/,
     );
-    // The magnifier is drawn from that remembered placement.
+    // The magnifier is drawn from that remembered placement, only while a
+    // corner is dragged.
     expect(adjust).toMatch(/magnifierLayout\([\s\S]*?previous: magnifierAt/);
+    expect(adjust).toMatch(/const magnifier =\s*drag && stageSize/);
   });
 
-  it("a double tap on the photo switches between the whole photo and the frame (AC3)", () => {
-    expect(stageDown).toMatch(
-      /if \(isDoubleTap\(lastTapRef\.current, tap\)\) \{[\s\S]*?setView\(\s*showingWhole\s*\? \{ kind: "sheet", quad: state\.corners \}\s*: \{ kind: "whole" \},?\s*\);\s*return;\s*\}/,
+  it("F17: a release first applies the move still waiting for a frame, so the corner ends where the finger left it", () => {
+    expect(stageUp).toMatch(
+      /if \(pendingMoveRef\.current\?\.pointerId === e\.pointerId\) flushPendingMove\(\);[\s\S]*dispatch\(\{ type: "pointerUp", pointerId: e\.pointerId \}\);/,
     );
-    // The first tap is remembered for the second; it still drags the chosen
-    // corner (with no handle named: it confirms no guess, review of F10).
-    expect(stageDown).toMatch(
-      /lastTapRef\.current = tap;\s*beginDrag\(null, e, point\);/,
+    expect(startPinch).toContain("dropPendingMove();");
+    expect(adjust).toContain("cancelAnimationFrame(frameRef.current)");
+  });
+
+  it("F17: no double tap and no zoom onto the frame: the view opens whole and changes only by two fingers or the wheel", () => {
+    expect(adjust).not.toMatch(
+      /isDoubleTap\(|lastTapRef|sheetView\(|kind: "sheet"/,
     );
+    expect(adjust).toContain('useState<ViewChoice>({ kind: "whole" })');
+    const setViews = adjust.match(/setView\(/g) ?? [];
+    // pinchView and the wheel's zoomViewAt, nothing else.
+    expect(setViews).toHaveLength(2);
+    expect(stageDown).toContain("beginDrag(null, e, point);");
     // A press on a handle names its corner.
     expect(handleDown).toContain("beginDrag(index, e, point);");
-  });
-
-  it("the view button switches between the whole photo and the frame, and says which (AC3)", () => {
-    const button = between('data-testid="paper-adjust-view"', "</button>");
-    expect(button).toMatch(
-      /setView\(\s*showingWhole\s*\? \{ kind: "sheet", quad: state\.corners \}\s*: \{ kind: "whole" \},?\s*\)/,
-    );
-    expect(button).toContain(
-      "{showingWhole ? copy.zoomToFrame : copy.wholePhoto}",
-    );
   });
 
   it("two fingers pinch the view through pinchView, and a second finger undoes a corner drag", () => {
@@ -784,15 +803,6 @@ describe("PaperAdjust.tsx wires F10's magnifier, views, pinch and centred frame"
     );
     expect(stageDown).toContain("if (startPinch(e.pointerId, point)) {");
     expect(handleDown).toContain("if (startPinch(e.pointerId, point)) {");
-  });
-
-  it("the centred-frame button dispatches centre and moves the view onto the centred sheet (AC2)", () => {
-    const button = between('data-testid="paper-adjust-centre"', "</button>");
-    expect(button).toContain('dispatch({ type: "centre" });');
-    expect(button).toMatch(
-      /setView\(\{\s*kind: "sheet",\s*quad: centredPaperFrame\(state\.image, state\.paperSize\),?\s*\}\)/,
-    );
-    expect(button).toContain("{copy.centreFrame}");
   });
 
   const GUESS: Quad4 = [
@@ -807,25 +817,19 @@ describe("PaperAdjust.tsx wires F10's magnifier, views, pinch and centred frame"
     paperGuessCorners: GUESS,
   };
 
-  it("a rescue opening on the rough guess shows the centred-frame button and the whole-photo button, every corner placed (F14)", () => {
+  it("F17: a rescue opening on the rough guess shows the whole photo with the frame on the guess, every corner placed", () => {
     const html = render({ overlay: guessOverlay });
-    const copy = paperAdjustCopy("zh-TW");
-    expect(html).toContain('data-testid="paper-adjust-centre"');
-    expect(html).toContain(copy.centreFrame);
-    expect(html).toContain('data-view="zoomed"');
-    expect(html).toContain(copy.wholePhoto);
+    expect(html).toContain('data-view="whole"');
+    expect(html).not.toContain('data-testid="paper-adjust-centre"');
     expect(handles(html).every((h) => h.includes('data-placed="true"'))).toBe(
       true,
     );
-  });
-
-  it("no centred-frame button where it would change nothing: a centred start, or outside the rescue", () => {
-    const centred = render({
-      overlay: { ...OVERLAY, paperCorners: null },
-    });
-    expect(centred).not.toContain('data-testid="paper-adjust-centre"');
-    const review = render({ entry: "review", overlay: guessOverlay });
-    expect(review).not.toContain('data-testid="paper-adjust-centre"');
+    const fit = wholeView(IMAGE, { width: 390, height: 600 });
+    const p = toScreen(GUESS[0], fit);
+    const half = PAPER_ADJUST_LAYOUT.handleTargetPx / 2;
+    expect(handles(html)[0]).toContain(
+      `transform:translate(${p.x - half}px, ${p.y - half}px)`,
+    );
   });
 });
 

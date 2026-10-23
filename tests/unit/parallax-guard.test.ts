@@ -134,7 +134,16 @@ describe("judgeParallaxCorrection (pure)", () => {
 // ── The failing situation, reproduced (模擬) ──────────────────────────────
 
 const FRAME = { width: 1080, height: 1920 };
-const NOMINAL = nominalFocalPxFromLongEdge(FRAME.height)!;
+/**
+ * The PRE-F17 nominal prior on this frame (26 mm equivalent, 1442 px), passed
+ * explicitly: every F16 scene below was built around it, and the guard's
+ * mechanism does not depend on which prior the pipeline uses today. The
+ * F17 prior (18 mm, 998 px) is `F17_PRIOR`, re-checked at the end.
+ */
+const NOMINAL = (26 / 43.27) * 1.25 * FRAME.height;
+const F17_PRIOR = nominalFocalPxFromLongEdge(FRAME.height)!;
+/** The long edge that makes the pipeline's own prior the pre-F17 1442 px. */
+const LONG_EDGE_FOR_26MM = (FRAME.height * 26) / 18;
 const PRINCIPAL = { cx: FRAME.width / 2, cy: FRAME.height / 2 };
 const SHEET_MM: readonly Point2[] = [
   { x: 0, y: 0 },
@@ -625,12 +634,17 @@ describe("finishPaperEdge with the guard (模擬)", () => {
       decoded: FRAME,
       crop: null,
       readJpegBytes: async () => null,
+      // A frame of the live video: the camera passes the stream's long edge
+      // (the 18 mm video-frame prior; F17 review).
+      focalReferenceLongEdgePx: Math.max(FRAME.width, FRAME.height),
       ...over,
     };
   }
 
-  it("the failing frame: measured uncorrected, submitted parallaxCorrected false / focalSource none, refusal kept for the log", async () => {
-    const out = await finishPaperEdge(input(KIRBY_LIKE));
+  it("the failing frame (with the pre-F17 1442 px prior): measured uncorrected, submitted parallaxCorrected false / focalSource none, refusal kept for the log", async () => {
+    const out = await finishPaperEdge(
+      input(KIRBY_LIKE, { focalReferenceLongEdgePx: LONG_EDGE_FOR_26MM }),
+    );
     expect(out.result.status).toBe("ok");
     if (out.result.status !== "ok") return;
     const h = homographyOf(KIRBY_LIKE.corners);
@@ -779,4 +793,131 @@ describe("review fixes: what the focal-backing exception lets through, pinned (�
       heightsMm: null,
     });
   });
+});
+
+describe("V3.2 F17: the guard re-checked under the 998 px prior (模擬; Kirby's measured focal values as scenario inputs)", () => {
+  // Kirby's S25 homography estimates (實測, 1024 x 1920 frames, long edge 1920).
+  const KIRBY_ESTIMATES = [1055, 1000.8, 902, 894, 934.6, 1153, 964];
+
+  it("the prior is 998 px on this frame's 1920 px long edge", () => {
+    expect(F17_PRIOR).toBeCloseTo(998.4, 1);
+  });
+
+  it("every one of Kirby's estimates is inside the prior's range and backed by it; under 1442 px five were outside the range and none was backed", () => {
+    for (const f of KIRBY_ESTIMATES) {
+      expect(focalWithinPrior(f, F17_PRIOR)).toBe(true);
+      expect(focalCorroborated("nominal", F17_PRIOR, f)).toBe(true);
+    }
+    expect(
+      KIRBY_ESTIMATES.filter((f) => !focalWithinPrior(f, NOMINAL)),
+    ).toEqual([1000.8, 902, 894, 934.6, 964]);
+    expect(
+      KIRBY_ESTIMATES.filter((f) => !focalCorroborated("nominal", NOMINAL, f)),
+    ).toEqual(KIRBY_ESTIMATES);
+  });
+
+  it("the Kirby-like frame (894 px, 25 deg back): the homography's own estimate is used, nothing refused, the hand within 0.5 mm of the true one", () => {
+    const h = homographyOf(KIRBY_LIKE.corners);
+    const corrected = computeCorrectedHandMeasurements(
+      KIRBY_LIKE.landmarksPx,
+      h,
+      {
+        exifFocalPx: null,
+        widthPx: FRAME.width,
+        heightPx: FRAME.height,
+        nominalFocalPx: F17_PRIOR,
+      },
+    );
+    expect(corrected.focalSource).toBe("homography");
+    expect(corrected.fPx).toBeCloseTo(894, 0);
+    const guarded = guardCorrection(
+      corrected,
+      KIRBY_LIKE.landmarksPx,
+      h,
+      PRINCIPAL,
+    );
+    expect(guarded.refusal).toBeNull();
+    expect(guarded.corrected).toBe(corrected);
+    expect(
+      Math.abs(
+        corrected.measurements.handLengthMm - KIRBY_LIKE.trueHandLengthMm,
+      ),
+    ).toBeLessThan(0.5);
+  });
+
+  it("finishPaperEdge on the same frame with its own prior: corrected, no refusal", async () => {
+    const quad: SheetQuadDetection = {
+      corners: KIRBY_LIKE.corners as SheetQuadDetection["corners"],
+      cornersSeen: 4,
+      cornersFound: [true, true, true, true],
+      partialCorners:
+        KIRBY_LIKE.corners as SheetQuadDetection["partialCorners"],
+      minSideCoverage: 1,
+      edgeFitResidualPx: 0.2,
+      worstSideIndex: 0,
+      paperRegionFound: true,
+    };
+    const out = await finishPaperEdge({
+      quad,
+      paperEval: evaluatePaperEdgeCalibration(quad, "a4", false),
+      paperSize: "a4",
+      hand: {
+        landmarksPx: KIRBY_LIKE.landmarksPx,
+        handedness: "right",
+        confidence: 0.95,
+      },
+      request: { hand: "right", handExplicit: true },
+      laplacianVariance: 150,
+      decoded: FRAME,
+      crop: null,
+      readJpegBytes: async () => null,
+      focalReferenceLongEdgePx: Math.max(FRAME.width, FRAME.height),
+    });
+    expect(out.parallaxGuard).toBeNull();
+    expect(out.parallaxCorrected).toBe(true);
+    expect(out.focal?.source).toBe("homography");
+  });
+
+  // Kirby's estimates as the true lens, 15-40 deg in four directions, 380 mm:
+  // probe of 2026-10-23 (80 in-frame scenes, 模擬): 0 refused under 998 px
+  // (largest reported error 6.6 mm, mean 1.2 mm) against 51 refused under
+  // 1442 px (corrections there up to 30.7 mm off before the guard).
+  for (const f of [894, 1000.8, 1153])
+    for (const tiltDeg of [25, 40])
+      for (const azimuthDeg of [-90, -80, 0, 90])
+        it(`true focal ${f} px, ${tiltDeg} deg, azimuth ${azimuthDeg}: no refusal under the F17 prior`, () => {
+          const scene = buildObliqueScene({
+            ...FRAME,
+            fPx: f,
+            tiltDeg,
+            azimuthDeg,
+            distanceMm: 380,
+            handScale: 0.95,
+          });
+          expect(inFrame(scene.corners)).toBe(true);
+          const h = homographyOf(scene.corners);
+          const corrected = computeCorrectedHandMeasurements(
+            scene.landmarksPx,
+            h,
+            {
+              exifFocalPx: null,
+              widthPx: FRAME.width,
+              heightPx: FRAME.height,
+              nominalFocalPx: F17_PRIOR,
+            },
+          );
+          expect(corrected.parallaxCorrected).toBe(true);
+          const guarded = guardCorrection(
+            corrected,
+            scene.landmarksPx,
+            h,
+            PRINCIPAL,
+          );
+          expect(guarded.refusal).toBeNull();
+          expect(
+            Math.abs(
+              corrected.measurements.handLengthMm - scene.trueHandLengthMm,
+            ),
+          ).toBeLessThan(6.7);
+        });
 });

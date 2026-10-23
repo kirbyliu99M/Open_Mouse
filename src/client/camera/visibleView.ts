@@ -401,6 +401,38 @@ export function frameFocalReferenceLongEdgePx(
 }
 
 /**
+ * The `focalReferenceLongEdgePx` the camera passes to the pipeline for one
+ * capture (F17 review, candidate 未拍板). Passing it is what marks the photo
+ * as a frame of the live video, whose nominal prior is the video frame's lens
+ * (18 mm, Kirby's S25 frames, 實測); `undefined` for a still (an upload, the
+ * camera's takePhoto picture), which then keeps the still lens (26 mm,
+ * `nominalPriorFor`, paperEdgeFinish.ts). A frame whose stream size was not
+ * recorded is taken as its own stream. Pure.
+ */
+export function frameNominalReferenceLongEdgePx(
+  capture:
+    | {
+        readonly captureSource?: string | null;
+        readonly frame?: { readonly stream: FrameSize } | null;
+        readonly photoWidth?: number | null;
+        readonly photoHeight?: number | null;
+      }
+    | null
+    | undefined,
+): number | undefined {
+  if (!capture || capture.captureSource !== "frame") return undefined;
+  const photo: FrameSize | null =
+    typeof capture.photoWidth === "number" &&
+    typeof capture.photoHeight === "number"
+      ? { width: capture.photoWidth, height: capture.photoHeight }
+      : null;
+  const stream = capture.frame?.stream ?? photo;
+  if (!usable(stream)) return undefined;
+  const edge = frameFocalReferenceLongEdgePx(stream, photo);
+  return Number.isFinite(edge) && edge > 0 ? edge : undefined;
+}
+
+/**
  * The focal length in pixels the paper detector assumes for the live loop's
  * sample (a 70 degree horizontal field of view over the width of the WHOLE
  * stream, scaled to the sample's pixels). The sample is the visible part of the

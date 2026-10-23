@@ -6,6 +6,7 @@
  * error code alone does not say why (a sheet that fills 65 % of the photo and a
  * sheet that fills 90 % can both read "PAPER_CURLED").
  */
+import type { PaperChoiceRecord } from "../paper/detect";
 import { computeQuadSkew } from "../camera/quad";
 import { screenSideOfPaperSide, type PaperSide } from "../camera/paperGate";
 import { lowestCoverageSide } from "../paper/detect";
@@ -19,6 +20,16 @@ import type {
   ParallaxGuardRatios,
   ParallaxGuardReason,
 } from "../geometry/parallaxGuard";
+
+/**
+ * V3.2 F17 (candidate): the detector was run a second time with the hand's
+ * palm (palmChoice.ts), because the first sheet was not found or did not
+ * hold the palm. `used`: whether its answer replaced the first one (only
+ * when it chose another region, reason `palm`).
+ */
+export interface PaperChoiceDiagnostics extends PaperChoiceRecord {
+  readonly used: boolean;
+}
 
 export interface PaperDiagnostics {
   /** Corners whose two sides were both fitted, 0-4. */
@@ -171,6 +182,13 @@ export interface PipelineDiagnostics {
    * changes no number beyond the refusal itself and is not sent to analytics.
    */
   readonly parallaxGuard?: ParallaxGuardDiagnostics | null;
+  /**
+   * V3.2 F17 (candidate): the detector's second look with the hand's palm
+   * (palmChoice.ts), present only where there was one: which region it took,
+   * why, and whether its answer replaced the first. Local attempt log only;
+   * not sent to analytics.
+   */
+  readonly paperChoice?: PaperChoiceDiagnostics;
   /**
    * V3.2 F8 (candidate): where the sheet detector and the sharpness ran,
    * `worker` (a Web Worker, off the main thread) or `fallback` (the main

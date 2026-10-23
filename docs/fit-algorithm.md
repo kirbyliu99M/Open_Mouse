@@ -26,15 +26,15 @@ stay as typed and the length is not converted. Every other calibration method sc
 
 **The engine's scale for a parallax-corrected scan (landmark-raw-v3, V3.2, candidate 未拍板; Kirby
 2026-10-22, design R7).** Since `landmark-raw-v3` a photo with no EXIF focal length and no trustworthy
-homography estimate is still corrected for parallax, with a nominal focal length (26 mm equivalent on the
-camera frame's long edge, `nominalFocalPxFromLongEdge`), so most frame scans now read a few per cent
+homography estimate is still corrected for parallax, with a nominal focal length (18 mm equivalent on the
+camera frame's long edge since V3.2 F17, 26 mm before; `nominalFocalPxFromLongEdge`), so most frame scans now read a few per cent
 shorter than before. The engine, the hand type, the survey bins, the grip prediction and the similar-hand
 cells were all tuned on UNcorrected frame scans, so every reader of a scan's size goes through
 `fitScaleMeasurements` (`src/lib/fit/fit-scale.ts`, re-exported from `scoring-measurements.ts`):
 
 | Scan                                   | What the engine reads                                                                     |
 | -------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `parallaxCorrected: true` (any source) | hand length x 1.024, palm length x 1.041, palm width x 1.035 (`FIT_SCALE_FROM_CORRECTED`) |
+| `parallaxCorrected: true` (any source) | hand length x 1.035, palm length x 1.061, palm width x 1.051 (`FIT_SCALE_FROM_CORRECTED`) |
 | `manual-entry`                         | typed width x 0.77 (`MANUAL_ENTRY.widthToLandmarkScale`), everything else as typed        |
 | anything else (uncorrected, old rows)  | as stored, the same object                                                                |
 
@@ -46,13 +46,13 @@ an older corrected record (EXIF, homography) is scaled too (D3). No engine coeff
 same engine-scale number (D1 = B): the scan sheet, the scan page and the account page show
 `engineScaleMeasurements`, and the fit route hands it to the page and the analysis; a typed size is shown
 as typed. Simulated effect on the V1 population (600 hands, seed 20261018), corrected + scaled against
-today's uncorrected scan: top-10 Jaccard 0.875-0.957 and the same first place 86.8-94.5 % depending on
-the grip (a second uncorrected scan of the same hand: 0.847-0.945, 84.2-94.0 %), `predictGrip` differs for
-2.7 % of hands (unscaled: 24.5 %). These numbers come from the real `fitScaleMeasurements` (script
+today's uncorrected scan: top-10 Jaccard 0.830-0.936 and the same first place 81.2-92.3 % depending on
+the grip (a second uncorrected scan of the same hand: 0.792-0.920, 76.0-91.5 %), `predictGrip` differs for
+3.2 % of hands (unscaled: 35.5 %; recomputed 2026-10-23 at the 18 mm frame prior). These numbers come from the real `fitScaleMeasurements` (script
 `v32-program-2026-10-21\review\R7\d12_fit_population.ts`, output `d12.out.txt`, outside the repo) and are
 pinned, with the acceptance "not below a second scan minus 0.02", by
 `tests/unit/engine-scale-population.test.ts`; rerun both when the ratios change. The 0.77 is unchanged: on
-the corrected landmark scale it would be about 0.75 (0.75 x 1.035 = 0.776). Summary: `docs/research/nominal-focal-r7.md`.
+the corrected landmark scale it would be about 0.73 (0.733 x 1.051 = 0.77). Summary: `docs/research/nominal-focal-r7.md`.
 
 ## 2. Grip
 

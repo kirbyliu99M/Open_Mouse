@@ -298,7 +298,7 @@ describe.each(worlds)("/api/survey on %s", (_name, make) => {
     // F12 engine scale: a parallax-corrected scan is binned and its grip
     // predicted on the pre-correction (engine) scale. The service must pass
     // the scan's flag and method through; the pure builder alone is covered
-    // in engine-scale.test.ts. Simulated input (模擬): 184 / 98.5 / 77.8 is
+    // in engine-scale.test.ts. Simulated input (模擬): 181 / 96.9 / 77.8 is
     // 180 x 75 fingertip as stored, 185 x 80 claw on the engine scale. The
     // flag is faked on the way out of the repo, as asMethod does below.
     const asCorrected = (
@@ -327,8 +327,8 @@ describe.each(worlds)("/api/survey on %s", (_name, make) => {
       "parallaxCorrected %s reaches the stored cells and grip (%s x %s, %s)",
       async (corrected, handBin, palmBin, grip) => {
         const scan = await world.addScan({
-          handLengthMm: 184,
-          palmLengthMm: 98.5,
+          handLengthMm: 181,
+          palmLengthMm: 96.9,
           palmWidthMm: 77.8,
         });
         const res = await post(validBody(scan), {

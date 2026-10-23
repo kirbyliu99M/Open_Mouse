@@ -248,15 +248,15 @@ describe("GET /api/scans/{scanId}/similar", () => {
 
     it("a parallax-corrected scan is looked up on the engine's scale (landmark-raw-v3, candidate): the cell the same hand had before correction", async () => {
       pool = [...crowd(5, "a", 4)];
-      // 184 x 1.024 = 188.4 and 77.8 x 1.035 = 80.5: bins 185 x 80, where
+      // 181 x 1.035 = 187.3 and 77.8 x 1.051 = 81.8: bins 185 x 80, where
       // the stored numbers alone would be 180 x 75 (an empty cell here).
-      // Grip crosses a threshold too (simulated input): 98.5 / 184 = 0.535 is
+      // Grip crosses a threshold too (simulated input): 96.9 / 181 = 0.535 is
       // fingertip, 102.5 / 188.4 = 0.544 is claw.
       const corrected = addScan({
         scan: {
           measurements: {
-            handLengthMm: 184,
-            palmLengthMm: 98.5,
+            handLengthMm: 181,
+            palmLengthMm: 96.9,
             palmWidthMm: 77.8,
           },
           parallaxCorrected: true,
@@ -268,13 +268,13 @@ describe("GET /api/scans/{scanId}/similar", () => {
         palmWidthBinMm: 80,
         gripStyle: "claw",
       });
-      expect(predictGrip(184 * 1.024, 98.5 * 1.041)).toBe("claw");
-      expect(predictGrip(184, 98.5)).toBe("fingertip");
+      expect(predictGrip(181 * 1.035, 96.9 * 1.061)).toBe("claw");
+      expect(predictGrip(181, 96.9)).toBe("fingertip");
       const plain = addScan({
         scan: {
           measurements: {
-            handLengthMm: 184,
-            palmLengthMm: 98.5,
+            handLengthMm: 181,
+            palmLengthMm: 96.9,
             palmWidthMm: 77.8,
           },
           parallaxCorrected: false,

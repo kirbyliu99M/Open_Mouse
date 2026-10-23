@@ -259,7 +259,10 @@ export const CAMERA_CONSTANTS = {
  *   or no worse). The 0.85 sits between 0.8 and 0.9 and is not tuned
  *   further (不確定 where exactly the crossover is); the 1.4 is the prior
  *   range's top (`FOCAL_PRIOR_RANGE`), not simulated beyond 1.3. Kirby's
- *   failing scan: 894 / 1442 = 0.62, not backed. The estimate is used
+ *   failing scan: 894 / 1442 = 0.62, not backed (under the 26 mm prior;
+ *   with F17's 998 px prior the same estimate, 0.90 of it, is inside the
+ *   prior range and is used itself, so the guard is not reached, 模擬 in
+ *   tests/unit/parallax-guard.test.ts). The estimate is used
  *   whether or not focal-from-homography.ts flags it `reliable`: a camera
  *   tilted straight back gives it from one formula only and is flagged
  *   unreliable, yet in the simulation its value is right.

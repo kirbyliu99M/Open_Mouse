@@ -42,6 +42,7 @@ import {
   type RunPhotoPipelineInput,
 } from "../../src/client/photo/pipeline";
 import { computeSheetLayout } from "../../src/client/sheet/layout";
+import { buildAttemptRecord } from "../../src/client/camera/attemptLog";
 import { photoStagesFor } from "../../src/lib/particles/loading";
 import { en as paperStageCopyEn } from "../../src/lib/copy/paper-stage";
 import { ID1_CARD_MM, SHEET } from "../../src/lib/contracts/measurement";
@@ -396,14 +397,24 @@ describe("blank paper pipeline: the detector's failure stage (scan S2)", () => {
       ...(failureStage ? { failureStage } : {}),
     }) as never;
 
-  it("names the stage in the English message and the detail, keeps the code, calls the detector once", async () => {
+  // V3.2 F17: with a hand in the photo and no sheet, the detector looks a
+  // second time with the palm (palmChoice.ts); its answer is used only when
+  // it chose another bright region, which these mocked answers never say.
+  const palmLook = () => {
+    const calls = vi.mocked(detectPaperQuad).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][2]).not.toHaveProperty("palmPointsPx");
+    expect(calls[1][2]?.palmPointsPx).toHaveLength(5);
+  };
+
+  it("names the stage in the English message and the detail, keeps the code; the detector looks once more with the palm (F17)", async () => {
     arrange("right");
     vi.mocked(detectPaperQuad).mockReturnValue(noSheet("region_split"));
     const result = await run(
       { method: "paper-edge", paperSize: "a4" },
       { handExplicit: true },
     );
-    expect(vi.mocked(detectPaperQuad)).toHaveBeenCalledTimes(1);
+    palmLook();
     expect(result.status).toBe("error");
     if (result.status !== "error") return;
     expect(result.errors).toHaveLength(1);
@@ -426,7 +437,7 @@ describe("blank paper pipeline: the detector's failure stage (scan S2)", () => {
       { method: "paper-edge", paperSize: "a4" },
       { handExplicit: true },
     );
-    expect(vi.mocked(detectPaperQuad)).toHaveBeenCalledTimes(1);
+    palmLook();
     if (result.status !== "error") throw new Error("expected an error");
     expect(result.errors[0]).toEqual({
       code: "PAPER_NOT_FOUND",
@@ -436,7 +447,101 @@ describe("blank paper pipeline: the detector's failure stage (scan S2)", () => {
     expect(result.diagnostics?.paper?.failureStage).toBeNull();
   });
 
-  it("a found sheet still calls the detector once and carries no stage", async () => {
+  it("F17: no hand in the photo: the detector is asked once, as before", async () => {
+    arrange("right");
+    vi.mocked(detectHandLandmarks).mockResolvedValue(null);
+    vi.mocked(detectPaperQuad).mockReturnValue(noSheet("region_split"));
+    const result = await run(
+      { method: "paper-edge", paperSize: "a4" },
+      { handExplicit: true },
+    );
+    expect(vi.mocked(detectPaperQuad)).toHaveBeenCalledTimes(1);
+    if (result.status !== "error") throw new Error("expected an error");
+    expect(result.errors[0]!.code).toBe("PAPER_NOT_FOUND");
+    expect(result.diagnostics).not.toHaveProperty("paperChoice");
+  });
+
+  it("F17: the second look took the region that holds the palm (the window case): measured from it, and the record says why", async () => {
+    arrange("right");
+    // arrange's own answer: the whole A4 sheet filling the frame.
+    const sheet = vi.mocked(detectPaperQuad)(
+      {} as ImageData,
+      "a4",
+    ) as ReturnType<typeof detectPaperQuad>;
+    expect(sheet.corners).not.toBeNull();
+    vi.mocked(detectPaperQuad).mockClear();
+    const choice = {
+      reason: "palm" as const,
+      candidates: 2,
+      palmInside: 5,
+      largestPalmInside: 0,
+    };
+    vi.mocked(detectPaperQuad).mockImplementation((_f, _p, options) =>
+      options?.palmPointsPx
+        ? { ...sheet, paperChoice: choice }
+        : (noSheet("aspect_mismatch") as ReturnType<typeof detectPaperQuad>),
+    );
+    const result = await run(
+      { method: "paper-edge", paperSize: "a4" },
+      { handExplicit: true },
+    );
+    palmLook();
+    expect(result.status).toBe("ok");
+    expect(result.diagnostics?.paperChoice).toEqual({ ...choice, used: true });
+    expect(result.diagnostics?.paper?.paperRegionFound).toBe(true);
+    expect(result.diagnostics?.paper?.failureStage).toBeNull();
+    // ...and the local attempt log keeps why (never sent).
+    const log = (r: typeof result) =>
+      buildAttemptRecord({
+        at: "2026-10-23T00:00:00.000Z",
+        userAgent: "test",
+        capture: {
+          method: "canvas",
+          photoWidth: WIDTH,
+          photoHeight: HEIGHT,
+          photoKb: 900,
+          previewWidth: null,
+          previewHeight: null,
+        },
+        outcome: { kind: "result", result: r },
+      });
+    expect(log(result).paperChoice).toEqual({ ...choice, used: true });
+    // An attempt without a second look has no such field at all.
+    vi.mocked(detectPaperQuad).mockReset();
+    arrange("right");
+    const plain = await run(
+      { method: "paper-edge", paperSize: "a4" },
+      { handExplicit: true },
+    );
+    expect(log(plain)).not.toHaveProperty("paperChoice");
+  });
+
+  it("F17: a second look that kept the largest region is recorded, not used", async () => {
+    arrange("right");
+    const choice = {
+      reason: "no_candidate_holds_palm" as const,
+      candidates: 2,
+      palmInside: 0,
+      largestPalmInside: 0,
+    };
+    vi.mocked(detectPaperQuad).mockImplementation((_f, _p, options) => ({
+      ...(noSheet("aspect_mismatch") as ReturnType<typeof detectPaperQuad>),
+      ...(options?.palmPointsPx ? { paperChoice: choice } : {}),
+    }));
+    const result = await run(
+      { method: "paper-edge", paperSize: "a4" },
+      { handExplicit: true },
+    );
+    palmLook();
+    if (result.status !== "error") throw new Error("expected an error");
+    expect(result.diagnostics?.paperChoice).toEqual({
+      ...choice,
+      used: false,
+    });
+    expect(result.diagnostics?.paper?.failureStage).toBe("aspect_mismatch");
+  });
+
+  it("a found sheet that holds the palm still calls the detector once and carries no stage", async () => {
     arrange("right");
     const result = await run(
       { method: "paper-edge", paperSize: "a4" },
@@ -444,5 +549,54 @@ describe("blank paper pipeline: the detector's failure stage (scan S2)", () => {
     );
     expect(vi.mocked(detectPaperQuad)).toHaveBeenCalledTimes(1);
     expect(result.diagnostics?.paper?.failureStage).toBeNull();
+  });
+
+  // F17 review: the hand is looked for before the paper's verdict since F17.
+  // A hand detector that fails to LOAD (offline) must not turn a no-sheet
+  // photo's paper error, and the adjustment it opens, into a thrown error.
+  const loadError = () =>
+    Object.assign(new Error("Failed to load the MediaPipe HandLandmarker."), {
+      name: "HandLandmarkerLoadError",
+    });
+
+  it("F17 review: no sheet and the hand detector fails to load: still the PAPER_* error with its partial corners, no second look", async () => {
+    arrange("right");
+    vi.mocked(detectHandLandmarks).mockRejectedValue(loadError());
+    vi.mocked(detectPaperQuad).mockReturnValue({
+      ...(noSheet("region_split") as object),
+      paperRegionFound: true,
+      cornersSeen: 2,
+      cornersFound: [true, true, false, false],
+      partialCorners: [{ x: 60, y: 120 }, { x: 690, y: 120 }, null, null],
+    } as never);
+    const result = await run(
+      { method: "paper-edge", paperSize: "a4" },
+      { handExplicit: true },
+    );
+    expect(vi.mocked(detectPaperQuad)).toHaveBeenCalledTimes(1);
+    if (result.status !== "error") throw new Error("expected an error");
+    expect(result.errors[0]!.code).toMatch(/^PAPER_/);
+    expect(result.overlay?.paperPartialCorners?.filter(Boolean)).toHaveLength(
+      2,
+    );
+  });
+
+  it("F17 review: a found sheet and the hand detector fails to load: the load error is thrown, as before F17", async () => {
+    arrange("right");
+    const error = loadError();
+    vi.mocked(detectHandLandmarks).mockRejectedValue(error);
+    await expect(
+      run({ method: "paper-edge", paperSize: "a4" }, { handExplicit: true }),
+    ).rejects.toBe(error);
+  });
+
+  it("F17 review: any other hand failure with no sheet is still thrown", async () => {
+    arrange("right");
+    const error = new Error("wasm crashed");
+    vi.mocked(detectHandLandmarks).mockRejectedValue(error);
+    vi.mocked(detectPaperQuad).mockReturnValue(noSheet("region_split"));
+    await expect(
+      run({ method: "paper-edge", paperSize: "a4" }, { handExplicit: true }),
+    ).rejects.toBe(error);
   });
 });

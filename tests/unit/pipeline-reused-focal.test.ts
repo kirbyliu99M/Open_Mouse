@@ -31,7 +31,8 @@ import { reusableFocal } from "../../src/client/camera/paperAdjustState";
 import type { Quad4 } from "../../src/client/paper/manualQuad";
 import { buildR6Scene } from "./helpers/r6-scene";
 
-const FRAME = { w: 1080, h: 1920, f: 1442 };
+// F17: a lens near the 998 px prior (Kirby's S25 estimates read 894-1153 px, 實測).
+const FRAME = { w: 1080, h: 1920, f: 1050 };
 const SCENE = buildR6Scene({ ...FRAME, pitchDeg: 10, rollDeg: 3 });
 
 function arrange() {
@@ -166,7 +167,7 @@ describe("a placed frame keeps the automatic run's focal length (real pipeline)"
     const plain = ok(await run());
     arrange();
     const given = ok(
-      await run({ reusedFocal: { fPx: 999, source: "homography" } }),
+      await run({ reusedFocal: { fPx: 777, source: "homography" } }),
     );
     expect(given.measurements).toEqual(plain.measurements);
     expect(given.diagnostics?.focal).toEqual(plain.diagnostics?.focal);
@@ -195,15 +196,22 @@ describe("a failed photo's rough quad (F10 item 3, real pipeline)", () => {
       guessCorners: guess,
     });
     const r = await run();
-    expect(detectPaperQuad).toHaveBeenCalledTimes(1);
+    // V3.2 F17: the hand is looked for before the paper's verdict, and with
+    // it the detector looks once more with the palm; that answer is not used
+    // (it chose no other region), so the first one's guess reaches the
+    // overlay.
+    expect(detectPaperQuad).toHaveBeenCalledTimes(2);
     expect(vi.mocked(detectPaperQuad).mock.calls[0][2]).toMatchObject({
       failureGuess: true,
     });
+    expect(vi.mocked(detectPaperQuad).mock.calls[0][2]).not.toHaveProperty(
+      "palmPointsPx",
+    );
     expect(r.status).toBe("error");
     if (r.status !== "error") return;
     expect(r.errors[0].code).toBe("PAPER_NOT_FOUND");
     expect(r.overlay.paperGuessCorners).toEqual(guess);
     expect(r.overlay.paperCorners).toBeUndefined();
-    expect(detectHandLandmarks).not.toHaveBeenCalled();
+    expect(detectHandLandmarks).toHaveBeenCalledTimes(1);
   });
 });

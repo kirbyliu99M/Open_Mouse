@@ -1804,34 +1804,6 @@ main.easyScanShell {
   font-size: 0.9375rem;
   line-height: 1.5;
 }
-.paperAdjustTools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.5rem;
-  padding: 0.25rem 1rem 0;
-}
-/* F14: small secondary controls (the whole / zoomed toggle, 改用置中框); the
-   44 px touch target stays, the look is smaller. */
-.paperAdjustTool {
-  min-height: 44px;
-  padding: 0 0.75rem;
-  border: 1px solid var(--control-border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: 0.8125rem;
-  cursor: pointer;
-}
-.paperAdjustTool[aria-pressed="true"] {
-  background: var(--button-primary-bg);
-  color: var(--on-button-primary);
-  border-color: var(--button-primary-bg);
-}
-.paperAdjustTool:active {
-  background: var(--hairline);
-}
-.paperAdjustTool:focus-visible,
 .paperAdjustCancel:focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 3px;
@@ -1865,7 +1837,6 @@ main.easyScanShell {
 @media (min-width: 720px) {
   .paperAdjustHeader,
   .paperAdjustStatus,
-  .paperAdjustTools,
   .paperAdjustActions {
     width: min(100% - 2rem, 40rem);
     margin-inline: auto;

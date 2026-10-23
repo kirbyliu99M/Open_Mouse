@@ -75,6 +75,7 @@ import {
   type PixelRect,
 } from "../camera/visibleView";
 import { finishPaperEdge } from "./paperEdgeFinish";
+import { PALM_CHOICE, palmPointsOf, pointsInside } from "../paper/palmChoice";
 import type { ReusedFocal } from "../geometry/parallax";
 import type { IssueDetail } from "./issue-detail";
 import {
@@ -84,6 +85,7 @@ import {
   paperWorstSide,
   type FocalDiagnostics,
   type HandDiagnostics,
+  type PaperChoiceDiagnostics,
   type PaperDiagnostics,
   type PipelineDiagnostics,
   type ParallaxGuardDiagnostics,
@@ -290,6 +292,8 @@ interface PipelineTrace {
   shadowPrior: ShadowPriorDiagnostics | null;
   parallaxGuard: ParallaxGuardDiagnostics | null;
   analysisThread: AnalysisThread | null;
+  /** V3.2 F17: the palm-guided second look at the sheet, when there was one. */
+  paperChoice: PaperChoiceDiagnostics | null;
 }
 
 function newTrace(): PipelineTrace {
@@ -314,6 +318,7 @@ function newTrace(): PipelineTrace {
     shadowPrior: null,
     parallaxGuard: null,
     analysisThread: null,
+    paperChoice: null,
   };
 }
 
@@ -352,6 +357,15 @@ async function offloadedSharpness(
       height,
     )
   );
+}
+
+/**
+ * Whether an error is the hand detector failing to load
+ * (`HandLandmarkerLoadError`, landmarks.ts). By name, not `instanceof`, so a
+ * test that fakes the landmarks module without the class still works.
+ */
+function isHandLoaderFailure(error: unknown): boolean {
+  return error instanceof Error && error.name === "HandLandmarkerLoadError";
 }
 
 /** Looks for the hand, noting how long that took and what it found. */
@@ -460,6 +474,8 @@ export async function runPhotoPipeline(
     shadowPrior: trace.shadowPrior,
     parallaxGuard: trace.parallaxGuard,
     analysisThread: trace.analysisThread,
+    // Only where there was a second look, so every other record is as it was.
+    ...(trace.paperChoice ? { paperChoice: trace.paperChoice } : {}),
   };
   return { ...result, diagnostics };
 }
@@ -841,29 +857,32 @@ async function runPaperEdgePipeline(
     );
     frame = detected.frame;
     noteAnalysisThread(trace, detected.thread);
-    const quad = detected.outcome.quad;
+    let quad = detected.outcome.quad;
     trace.paperMs = performance.now() - paperStartedAt;
     notifyStage(input, "paper");
     await yieldToBrowser();
-    const quadSize = quad.corners
-      ? paperSizeFractions(quad.corners, width, height)
-      : null;
-    trace.paper = {
-      cornersSeen: quad.cornersSeen,
-      paperRegionFound: quad.paperRegionFound,
-      widthFraction: quadSize?.widthFraction ?? null,
-      heightFraction: quadSize?.heightFraction ?? null,
-      edgeFitResidualMm: null,
-      maxAngleDeviationDeg: quad.corners
-        ? paperMaxAngleDeviationDeg(quad.corners)
-        : null,
-      observedAspect: quad.corners ? paperObservedAspect(quad.corners) : null,
-      minSideCoverage: quad.minSideCoverage,
-      sideCoverages: quad.sideCoverages ?? null,
-      worstSide: paperWorstSide(quad.corners, quad.sideCoverages),
-      gateFailures: [],
-      failureStage: quad.failureStage ?? null,
+    const notePaper = (q: typeof quad) => {
+      const quadSize = q.corners
+        ? paperSizeFractions(q.corners, width, height)
+        : null;
+      trace.paper = {
+        cornersSeen: q.cornersSeen,
+        paperRegionFound: q.paperRegionFound,
+        widthFraction: quadSize?.widthFraction ?? null,
+        heightFraction: quadSize?.heightFraction ?? null,
+        edgeFitResidualMm: null,
+        maxAngleDeviationDeg: q.corners
+          ? paperMaxAngleDeviationDeg(q.corners)
+          : null,
+        observedAspect: q.corners ? paperObservedAspect(q.corners) : null,
+        minSideCoverage: q.minSideCoverage,
+        sideCoverages: q.sideCoverages ?? null,
+        worstSide: paperWorstSide(q.corners, q.sideCoverages),
+        gateFailures: [],
+        failureStage: q.failureStage ?? null,
+      };
     };
+    notePaper(quad);
     // The overlay is always in the whole decoded photo's pixels.
     const overlayBase = {
       imageWidth: fullWidth,
@@ -871,6 +890,78 @@ async function runPaperEdgePipeline(
       markers: [] as DetectedMarker[],
       card: null,
     };
+
+    // homography + the worst side's residual in mm (via its own normal
+    // direction, not a generic centroid average) — this is
+    // `computePaperEdgeGeometry` (src/client/paper/calibration.ts), the
+    // pure, directly-tested slice of this function (2026-09-25 PR #59
+    // review: hard rule 3).
+    // The shipped path goes through the same pure chain the tests exercise
+    // (evaluatePaperEdgeCalibration): geometry, the paper gates and the
+    // calibration fields all come from this one call. parallaxCorrected is
+    // only known after EXIF is read (finishPaperEdge), so it is set on the
+    // submission from the real flag there; the placeholder here never reaches it.
+    const evaluate = (q: typeof quad) => {
+      if (!q.corners) return null;
+      const evaluation = evaluatePaperEdgeCalibration(q, paperSize, false);
+      // Which paper gates failed, even where the result below goes on to
+      // report another error first (a photo with no hand reports only that).
+      trace.paper = trace.paper && {
+        ...trace.paper,
+        edgeFitResidualMm: evaluation.geometry?.edgeFitResidualMm ?? null,
+        gateFailures: evaluation.errors.map((error) => error.code),
+      };
+      return evaluation;
+    };
+    let paperEval = evaluate(quad);
+
+    // V3.2 F17 (candidate, 未拍板; Kirby's preview 7: "it went to my
+    // window"): the hand is looked for here, before the paper's verdict is
+    // returned. When the sheet was not found, or does not hold the palm, the
+    // detector looks again with the palm (palmChoice.ts) and its answer is
+    // taken only if it chose another bright region. A photo with no hand, or
+    // a sheet that holds the palm, goes on exactly as before.
+    // F17 review: the hand detector failing to LOAD (offline, the model or
+    // its wasm not downloaded) is taken as no palm here, so a photo with no
+    // sheet still gets its paper error and its partial corners (and the
+    // adjustment opens) exactly as before F17; the load error itself is
+    // thrown once the sheet is found, where the hand was looked for before
+    // F17. Any other failure is thrown here as it was.
+    let hand: Awaited<ReturnType<typeof detectHandTraced>>;
+    let handLoadError: unknown = null;
+    try {
+      hand = await detectHandTraced(bitmap, trace, input);
+    } catch (error) {
+      if (!isHandLoaderFailure(error)) throw error;
+      hand = null;
+      handLoadError = error;
+    }
+    const palm = hand ? palmPointsOf(hand.landmarksPx) : null;
+    const holdsPalm =
+      paperEval?.geometry != null &&
+      palm !== null &&
+      pointsInside(quad.corners, palm) >= PALM_CHOICE.minPointsInside;
+    if (palm && !holdsPalm) {
+      const again = await getAnalysisRunner().run(
+        {
+          kind: "paper",
+          paperSize,
+          options: { focalPxHint, failureGuess: true, palmPointsPx: palm },
+        },
+        frame,
+        reread,
+      );
+      frame = again.frame;
+      noteAnalysisThread(trace, again.thread);
+      const choice = again.outcome.quad.paperChoice;
+      const used = choice?.reason === "palm";
+      trace.paperChoice = choice ? { ...choice, used } : null;
+      if (used) {
+        quad = again.outcome.quad;
+        notePaper(quad);
+        paperEval = evaluate(quad);
+      }
+    }
 
     if (!quad.corners) {
       // With the step the detector stopped at (scan S2): the words name it,
@@ -884,7 +975,10 @@ async function runPaperEdgePipeline(
           message:
             "We couldn't find a sheet of paper in this photo — place a blank A4 (or Letter) sheet flat on a plain, contrasting surface and retake.",
         };
-      trace.paper = { ...trace.paper, gateFailures: [failure.code] };
+      trace.paper = trace.paper && {
+        ...trace.paper,
+        gateFailures: [failure.code],
+      };
       // The corners it did work out, for the frame the person may adjust
       // (V3.2 F2): only when the sheet itself was found.
       const partial = quad.paperRegionFound
@@ -913,33 +1007,16 @@ async function runPaperEdgePipeline(
       };
     }
 
-    // homography + the worst side's residual in mm (via its own normal
-    // direction, not a generic centroid average) — this is
-    // `computePaperEdgeGeometry` (src/client/paper/calibration.ts), the
-    // pure, directly-tested slice of this function (2026-09-25 PR #59
-    // review: hard rule 3).
-    // The shipped path goes through the same pure chain the tests exercise
-    // (evaluatePaperEdgeCalibration): geometry, the paper gates and the
-    // calibration fields all come from this one call. parallaxCorrected is
-    // only known after EXIF is read (finishPaperEdge), so it is set on the
-    // submission from the real flag there; the placeholder here never reaches it.
-    const paperEval = evaluatePaperEdgeCalibration(quad, paperSize, false);
-    // Which paper gates failed, even where the result below goes on to report
-    // another error first (a photo with no hand reports only that).
-    trace.paper = {
-      ...trace.paper,
-      edgeFitResidualMm: paperEval.geometry?.edgeFitResidualMm ?? null,
-      gateFailures: paperEval.errors.map((error) => error.code),
-    };
-    if (!paperEval.geometry) {
+    if (!paperEval?.geometry) {
       return {
         status: "error",
-        errors: paperEval.errors,
+        errors: paperEval?.errors ?? [],
         overlay: { ...overlayBase, landmarksPx: null },
       };
     }
 
-    const hand = await detectHandTraced(bitmap, trace, input);
+    if (handLoadError !== null) throw handLoadError;
+
     if (!hand) {
       return {
         status: "error",

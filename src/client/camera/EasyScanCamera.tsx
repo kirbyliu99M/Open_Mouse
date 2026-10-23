@@ -101,6 +101,7 @@ import {
   INITIAL_NO_SHEET_CAPTURE_STATE,
   advanceNoSheetCapture,
   liveHandSignal,
+  livePalmHint,
   recordHandReading,
   sheetFoundByCue,
   shouldSampleHand,
@@ -182,8 +183,8 @@ import {
 import {
   assumedSampleFocalPx,
   frameDrawArgs,
-  frameFocalReferenceLongEdgePx,
   frameFocalReferenceWidthPx,
+  frameNominalReferenceLongEdgePx,
   visibleRegionInStream,
   type PixelRect,
 } from "./visibleView";
@@ -1341,15 +1342,11 @@ export default function EasyScanCamera({
               : undefined,
           // landmark-raw-v3 (candidate): the nominal focal prior is taken on
           // the stream's long edge, in the same pixels, for the same reason.
-          focalReferenceLongEdgePx:
-            info?.captureSource === "frame" && info.frame
-              ? frameFocalReferenceLongEdgePx(
-                  info.frame.stream,
-                  info.photoWidth !== null && info.photoHeight !== null
-                    ? { width: info.photoWidth, height: info.photoHeight }
-                    : null,
-                )
-              : undefined,
+          // Passing it is also what gives a frame of the video the video
+          // frame's 18 mm prior (F17 review); a still (upload, takePhoto)
+          // passes nothing and keeps 26 mm. A frame whose stream size was not
+          // known is its own stream.
+          focalReferenceLongEdgePx: frameNominalReferenceLongEdgePx(info),
         });
         void logAttempt(info, { kind: "result", result: pipelineResult });
         if (runId !== runIdRef.current) return;
@@ -2060,12 +2057,21 @@ export default function EasyScanCamera({
       try {
         // The assumed focal length is the whole stream's, scaled to the
         // sample (visibleView.ts), not the narrower sample's own.
+        // V3.2 F17 (candidate): with a fresh hand reading (F14's sampling),
+        // the bright region that holds the palm is taken for the sheet.
+        const palm = livePalmHint({
+          latest: handReadingsRef.current.latest,
+          nowMs: now,
+          width,
+          height,
+        });
         detection = quadSourceRef.current(imageData, paperSizeRef.current, {
           focalPxHint: assumedSampleFocalPx(
             { width: video.videoWidth, height: video.videoHeight },
             source,
             { width, height },
           ),
+          ...(palm ? { palmPointsPx: palm } : {}),
         });
       } catch {
         detection = NO_QUAD_DETECTION;
@@ -2145,13 +2151,13 @@ export default function EasyScanCamera({
       // that is found and only needs the phone moved or held (too far,
       // tilted, dark, hold still...) pauses the wait: the live cue and the
       // ring guard that shot (sheetFoundByCue). The hand is read from this
-      // same sample, only while the sheet is not found and at most every
-      // `handSampleIntervalMs`; only whether it is there and still is used,
-      // nothing is measured from it.
+      // same sample at most every `handSampleIntervalMs`, found sheet or not
+      // (F17 review: the palm hint must not stop because a window passed
+      // the gate); only whether it is there, still, and where its palm is
+      // are used, nothing is measured from it.
       const sheetFound = sheetFoundByCue(nextCue.code);
       if (
         shouldSampleHand({
-          sheetFound,
           detectorReady: isHandLandmarkerReady(),
           lastReadingAtMs: handReadingsRef.current.latest?.atMs ?? null,
           nowMs: now,

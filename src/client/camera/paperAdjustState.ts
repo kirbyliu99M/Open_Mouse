@@ -63,14 +63,38 @@ export const PAPER_ADJUST_LAYOUT = {
   keyBigStepFactor: 10,
   /**
    * V3.2 F15 (candidate 未拍板, Kirby to decide): how far a press must travel
-   * on screen before it drags the corner. Below it the press is a tap (it only
-   * selects): a finger's wobble on a handle, now that every measured photo
-   * opens this screen, must not count as a moved frame and measure again.
-   * Touch takes the result sheet's tap slop (`TAP_SLOP_PX` 8); a mouse or pen
-   * barely wobbles. Not measured on a phone (不確定 how far a tap wobbles).
+   * on screen before it counts as a drag. Touch takes the result sheet's tap
+   * slop (`TAP_SLOP_PX` 8); a mouse or pen barely wobbles. Not measured on a
+   * phone (不確定 how far a tap wobbles).
+   *
+   * OPEN DECISION (F17 second review, 未拍板): F15 used it so that a
+   * finger's wobble on a handle did not count as a moved frame and measure
+   * the photo again, and brief F17 A.4 keeps that ("the slop only decides
+   * whether the frame moved"). Since the first F17 review it only sets the
+   * drag's `moved` flag, and NOTHING that decides an outcome reads that flag:
+   * release goes by `tapRevertScreenPx` (2 px) and confirming goes by
+   * `frameMoved` (the corners' coordinates). So F15's wobble guard is, in
+   * effect, 2 screen px for every pointer: a touch wobble of 3-8 px keeps its
+   * corner and a measured photo is measured again (pinned by a test). The two
+   * ways Kirby may choose: (a) back to F15 / A.4, a release under the slop
+   * puts the corner back (a fine adjustment under about 11 mm on the sheet
+   * at the whole-photo fit then springs back, 模擬, see `tapRevertScreenPx`);
+   * (b) keep today's behaviour and remove the slop and `moved`.
    */
   dragSlopTouchScreenPx: 8,
   dragSlopFineScreenPx: 2,
+  /**
+   * F17 review (candidate 未拍板, Kirby to decide): a press whose pointer
+   * never went further than this from where it began, screen px, any pointer
+   * type, is a tap: on release its corner goes back, so a wobble is not a
+   * moved frame and nothing measures again. Any press that went further keeps
+   * its corner where it was let go, under the drag slop too: with the whole
+   * photo on screen (F17 A) the touch slop of 8 screen px is about 21 photo
+   * px at a fit scale of 0.38, about 11 mm on the sheet (模擬, 1024 px wide
+   * frame on a 390 CSS px phone, 1.95 px/mm), and a fine adjustment smaller
+   * than that used to spring back. Not measured on a phone (不確定).
+   */
+  tapRevertScreenPx: 2,
 } as const;
 
 /** The drag slop for a pointer type (`PAPER_ADJUST_LAYOUT`, candidate). */
@@ -488,11 +512,20 @@ export interface DragState {
   /** Where the corner was when the press began (photo px). */
   readonly startCorner: Point2;
   /**
-   * Whether the pointer has left `startPointer` at any time in this drag. Once
-   * it has, the corner follows it exactly, back to `startCorner` when the
-   * pointer comes back to where it pressed.
+   * Whether the pointer has gone past the drag slop (`dragSlopScreenPx`)
+   * from `startPointer` at any time in this drag. The corner follows the
+   * pointer exactly either way (F17), and release keeps it wherever the
+   * pointer let go unless the press was a tap (`maxTravelScreenPx`, F17
+   * review). Read by no outcome today (neither release nor confirm): kept
+   * only for the open decision on the slop (`dragSlopTouchScreenPx`).
    */
   readonly moved: boolean;
+  /**
+   * The furthest the pointer has been from `startPointer` in this drag,
+   * screen px. Release undoes the drag only while this is at most
+   * `PAPER_ADJUST_LAYOUT.tapRevertScreenPx` (a tap; F17 review).
+   */
+  readonly maxTravelScreenPx: number;
   /**
    * Whether the press began on this corner's handle (`pointerDown` named it),
    * not on the photo dragging the chosen corner.
@@ -615,7 +648,7 @@ export function startAdjust(input: {
   const previous =
     input.entry === "rescue" &&
     input.previous &&
-    checkManualQuad(input.previous.corners, image).ok
+    checkManualQuad(input.previous.corners, image, input.paperSize).ok
       ? input.previous
       : null;
   const start: DefaultAdjustFrame = previous
@@ -792,6 +825,7 @@ export function adjustReducer(
           pointer: action.point,
           startCorner: state.corners[index],
           moved: false,
+          maxTravelScreenPx: 0,
           onHandle: action.index !== null,
           before: {
             corners: state.corners,
@@ -817,24 +851,46 @@ export function adjustReducer(
         },
         state.image,
       );
-      // A press that has not moved past the drag slop changes nothing (a tap
-      // only selects, F15); once it has, the corner is always start +
-      // movement, including a return to the very point where the press began.
-      const moved =
-        drag.moved ||
-        Math.hypot(
-          action.point.x - drag.startPointer.x,
-          action.point.y - drag.startPointer.y,
-        ) > dragSlopScreenPx(drag.pointerType);
+      // V3.2 F17 (Kirby, preview 7: "the corner indicator dot may lag from
+      // user's gesture", candidate): the corner is start + movement from the
+      // very first move, 1:1 with the finger. The drag slop (F15) only sets
+      // `moved`; once past it the drag stays moved, including a return to
+      // the very point where the press began. Where the corner ends up is the
+      // tap rule's (`pointerUp`, F17 review), not the slop's.
+      const travel = Math.hypot(
+        action.point.x - drag.startPointer.x,
+        action.point.y - drag.startPointer.y,
+      );
+      const moved = drag.moved || travel > dragSlopScreenPx(drag.pointerType);
       const next = {
         ...state,
-        drag: { ...drag, pointer: action.point, moved },
+        drag: {
+          ...drag,
+          pointer: action.point,
+          moved,
+          maxTravelScreenPx: Math.max(drag.maxTravelScreenPx, travel),
+        },
       };
-      return moved ? withCorner(next, drag.index, corner) : next;
+      return withCorner(next, drag.index, corner);
     }
     case "pointerUp": {
       const drag = state.drag;
       if (drag?.pointerId !== action.pointerId) return state;
+      // A tap (F17 review: the pointer never went further than
+      // `tapRevertScreenPx`): the corner goes back, as if untouched, so a
+      // wobble is not a moved frame. A smaller move than the drag slop that
+      // is more than a tap is a fine adjustment and stays where it was let go.
+      // The drag's `moved` is not read here (it cannot be true within 2 px,
+      // every slop being at least 2): see the open decision on the slop.
+      if (!(drag.maxTravelScreenPx > PAPER_ADJUST_LAYOUT.tapRevertScreenPx))
+        return {
+          ...state,
+          corners: drag.before.corners,
+          placed: drag.before.placed,
+          solved: drag.before.solved,
+          notice: drag.before.notice,
+          drag: null,
+        };
       return { ...state, drag: null };
     }
     case "nudge": {
@@ -1035,12 +1091,25 @@ export type AdjustReadiness =
  * moved, R5 E2: a guessed corner is biased) and it passes `checkManualQuad`.
  * The detector's corners count as placed: confirming them unchanged is
  * allowed ("the frame looks right", R5 §0).
+ *
+ * F17 review: on a photo already measured from the detector's own corners
+ * (`review`), the frame confirmed exactly as it opened (`frameMoved` false)
+ * measures nothing again (`adjustConfirmAction` `none`), so the resolution
+ * floor (`minPxPerMm`, F17 B) is not applied to it: before F17 the floor of
+ * a placed frame was the detector's own area floor, and a frame the
+ * detector found always passed. Only a frame that will be measured from
+ * (moved, or a rescue) is held to it. Every other check still applies.
  */
 export function adjustReadiness(state: AdjustState): AdjustReadiness {
   const notPlaced = state.placed.indexOf(false);
   if (notPlaced >= 0) return { ok: false, notPlaced: notPlaced as CornerIndex };
-  const check = checkManualQuad(state.corners, state.image);
-  if (!check.ok) return { ok: false, problem: check.problem };
+  const check = checkManualQuad(state.corners, state.image, state.paperSize);
+  const asMeasured =
+    state.entry === "review" &&
+    state.start.from === "detected" &&
+    !frameMoved(state);
+  if (!check.ok && !(check.problem === "too_small" && asMeasured))
+    return { ok: false, problem: check.problem };
   return {
     ok: true,
     corners: state.corners,

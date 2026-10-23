@@ -132,7 +132,8 @@ export const PAPER_ASPECT_BUCKETS = [
 /**
  * SHADOW MODE (2026-10-16, candidate): the client works out what the hand
  * length WOULD have been if the parallax correction had used a nominal focal
- * length (a 26 mm-equivalent main camera) instead of its own estimate or no
+ * length (a 26 mm-equivalent main camera; since 2026-10-23 the live-frame
+ * prior that corrects is 18 mm, F17) instead of its own estimate or no
  * correction, and reports only how that differs from the number the person
  * was shown, in four coarse steps. The number the person sees is not changed
  * by it. `lower_5_plus` is the case the simulation predicts for a frame with

@@ -27,7 +27,9 @@
  * 175 mm further off to the wrist's side and 115 mm higher than the true one),
  * and the wrist is then pushed away from the fingertip instead of both being
  * pulled in. Whether Kirby's 894 px came from the lens or from the
- * hand-placed corners is not known (不確定).
+ * hand-placed corners is not known (不確定). (V3.2 F17 moved the prior to
+ * 998 px, from Kirby's measured estimates; the guard is unchanged and still
+ * catches any focal length the homography disagrees with.)
  *
  * So a correction is refused only when BOTH hold: a ratio is outside the
  * limits (`judgeParallaxCorrection`), and the focal length it used is not

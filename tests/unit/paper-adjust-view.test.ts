@@ -1,7 +1,9 @@
 /**
  * F10 (Kirby's second phone test 2026-10-21/22, candidate): 「手動調整後要
- * 放大」. The adjustment screen opens zoomed onto its frame, two fingers zoom
- * and move the photo, a double tap or a button shows the whole photo. A view
+ * 放大」. The adjustment screen opened zoomed onto its frame, two fingers zoom
+ * and move the photo, a double tap or a button showed the whole photo. (V3.2
+ * F17, Kirby 2026-10-23, Adobe-style: it now opens on the whole photo and
+ * only two fingers or the wheel zoom; `sheetView` stays as a pure helper.) A view
  * is a `PhotoFit`, so the display <-> photo conversion is `toScreen` /
  * `toImage` through it; these tests pin that conversion under zoom and pan,
  * that a drag moves a corner by the same photo distance at every zoom, and

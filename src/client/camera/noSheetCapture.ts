@@ -37,6 +37,7 @@
 import { CAMERA_CONSTANTS } from "./constants";
 import type { CueCode } from "./cues";
 import type { Point } from "./quad";
+import { palmPointsOf } from "../paper/palmChoice";
 
 /**
  * Per live cue (`pickCue`), whether the sheet counts as found for this wait.
@@ -142,18 +143,28 @@ export interface LiveHandReading {
 }
 
 /**
- * Whether the live loop reads the hand on this sample: only when the sheet
- * is not found (the wait is paused otherwise, `sheetFoundByCue`), only once
- * the hand detector is loaded, and at most every `handSampleIntervalMs`.
+ * Whether the live loop reads the hand on this sample: once the hand
+ * detector is loaded, at most every `handSampleIntervalMs`, whether or not
+ * the sheet is found.
+ *
+ * F17 review (candidate 未拍板): F14 read the hand only while the sheet was
+ * not found (the wait is paused otherwise, `sheetFoundByCue`), and the first
+ * F17 review kept it read only while the detector took the sheet BECAUSE of
+ * the palm. Either way a bright window that passes the live gate on its own
+ * (A4-like in shape) stopped the readings: with no reading yet the palm hint
+ * never came, and after one reading that missed the hand it never came back,
+ * so the live frame stayed on the window. Reading on every interval keeps
+ * the hint (`livePalmHint`) as fresh as the hand. What a reading costs on a
+ * phone while the sheet is found is not measured (不確定). The wait itself
+ * still goes by `sheetFound` (`advanceNoSheetCapture`).
  */
 export function shouldSampleHand(input: {
-  readonly sheetFound: boolean;
   readonly detectorReady: boolean;
   readonly lastReadingAtMs: number | null;
   readonly nowMs: number;
   readonly intervalMs?: number;
 }): boolean {
-  if (input.sheetFound || !input.detectorReady) return false;
+  if (!input.detectorReady) return false;
   const interval =
     input.intervalMs ?? CAMERA_CONSTANTS.noSheetCapture.handSampleIntervalMs;
   return (
@@ -236,4 +247,32 @@ export function liveHandSignal(input: {
     seen,
     steady: moved <= C.maxHandMovementFraction * input.frameDiagonal,
   };
+}
+
+/**
+ * V3.2 F17 (candidate): the palm points the live detector may use to choose
+ * the sheet over a brighter region (palmChoice.ts): those of the newest hand
+ * reading, only while it is fresh (`handStaleMs`) and only when all five lie
+ * on this sample (a reading of another sample size is not used). `undefined`
+ * otherwise, and the detector is then exactly what it was. Pure.
+ */
+export function livePalmHint(input: {
+  readonly latest: LiveHandReading | null;
+  readonly nowMs: number;
+  readonly width: number;
+  readonly height: number;
+}): Point[] | undefined {
+  const { latest } = input;
+  if (!latest?.points) return undefined;
+  if (
+    !(input.nowMs - latest.atMs >= 0) ||
+    input.nowMs - latest.atMs > CAMERA_CONSTANTS.noSheetCapture.handStaleMs
+  )
+    return undefined;
+  const palm = palmPointsOf(latest.points);
+  if (!palm) return undefined;
+  const onSample = palm.every(
+    (p) => p.x >= 0 && p.x <= input.width && p.y >= 0 && p.y <= input.height,
+  );
+  return onSample ? palm : undefined;
 }

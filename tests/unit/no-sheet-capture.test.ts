@@ -140,20 +140,12 @@ describe("the hand in the live picture", () => {
     Array.from({ length: 21 }, (_, i) => ({ x: 100 + i * 5 + dx, y: 200 + i }));
   const diagonal = Math.hypot(480, 640); // 800
 
-  it("is read only while no sheet is found, once the detector is loaded, at most every handSampleIntervalMs", () => {
+  it("is read once the detector is loaded, at most every handSampleIntervalMs, found sheet or not (F17 review)", () => {
     const base = {
-      sheetFound: false,
       detectorReady: true,
       nowMs: 10_000,
     };
     expect(shouldSampleHand({ ...base, lastReadingAtMs: null })).toBe(true);
-    expect(
-      shouldSampleHand({
-        ...base,
-        sheetFound: true,
-        lastReadingAtMs: null,
-      }),
-    ).toBe(false);
     expect(
       shouldSampleHand({
         ...base,
@@ -275,7 +267,6 @@ describe("the hand in the live picture", () => {
       const sheetFound = sheetFoundByCue(code);
       if (
         shouldSampleHand({
-          sheetFound,
           detectorReady: true,
           lastReadingAtMs: readings.latest?.atMs ?? null,
           nowMs: t,
@@ -498,7 +489,7 @@ describe("EasyScanCamera wires it (read from the source: the repo has no DOM tes
     );
     expect(tick).toContain("const sheetFound = sheetFoundByCue(nextCue.code);");
     expect(tick).toMatch(
-      /shouldSampleHand\(\{\s*sheetFound,\s*detectorReady: isHandLandmarkerReady\(\),/,
+      /shouldSampleHand\(\{\s*detectorReady: isHandLandmarkerReady\(\),/,
     );
     // A found quad no longer throws the hand readings away; each reading
     // goes through recordHandReading.

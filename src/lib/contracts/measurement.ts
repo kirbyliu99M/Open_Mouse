@@ -111,8 +111,9 @@ export const MEASUREMENT_DEFINITIONS = {
  * `landmark-raw-v3` (V3.2 candidate, 未拍板; Kirby 2026-10-22): the same
  * distances and heights as v2, but a photo with no EXIF focal length and no
  * trustworthy homography estimate is still corrected for parallax, with a
- * nominal focal length (26 mm equivalent on the camera frame's long edge,
- * design R7 `DESIGN-nominal-focal.md`). Before v3 such frames were not
+ * nominal focal length (design R7 `DESIGN-nominal-focal.md`: 18 mm
+ * equivalent on a live video frame's long edge since 2026-10-23, from Kirby's
+ * S25 measurements; 26 mm for a still photo with no EXIF). Before v3 such frames were not
  * corrected at all. A v3 measurement says where its focal length came from
  * (`focalSource` on the calibration evidence).
  */
@@ -155,15 +156,19 @@ export type FocalLengthSource = (typeof FOCAL_LENGTH_SOURCES)[number];
  * the same hand did before correction, while corrections stay consistent
  * across distance, tilt and capture path. The person sees the same engine-
  * scale numbers (Kirby, D1 = B). Simulated for a frame path at a paper fill
- * of 0.65 (Kirby's measured average 0.653); to be replaced by the ratios
- * measured on Kirby's S25 before production (D5).
+ * of 0.65 (Kirby's measured average 0.653). 2026-10-23 (F17, Kirby D2): the
+ * live-frame prior moved from 26 mm to 18 mm equivalent after seven S25
+ * homography estimates all read 894-1153 px (0.62-0.80 of the 26 mm prior);
+ * the ratios were recomputed at 998 px. Kirby's measured ratios at the old
+ * prior (median kL 1.041, kP 1.056, kW 1.036, n = 8) are not comparable.
+ * One phone only; an iPhone is not checked (不確定).
  */
 export const FIT_SCALE_FROM_CORRECTED = {
-  handLength: 1.024,
-  palmLength: 1.041,
-  palmWidth: 1.035,
+  handLength: 1.035,
+  palmLength: 1.061,
+  palmWidth: 1.051,
   referenceFill: 0.65,
-  basis: "R7 simulation 2026-10-22; replace with S25 measured ratios",
+  basis: "R7 script at the 18 mm frame prior (998 px on 1920), fill 0.65, hand 190 mm, 2026-10-23 (F17); S25 tilt scans put the real frame focal at 894-1153 px",
 } as const;
 export type MeasurementModelVersion =
   (typeof MEASUREMENT_MODEL_VERSIONS)[number];
@@ -399,7 +404,7 @@ export const MANUAL_ENTRY = {
   /**
    * A typed (ruler, skin-to-skin) hand width times this is the width on the
    * engine's scale (landmarks 5 to 17; since landmark-raw-v3 the engine
-   * scale of `FIT_SCALE_FROM_CORRECTED`, about 0.75 on the corrected landmark
+   * scale of `FIT_SCALE_FROM_CORRECTED`, about 0.73 on the corrected landmark
    * scale), so a typed width and a scanned width
    * enter the fit on the same scale. It converts skin to landmarks only and
    * does not depend on any engine's grip-width factor (v1 x 0.88, v3 x 1.00).
