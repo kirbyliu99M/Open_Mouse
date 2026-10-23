@@ -79,14 +79,17 @@ export const MANUAL_QUAD_LIMITS = {
    * Kirby's photo, a sheet 0.4 of a 1024 px wide frame (about 410 px, 1.95
    * px/mm), passes; a sheet 0.3 of a 1080 px frame (324 px) does not.
    *
-   * Error at the floor (模擬, review F17 sim f17_resolution: 1024 x 1920, true
-   * f 998 px, tilt 0-8 degrees, 300 scenes, corner noise only, no landmark
-   * noise), hand length RMS / p95: 0.30 / 0.61 mm with the detector's 0.5 px
-   * corner noise, 1.56 / 3.06 mm with 2.6 px (about 1 CSS px on a fitted
-   * whole-photo screen), 3.35 / 7.0 mm with 5.3 px (2 CSS px). At 410 px:
-   * 0.22 / 0.41, 1.12 / 2.07, 2.53 / 4.90 mm. The palm width is about a
-   * quarter of that. Where between 300 and 380 px the floor should sit is
-   * 不確定; 1.6 is the brief's candidate.
+   * Error at the floor (模擬; script and output outside the repo:
+   * v32-program-2026-10-21/review/F17/f17_resolution.ts and
+   * f17_resolution.out.txt, on R6/R7's scene helpers: 1024 x 1920, true f
+   * 998 px, tilt 0-8 degrees, 300 scenes per row, hand 190 mm, corner noise
+   * only, no landmark noise), hand length RMS / p95: 0.29 / 0.57 mm with the
+   * detector's 0.5 px corner noise, 1.45 / 2.82 mm with 2.6 px (about 1 CSS
+   * px on a fitted whole-photo screen), 3.12 / 6.02 mm with 5.3 px (2 CSS
+   * px). At 410 px: 0.23 / 0.44, 1.12 / 2.11, 2.38 / 4.84 mm. The palm
+   * width is about a quarter of that (0.06 / 0.12 to 0.73 / 1.33 mm at the
+   * floor). Where between 300 and 380 px the floor should sit is 不確定;
+   * 1.6 is the brief's candidate.
    */
   minPxPerMm: 1.6,
   /**
