@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import nextConfig from "../../next.config";
 
 async function rules() {
@@ -121,5 +121,73 @@ describe("next.config.ts headers()", () => {
       "blob:",
       "https://lh3.googleusercontent.com",
     ]);
+  });
+});
+
+describe("next.config.ts CSP with a GA4 measurement ID", () => {
+  async function cspWith(id: string | undefined) {
+    vi.resetModules();
+    vi.stubEnv("NEXT_PUBLIC_GA_ID", id ?? "");
+    const config = (await import("../../next.config")).default;
+    const all = (await config.headers!()).find((r) => r.source === "/:path*");
+    const csp = all!.headers.find(
+      (h) => h.key === "Content-Security-Policy",
+    )!.value;
+    const sources = (name: string) =>
+      csp
+        .split(";")
+        .map((d) => d.trim().split(/\s+/))
+        .find(([n]) => n === name)!
+        .slice(1);
+    return { sources };
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("adds exactly the named GA4 hosts to script-src, connect-src and img-src", async () => {
+    const { sources } = await cspWith("G-ABCD123456");
+    expect(sources("script-src")).toContain("https://www.googletagmanager.com");
+    expect(sources("connect-src")).toEqual([
+      "'self'",
+      "https://*.google-analytics.com",
+      "https://*.analytics.google.com",
+      "https://*.googletagmanager.com",
+    ]);
+    expect(sources("img-src")).toEqual([
+      "'self'",
+      "data:",
+      "blob:",
+      "https://lh3.googleusercontent.com",
+      "https://*.google-analytics.com",
+      "https://*.googletagmanager.com",
+    ]);
+  });
+
+  it("still blocks MediaPipe's metrics host and allows no wildcard origin", async () => {
+    const { sources } = await cspWith("G-ABCD123456");
+    for (const name of [
+      "script-src",
+      "connect-src",
+      "img-src",
+      "default-src",
+    ]) {
+      const all = sources(name);
+      expect(all.join(" "), name).not.toContain("googleapis.com");
+      expect(all, name).not.toContain("*");
+      expect(all, name).not.toContain("https:");
+    }
+  });
+
+  it("leaves the policy exactly as it was when the ID is unset or malformed", async () => {
+    for (const id of [undefined, "UA-1-1", "G-bad id"]) {
+      const { sources } = await cspWith(id);
+      expect(sources("connect-src")).toEqual(["'self'"]);
+      expect(sources("script-src").filter((s) => !s.startsWith("'"))).toEqual(
+        [],
+      );
+    }
   });
 });

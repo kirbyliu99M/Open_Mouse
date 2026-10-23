@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { AnalyticsProvider } from "@/client/analytics/AnalyticsProvider";
 import { LocaleProvider } from "@/client/i18n/LocaleProvider";
+import { CookieBanner } from "@/components/consent/CookieBanner";
 import { SiteFooter } from "@/components/SiteFooter";
 import { siteMetaCopy } from "@/lib/copy/site-meta";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
@@ -51,6 +52,7 @@ export default async function RootLayout({
           <AnalyticsProvider />
           {children}
           <SiteFooter />
+          <CookieBanner />
         </LocaleProvider>
       </body>
     </html>
