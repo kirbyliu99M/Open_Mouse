@@ -35,7 +35,15 @@ import {
   computeHandMeasurements,
   type CorrectedMeasurementsResult,
 } from "../geometry/measurements";
-import { judgeParallaxCorrection } from "../geometry/parallaxGuard";
+import {
+  focalCorroborated,
+  judgeParallaxCorrection,
+} from "../geometry/parallaxGuard";
+import {
+  estimateFocalFromHomography,
+  type PrincipalPoint,
+} from "../geometry/focal-from-homography";
+import { centrePrincipalPoint } from "../geometry/camera-pose";
 import {
   computeUncorrectedShadow,
   nominalFocalPxFromLongEdge,
@@ -138,20 +146,29 @@ export interface PaperEdgeFinish {
 
 /**
  * V3.2 F16 (candidate, 未拍板): the parallax correction's safety check
- * (`judgeParallaxCorrection`). A correction that made the hand or the palm
- * longer, or shortened any of the three lengths beyond what parallax can, is
- * not used: the scan is measured from the same landmarks with no correction
- * (`computeHandMeasurements`, the uncorrected path), with
+ * (parallaxGuard.ts). A correction is not used when a ratio of the three
+ * lengths is outside the limits (`judgeParallaxCorrection`) AND its focal
+ * length is not backed by the photo (`focalCorroborated`: not from EXIF, and
+ * not near the sheet homography's own focal estimate, worked out about
+ * `principalPoint`). The scan is then measured from the same landmarks with
+ * no correction (`computeHandMeasurements`, the uncorrected path), with
  * `parallaxCorrected: false` and `focalSource: "none"` (the contract's "no
  * correction was made"), so the engine scale leaves it as it is. The refusal
- * and its numbers go to the local attempt log only. A scan that was not
- * corrected, or whose uncorrected lengths cannot be worked out, is returned as
- * it came. Pure.
+ * and its numbers go to the local attempt log only.
+ *
+ * Known gap (未拍板, for Claude): scan_quality reads `focalSource` and the
+ * shadow prior after this step, so a refused correction is sent as
+ * `focalSource: "none"`, `parallaxCorrected: false`, `priorEffect` within_2,
+ * the same as a scan that had no focal length at all.
+ *
+ * A scan that was not corrected, or whose uncorrected lengths cannot be
+ * worked out, is returned as it came. Pure.
  */
 export function guardCorrection(
   corrected: CorrectedMeasurementsResult,
   landmarksPx: readonly Point2[],
   homography: Homography,
+  principalPoint: PrincipalPoint,
 ): {
   readonly corrected: CorrectedMeasurementsResult;
   readonly refusal: ParallaxGuardDiagnostics | null;
@@ -171,6 +188,17 @@ export function guardCorrection(
   }
   const verdict = judgeParallaxCorrection(uncorrected, corrected.measurements);
   if (verdict.accept) return { corrected, refusal: null };
+  if (
+    focalCorroborated(
+      corrected.focalSource,
+      corrected.fPx,
+      corrected.focalSource === "exif"
+        ? null
+        : (estimateFocalFromHomography(homography, principalPoint)?.fPx ??
+            null),
+    )
+  )
+    return { corrected, refusal: null };
   return {
     corrected: {
       measurements: uncorrected,
@@ -431,6 +459,10 @@ export async function finishPaperEdge(
     corrected,
     hand.landmarksPx,
     geometry.homography,
+    centrePrincipalPoint(
+      frames.principalFrame.width,
+      frames.principalFrame.height,
+    ),
   );
   corrected = guarded.corrected;
   const parallaxGuard = guarded.refusal;

@@ -199,6 +199,7 @@ function reference(
       }),
       landmarks,
       geometry!.homography,
+      { cx: FRAME.width / 2, cy: FRAME.height / 2 },
     ).corrected,
   };
 }

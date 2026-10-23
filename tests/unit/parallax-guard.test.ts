@@ -26,6 +26,7 @@ import { recoverCameraPose } from "../../src/client/geometry/camera-pose";
 import { nominalFocalPxFromLongEdge } from "../../src/client/geometry/nominalFocalShadow";
 import { focalWithinPrior } from "../../src/client/geometry/parallax";
 import {
+  focalCorroborated,
   judgeParallaxCorrection,
   type GuardedLengths,
 } from "../../src/client/geometry/parallaxGuard";
@@ -47,11 +48,12 @@ const lengths = (
 ): GuardedLengths => ({ handLengthMm, palmLengthMm, palmWidthMm });
 
 describe("judgeParallaxCorrection (pure)", () => {
-  it("the named limits: 0.99 for the two lengths, 0.985 for the width, 1.10 for all three", () => {
+  it("the named limits: 0.99 for the two lengths, 0.985 for the width, 1.10 for all three, the focal estimate within 0.85-1.4 of the one used", () => {
     expect(PARALLAX_GUARD).toEqual({
       minLengthRatio: 0.99,
       minWidthRatio: 0.985,
       maxRatio: 1.1,
+      focalAgreement: { min: 0.85, max: 1.4 },
     });
   });
 
@@ -254,7 +256,12 @@ describe("the 185.7 -> 205.4 mm correction, reproduced (模擬)", () => {
         nominalFocalPx: NOMINAL,
       },
     );
-    const guarded = guardCorrection(corrected, KIRBY_LIKE.landmarksPx, h);
+    const guarded = guardCorrection(
+      corrected,
+      KIRBY_LIKE.landmarksPx,
+      h,
+      PRINCIPAL,
+    );
     expect(guarded.corrected).toEqual({
       measurements: computeHandMeasurements(KIRBY_LIKE.landmarksPx, h),
       parallaxCorrected: false,
@@ -299,7 +306,12 @@ describe("normal corrections are untouched (模擬)", () => {
           },
         );
         expect(corrected.parallaxCorrected).toBe(true);
-        const guarded = guardCorrection(corrected, scene.landmarksPx, h);
+        const guarded = guardCorrection(
+          corrected,
+          scene.landmarksPx,
+          h,
+          PRINCIPAL,
+        );
         expect(guarded.corrected).toBe(corrected);
         expect(guarded.refusal).toBeNull();
         const v = judgeParallaxCorrection(
@@ -328,8 +340,258 @@ describe("normal corrections are untouched (模擬)", () => {
       heightPx: FRAME.height,
     });
     expect(uncorrected.parallaxCorrected).toBe(false);
-    const guarded = guardCorrection(uncorrected, scene.landmarksPx, h);
+    const guarded = guardCorrection(
+      uncorrected,
+      scene.landmarksPx,
+      h,
+      PRINCIPAL,
+    );
     expect(guarded.corrected).toBe(uncorrected);
+    expect(guarded.refusal).toBeNull();
+  });
+});
+
+describe("focalCorroborated (pure)", () => {
+  it("a focal length from EXIF is always backed, whatever the estimate", () => {
+    for (const estimate of [null, 1, 894, 1442, NaN, 1e9])
+      expect(focalCorroborated("exif", 1442, estimate)).toBe(true);
+  });
+
+  it("otherwise the estimate must exist and be within 0.85-1.4 of the one used, ends included", () => {
+    expect(focalCorroborated("nominal", 1000, 850)).toBe(true);
+    expect(focalCorroborated("nominal", 1000, 1400)).toBe(true);
+    expect(focalCorroborated("nominal", 1000, 1000)).toBe(true);
+    expect(focalCorroborated("nominal", 1000, 849.9)).toBe(false);
+    expect(focalCorroborated("nominal", 1000, 1400.1)).toBe(false);
+    expect(focalCorroborated("homography", 1000, 849.9)).toBe(false);
+    expect(focalCorroborated("nominal", 1000, null)).toBe(false);
+    expect(focalCorroborated("nominal", 1000, NaN)).toBe(false);
+    expect(focalCorroborated("nominal", 1000, 0)).toBe(false);
+    expect(focalCorroborated("nominal", 0, 1000)).toBe(false);
+    // Kirby's failing scan (實測 values): 894 px against the nominal 1442 px.
+    expect(focalCorroborated("nominal", 1442, 894)).toBe(false);
+  });
+});
+
+const inFrame = (corners: readonly Point2[]) =>
+  corners.every(
+    (p) => p.x >= 0 && p.x <= FRAME.width && p.y >= 0 && p.y <= FRAME.height,
+  );
+
+function correctOblique(
+  scene: ReturnType<typeof buildObliqueScene>,
+  exifFocalPx: number | null,
+) {
+  const h = homographyOf(scene.corners);
+  const corrected = computeCorrectedHandMeasurements(scene.landmarksPx, h, {
+    exifFocalPx,
+    widthPx: FRAME.width,
+    heightPx: FRAME.height,
+    nominalFocalPx: NOMINAL,
+  });
+  const uncorrected = computeHandMeasurements(scene.landmarksPx, h);
+  const guarded = guardCorrection(corrected, scene.landmarksPx, h, PRINCIPAL);
+  return { corrected, uncorrected, guarded };
+}
+
+describe("right corrections of a camera tilted 30-40 degrees are kept (模擬)", () => {
+  // The ratio alone would refuse these: the basis numbers of constants.ts.
+  const BASIS = [
+    { tiltDeg: 30, azimuthDeg: -90, ratio: 0.988 },
+    { tiltDeg: 35, azimuthDeg: -90, ratio: 0.98 },
+    { tiltDeg: 40, azimuthDeg: -90, ratio: 0.971 },
+    { tiltDeg: 40, azimuthDeg: 90, ratio: 1.105 },
+  ];
+  for (const b of BASIS) {
+    it(`true focal length, ${b.tiltDeg} deg towards the ${b.azimuthDeg < 0 ? "wrist" : "fingertips"}, 450 mm: the hand-length ratio reads ${b.ratio}, outside the limits`, () => {
+      const scene = buildObliqueScene({
+        ...FRAME,
+        fPx: NOMINAL,
+        tiltDeg: b.tiltDeg,
+        azimuthDeg: b.azimuthDeg,
+        distanceMm: 450,
+      });
+      expect(inFrame(scene.corners)).toBe(true);
+      const { corrected, uncorrected } = correctOblique(scene, null);
+      const v = judgeParallaxCorrection(uncorrected, corrected.measurements);
+      expect(v.accept).toBe(false);
+      expect(v.ratios.handLength).toBeCloseTo(b.ratio, 3);
+    });
+  }
+
+  for (const tiltDeg of [30, 35, 40])
+    for (const azimuthDeg of [-90, 90])
+      for (const exif of [false, true])
+        it(`${tiltDeg} deg, azimuth ${azimuthDeg}, ${exif ? "EXIF" : "no EXIF (nominal)"}: the very same correction back, the hand within 0.5 mm of the true one`, () => {
+          const scene = buildObliqueScene({
+            ...FRAME,
+            fPx: NOMINAL,
+            tiltDeg,
+            azimuthDeg,
+            distanceMm: 450,
+          });
+          expect(inFrame(scene.corners)).toBe(true);
+          const { corrected, guarded } = correctOblique(
+            scene,
+            exif ? NOMINAL : null,
+          );
+          expect(corrected.focalSource).toBe(exif ? "exif" : "nominal");
+          expect(guarded.corrected).toBe(corrected);
+          expect(guarded.refusal).toBeNull();
+          expect(
+            Math.abs(
+              corrected.measurements.handLengthMm - scene.trueHandLengthMm,
+            ),
+          ).toBeLessThan(0.5);
+        });
+});
+
+describe("a focal length off by 10-30 %, tilted 15-30 degrees, no EXIF (模擬)", () => {
+  for (const k of [0.9, 1.1, 1.2, 1.3])
+    for (const tiltDeg of [15, 20, 25, 30])
+      for (const azimuthDeg of [-90, 90])
+        it(`true focal ${k} x nominal, ${tiltDeg} deg, azimuth ${azimuthDeg}, 420 mm: kept`, () => {
+          const scene = buildObliqueScene({
+            ...FRAME,
+            fPx: NOMINAL * k,
+            tiltDeg,
+            azimuthDeg,
+            distanceMm: 420,
+          });
+          const { corrected, guarded } = correctOblique(scene, null);
+          expect(corrected.focalSource).toBe("nominal");
+          // The correction's own error (up to about 8 mm here, from the
+          // focal length being off) is what it was before F16: the guard
+          // only decides whether to use it.
+          expect(guarded.corrected).toBe(corrected);
+          expect(guarded.refusal).toBeNull();
+        });
+
+  it("1.2 x nominal, 30 deg towards the fingertips: ratio 1.101, kept, because it takes the hand from +15.5 mm to -3.3 mm", () => {
+    const scene = buildObliqueScene({
+      ...FRAME,
+      fPx: NOMINAL * 1.2,
+      tiltDeg: 30,
+      azimuthDeg: 90,
+      distanceMm: 420,
+    });
+    const { corrected, uncorrected, guarded } = correctOblique(scene, null);
+    expect(
+      judgeParallaxCorrection(uncorrected, corrected.measurements).ratios
+        .handLength,
+    ).toBeCloseTo(1.101, 3);
+    expect(uncorrected.handLengthMm - scene.trueHandLengthMm).toBeCloseTo(
+      15.5,
+      1,
+    );
+    expect(
+      corrected.measurements.handLengthMm - scene.trueHandLengthMm,
+    ).toBeCloseTo(-3.3, 1);
+    expect(guarded.corrected).toBe(corrected);
+  });
+
+  it("0.8 x nominal, 20 deg towards the wrist: ratio 0.978, refused, because the correction is worse (+5.2 mm against +0.8 mm)", () => {
+    const scene = buildObliqueScene({
+      ...FRAME,
+      fPx: NOMINAL * 0.8,
+      tiltDeg: 20,
+      azimuthDeg: -90,
+      distanceMm: 420,
+    });
+    const { corrected, uncorrected, guarded } = correctOblique(scene, null);
+    expect(
+      corrected.measurements.handLengthMm - scene.trueHandLengthMm,
+    ).toBeCloseTo(5.2, 1);
+    expect(uncorrected.handLengthMm - scene.trueHandLengthMm).toBeCloseTo(
+      0.8,
+      1,
+    );
+    expect(guarded.refusal).toMatchObject({
+      reason: "lengthened",
+      field: "handLength",
+    });
+    expect(guarded.refusal!.ratios.handLength).toBeCloseTo(0.978, 3);
+    expect(guarded.corrected.measurements).toEqual(uncorrected);
+  });
+});
+
+describe("corners placed off the sheet's (模擬)", () => {
+  const scene = buildShadowScene({
+    width: FRAME.width,
+    height: FRAME.height,
+    fPx: NOMINAL,
+    tiltDeg: 5,
+    cameraHeightMm: 420,
+  });
+  /** The two corners of one edge moved `px` inwards, along the edge. */
+  const nudge = (edge: "top" | "bottom", px: number) =>
+    scene.corners.map((p, i) => {
+      const onEdge = edge === "top" ? i < 2 : i >= 2;
+      if (!onEdge) return p;
+      return { x: p.x + (i === 0 || i === 3 ? px : -px), y: p.y };
+    });
+  const guardOn = (corners: readonly Point2[]) => {
+    const h = homographyOf(corners);
+    const corrected = computeCorrectedHandMeasurements(scene.landmarksPx, h, {
+      exifFocalPx: null,
+      widthPx: FRAME.width,
+      heightPx: FRAME.height,
+      nominalFocalPx: NOMINAL,
+    });
+    return {
+      estimate: estimateFocalFromHomography(h, PRINCIPAL),
+      guarded: guardCorrection(corrected, scene.landmarksPx, h, PRINCIPAL),
+    };
+  };
+
+  it("60 px in on the top edge: no focal estimate, the palm width reads 1.10-1.12, refused as over_shortened", () => {
+    const { estimate, guarded } = guardOn(nudge("top", 60));
+    expect(estimate).toBeNull();
+    expect(guarded.refusal).toMatchObject({
+      reason: "over_shortened",
+      field: "palmWidth",
+    });
+    expect(guarded.refusal!.ratios.palmWidth).toBeGreaterThan(1.1);
+    expect(guarded.refusal!.ratios.palmWidth).toBeLessThan(1.12);
+  });
+
+  it("40 px in on the bottom edge: no focal estimate, the hand made longer, refused", () => {
+    const { estimate, guarded } = guardOn(nudge("bottom", 40));
+    expect(estimate).toBeNull();
+    expect(guarded.refusal).toMatchObject({
+      reason: "lengthened",
+      field: "handLength",
+    });
+  });
+});
+
+describe("the EXIF path is left as it was (模擬)", () => {
+  it("an EXIF focal length is never refused, even a wrong one on the Kirby-like corners (a known limit: the guard cannot see a wrong EXIF)", () => {
+    const h = homographyOf(KIRBY_LIKE.corners);
+    const corrected = computeCorrectedHandMeasurements(
+      KIRBY_LIKE.landmarksPx,
+      h,
+      {
+        exifFocalPx: NOMINAL,
+        widthPx: FRAME.width,
+        heightPx: FRAME.height,
+        nominalFocalPx: NOMINAL,
+      },
+    );
+    expect(corrected.focalSource).toBe("exif");
+    expect(
+      judgeParallaxCorrection(
+        computeHandMeasurements(KIRBY_LIKE.landmarksPx, h),
+        corrected.measurements,
+      ).accept,
+    ).toBe(false);
+    const guarded = guardCorrection(
+      corrected,
+      KIRBY_LIKE.landmarksPx,
+      h,
+      PRINCIPAL,
+    );
+    expect(guarded.corrected).toBe(corrected);
     expect(guarded.refusal).toBeNull();
   });
 });

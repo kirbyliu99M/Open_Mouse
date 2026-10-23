@@ -228,34 +228,51 @@ export const CAMERA_CONSTANTS = {
 /**
  * V3.2 F16 (candidate, 未拍板): the parallax correction's safety check
  * (`src/client/geometry/parallaxGuard.ts`). A ratio is the UNCORRECTED length
- * over the corrected one. The landmarks stand above the sheet, so a correction
- * that is right can only pull them in: every ratio is a little above 1.
+ * over the corrected one. A correction is refused only when a ratio is
+ * outside the first three limits AND its focal length is not backed by the
+ * photo (`focalAgreement`). The ratios alone are not enough: for a camera
+ * close to overhead a right correction reads a little above 1, but tilted far
+ * it does not (模擬, tests/unit/parallax-guard.test.ts, 1080x1920, the
+ * camera's true focal length, 450 mm: towards the wrist 0.988 at 30 degrees,
+ * 0.980 at 35, 0.971 at 40; towards the fingertips 1.105 at 40).
  *
- * - `minLengthRatio` 0.99 (hand length, palm length): a correction that makes
- *   either longer than the uncorrected one by more than 1 % is not used. Kirby's
- *   eight measured scans (實測, 2026-10-23) put the ratio at 1.018-1.056; R7's
- *   simulation (模擬, review/R7/c.out.txt) at 1.018-1.080. The 1 % is room for
- *   noise: in the F16 simulation (模擬) a real camera tilted 30 degrees and
- *   corrected with its own true focal length reads 0.993 (the uncorrected
- *   hand is then itself shortened by the tilt).
+ * - `minLengthRatio` 0.99 (hand length, palm length): Kirby's eight measured
+ *   scans (實測, 2026-10-23) put the ratio at 1.018-1.056; R7's simulation
+ *   (模擬, review/R7/c.out.txt) at 1.018-1.080. The 1 % is room for noise.
  * - `minWidthRatio` 0.985 (palm width): the lowest measured width ratio is
  *   0.990 (實測, given to three decimals), so the width floor sits half a
  *   percent below it rather than on it.
- * - `maxRatio` 1.10 (all three): a correction that shortens any of them by
- *   more than 10 % is not used. The largest simulated ratio in R7 is 1.080
+ * - `maxRatio` 1.10 (all three): the largest simulated ratio in R7 is 1.080
  *   (palm length, a 3000x4000 photo with the sheet filling 0.8 of it, a
- *   210 mm hand); the largest measured one 1.058. Corners placed a few tens
- *   of px off reach 1.10-1.12 in the F16 simulation (模擬), which is a wrong
- *   pose, not a stronger parallax.
+ *   210 mm hand); the largest measured one 1.058. Corners placed 60 px inside
+ *   the sheet's on one edge read 1.107-1.114 on the palm width in the F16
+ *   simulation (模擬), and no focal estimate can be worked out from them.
+ * - `focalAgreement` 0.85-1.4 (the sheet homography's own focal estimate over
+ *   the focal length used; EXIF is always backed). In the F16 simulation
+ *   (模擬, 1080x1920, 350 and 450 mm, tilted 0-40 degrees towards the wrist,
+ *   the fingertips or the side, no EXIF so the nominal focal length is used,
+ *   the true one 0.62-1.3 times it), over the scans the ratios alone refuse:
+ *   an estimate 0.8 times the one used gave a corrected hand 5 to 13 mm too
+ *   long against an uncorrected one within 5.4 mm (refusing is right); 0.9
+ *   times, +3 to +6 mm against -1 to -5 mm (about the same either way);
+ *   1.1-1.3 times, -6 to +7.4 mm against +7.6 to +20 mm (using it is right,
+ *   or no worse). The 0.85 sits between 0.8 and 0.9 and is not tuned
+ *   further (不確定 where exactly the crossover is); the 1.4 is the prior
+ *   range's top (`FOCAL_PRIOR_RANGE`), not simulated beyond 1.3. Kirby's
+ *   failing scan: 894 / 1442 = 0.62, not backed. The estimate is used
+ *   whether or not focal-from-homography.ts flags it `reliable`: a camera
+ *   tilted straight back gives it from one formula only and is flagged
+ *   unreliable, yet in the simulation its value is right.
  *
  * Kirby's failing scan (實測) was 0.904 / 0.931 / 1.094: refused on the hand
- * length and the palm length. None of these is a gate on the photo: a refused
- * correction only means the scan is measured as if uncorrected.
+ * length. None of these is a gate on the photo: a refused correction only
+ * means the scan is measured as if uncorrected.
  */
 export const PARALLAX_GUARD = {
   minLengthRatio: 0.99,
   minWidthRatio: 0.985,
   maxRatio: 1.1,
+  focalAgreement: { min: 0.85, max: 1.4 },
 } as const;
 
 export type CaptureSource = "frame" | "takePhoto";
