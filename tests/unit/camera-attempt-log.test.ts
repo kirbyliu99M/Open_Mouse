@@ -1718,3 +1718,93 @@ describe("parallaxCheck (landmark-raw-v3, candidate): Kirby's S25 check, local o
     ).toBeNull();
   });
 });
+
+describe("parallaxGuard (V3.2 F16, candidate): a refused correction, local only", () => {
+  const okResult = (diagnostics: PipelineDiagnostics): PipelineResult => ({
+    status: "ok",
+    measurements: {} as never,
+    submission: {} as never,
+    warnings: [],
+    overlay: ERROR_RESULT.overlay,
+    diagnostics,
+  });
+  const build = (diagnostics: PipelineDiagnostics) =>
+    buildAttemptRecord({
+      at: "2026-10-23T10:20:30.000Z",
+      userAgent: "x",
+      capture: CAPTURE,
+      outcome: { kind: "result", result: okResult(diagnostics) },
+    });
+  // Scenario values: Kirby's preview-6 scan (實測) as ratios only.
+  const REFUSED = {
+    ...DIAGNOSTICS,
+    parallaxCorrected: false,
+    focal: { source: "none" as const, px: null },
+    parallaxGuard: {
+      refused: true as const,
+      reason: "lengthened" as const,
+      field: "handLength" as const,
+      ratios: {
+        handLength: 185.7 / 205.4,
+        palmLength: 94.3 / 101.3,
+        palmWidth: 66.5 / 60.8,
+      },
+      refusedFocal: { source: "nominal" as const, px: 1442.1077 },
+    },
+  };
+
+  it("keeps the reason, the field, the ratios to 0.0001 and the refused focal length to 1 px, and survives a round trip", () => {
+    const r = build(REFUSED);
+    expect(r.parallaxGuard).toEqual({
+      reason: "lengthened",
+      field: "handLength",
+      ratios: { handLength: 0.9041, palmLength: 0.9309, palmWidth: 1.0938 },
+      refusedFocal: { source: "nominal", px: 1442 },
+    });
+    expect(r.parallaxCorrected).toBe(false);
+    expect(r.focal).toEqual({ source: "none", px: null });
+    expect(parseAttempts(serialiseAttempts([r]))).toEqual([r]);
+  });
+
+  it("is null when nothing was refused, on a failed run, and in an older record", () => {
+    expect(build(DIAGNOSTICS).parallaxGuard).toBeNull();
+    expect(build({ ...REFUSED, parallaxGuard: null }).parallaxGuard).toBeNull();
+    const thrown = buildAttemptRecord({
+      at: "2026-10-23T10:20:30.000Z",
+      userAgent: "x",
+      capture: CAPTURE,
+      outcome: { kind: "thrown", code: "X", message: "x" },
+    });
+    expect(thrown.parallaxGuard).toBeNull();
+    const old = JSON.parse(JSON.stringify(record())) as Record<string, unknown>;
+    delete old.parallaxGuard;
+    expect(parseAttempts(JSON.stringify([old]))[0].parallaxGuard).toBeNull();
+  });
+
+  it("sanitising: an unknown reason or field drops the whole entry; junk numbers become null", () => {
+    const base = { at: "2026-10-23T10:20:30.000Z", result: "ok" };
+    expect(
+      sanitizeAttempt({
+        ...base,
+        parallaxGuard: { reason: "bad", field: "handLength" },
+      })!.parallaxGuard,
+    ).toBeNull();
+    const r = sanitizeAttempt({
+      ...base,
+      parallaxGuard: {
+        reason: "over_shortened",
+        field: "palmWidth",
+        ratios: { handLength: "x", palmLength: 1.2, palmWidth: Number.NaN },
+        refusedFocal: { source: "prior", px: -3 },
+        extra: `data:image/jpeg;base64,${"A".repeat(100)}`,
+      },
+    })!;
+    expect(r.parallaxGuard).toEqual({
+      reason: "over_shortened",
+      field: "palmWidth",
+      ratios: { handLength: null, palmLength: 1.2, palmWidth: null },
+      refusedFocal: { source: null, px: null },
+    });
+    expect(JSON.stringify(r)).not.toMatch(/data:|base64/i);
+  });
+});

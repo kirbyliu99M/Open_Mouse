@@ -259,6 +259,27 @@ export interface AttemptRecord {
     readonly distancesPx: readonly [number, number, number, number];
     readonly imageLongEdgePx: number | null;
   } | null;
+  /**
+   * V3.2 F16 (candidate): a parallax correction the safety check did not use
+   * (`parallaxGuard.ts`): why, the first length that failed, the three ratios
+   * (uncorrected over corrected, to 0.0001) and the focal length it had used
+   * (px to 1). The scan was then measured uncorrected. `null` on every scan
+   * whose correction was used or never made, and in a record from before F16.
+   * Local only, never sent.
+   */
+  readonly parallaxGuard: {
+    readonly reason: "lengthened" | "over_shortened" | "not_finite";
+    readonly field: "handLength" | "palmLength" | "palmWidth";
+    readonly ratios: {
+      readonly handLength: number | null;
+      readonly palmLength: number | null;
+      readonly palmWidth: number | null;
+    };
+    readonly refusedFocal: {
+      readonly source: "exif" | "homography" | "nominal" | null;
+      readonly px: number | null;
+    };
+  } | null;
   readonly userAgent: string;
 }
 
@@ -503,6 +524,8 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
     cornerCheck: cleanCornerCheck(raw.cornerCheck),
     // Records stored before landmark-raw-v3 have none: null, not an error.
     parallaxCheck: cleanParallaxCheck(raw.parallaxCheck),
+    // Records stored before F16 have none: null, not an error.
+    parallaxGuard: cleanParallaxGuard(raw.parallaxGuard),
     userAgent: cleanString(raw.userAgent, MAX_USER_AGENT_LENGTH) ?? "",
   };
 }
@@ -544,6 +567,43 @@ function cleanParallaxCheck(value: unknown): AttemptRecord["parallaxCheck"] {
   const reported = cleanLengths(check.reported);
   if (!homographyFocal && !uncorrected && !reported) return null;
   return { homographyFocal, uncorrected, reported };
+}
+
+/** The F16 refusal, rebuilt field by field; without a known reason and field it is `null` as a whole. */
+function cleanParallaxGuard(value: unknown): AttemptRecord["parallaxGuard"] {
+  const guard = asObject(value);
+  if (!guard) return null;
+  const reason = guard.reason;
+  const field = guard.field;
+  if (
+    reason !== "lengthened" &&
+    reason !== "over_shortened" &&
+    reason !== "not_finite"
+  )
+    return null;
+  if (field !== "handLength" && field !== "palmLength" && field !== "palmWidth")
+    return null;
+  const ratios = asObject(guard.ratios);
+  const focal = asObject(guard.refusedFocal);
+  const px = cleanNumber(focal?.px, 0);
+  return {
+    reason,
+    field,
+    ratios: {
+      handLength: cleanNumber(ratios?.handLength, 4),
+      palmLength: cleanNumber(ratios?.palmLength, 4),
+      palmWidth: cleanNumber(ratios?.palmWidth, 4),
+    },
+    refusedFocal: {
+      source:
+        focal?.source === "exif" ||
+        focal?.source === "homography" ||
+        focal?.source === "nominal"
+          ? focal.source
+          : null,
+      px: px !== null && px > 0 && px <= MAX_FOCAL_PX ? px : null,
+    },
+  };
 }
 
 /** Distances of at most this many pixels are kept; anything larger is not a corner check. */
@@ -864,6 +924,8 @@ export function buildAttemptRecord(input: {
             reported: diagnostics.shadowPrior.reported ?? null,
           }
         : null,
+    parallaxGuard:
+      result === "ok" ? (diagnostics?.parallaxGuard ?? null) : null,
     cornerCheck:
       outcome.kind === "cornerCheck"
         ? {
@@ -913,6 +975,7 @@ export function buildAttemptRecord(input: {
       timingMs: { decode: null, paper: null, hand: null, total: null },
       analysisThread: null,
       parallaxCheck: null,
+      parallaxGuard: null,
       cornerCheck: null,
       userAgent: "",
     }

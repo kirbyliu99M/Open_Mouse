@@ -30,7 +30,12 @@ import {
   type Point2,
 } from "../geometry/homography";
 import { estimateFocalFromExif } from "../geometry/exif-focal";
-import { computeCorrectedHandMeasurements } from "../geometry/measurements";
+import {
+  computeCorrectedHandMeasurements,
+  computeHandMeasurements,
+  type CorrectedMeasurementsResult,
+} from "../geometry/measurements";
+import { judgeParallaxCorrection } from "../geometry/parallaxGuard";
 import {
   computeUncorrectedShadow,
   nominalFocalPxFromLongEdge,
@@ -48,7 +53,11 @@ import { runPaperEdgeHandGates } from "./gates";
 import { resolvePipelineHand } from "./hand";
 import { assemblePaperEdgeSubmission } from "./submission";
 import type { DetectedMarker } from "./markers";
-import type { FocalDiagnostics, ShadowPriorDiagnostics } from "./diagnostics";
+import type {
+  FocalDiagnostics,
+  ParallaxGuardDiagnostics,
+  ShadowPriorDiagnostics,
+} from "./diagnostics";
 import type { PipelineResult } from "./pipeline";
 
 export interface PaperEdgeFinishInput {
@@ -123,6 +132,61 @@ export interface PaperEdgeFinish {
   readonly focal: FocalDiagnostics | null;
   /** What the nominal focal prior would have changed; `null` unless the run ended in a measurement (or shadow mode is off). Not part of `result`. */
   readonly shadowPrior: ShadowPriorDiagnostics | null;
+  /** V3.2 F16: the correction the safety check refused, `null` when none was (`guardCorrection`). Not part of `result`. */
+  readonly parallaxGuard: ParallaxGuardDiagnostics | null;
+}
+
+/**
+ * V3.2 F16 (candidate, 未拍板): the parallax correction's safety check
+ * (`judgeParallaxCorrection`). A correction that made the hand or the palm
+ * longer, or shortened any of the three lengths beyond what parallax can, is
+ * not used: the scan is measured from the same landmarks with no correction
+ * (`computeHandMeasurements`, the uncorrected path), with
+ * `parallaxCorrected: false` and `focalSource: "none"` (the contract's "no
+ * correction was made"), so the engine scale leaves it as it is. The refusal
+ * and its numbers go to the local attempt log only. A scan that was not
+ * corrected, or whose uncorrected lengths cannot be worked out, is returned as
+ * it came. Pure.
+ */
+export function guardCorrection(
+  corrected: CorrectedMeasurementsResult,
+  landmarksPx: readonly Point2[],
+  homography: Homography,
+): {
+  readonly corrected: CorrectedMeasurementsResult;
+  readonly refusal: ParallaxGuardDiagnostics | null;
+} {
+  if (
+    !corrected.parallaxCorrected ||
+    corrected.fPx === null ||
+    corrected.focalSource === "none"
+  )
+    return { corrected, refusal: null };
+  let uncorrected;
+  try {
+    uncorrected = computeHandMeasurements(landmarksPx, homography);
+  } catch {
+    // Nothing to fall back to: the corrected numbers stand, as before F16.
+    return { corrected, refusal: null };
+  }
+  const verdict = judgeParallaxCorrection(uncorrected, corrected.measurements);
+  if (verdict.accept) return { corrected, refusal: null };
+  return {
+    corrected: {
+      measurements: uncorrected,
+      parallaxCorrected: false,
+      focalSource: "none",
+      fPx: null,
+      heightsMm: null,
+    },
+    refusal: {
+      refused: true,
+      reason: verdict.reason,
+      field: verdict.field,
+      ratios: verdict.ratios,
+      refusedFocal: { source: corrected.focalSource, px: corrected.fPx },
+    },
+  };
 }
 
 /**
@@ -244,6 +308,7 @@ export async function finishPaperEdge(
       parallaxCorrected: null,
       focal: null,
       shadowPrior: null,
+      parallaxGuard: null,
     };
   }
   const paperCornersFull = corners.map(toFull) as unknown as readonly [
@@ -302,6 +367,7 @@ export async function finishPaperEdge(
       parallaxCorrected: null,
       focal: null,
       shadowPrior: null,
+      parallaxGuard: null,
     };
   }
 
@@ -321,7 +387,7 @@ export async function finishPaperEdge(
     exifFocalPx = null;
   }
 
-  let corrected;
+  let corrected: CorrectedMeasurementsResult;
   try {
     // The analysed image's size gives the principal point (its centre), which
     // a centred crop leaves where it was.
@@ -356,8 +422,18 @@ export async function finishPaperEdge(
       parallaxCorrected: null,
       focal: null,
       shadowPrior: null,
+      parallaxGuard: null,
     };
   }
+
+  // V3.2 F16: a correction that cannot be right is not used.
+  const guarded = guardCorrection(
+    corrected,
+    hand.landmarksPx,
+    geometry.homography,
+  );
+  corrected = guarded.corrected;
+  const parallaxGuard = guarded.refusal;
 
   const focal: FocalDiagnostics = {
     source: corrected.focalSource,
@@ -378,6 +454,7 @@ export async function finishPaperEdge(
       parallaxCorrected: corrected.parallaxCorrected,
       focal,
       shadowPrior: null,
+      parallaxGuard,
     };
   }
   const submission = assemblePaperEdgeSubmission({
@@ -409,5 +486,6 @@ export async function finishPaperEdge(
       geometry.homography,
       corrected.measurements,
     ),
+    parallaxGuard,
   };
 }

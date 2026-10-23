@@ -14,6 +14,11 @@ import type { FrameSize, PixelRect } from "../camera/visibleView";
 import type { HandFlatness } from "./handFlatness";
 import type { AnalysisThread } from "./offMainAnalysis";
 import type { PaperCornerSource } from "../../lib/contracts/measurement";
+import type {
+  ParallaxGuardField,
+  ParallaxGuardRatios,
+  ParallaxGuardReason,
+} from "../geometry/parallaxGuard";
 
 export interface PaperDiagnostics {
   /** Corners whose two sides were both fitted, 0-4. */
@@ -160,6 +165,13 @@ export interface PipelineDiagnostics {
    */
   readonly shadowPrior: ShadowPriorDiagnostics | null;
   /**
+   * V3.2 F16 (candidate): a parallax correction the safety check did not use
+   * (`parallaxGuard.ts`), with why; `null` when no correction was refused;
+   * absent in hand-built diagnostics (tests). Local attempt log only: it
+   * changes no number beyond the refusal itself and is not sent to analytics.
+   */
+  readonly parallaxGuard?: ParallaxGuardDiagnostics | null;
+  /**
    * V3.2 F8 (candidate): where the sheet detector and the sharpness ran,
    * `worker` (a Web Worker, off the main thread) or `fallback` (the main
    * thread, because the worker was missing or failed; `fallback` as soon as
@@ -214,6 +226,21 @@ export interface ShadowPriorDiagnostics {
 export interface MeasuredDiagnostics {
   readonly handLengthMm: number | null;
   readonly palmWidthMm: number | null;
+}
+
+/** A parallax correction that was worked out and then not used (V3.2 F16, candidate). */
+export interface ParallaxGuardDiagnostics {
+  readonly refused: true;
+  readonly reason: ParallaxGuardReason;
+  /** The first length that failed the check. */
+  readonly field: ParallaxGuardField;
+  /** Uncorrected over corrected, unrounded. */
+  readonly ratios: ParallaxGuardRatios;
+  /** The focal length the refused correction used. */
+  readonly refusedFocal: {
+    readonly source: "exif" | "homography" | "nominal";
+    readonly px: number;
+  };
 }
 
 export interface FocalDiagnostics {

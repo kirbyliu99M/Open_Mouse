@@ -200,6 +200,39 @@ export const CAMERA_CONSTANTS = {
   },
 } as const;
 
+/**
+ * V3.2 F16 (candidate, 未拍板): the parallax correction's safety check
+ * (`src/client/geometry/parallaxGuard.ts`). A ratio is the UNCORRECTED length
+ * over the corrected one. The landmarks stand above the sheet, so a correction
+ * that is right can only pull them in: every ratio is a little above 1.
+ *
+ * - `minLengthRatio` 0.99 (hand length, palm length): a correction that makes
+ *   either longer than the uncorrected one by more than 1 % is not used. Kirby's
+ *   eight measured scans (實測, 2026-10-23) put the ratio at 1.018-1.056; R7's
+ *   simulation (模擬, review/R7/c.out.txt) at 1.018-1.080. The 1 % is room for
+ *   noise: in the F16 simulation (模擬) a real camera tilted 30 degrees and
+ *   corrected with its own true focal length reads 0.993 (the uncorrected
+ *   hand is then itself shortened by the tilt).
+ * - `minWidthRatio` 0.985 (palm width): the lowest measured width ratio is
+ *   0.990 (實測, given to three decimals), so the width floor sits half a
+ *   percent below it rather than on it.
+ * - `maxRatio` 1.10 (all three): a correction that shortens any of them by
+ *   more than 10 % is not used. The largest simulated ratio in R7 is 1.080
+ *   (palm length, a 3000x4000 photo with the sheet filling 0.8 of it, a
+ *   210 mm hand); the largest measured one 1.058. Corners placed a few tens
+ *   of px off reach 1.10-1.12 in the F16 simulation (模擬), which is a wrong
+ *   pose, not a stronger parallax.
+ *
+ * Kirby's failing scan (實測) was 0.904 / 0.931 / 1.094: refused on the hand
+ * length and the palm length. None of these is a gate on the photo: a refused
+ * correction only means the scan is measured as if uncorrected.
+ */
+export const PARALLAX_GUARD = {
+  minLengthRatio: 0.99,
+  minWidthRatio: 0.985,
+  maxRatio: 1.1,
+} as const;
+
 export type CaptureSource = "frame" | "takePhoto";
 
 /** What the shutter takes (`CAMERA_CONSTANTS.capture.source`), typed as the choice it is. */

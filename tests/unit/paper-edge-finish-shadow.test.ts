@@ -351,7 +351,15 @@ describe("finishPaperEdge records the homography focal estimate", () => {
       tiltedInput({ focalReferenceLongEdgePx: longEdge }),
     );
     expect(got.result.status).toBe("ok");
-    expect(got.focal).toEqual({ source: "nominal", px: prior });
+    // V3.2 F16: a prior twice the focal length the homography agrees with, on
+    // a 15° tilt, is the failing situation of Kirby's preview-6 scan; the
+    // safety check refuses that correction (tests/unit/parallax-guard.test.ts)
+    // and the log keeps which prior it was.
+    expect(got.parallaxGuard).toMatchObject({
+      refused: true,
+      refusedFocal: { source: "nominal", px: prior },
+    });
+    expect(got.focal).toEqual({ source: "none", px: null });
     expect(got.shadowPrior?.homographyFocal).toEqual({
       px: e.fPx,
       reliable: true,
