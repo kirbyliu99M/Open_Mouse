@@ -38,6 +38,7 @@ describe("advanceCueDebounce", () => {
       leavePerfectSamples: 2,
       minTextChangeMs: 500,
       confirmSamples: 2,
+      switchConfirmSamples: 2,
     });
   });
 
@@ -93,11 +94,23 @@ describe("advanceCueDebounce", () => {
     expect(state.shown).toBe("hold-still");
   });
 
-  it("the text changes no more often than every 500 ms between non-perfect cues", () => {
-    // A sample that flips every 125 ms: at most one change per 500 ms.
+  it("V3.2 F16: two cues that alternate sample by sample no longer swap the text", () => {
     const codes: CueCode[] = [];
     for (let i = 0; i < 24; i++)
       codes.push(i % 2 === 0 ? "hold-still" : "out-of-focus");
+    expect(new Set(shownAfter(codes))).toEqual(new Set(["hold-still"]));
+    // Two conflicting side lines: one sample's quad is tilted, the next's too small.
+    const sides: CueCode[] = [];
+    for (let i = 0; i < 24; i++) sides.push(i % 2 === 0 ? "tilted" : "too-far");
+    expect(new Set(shownAfter(sides))).toEqual(new Set(["tilted"]));
+  });
+
+  it("the text changes no more often than every 500 ms between non-perfect cues", () => {
+    // Each cue repeated twice (enough to be confirmed), flipping every 250 ms:
+    // at most one change per 500 ms.
+    const codes: CueCode[] = [];
+    for (let i = 0; i < 24; i++)
+      codes.push(Math.floor(i / 2) % 2 === 0 ? "hold-still" : "out-of-focus");
     const states = run(codes);
     const changeTimes: number[] = [];
     let previous: CueCode | null = null;
@@ -115,10 +128,44 @@ describe("advanceCueDebounce", () => {
     let state = advanceCueDebounce(INITIAL_CUE_DEBOUNCE_STATE, "tilted", 1000);
     state = advanceCueDebounce(state, "too-far", 1125);
     expect(state.shown).toBe("tilted");
-    state = advanceCueDebounce(state, "dark", 1499);
+    // Confirmed (twice in a row, F16) but inside the lockout.
+    state = advanceCueDebounce(state, "bright", 1375);
+    state = advanceCueDebounce(state, "bright", 1499);
     expect(state.shown).toBe("tilted");
     state = advanceCueDebounce(state, "bright", 1500);
     expect(state.shown).toBe("bright");
+  });
+
+  it("V3.2 F16: an ordinary cue needs two samples in a row to replace another; one sample in between starts the count again", () => {
+    let state = advanceCueDebounce(INITIAL_CUE_DEBOUNCE_STATE, "tilted", 1000);
+    state = advanceCueDebounce(state, "dark", 2000);
+    expect(state.shown).toBe("tilted");
+    state = advanceCueDebounce(state, "too-far", 3000);
+    expect(state.shown).toBe("tilted");
+    state = advanceCueDebounce(state, "too-far", 4000);
+    expect(state.shown).toBe("too-far");
+    // The cue on screen coming back clears a half-made run.
+    state = advanceCueDebounce(state, "dark", 5000);
+    state = advanceCueDebounce(state, "too-far", 6000);
+    state = advanceCueDebounce(state, "dark", 7000);
+    expect(state.shown).toBe("too-far");
+  });
+
+  it("V3.2 F16: switchConfirmSamples is an option", () => {
+    const base = advanceCueDebounce(INITIAL_CUE_DEBOUNCE_STATE, "tilted", 1000);
+    const one = {
+      leavePerfectSamples: 2,
+      minTextChangeMs: 0,
+      switchConfirmSamples: 1,
+    };
+    expect(advanceCueDebounce(base, "dark", 2000, one).shown).toBe("dark");
+    const three = { ...one, switchConfirmSamples: 3 };
+    let state = base;
+    for (let i = 0; i < 2; i++)
+      state = advanceCueDebounce(state, "dark", 2000 + i, three);
+    expect(state.shown).toBe("tilted");
+    state = advanceCueDebounce(state, "dark", 2003, three);
+    expect(state.shown).toBe("dark");
   });
 
   it("does nothing for the same code, and never moves the change time", () => {
@@ -240,8 +287,9 @@ describe("advanceCueDebounce: paper-gate cues need the same reason twice in a ro
     ).toEqual([
       "hold-still",
       "hold-still",
-      "out-of-focus",
-      "out-of-focus",
+      // One sample of an ordinary cue is not enough to replace another (F16).
+      "hold-still",
+      "hold-still",
       "paper-curled",
     ]);
   });
@@ -328,8 +376,12 @@ describe("advanceCueDebounce: paper-gate cues need the same reason twice in a ro
     expect(states.map((s) => s.shown)).toEqual([null, "paper-curled"]);
   });
 
-  it("ordinary cues are unchanged: they still show at once and follow the old rules", () => {
-    expect(shown(["no-corners", "tilted"])).toEqual(["no-corners", "tilted"]);
+  it("ordinary cues show at once on an empty screen; replacing another cue takes two in a row (F16)", () => {
+    expect(shown(["no-corners", "tilted", "tilted"])).toEqual([
+      "no-corners",
+      "no-corners",
+      "tilted",
+    ]);
   });
 
   it("the lockout still applies after the second sample", () => {

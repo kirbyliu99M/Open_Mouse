@@ -148,6 +148,11 @@ import {
 import { problemAreaFor } from "./problemArea";
 import { FrozenPhoto, type DimensionSpec } from "./FrozenPhoto";
 import { EasyCorners } from "./EasyCorners";
+import {
+  advanceOutline,
+  INITIAL_OUTLINE_HYSTERESIS_STATE,
+  type OutlineHysteresisState,
+} from "./outlineHysteresis";
 import { PaperAdjust, type PaperAdjustConfirm } from "./PaperAdjust";
 import type { ReusedFocal } from "../geometry/parallax";
 import {
@@ -664,6 +669,10 @@ export default function EasyScanCamera({
   const lastSampleTimeRef = useRef(0);
   const lastDetectionAtRef = useRef(0);
   const cornerStatesRef = useRef<CornerStates>(INITIAL_CORNER_STATES);
+  // V3.2 F16: the outline's hysteresis, in front of the corner smoother.
+  const outlineRef = useRef<OutlineHysteresisState>(
+    INITIAL_OUTLINE_HYSTERESIS_STATE,
+  );
   const cueDebounceRef = useRef<CueDebounceState>(INITIAL_CUE_DEBOUNCE_STATE);
   const lastCueCodeRef = useRef<Cue["code"] | null>(null);
   const capturingRef = useRef(false);
@@ -1022,6 +1031,7 @@ export default function EasyScanCamera({
     noSheetCaptureRef.current = INITIAL_NO_SHEET_CAPTURE_STATE;
     handReadingsRef.current = EMPTY_HAND_READINGS;
     cornerStatesRef.current = INITIAL_CORNER_STATES;
+    outlineRef.current = INITIAL_OUTLINE_HYSTERESIS_STATE;
     cueDebounceRef.current = INITIAL_CUE_DEBOUNCE_STATE;
     lastCueCodeRef.current = null;
     firstSheetSeenAtRef.current = null;
@@ -2204,9 +2214,17 @@ export default function EasyScanCamera({
             ? mapMediaPointToContainer(p, coverRect, width, height)
             : null;
         };
+        // V3.2 F16: two quads that alternate (conflicting side lines) do not
+        // make the outline jump or blink (outlineHysteresis.ts); display only.
+        const outline = advanceOutline(
+          outlineRef.current,
+          [observe(0), observe(1), observe(2), observe(3)],
+          Math.hypot(coverRect.width, coverRect.height),
+        );
+        outlineRef.current = outline.state;
         cornerStatesRef.current = advanceCorners(
           cornerStatesRef.current,
-          [observe(0), observe(1), observe(2), observe(3)],
+          outline.shown,
           dtMs,
         );
         setCornerStates(cornerStatesRef.current);

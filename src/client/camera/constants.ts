@@ -132,6 +132,15 @@ export const CAMERA_CONSTANTS = {
      * side name) before that cue is put on screen (candidate, 未拍板).
      */
     confirmSamples: 2,
+    /**
+     * V3.2 F16 (candidate, 未拍板): consecutive samples with the SAME ordinary
+     * cue (not a paper-gate one, not "perfect") before it replaces another
+     * ordinary cue on screen. Two cues that alternate sample by sample (two
+     * conflicting side lines: "tilted" one sample, "too far" the next) used
+     * to swap the text every 500 ms; now the text stays. Leaving "perfect"
+     * keeps its own rule (`leavePerfectSamples`, any non-perfect codes).
+     */
+    switchConfirmSamples: 2,
   },
   /** The easy scan's corner dots (scan v2, candidates). */
   corners: {
@@ -141,6 +150,22 @@ export const CAMERA_CONSTANTS = {
     returnToGuideAfterMs: 1000,
     /** A corner found again within this long of being lost does not pop in again. */
     repopAfterLostMs: 500,
+  },
+  /**
+   * The live outline's hysteresis (V3.2 F16, candidates 未拍板;
+   * `outlineHysteresis.ts`). Display only: no gate, cue code or ring reads it.
+   */
+  outlineHysteresis: {
+    /**
+     * A sample whose furthest corner is more than this share of the picture's
+     * diagonal from the outline on screen is a jump (twice the 0.015 a corner
+     * may move between samples and still count as held still).
+     */
+    jumpFraction: 0.03,
+    /** Jumps in a row before the outline follows one (at 8 samples a second, one sample late). */
+    switchSamples: 2,
+    /** Samples in a row a corner on screen must be missing before its dot goes hollow. */
+    lostSamples: 3,
   },
   /**
    * The preview stream's shape (scan v2 field-of-view fix, candidates). The
