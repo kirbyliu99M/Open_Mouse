@@ -1042,6 +1042,72 @@ describe("檢查邊框 on a measured photo (review, F7)", () => {
     );
   });
 
+  it("OPEN DECISION (未拍板, Kirby): a 5 screen px touch wobble on a measured photo, under the 8 px touch slop, keeps its corner and measures the photo again (F15's wobble guard is in effect 2 px)", () => {
+    const scale = 0.38;
+    const state = open();
+    const press = {
+      type: "pointerDown",
+      index: 0,
+      pointerId: 4,
+      pointerType: "touch",
+      point: { x: 150, y: 150 },
+    } as const;
+    const wobbled = run(
+      state,
+      press,
+      { type: "pointerMove", pointerId: 4, point: { x: 153, y: 154 }, scale },
+      { type: "pointerUp", pointerId: 4 },
+    );
+    expect(5).toBeLessThan(PAPER_ADJUST_LAYOUT.dragSlopTouchScreenPx);
+    // Today: the corner stays 5 / 0.38, about 13 photo px, off (模擬)...
+    expect(
+      Math.hypot(
+        wobbled.corners[0].x - state.corners[0].x,
+        wobbled.corners[0].y - state.corners[0].y,
+      ),
+    ).toBeCloseTo(5 / scale, 9);
+    expect(frameMoved(wobbled)).toBe(true);
+    // ...and confirming measures again. Under brief F17 A.4 / F15 this would
+    // be `none` (the corner back on release): Kirby decides which.
+    expect(
+      adjustConfirmAction({
+        entry: "review",
+        result: measured,
+        hasFile: true,
+        moved: frameMoved(wobbled),
+      }),
+    ).toEqual({ kind: "rerun" });
+  });
+
+  it("the drag's moved flag decides no outcome: a touch drag just under and one just past the slop end the same way on release", () => {
+    const scale = 0.5;
+    const state = open();
+    const end = (dx: number) =>
+      run(
+        state,
+        {
+          type: "pointerDown",
+          index: 0,
+          pointerId: 5,
+          pointerType: "touch",
+          point: { x: 100, y: 100 },
+        },
+        {
+          type: "pointerMove",
+          pointerId: 5,
+          point: { x: 100 + dx, y: 100 },
+          scale,
+        },
+        { type: "pointerMove", pointerId: 5, point: { x: 103, y: 100 }, scale },
+        { type: "pointerUp", pointerId: 5 },
+      );
+    const slop = PAPER_ADJUST_LAYOUT.dragSlopTouchScreenPx;
+    const under = end(slop);
+    const past = end(slop + 1);
+    expect(under.corners).toEqual(past.corners);
+    expect(frameMoved(under)).toBe(frameMoved(past));
+  });
+
   it("F17 (Kirby, preview 7: the dot lagged the finger): the first pointermove of 3 screen px moves the handle 3 screen px", () => {
     const scale = 0.4;
     const state = open();

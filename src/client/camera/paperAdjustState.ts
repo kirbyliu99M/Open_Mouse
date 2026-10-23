@@ -63,14 +63,23 @@ export const PAPER_ADJUST_LAYOUT = {
   keyBigStepFactor: 10,
   /**
    * V3.2 F15 (candidate 未拍板, Kirby to decide): how far a press must travel
-   * on screen before it counts as a drag. Below it the press is a tap (it only
-   * selects): a finger's wobble on a handle, now that every measured photo
-   * opens this screen, must not count as a moved frame and measure again.
-   * Since F17 the corner follows the finger from the first move all the
-   * same, and since the F17 review it only sets the drag's `moved` flag: it
-   * never decides where the corner ends up (`tapRevertScreenPx` does).
-   * Touch takes the result sheet's tap slop (`TAP_SLOP_PX` 8); a mouse or pen
-   * barely wobbles. Not measured on a phone (不確定 how far a tap wobbles).
+   * on screen before it counts as a drag. Touch takes the result sheet's tap
+   * slop (`TAP_SLOP_PX` 8); a mouse or pen barely wobbles. Not measured on a
+   * phone (不確定 how far a tap wobbles).
+   *
+   * OPEN DECISION (F17 second review, 未拍板): F15 used it so that a
+   * finger's wobble on a handle did not count as a moved frame and measure
+   * the photo again, and brief F17 A.4 keeps that ("the slop only decides
+   * whether the frame moved"). Since the first F17 review it only sets the
+   * drag's `moved` flag, and NOTHING that decides an outcome reads that flag:
+   * release goes by `tapRevertScreenPx` (2 px) and confirming goes by
+   * `frameMoved` (the corners' coordinates). So F15's wobble guard is, in
+   * effect, 2 screen px for every pointer: a touch wobble of 3-8 px keeps its
+   * corner and a measured photo is measured again (pinned by a test). The two
+   * ways Kirby may choose: (a) back to F15 / A.4, a release under the slop
+   * puts the corner back (a fine adjustment under about 11 mm on the sheet
+   * at the whole-photo fit then springs back, 模擬, see `tapRevertScreenPx`);
+   * (b) keep today's behaviour and remove the slop and `moved`.
    */
   dragSlopTouchScreenPx: 8,
   dragSlopFineScreenPx: 2,
@@ -507,7 +516,8 @@ export interface DragState {
    * from `startPointer` at any time in this drag. The corner follows the
    * pointer exactly either way (F17), and release keeps it wherever the
    * pointer let go unless the press was a tap (`maxTravelScreenPx`, F17
-   * review): the slop no longer decides the corner's position.
+   * review). Read by no outcome today (neither release nor confirm): kept
+   * only for the open decision on the slop (`dragSlopTouchScreenPx`).
    */
   readonly moved: boolean;
   /**
@@ -870,10 +880,9 @@ export function adjustReducer(
       // `tapRevertScreenPx`): the corner goes back, as if untouched, so a
       // wobble is not a moved frame. A smaller move than the drag slop that
       // is more than a tap is a fine adjustment and stays where it was let go.
-      if (
-        !drag.moved &&
-        !(drag.maxTravelScreenPx > PAPER_ADJUST_LAYOUT.tapRevertScreenPx)
-      )
+      // The drag's `moved` is not read here (it cannot be true within 2 px,
+      // every slop being at least 2): see the open decision on the slop.
+      if (!(drag.maxTravelScreenPx > PAPER_ADJUST_LAYOUT.tapRevertScreenPx))
         return {
           ...state,
           corners: drag.before.corners,
