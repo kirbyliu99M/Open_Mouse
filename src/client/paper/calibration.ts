@@ -170,7 +170,7 @@ export interface ManualPaperCalibrationResult {
 export function evaluateManualPaperCalibration(
   input: ManualPaperCalibrationInput,
 ): ManualPaperCalibrationResult {
-  const check = checkManualQuad(input.corners, input.image);
+  const check = checkManualQuad(input.corners, input.image, input.paperSize);
   if (!check.ok) {
     return {
       ok: false,

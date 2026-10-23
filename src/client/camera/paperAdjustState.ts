@@ -615,7 +615,7 @@ export function startAdjust(input: {
   const previous =
     input.entry === "rescue" &&
     input.previous &&
-    checkManualQuad(input.previous.corners, image).ok
+    checkManualQuad(input.previous.corners, image, input.paperSize).ok
       ? input.previous
       : null;
   const start: DefaultAdjustFrame = previous
@@ -1039,7 +1039,7 @@ export type AdjustReadiness =
 export function adjustReadiness(state: AdjustState): AdjustReadiness {
   const notPlaced = state.placed.indexOf(false);
   if (notPlaced >= 0) return { ok: false, notPlaced: notPlaced as CornerIndex };
-  const check = checkManualQuad(state.corners, state.image);
+  const check = checkManualQuad(state.corners, state.image, state.paperSize);
   if (!check.ok) return { ok: false, problem: check.problem };
   return {
     ok: true,

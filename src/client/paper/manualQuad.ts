@@ -46,7 +46,6 @@ import { resolveOrientation } from "./orientation";
 import {
   isConvexQuad,
   orderQuadCorners,
-  polygonArea,
   totalLeastSquaresLine,
   intersectLines,
   lineFromTwoPoints,
@@ -66,8 +65,30 @@ export const MANUAL_QUAD_LIMITS = {
   defaultWidthFraction: 0.72,
   /** ...and at most this share of the photo's height, for a photo that is not tall enough. */
   defaultMaxHeightFraction: 0.9,
-  /** A frame must cover at least this share of the photo: the detector's own floor. */
+  /**
+   * The detector's own area floor. Before V3.2 F17 a placed frame had to
+   * cover this share of the photo too; it no longer does (`minPxPerMm`
+   * decides), and the field stays only as the detector's number.
+   */
   minAreaFraction: MIN_QUAD_AREA_FRACTION,
+  /**
+   * V3.2 F17 (candidate, 未拍板; Kirby's preview-7 photo): a placed frame is
+   * judged by resolution, not by area. The sheet's short side in the image
+   * (`paperShortSidePx`) must be at least this many px per mm of the paper's
+   * short side: 1.6 px/mm, 336 px for A4 (210 mm), 345 px for Letter.
+   * Kirby's photo, a sheet 0.4 of a 1024 px wide frame (about 410 px, 1.95
+   * px/mm), passes; a sheet 0.3 of a 1080 px frame (324 px) does not.
+   *
+   * Error at the floor (模擬, review F17 sim f17_resolution: 1024 x 1920, true
+   * f 998 px, tilt 0-8 degrees, 300 scenes, corner noise only, no landmark
+   * noise), hand length RMS / p95: 0.30 / 0.61 mm with the detector's 0.5 px
+   * corner noise, 1.56 / 3.06 mm with 2.6 px (about 1 CSS px on a fitted
+   * whole-photo screen), 3.35 / 7.0 mm with 5.3 px (2 CSS px). At 410 px:
+   * 0.22 / 0.41, 1.12 / 2.07, 2.53 / 4.90 mm. The palm width is about a
+   * quarter of that. Where between 300 and 380 px the floor should sit is
+   * 不確定; 1.6 is the brief's candidate.
+   */
+  minPxPerMm: 1.6,
   /**
    * How far outside the photo a corner may lie, as a share of the photo's
    * width (x) or height (y): a sheet corner just out of frame. A dragged
@@ -195,7 +216,10 @@ export function defaultAdjustFrame(input: {
     detected: [false, false, false, false],
     from: "centred",
   };
-  if (input.corners && checkManualQuad(input.corners, input.image).ok) {
+  if (
+    input.corners &&
+    checkManualQuad(input.corners, input.image, input.paperSize).ok
+  ) {
     return {
       corners: copyQuad(input.corners),
       detected: [true, true, true, true],
@@ -208,7 +232,7 @@ export function defaultAdjustFrame(input: {
     const count = found.filter(Boolean).length;
     if (count === 4) {
       const quad = partial as unknown as Quad4;
-      if (checkManualQuad(quad, input.image).ok)
+      if (checkManualQuad(quad, input.image, input.paperSize).ok)
         return {
           corners: copyQuad(quad),
           detected: [true, true, true, true],
@@ -232,7 +256,7 @@ export function defaultAdjustFrame(input: {
       const corners = CORNER_INDICES.map((i) =>
         i === missing ? guess : { x: partial[i]!.x, y: partial[i]!.y },
       ) as unknown as Quad4;
-      if (checkManualQuad(corners, input.image).ok)
+      if (checkManualQuad(corners, input.image, input.paperSize).ok)
         return {
           corners,
           detected: CORNER_INDICES.map((i) => i !== missing) as unknown as [
@@ -254,26 +278,29 @@ export function defaultAdjustFrame(input: {
     const merged = CORNER_INDICES.map((i) =>
       found[i] ? { x: partial![i]!.x, y: partial![i]!.y } : { ...guess[i] },
     ) as unknown as Quad4;
-    if (found.some(Boolean) && checkManualQuad(merged, input.image).ok)
+    if (
+      found.some(Boolean) &&
+      checkManualQuad(merged, input.image, input.paperSize).ok
+    )
       return {
         corners: merged,
         detected: found as unknown as [boolean, boolean, boolean, boolean],
         from: "guess",
       };
-    if (checkManualQuad(guess, input.image).ok)
+    if (checkManualQuad(guess, input.image, input.paperSize).ok)
       return {
         corners: copyQuad(guess),
         detected: [false, false, false, false],
         from: "guess",
       };
     // V3.2 F16 (candidate, 未拍板; Kirby's preview-6 test, a phone held too
-    // high): a rough quad that fails ONLY for being under the area floor is
-    // where the paper is, so the screen opens on it (and zoomed onto it)
-    // instead of on a centred sheet far bigger than the paper. The floor
-    // itself is unchanged: such a frame is still refused when it is confirmed,
-    // with the words saying to move the phone closer.
+    // high): a rough quad that fails ONLY for being under the size floor
+    // (since F17 the resolution floor, `minPxPerMm`) is where the paper is,
+    // so the screen opens on it instead of on a centred sheet far bigger than
+    // the paper. Such a frame is still refused when it is confirmed, with the
+    // words saying to move the phone closer.
     const mergedCheck = found.some(Boolean)
-      ? checkManualQuad(merged, input.image)
+      ? checkManualQuad(merged, input.image, input.paperSize)
       : null;
     if (mergedCheck && !mergedCheck.ok && mergedCheck.problem === "too_small")
       return {
@@ -281,7 +308,7 @@ export function defaultAdjustFrame(input: {
         detected: found as unknown as [boolean, boolean, boolean, boolean],
         from: "guess",
       };
-    const guessCheck = checkManualQuad(guess, input.image);
+    const guessCheck = checkManualQuad(guess, input.image, input.paperSize);
     if (!guessCheck.ok && guessCheck.problem === "too_small")
       return {
         corners: copyQuad(guess),
@@ -327,14 +354,16 @@ function isFinitePoint(p: Point2): boolean {
  * Whether a placed frame is usable: four finite points, not crossed, convex,
  * no two corners closer than `minCornerSpacingFraction` of the diagonal and no
  * interior angle within `minCornerAngleDeg` of 0 or 180 (`degenerate`),
- * every corner on the photo or at most `maxOutsideFraction` beyond it, and at
- * least `minAreaFraction` of the photo. The order may be either way round;
+ * every corner on the photo or at most `maxOutsideFraction` beyond it, and
+ * (V3.2 F17) a short side of at least `minPxPerMm` px per mm of the paper's
+ * short side, in place of the area floor. The order may be either way round;
  * `orientManualQuad` labels it afterwards. No aspect-ratio check (see the
  * module comment).
  */
 export function checkManualQuad(
   corners: Quad4,
   image: FrameSize,
+  paperSize: PaperSize = "a4",
 ): ManualQuadCheck {
   if (!corners.every(isFinitePoint))
     return { ok: false, problem: "not_finite" };
@@ -349,11 +378,24 @@ export function checkManualQuad(
   if (!corners.every((p) => withinImage(p, image)))
     return { ok: false, problem: "outside_image" };
   if (
-    polygonArea(corners) <
-    MANUAL_QUAD_LIMITS.minAreaFraction * image.width * image.height
+    paperShortSidePx(corners) <
+    MANUAL_QUAD_LIMITS.minPxPerMm * PAPER_DIMENSIONS_MM[paperSize].shortMm
   )
     return { ok: false, problem: "too_small" };
   return { ok: true };
+}
+
+/**
+ * The sheet's short side in image px (V3.2 F17): each pair of opposite edges
+ * averaged, and the shorter of the two averages. Under perspective the two
+ * edges of a pair differ; the average is what the homography spreads the
+ * paper's millimetres over. Pure.
+ */
+export function paperShortSidePx(corners: Quad4): number {
+  const d = (a: Point2, b: Point2) => Math.hypot(a.x - b.x, a.y - b.y);
+  const a = (d(corners[0], corners[1]) + d(corners[3], corners[2])) / 2;
+  const b = (d(corners[1], corners[2]) + d(corners[0], corners[3])) / 2;
+  return Math.min(a, b);
 }
 
 /**

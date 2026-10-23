@@ -843,33 +843,20 @@ describe("V3.2 F17: the guard re-checked under the 998 px prior (模擬; Kirby's
   });
 
   it("finishPaperEdge on the same frame with its own prior: corrected, no refusal", async () => {
+    const quad: SheetQuadDetection = {
+      corners: KIRBY_LIKE.corners as SheetQuadDetection["corners"],
+      cornersSeen: 4,
+      cornersFound: [true, true, true, true],
+      partialCorners:
+        KIRBY_LIKE.corners as SheetQuadDetection["partialCorners"],
+      minSideCoverage: 1,
+      edgeFitResidualPx: 0.2,
+      worstSideIndex: 0,
+      paperRegionFound: true,
+    };
     const out = await finishPaperEdge({
-      quad: {
-        corners: KIRBY_LIKE.corners as SheetQuadDetection["corners"],
-        cornersSeen: 4,
-        cornersFound: [true, true, true, true],
-        partialCorners:
-          KIRBY_LIKE.corners as SheetQuadDetection["partialCorners"],
-        minSideCoverage: 1,
-        edgeFitResidualPx: 0.2,
-        worstSideIndex: 0,
-        paperRegionFound: true,
-      },
-      paperEval: evaluatePaperEdgeCalibration(
-        {
-          corners: KIRBY_LIKE.corners as SheetQuadDetection["corners"],
-          cornersSeen: 4,
-          cornersFound: [true, true, true, true],
-          partialCorners:
-            KIRBY_LIKE.corners as SheetQuadDetection["partialCorners"],
-          minSideCoverage: 1,
-          edgeFitResidualPx: 0.2,
-          worstSideIndex: 0,
-          paperRegionFound: true,
-        },
-        "a4",
-        false,
-      ),
+      quad,
+      paperEval: evaluatePaperEdgeCalibration(quad, "a4", false),
       paperSize: "a4",
       hand: {
         landmarksPx: KIRBY_LIKE.landmarksPx,

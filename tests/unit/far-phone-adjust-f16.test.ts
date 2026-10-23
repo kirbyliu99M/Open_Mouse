@@ -95,12 +95,12 @@ function fill(
 describe("a sheet at 0.3 of the photo's width (a phone held too high)", () => {
   const guess = sheetAt(FRAME, 0.3);
 
-  it("the situation: in a 1080x1920 frame its quad is under the 8 % area floor", () => {
+  it("the situation: in a 1080x1920 frame its quad (short side 324 px) is under F17's resolution floor (1.6 px/mm, 336 px for A4)", () => {
     expect(checkManualQuad(guess, FRAME)).toEqual({
       ok: false,
       problem: "too_small",
     });
-    expect(MANUAL_QUAD_LIMITS.minAreaFraction).toBe(0.08);
+    expect(MANUAL_QUAD_LIMITS.minPxPerMm).toBe(1.6);
   });
 
   it("the screen opens on the paper's rough quad, not on the centred sheet", () => {

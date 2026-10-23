@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  paperShortSidePx,
   MANUAL_QUAD_LIMITS,
   centredPaperFrame,
   checkManualQuad,
@@ -244,22 +245,47 @@ describe("checkManualQuad: obvious mistakes only", () => {
     });
   });
 
-  it("refuses a frame smaller than the detector's own minimum area", () => {
-    const side = Math.sqrt(
-      MANUAL_QUAD_LIMITS.minAreaFraction * IMAGE.width * IMAGE.height,
-    );
-    const square = (s: number): Quad4 => [
+  it("V3.2 F17: refuses a frame whose short side is under 1.6 px per mm of the paper's (336 px for A4, 345 px for Letter), not by area", () => {
+    expect(MANUAL_QUAD_LIMITS.minPxPerMm).toBe(1.6);
+    const sheet = (short: number, long = short * Math.SQRT2): Quad4 => [
       { x: 100, y: 100 },
-      { x: 100 + s, y: 100 },
-      { x: 100 + s, y: 100 + s },
-      { x: 100, y: 100 + s },
+      { x: 100 + short, y: 100 },
+      { x: 100 + short, y: 100 + long },
+      { x: 100, y: 100 + long },
     ];
-    expect(checkManualQuad(square(side * 0.99), IMAGE)).toEqual({
+    const image = { width: 1024, height: 1920 };
+    expect(checkManualQuad(sheet(335.9), image)).toEqual({
       ok: false,
       problem: "too_small",
     });
-    expect(checkManualQuad(square(side * 1.01), IMAGE).ok).toBe(true);
-    expect(MANUAL_QUAD_LIMITS.minAreaFraction).toBe(0.08);
+    expect(checkManualQuad(sheet(336), image).ok).toBe(true);
+    expect(checkManualQuad(sheet(340), image, "letter")).toEqual({
+      ok: false,
+      problem: "too_small",
+    });
+    expect(checkManualQuad(sheet(345.5), image, "letter").ok).toBe(true);
+    // Kirby's preview-7 photo (scenario): a sheet 0.4 of a 1024 px wide
+    // frame, about 410 px, 11 % of the frame, passes.
+    expect(checkManualQuad(sheet(0.4 * 1024), image).ok).toBe(true);
+    // A sheet turned landscape: its short side is the vertical one.
+    expect(checkManualQuad(sheet(420, 300), image)).toEqual({
+      ok: false,
+      problem: "too_small",
+    });
+    // Area no longer decides: 6 % of a 3000 x 4000 photo, 600 px short side.
+    const big = { width: 3000, height: 4000 };
+    expect(checkManualQuad(sheet(600), big).ok).toBe(true);
+  });
+
+  it("paperShortSidePx: the shorter of the two opposite-edge averages", () => {
+    const trapezoid: Quad4 = [
+      { x: 0, y: 0 },
+      { x: 400, y: 0 },
+      { x: 380, y: 600 },
+      { x: 20, y: 600 },
+    ];
+    // top 400, bottom 360: 380; sides about 600.3 each.
+    expect(paperShortSidePx(trapezoid)).toBeCloseTo(380, 9);
   });
 
   it("refuses points that are not numbers", () => {
