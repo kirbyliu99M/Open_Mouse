@@ -146,6 +146,14 @@ export interface LiveHandReading {
  * Whether the live loop reads the hand on this sample: only when the sheet
  * is not found (the wait is paused otherwise, `sheetFoundByCue`), only once
  * the hand detector is loaded, and at most every `handSampleIntervalMs`.
+ *
+ * F17 review (candidate): also while the sheet is found when this sample's
+ * detector took the sheet BECAUSE of the palm (`paperChoice.reason`
+ * `palm`, `palmChoiceInUse`). Otherwise the found sheet stopped the
+ * readings, the palm hint went stale after `handStaleMs`, the detector went
+ * back to the larger region (a window), and the live frame flipped between
+ * the two about every 1.25 s (模擬, from the constants). With readings kept
+ * up, the hint stays fresh until a reading no longer finds the hand.
  */
 export function shouldSampleHand(input: {
   readonly sheetFound: boolean;
@@ -153,8 +161,10 @@ export function shouldSampleHand(input: {
   readonly lastReadingAtMs: number | null;
   readonly nowMs: number;
   readonly intervalMs?: number;
+  readonly palmChoiceInUse?: boolean;
 }): boolean {
-  if (input.sheetFound || !input.detectorReady) return false;
+  if (!input.detectorReady) return false;
+  if (input.sheetFound && input.palmChoiceInUse !== true) return false;
   const interval =
     input.intervalMs ?? CAMERA_CONSTANTS.noSheetCapture.handSampleIntervalMs;
   return (

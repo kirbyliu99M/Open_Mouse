@@ -2161,6 +2161,9 @@ export default function EasyScanCamera({
           detectorReady: isHandLandmarkerReady(),
           lastReadingAtMs: handReadingsRef.current.latest?.atMs ?? null,
           nowMs: now,
+          // F17 review: a sheet taken because of the palm keeps the hand
+          // read, so the hint does not go stale and flip back to a window.
+          palmChoiceInUse: detection.paperChoice?.reason === "palm",
         })
       ) {
         const points = readLiveHandPoints(canvas, width, height);

@@ -11,7 +11,13 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Point2 } from "../../src/client/geometry/homography";
 import { CAMERA_CONSTANTS } from "../../src/client/camera/constants";
-import { livePalmHint } from "../../src/client/camera/noSheetCapture";
+import {
+  EMPTY_HAND_READINGS,
+  livePalmHint,
+  recordHandReading,
+  shouldSampleHand,
+  type HandReadings,
+} from "../../src/client/camera/noSheetCapture";
 import { detectPaperQuad } from "../../src/client/paper/detect";
 import {
   PALM_CHOICE,
@@ -395,5 +401,106 @@ describe("livePalmHint (the live detector's palm, F17)", () => {
       /const palm = livePalmHint\(\{\s*latest: handReadingsRef\.current\.latest,\s*nowMs: now,\s*width,\s*height,\s*\}\);/,
     );
     expect(camera).toContain("...(palm ? { palmPointsPx: palm } : {}),");
+  });
+});
+
+describe("F17 review: the live loop over time, a window larger than the sheet and a still hand on the sheet (模擬)", () => {
+  const frame = windowScene();
+  // A hand reader that always finds the same still hand (the palm on the sheet).
+  const landmarks: Point2[] = Array.from({ length: 21 }, () => ({
+    ...PALM[0],
+  }));
+  PALM_LANDMARK_INDICES.forEach((li, k) => (landmarks[li] = { ...PALM[k] }));
+  const STEP_MS = 125; // the live loop's 8 Hz
+  const C = CAMERA_CONSTANTS.noSheetCapture;
+
+  /**
+   * The live loop's order per sample (EasyScanCamera): the palm hint from
+   * the newest reading, the detector, then whether to read the hand. The
+   * sheet counts as found when the detector found it (the window here is not
+   * A4-shaped and never is). Returns, per sample, whether the sheet was taken.
+   */
+  function simulate(keepReadingWhilePalmChose: boolean, durationMs = 3000) {
+    let readings: HandReadings = EMPTY_HAND_READINGS;
+    const tookSheet: boolean[] = [];
+    for (let now = 0; now <= durationMs; now += STEP_MS) {
+      const palm = livePalmHint({
+        latest: readings.latest,
+        nowMs: now,
+        width: W,
+        height: H,
+      });
+      const d = detectPaperQuad(
+        frame,
+        "a4",
+        palm ? { palmPointsPx: palm } : {},
+      );
+      const sheetFound = d.corners !== null;
+      tookSheet.push(d.paperChoice?.reason === "palm");
+      if (
+        shouldSampleHand({
+          sheetFound,
+          detectorReady: true,
+          lastReadingAtMs: readings.latest?.atMs ?? null,
+          nowMs: now,
+          palmChoiceInUse: keepReadingWhilePalmChose
+            ? d.paperChoice?.reason === "palm"
+            : false,
+        })
+      )
+        readings = recordHandReading(readings, {
+          atMs: now,
+          points: landmarks,
+        });
+    }
+    return tookSheet;
+  }
+
+  it("with the palm choice keeping the hand read: once the sheet is taken it stays taken for 3 s, no flip back to the window", () => {
+    const took = simulate(true);
+    const first = took.indexOf(true);
+    expect(first).toBeGreaterThanOrEqual(0);
+    expect(first).toBeLessThanOrEqual(1);
+    expect(took.slice(first).every(Boolean)).toBe(true);
+  }, 60_000);
+
+  it("what it fixes: with readings stopped while the sheet is found, the hint goes stale and the window comes back about every 1.25 s", () => {
+    expect(C.handStaleMs).toBe(1200);
+    const took = simulate(false);
+    const first = took.indexOf(true);
+    const flips = took
+      .slice(first)
+      .filter((t, i, a) => i > 0 && t !== a[i - 1]).length;
+    expect(flips).toBeGreaterThanOrEqual(2);
+  }, 60_000);
+
+  it("shouldSampleHand: a found sheet stops the readings unless the palm chose it", () => {
+    const base = {
+      sheetFound: true,
+      detectorReady: true,
+      lastReadingAtMs: 0,
+      nowMs: C.handSampleIntervalMs,
+    };
+    expect(shouldSampleHand(base)).toBe(false);
+    expect(shouldSampleHand({ ...base, palmChoiceInUse: false })).toBe(false);
+    expect(shouldSampleHand({ ...base, palmChoiceInUse: true })).toBe(true);
+    // Still at most every handSampleIntervalMs, and never before the detector loads.
+    expect(shouldSampleHand({ ...base, palmChoiceInUse: true, nowMs: 1 })).toBe(
+      false,
+    );
+    expect(
+      shouldSampleHand({
+        ...base,
+        palmChoiceInUse: true,
+        detectorReady: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("EasyScanCamera tells shouldSampleHand when this sample's sheet was taken because of the palm", () => {
+    const camera = readFileSync("src/client/camera/EasyScanCamera.tsx", "utf8");
+    expect(camera).toMatch(
+      /shouldSampleHand\(\{[\s\S]*?palmChoiceInUse: detection\.paperChoice\?\.reason === "palm",[\s\S]*?\}\)/,
+    );
   });
 });
