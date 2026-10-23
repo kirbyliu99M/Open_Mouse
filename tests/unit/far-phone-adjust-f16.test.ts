@@ -98,18 +98,12 @@ function fill(
 describe("a sheet at 0.3 of the photo's width (a phone held too high)", () => {
   const guess = sheetAt(FRAME, 0.3);
 
-  // KNOWN GAP (未拍板, Claude/Kirby decide): brief F17 B.3 asks that a phone
-  // held too high (the sheet 0.3-0.4 of the width) can be confirmed; B.1's
-  // candidate floor (1.6 px/mm) refuses the lower end of that range in a
-  // video frame. Either the floor goes to about 1.46 px/mm (0.3 of a 1024
-  // px frame, 307 px; its error not yet simulated) or B.3 is rewritten to
-  // "about 0.33 and up". These tests pin today's behaviour, not a decision.
-  it("KNOWN GAP (未拍板): in a 1080x1920 frame its quad (short side 324 px) is under F17's resolution floor (1.6 px/mm, 336 px for A4), against brief B.3", () => {
-    expect(checkManualQuad(guess, FRAME)).toEqual({
-      ok: false,
-      problem: "too_small",
-    });
-    expect(MANUAL_QUAD_LIMITS.minPxPerMm).toBe(1.6);
+  // Brief F17 B.3 (a phone held too high, the sheet 0.3-0.4 of the width,
+  // can be confirmed): closed 2026-10-24 when Kirby set the floor to 1.2
+  // px/mm (252 px for A4) after preview 8.
+  it("in a 1080x1920 frame its quad (short side 324 px) is over the 1.2 px/mm floor (252 px for A4)", () => {
+    expect(checkManualQuad(guess, FRAME)).toEqual({ ok: true });
+    expect(MANUAL_QUAD_LIMITS.minPxPerMm).toBe(1.2);
   });
 
   it("the screen opens on the paper's rough quad, not on the centred sheet", () => {
@@ -170,13 +164,19 @@ describe("a sheet at 0.3 of the photo's width (a phone held too high)", () => {
     expect(fit.scale * z).toBeGreaterThan(3);
   });
 
-  it("KNOWN GAP (未拍板): confirmed as it is on a rescue, the frame is refused for its size and the words say to move closer, against brief B.3", () => {
+  it("confirmed as it is on a rescue, the frame is measured from; a sheet under the floor (0.22, 238 px) is refused and the words say to move closer", () => {
     const state = startAdjust({
       entry: "rescue",
       overlay: overlayFor(FRAME, guess),
       paperSize: "a4",
     });
-    expect(adjustReadiness(state)).toEqual({ ok: false, problem: "too_small" });
+    expect(adjustReadiness(state).ok).toBe(true);
+    const small = startAdjust({
+      entry: "rescue",
+      overlay: overlayFor(FRAME, sheetAt(FRAME, 0.22)),
+      paperSize: "a4",
+    });
+    expect(adjustReadiness(small)).toEqual({ ok: false, problem: "too_small" });
     expect(paperAdjustCopy("zh-TW").quadProblem.too_small).toContain(
       "拿近一點",
     );
@@ -253,22 +253,22 @@ describe("brief B.3 through adjustReadiness: a 1024x1920 frame (Kirby's S25), th
     return adjustReadiness(state);
   };
 
-  it("KNOWN GAP (未拍板): A4 at 0.30 of the width (307 px) is refused as too small", () => {
-    expect(readiness(0.3, "a4")).toEqual({ ok: false, problem: "too_small" });
+  it("A4 at 0.22 of the width (225 px) is refused as too small", () => {
+    expect(readiness(0.22, "a4")).toEqual({ ok: false, problem: "too_small" });
   });
 
-  for (const f of [0.35, 0.4])
+  for (const f of [0.3, 0.35, 0.4])
     it(`A4 at ${f} of the width is confirmed`, () => {
       expect(readiness(f, "a4").ok).toBe(true);
     });
 
-  it("the paper size reaches the floor: at 0.33 (338 px) A4 (336 px) passes, Letter (345 px) does not", () => {
-    expect(readiness(0.33, "a4").ok).toBe(true);
-    expect(readiness(0.33, "letter")).toEqual({
+  it("the paper size reaches the floor: at 0.25 (256 px) A4 (252 px) passes, Letter (259 px) does not", () => {
+    expect(readiness(0.25, "a4").ok).toBe(true);
+    expect(readiness(0.25, "letter")).toEqual({
       ok: false,
       problem: "too_small",
     });
-    expect(readiness(0.35, "letter").ok).toBe(true);
+    expect(readiness(0.27, "letter").ok).toBe(true);
   });
 });
 
@@ -290,14 +290,14 @@ describe("F17 review: a photo already measured from the detector's corners, unde
   >[0]["result"];
 
   for (const { image, widthFraction } of [
-    { image: { width: 640, height: 480 }, widthFraction: 300 / 640 },
-    { image: { width: 1280, height: 960 }, widthFraction: 280 / 1280 },
+    { image: { width: 640, height: 480 }, widthFraction: 230 / 640 },
+    { image: { width: 1280, height: 960 }, widthFraction: 200 / 1280 },
   ])
     describe(`${image.width}x${image.height}, a sheet ${Math.round(widthFraction * image.width)} px across`, () => {
       // Landscape photo, portrait sheet: fits 480 / 960 px high.
       const corners = sheetOfRatio(image, widthFraction, A4_RATIO * 0.75);
-      it("the situation: the detector's frame is under the floor (336 px for A4)", () => {
-        expect(paperShortSidePx(corners)).toBeLessThan(336);
+      it("the situation: the detector's frame is under the floor (252 px for A4)", () => {
+        expect(paperShortSidePx(corners)).toBeLessThan(252);
         expect(checkManualQuad(corners, image)).toEqual({
           ok: false,
           problem: "too_small",
