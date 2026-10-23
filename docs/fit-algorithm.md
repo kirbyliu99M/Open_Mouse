@@ -46,9 +46,9 @@ an older corrected record (EXIF, homography) is scaled too (D3). No engine coeff
 same engine-scale number (D1 = B): the scan sheet, the scan page and the account page show
 `engineScaleMeasurements`, and the fit route hands it to the page and the analysis; a typed size is shown
 as typed. Simulated effect on the V1 population (600 hands, seed 20261018), corrected + scaled against
-today's uncorrected scan: top-10 Jaccard 0.875-0.957 and the same first place 86.8-94.5 % depending on
-the grip (a second uncorrected scan of the same hand: 0.847-0.945, 84.2-94.0 %), `predictGrip` differs for
-2.7 % of hands (unscaled: 24.5 %). These numbers come from the real `fitScaleMeasurements` (script
+today's uncorrected scan: top-10 Jaccard 0.830-0.936 and the same first place 81.2-92.3 % depending on
+the grip (a second uncorrected scan of the same hand: 0.792-0.920, 76.0-91.5 %), `predictGrip` differs for
+3.2 % of hands (unscaled: 35.5 %; recomputed 2026-10-23 at the 18 mm frame prior). These numbers come from the real `fitScaleMeasurements` (script
 `v32-program-2026-10-21\review\R7\d12_fit_population.ts`, output `d12.out.txt`, outside the repo) and are
 pinned, with the acceptance "not below a second scan minus 0.02", by
 `tests/unit/engine-scale-population.test.ts`; rerun both when the ratios change. The 0.77 is unchanged: on

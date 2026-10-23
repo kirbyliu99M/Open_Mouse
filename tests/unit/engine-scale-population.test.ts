@@ -73,12 +73,13 @@ const hands = Array.from({ length: 600 }, () => {
 });
 
 // Uncorrected over corrected at a paper fill f, the 190 mm row of R7's
-// c.out.txt (frame path), linear between fill 0.55 and 0.80 (模擬).
+// F17 (2026-10-23): the R7 script at the 18 mm frame prior (998 px; scratchpad
+// f17_scale.out.txt, 190 mm row), linear between fill 0.55 and 0.80 (模擬).
 const lin = (a: number, b: number) => (f: number) =>
   a + ((b - a) * (f - 0.55)) / 0.25;
-const kL = lin(1.0202, 1.029);
-const kP = lin(1.0348, 1.0509);
-const kW = lin(1.0292, 1.0431);
+const kL = lin(1.0294, 1.0427);
+const kP = lin(1.051, 1.0753);
+const kW = lin(1.0428, 1.0634);
 
 const CORRECTED_SCAN = {
   calibrationMethod: "paper-edge",
@@ -164,10 +165,10 @@ function population(gi: number) {
 describe("R7 §5.1 item 7: the engine scale keeps the v3 ranking (V1 population, seed 20261018, 模擬)", () => {
   // grip, then the script's fitScale Jaccard and same-first share (d12.out.txt).
   it.each([
-    [0, "unstated", 0.915, 0.92],
-    [1, "palm", 0.875, 0.868],
-    [2, "claw", 0.915, 0.902],
-    [3, "fingertip", 0.957, 0.945],
+    [0, "unstated", 0.877, 0.872],
+    [1, "palm", 0.83, 0.812],
+    [2, "claw", 0.882, 0.86],
+    [3, "fingertip", 0.936, 0.923],
   ] as const)(
     "grip %i (%s): within 0.02 of a second uncorrected scan, as documented",
     (gi, _name, docJaccard, docTop1) => {
@@ -186,7 +187,7 @@ describe("R7 §5.1 item 7: the engine scale keeps the v3 ranking (V1 population,
     30_000,
   );
 
-  it("predictGrip differs from today's uncorrected scan for 2.7 % of hands (seed 11)", () => {
+  it("predictGrip differs from today's uncorrected scan for 3.2 % of hands (seed 11)", () => {
     const g = rng(11);
     let flips = 0;
     for (const x of hands) {
@@ -203,7 +204,7 @@ describe("R7 §5.1 item 7: the engine scale keeps the v3 ranking (V1 population,
       );
       if (predictGrip(s.handLengthMm, s.palmLengthMm) !== before) flips++;
     }
-    expect(flips / hands.length).toBeCloseTo(0.027, 3);
+    expect(flips / hands.length).toBeCloseTo(0.0317, 3);
     // Few hands: well under the 24.5 % of the unscaled corrected numbers.
     expect(flips / hands.length).toBeLessThan(0.05);
   });
