@@ -921,11 +921,20 @@ function detectPaperQuadImpl(
     }
   }
   // F17 (candidate): with the palm known and two or more regions over the
-  // area floor, the one that holds the palm (palmChoice.ts). Without the
+  // piece floor, the one that holds the palm (palmChoice.ts). Without the
   // palm this block does nothing, and the largest region is taken as before.
+  // F17 review: the candidates are every piece of at least
+  // MIN_PIECE_FRACTION, not only regions over the sheet's area floor: the
+  // hand covers part of the sheet, so a sheet held high (0.4 of the frame's
+  // width) under a 190 mm hand shows about 0.09 of the frame (模擬), under
+  // MIN_PAPER_AREA_FRACTION, and the window beside it was the only candidate.
+  // Only a `palm` choice can take a region other than the largest, so a
+  // scene whose largest region holds the palm, or where none does, is what
+  // it was.
+  let palmPicked = false;
   const palm = options.palmPointsPx;
   if (palm && palm.length > 0) {
-    const floor = MIN_PAPER_AREA_FRACTION * pixelCount;
+    const floor = MIN_PIECE_FRACTION * pixelCount;
     const sizeable: number[] = [];
     for (let i = 0; i < areas.length; i++)
       if (areas[i] >= floor) sizeable.push(i);
@@ -946,11 +955,30 @@ function detectPaperQuadImpl(
         choiceSink.choice = picked;
         bestLabel = picked.label;
         bestArea = areas[picked.label];
+        palmPicked = picked.reason === "palm";
       }
     }
   }
   if (bestArea < MIN_PAPER_AREA_FRACTION * pixelCount) {
-    if (guess) {
+    if (guess && palmPicked) {
+      // F17 review: the region that holds the palm is under the sheet's area
+      // floor (a sheet held high, part of it under the hand). Not found (the
+      // floor is unchanged), but the rough quad the adjustment screen opens
+      // on is that region's own hull, never one that takes in the window.
+      const q = regionGuessQuad(
+        labels,
+        width,
+        height,
+        (label) => label === bestLabel,
+      );
+      const focal = options.focalPxHint ?? assumedFocalPxFromFov(width);
+      if (
+        q &&
+        guessPlausibility(q, paperSize, width, height, focal) <=
+          GUESS_MAX_IMPLAUSIBILITY
+      )
+        guess.corners = q;
+    } else if (guess) {
       // Every sizeable piece together (a sheet cut by a shadow or a hand, or
       // one too small): the hull of all of them.
       const minPiece = MIN_PIECE_FRACTION * pixelCount;

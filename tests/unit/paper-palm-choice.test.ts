@@ -225,6 +225,94 @@ describe("the detector, a window larger than the sheet (模擬)", () => {
   });
 });
 
+/**
+ * F17 review (模擬): a 9 : 16 frame (512 x 960, the shape of 1024 x 1920), a
+ * large window at the top and an A4 sheet held high (0.4 of the frame's
+ * width, 205 x 290 px, 0.121 of the frame), a skin-tone hand covering 25 %
+ * of it from its bottom edge: the sheet shows about 0.091 of the frame, under
+ * the detector's 0.1 area floor.
+ */
+const HW = 512;
+const HH = 960;
+const HIGH_SHEET = { x0: 154, y0: 560, x1: 359, y1: 850 };
+const HIGH_HAND = { x0: 211, y0: 685, x1: 301, y1: 910 };
+function highSheetScene(): ImageData {
+  const data = new Uint8ClampedArray(HW * HH * 4);
+  const inR = (
+    x: number,
+    y: number,
+    r: { x0: number; y0: number; x1: number; y1: number },
+  ) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1;
+  for (let y = 0; y < HH; y++)
+    for (let x = 0; x < HW; x++) {
+      const i = (y * HW + x) * 4;
+      let c = [55, 50, 48];
+      if (inR(x, y, HIGH_HAND)) c = [205, 140, 110];
+      else if (x >= 30 && x < 480 && y >= 20 && y < 330) c = [250, 250, 252];
+      else if (inR(x, y, HIGH_SHEET)) c = [238, 238, 236];
+      data[i] = c[0];
+      data[i + 1] = c[1];
+      data[i + 2] = c[2];
+      data[i + 3] = 255;
+    }
+  return { width: HW, height: HH, data } as unknown as ImageData;
+}
+const HIGH_PALM: Point2[] = [
+  { x: 256, y: 840 },
+  { x: 225, y: 705 },
+  { x: 245, y: 698 },
+  { x: 266, y: 698 },
+  { x: 286, y: 705 },
+];
+
+describe("F17 review: a sheet held high, a quarter under the hand, a larger window beside it (模擬)", () => {
+  const frame = highSheetScene();
+  const sheetArea =
+    (HIGH_SHEET.x1 - HIGH_SHEET.x0) * (HIGH_SHEET.y1 - HIGH_SHEET.y0);
+  const covered =
+    (HIGH_HAND.x1 - HIGH_HAND.x0) * (HIGH_SHEET.y1 - HIGH_HAND.y0);
+  const centreY = (q: readonly Point2[]) =>
+    q.reduce((sum, p) => sum + p.y, 0) / q.length;
+
+  it("the scene: 0.4 of the width, about 25 % covered, the visible sheet under 0.1 of the frame", () => {
+    expect((HIGH_SHEET.x1 - HIGH_SHEET.x0) / HW).toBeCloseTo(0.4, 2);
+    expect(covered / sheetArea).toBeCloseTo(0.25, 1);
+    expect((sheetArea - covered) / (HW * HH)).toBeGreaterThan(0.085);
+    expect((sheetArea - covered) / (HW * HH)).toBeLessThan(0.1);
+  });
+
+  it("with the palm the sheet is the candidate taken (reason palm), and the adjustment screen's rough frame is on the sheet, not the window", () => {
+    const d = detectPaperQuad(frame, "a4", {
+      failureGuess: true,
+      palmPointsPx: HIGH_PALM,
+    });
+    expect(d.paperChoice?.reason).toBe("palm");
+    expect(d.paperChoice?.palmInside).toBe(5);
+    expect(d.paperChoice?.largestPalmInside).toBe(0);
+    // Under the area floor (unchanged): not found...
+    expect(d.corners).toBeNull();
+    // ...but the rough frame is the sheet's own hull.
+    expect(d.guessCorners).not.toBeNull();
+    const g = d.guessCorners!;
+    expect(centreY(g)).toBeGreaterThan(HIGH_SHEET.y0);
+    expect(centreY(g)).toBeLessThan(HIGH_SHEET.y1);
+    for (const p of g) {
+      expect(p.x).toBeGreaterThan(HIGH_SHEET.x0 - 4);
+      expect(p.x).toBeLessThan(HIGH_SHEET.x1 + 4);
+      expect(p.y).toBeGreaterThan(HIGH_SHEET.y0 - 4);
+      expect(p.y).toBeLessThan(HIGH_SHEET.y1 + 4);
+    }
+  });
+
+  it("without the palm: as before, no choice is recorded and the largest region, the window, is what the detector works on (here its 450 x 310 px outline even passes as a sheet)", () => {
+    const d = detectPaperQuad(frame, "a4", { failureGuess: true });
+    expect(d.paperChoice).toBeUndefined();
+    const q = d.corners ?? d.guessCorners;
+    expect(q).not.toBeNull();
+    expect(centreY(q!)).toBeLessThan(HIGH_SHEET.y0);
+  });
+});
+
 // ── The S2 golden scenes ──────────────────────────────────────────────────
 
 const golden = JSON.parse(
