@@ -131,7 +131,7 @@ describe("§5.1 item 1: a frame with no EXIF is corrected at every tilt", () => 
   });
 });
 
-describe("§2 error budget: the prior wrong by ±10 % (design: hand length within 0.8 mm, palm width within 0.26 mm, mean bias)", () => {
+describe("§2 error budget: the prior wrong by ±10 % (design: hand length within 0.85 mm, palm width within 0.26 mm, mean bias; §5.1: 1.0 / 0.3 mm for e 1.1); KNOWN GAP at the F17 prior", () => {
   // The design's own scene set: random azimuth, fill U[0.55, 0.80], palm
   // width about 0.35 of the length (widthScale 0.8), wrist 30-90 mm down,
   // 100 scenes per tilt. The focal length is forced to the prior (as EXIF)
@@ -167,7 +167,7 @@ describe("§2 error budget: the prior wrong by ±10 % (design: hand length withi
     return { dL: sumL / n, dW: sumW / n, none: sumNone / n };
   }
 
-  it.each([
+  const GRID = [
     [0.9, 0],
     [0.9, 5],
     [0.9, 10],
@@ -176,16 +176,35 @@ describe("§2 error budget: the prior wrong by ±10 % (design: hand length withi
     [1.1, 5],
     [1.1, 10],
     [1.1, 15],
-  ])(
-    "e %s, tilt %i: mean bias within the budget, and far better than no correction",
+  ] as const;
+  const cache = new Map<string, ReturnType<typeof budget>>();
+  const budgetOf = (e: number, tilt: number) => {
+    const key = `${e}/${tilt}`;
+    if (!cache.has(key)) cache.set(key, budget(e, tilt));
+    return cache.get(key)!;
+  };
+  /** The design's budget (§2) and, for e 1.1, §5.1 item 1's looser one. */
+  const withinDesign = (e: number, b: ReturnType<typeof budget>) =>
+    Math.abs(b.dL) < 0.85 &&
+    Math.abs(b.dW) < 0.26 &&
+    (e !== 1.1 || (Math.abs(b.dL) < 1.0 && Math.abs(b.dW) < 0.3));
+
+  it("KNOWN GAP (未拍板, Claude decides the budget or the prior): at the F17 prior (998 px) every cell of the grid is OUTSIDE the design budget; this fails once a cell is back within it", () => {
+    // F17 (998 px prior, 模擬): |dL| 0.66-1.01, |dW| 0.22-0.34 on this scene
+    // set (at the 1442 px prior the design was made for: 0.46-0.81 /
+    // 0.12-0.24). A shorter lens puts the camera closer to the sheet for the
+    // same fill, and the landmark heights then weigh more. Over the hand
+    // length budget at tilt 15, over the palm width budget at tilt 0-10.
+    for (const [e, tilt] of GRID)
+      expect(withinDesign(e, budgetOf(e, tilt)), `e ${e}, tilt ${tilt}`).toBe(
+        false,
+      );
+  });
+
+  it.each(GRID)(
+    "e %s, tilt %i: far better than no correction; today's numbers pinned (1.05 / 0.36 mm: a regression fence, NOT a budget)",
     (e, tilt) => {
-      const b = budget(e, tilt);
-      // F17 (998 px prior, 模擬): |dL| 0.66-1.01, |dW| 0.22-0.34 on this
-      // scene set, so the design's 0.8 mm / 0.26 mm (made for the 1442 px
-      // prior, where it read 0.46-0.81 / 0.12-0.24) is EXCEEDED at the same
-      // ±10 %: a shorter lens puts the camera closer to the sheet for the same
-      // fill, and the landmark heights then weigh more. Reported to Claude;
-      // the bounds below pin today's numbers, they are not a new budget.
+      const b = budgetOf(e, tilt);
       expect(Math.abs(b.dL)).toBeLessThan(1.05);
       expect(Math.abs(b.dW)).toBeLessThan(0.36);
       // No correction reads about +5.9 to +7.8 mm long on the same scenes.
