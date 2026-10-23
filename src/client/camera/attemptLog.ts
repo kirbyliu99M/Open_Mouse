@@ -280,7 +280,27 @@ export interface AttemptRecord {
       readonly px: number | null;
     };
   } | null;
+  /**
+   * V3.2 F17 (candidate): the detector's second look with the hand's palm
+   * (palmChoice.ts): why it took the region it took, how many sizeable
+   * regions there were, palm points (of 5) inside the region taken and
+   * inside the largest, and whether that answer replaced the first. Present
+   * only on an attempt that had one. Local only, never sent.
+   */
+  readonly paperChoice?: AttemptPaperChoice;
   readonly userAgent: string;
+}
+
+export interface AttemptPaperChoice {
+  readonly reason:
+    | "only_candidate"
+    | "largest_holds_palm"
+    | "palm"
+    | "no_candidate_holds_palm";
+  readonly candidates: number | null;
+  readonly palmInside: number | null;
+  readonly largestPalmInside: number | null;
+  readonly used: boolean;
 }
 
 /** Three lengths of one scan, mm to 0.1 (`parallaxCheck`). */
@@ -526,7 +546,34 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
     parallaxCheck: cleanParallaxCheck(raw.parallaxCheck),
     // Records stored before F16 have none: null, not an error.
     parallaxGuard: cleanParallaxGuard(raw.parallaxGuard),
+    // Only on an attempt with F17's second look; absent on every other one.
+    ...paperChoiceField(raw.paperChoice),
     userAgent: cleanString(raw.userAgent, MAX_USER_AGENT_LENGTH) ?? "",
+  };
+}
+
+/** The F17 choice, rebuilt field by field; without a known reason it is left out. */
+function paperChoiceField(value: unknown): {
+  paperChoice?: AttemptPaperChoice;
+} {
+  const o = asObject(value);
+  if (!o) return {};
+  const reason = o.reason;
+  if (
+    reason !== "only_candidate" &&
+    reason !== "largest_holds_palm" &&
+    reason !== "palm" &&
+    reason !== "no_candidate_holds_palm"
+  )
+    return {};
+  return {
+    paperChoice: {
+      reason,
+      candidates: cleanNumber(o.candidates, 0),
+      palmInside: cleanNumber(o.palmInside, 0),
+      largestPalmInside: cleanNumber(o.largestPalmInside, 0),
+      used: o.used === true,
+    },
   };
 }
 
@@ -934,6 +981,9 @@ export function buildAttemptRecord(input: {
             imageLongEdgePx: outcome.imageLongEdgePx,
           }
         : null,
+    ...(diagnostics?.paperChoice
+      ? { paperChoice: diagnostics.paperChoice }
+      : {}),
     userAgent: input.userAgent,
   });
   // `result` and `at` are set above, so the record is always valid; the

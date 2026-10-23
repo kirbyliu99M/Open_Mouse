@@ -101,6 +101,7 @@ import {
   INITIAL_NO_SHEET_CAPTURE_STATE,
   advanceNoSheetCapture,
   liveHandSignal,
+  livePalmHint,
   recordHandReading,
   sheetFoundByCue,
   shouldSampleHand,
@@ -2060,12 +2061,21 @@ export default function EasyScanCamera({
       try {
         // The assumed focal length is the whole stream's, scaled to the
         // sample (visibleView.ts), not the narrower sample's own.
+        // V3.2 F17 (candidate): with a fresh hand reading (F14's sampling),
+        // the bright region that holds the palm is taken for the sheet.
+        const palm = livePalmHint({
+          latest: handReadingsRef.current.latest,
+          nowMs: now,
+          width,
+          height,
+        });
         detection = quadSourceRef.current(imageData, paperSizeRef.current, {
           focalPxHint: assumedSampleFocalPx(
             { width: video.videoWidth, height: video.videoHeight },
             source,
             { width, height },
           ),
+          ...(palm ? { palmPointsPx: palm } : {}),
         });
       } catch {
         detection = NO_QUAD_DETECTION;

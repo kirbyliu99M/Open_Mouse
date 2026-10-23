@@ -91,6 +91,7 @@ import {
   RANSAC_SEED,
 } from "./quad-math";
 import { assumedFocalPxFromFov, resolveOrientation } from "./orientation";
+import { choosePaperCandidate, type PaperChoice } from "./palmChoice";
 import {
   MIN_PIECE_FRACTION,
   stageForSmallRegions,
@@ -134,7 +135,21 @@ export interface DetectPaperQuadOptions {
    * default, so the live viewfinder (called up to 8x/s) does no extra work.
    */
   readonly failureGuess?: boolean;
+  /**
+   * V3.2 F17 (candidate): the hand's palm points (`palmPointsOf`,
+   * palmChoice.ts) in this frame's pixels, when the hand is known. With two
+   * or more sizeable bright regions, the one whose outline holds the palm is
+   * taken for the sheet instead of simply the largest (a window, Kirby's
+   * preview 7). Omitted, the detector is exactly what it was.
+   */
+  readonly palmPointsPx?: readonly Point2[];
 }
+
+/**
+ * V3.2 F17: how the sheet's region was chosen, set only when the caller
+ * passed `palmPointsPx` (palmChoice.ts). Local attempt log only.
+ */
+export type PaperChoiceRecord = Omit<PaperChoice, "label">;
 
 export interface SheetQuadDetection {
   /** The paper's 4 corners (TL, TR, BR, BL), or `null` unless all 4 sides yielded a quad. */
@@ -173,6 +188,12 @@ export interface SheetQuadDetection {
    * `src/client/photo/gates.ts`.
    */
   readonly paperRegionFound: boolean;
+  /**
+   * V3.2 F17 (candidate): which bright region was taken for the sheet and
+   * why, only when the caller passed `palmPointsPx`; absent otherwise, so a
+   * detection without a hand is exactly what it was. Diagnostic only.
+   */
+  readonly paperChoice?: PaperChoiceRecord;
   /**
    * Which side (same numbering as `worstSideIndex`) has the LOWEST coverage
    * — the side a hand or sleeve covers most. Diagnostic only: it feeds the
@@ -705,13 +726,66 @@ export function detectPaperQuad(
   const guess: GuessSink | null = options.failureGuess
     ? { corners: null }
     : null;
+  const choice: ChoiceSink = { choice: null };
   let result: SheetQuadDetection;
   try {
-    result = detectPaperQuadImpl(frame, paperSize, options, guess);
+    result = detectPaperQuadImpl(frame, paperSize, options, guess, choice);
   } catch {
     result = none("exception");
   }
-  return failureGuessFor(result, guess);
+  const withGuess = failureGuessFor(result, guess);
+  if (!choice.choice) return withGuess;
+  const { label: _label, ...record } = choice.choice;
+  void _label;
+  return { ...withGuess, paperChoice: record };
+}
+
+/** Where the implementation leaves its palm-guided choice (F17). */
+interface ChoiceSink {
+  choice: PaperChoice | null;
+}
+
+/**
+ * The rough quad of each of `wanted` (labels), in one pass over the frame:
+ * for each, exactly what `regionGuessQuad` gives with `label === wanted[k]`.
+ */
+function regionGuessQuads(
+  labels: Int32Array,
+  width: number,
+  height: number,
+  wanted: readonly number[],
+): (readonly [Point2, Point2, Point2, Point2] | null)[] {
+  const index = new Map<number, number>();
+  wanted.forEach((label, k) => index.set(label, k));
+  const points: Point2[][] = wanted.map(() => []);
+  const left = new Int32Array(wanted.length);
+  const right = new Int32Array(wanted.length);
+  for (let y = 0; y < height; y++) {
+    left.fill(-1);
+    right.fill(-1);
+    const rowOff = y * width;
+    for (let x = 0; x < width; x++) {
+      const label = labels[rowOff + x];
+      if (label < 0) continue;
+      const k = index.get(label);
+      if (k === undefined) continue;
+      if (left[k] < 0) left[k] = x;
+      right[k] = x;
+    }
+    for (let k = 0; k < wanted.length; k++) {
+      if (left[k] < 0) continue;
+      points[k].push({ x: left[k] + 0.5, y: y + 0.5 });
+      if (right[k] !== left[k])
+        points[k].push({ x: right[k] + 0.5, y: y + 0.5 });
+    }
+  }
+  return points.map((pts) => {
+    if (pts.length < 4) return null;
+    const quad = simplifyToQuad(convexHull(pts));
+    if (!quad) return null;
+    const ordered = orderQuadCorners(quad);
+    return [ordered[0], ordered[1], ordered[2], ordered[3]] as const;
+  });
 }
 
 /** Where the implementation leaves its rough quad as it goes (F10). */
@@ -812,6 +886,7 @@ function detectPaperQuadImpl(
   paperSize: PaperSize,
   options: DetectPaperQuadOptions,
   guess: GuessSink | null,
+  choiceSink: ChoiceSink = { choice: null },
 ): SheetQuadDetection {
   const { width, height, data } = frame;
   const pixelCount = width * height;
@@ -843,6 +918,35 @@ function detectPaperQuadImpl(
     if (areas[i] > bestArea) {
       bestArea = areas[i];
       bestLabel = i;
+    }
+  }
+  // F17 (candidate): with the palm known and two or more regions over the
+  // area floor, the one that holds the palm (palmChoice.ts). Without the
+  // palm this block does nothing, and the largest region is taken as before.
+  const palm = options.palmPointsPx;
+  if (palm && palm.length > 0) {
+    const floor = MIN_PAPER_AREA_FRACTION * pixelCount;
+    const sizeable: number[] = [];
+    for (let i = 0; i < areas.length; i++)
+      if (areas[i] >= floor) sizeable.push(i);
+    if (sizeable.length > 0) {
+      const quads =
+        sizeable.length > 1
+          ? regionGuessQuads(labels, width, height, sizeable)
+          : [regionGuessQuad(labels, width, height, (l) => l === sizeable[0])];
+      const picked = choosePaperCandidate(
+        sizeable.map((label, k) => ({
+          label,
+          area: areas[label],
+          quad: quads[k],
+        })),
+        palm,
+      );
+      if (picked) {
+        choiceSink.choice = picked;
+        bestLabel = picked.label;
+        bestArea = areas[picked.label];
+      }
     }
   }
   if (bestArea < MIN_PAPER_AREA_FRACTION * pixelCount) {

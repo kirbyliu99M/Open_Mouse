@@ -196,15 +196,22 @@ describe("a failed photo's rough quad (F10 item 3, real pipeline)", () => {
       guessCorners: guess,
     });
     const r = await run();
-    expect(detectPaperQuad).toHaveBeenCalledTimes(1);
+    // V3.2 F17: the hand is looked for before the paper's verdict, and with
+    // it the detector looks once more with the palm; that answer is not used
+    // (it chose no other region), so the first one's guess reaches the
+    // overlay.
+    expect(detectPaperQuad).toHaveBeenCalledTimes(2);
     expect(vi.mocked(detectPaperQuad).mock.calls[0][2]).toMatchObject({
       failureGuess: true,
     });
+    expect(vi.mocked(detectPaperQuad).mock.calls[0][2]).not.toHaveProperty(
+      "palmPointsPx",
+    );
     expect(r.status).toBe("error");
     if (r.status !== "error") return;
     expect(r.errors[0].code).toBe("PAPER_NOT_FOUND");
     expect(r.overlay.paperGuessCorners).toEqual(guess);
     expect(r.overlay.paperCorners).toBeUndefined();
-    expect(detectHandLandmarks).not.toHaveBeenCalled();
+    expect(detectHandLandmarks).toHaveBeenCalledTimes(1);
   });
 });

@@ -37,6 +37,7 @@
 import { CAMERA_CONSTANTS } from "./constants";
 import type { CueCode } from "./cues";
 import type { Point } from "./quad";
+import { palmPointsOf } from "../paper/palmChoice";
 
 /**
  * Per live cue (`pickCue`), whether the sheet counts as found for this wait.
@@ -236,4 +237,32 @@ export function liveHandSignal(input: {
     seen,
     steady: moved <= C.maxHandMovementFraction * input.frameDiagonal,
   };
+}
+
+/**
+ * V3.2 F17 (candidate): the palm points the live detector may use to choose
+ * the sheet over a brighter region (palmChoice.ts): those of the newest hand
+ * reading, only while it is fresh (`handStaleMs`) and only when all five lie
+ * on this sample (a reading of another sample size is not used). `undefined`
+ * otherwise, and the detector is then exactly what it was. Pure.
+ */
+export function livePalmHint(input: {
+  readonly latest: LiveHandReading | null;
+  readonly nowMs: number;
+  readonly width: number;
+  readonly height: number;
+}): Point[] | undefined {
+  const { latest } = input;
+  if (!latest?.points) return undefined;
+  if (
+    !(input.nowMs - latest.atMs >= 0) ||
+    input.nowMs - latest.atMs > CAMERA_CONSTANTS.noSheetCapture.handStaleMs
+  )
+    return undefined;
+  const palm = palmPointsOf(latest.points);
+  if (!palm) return undefined;
+  const onSample = palm.every(
+    (p) => p.x >= 0 && p.x <= input.width && p.y >= 0 && p.y <= input.height,
+  );
+  return onSample ? palm : undefined;
 }
