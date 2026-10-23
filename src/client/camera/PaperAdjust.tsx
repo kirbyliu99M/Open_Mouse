@@ -17,16 +17,24 @@
  *   crosshair, never under the finger, switching side only past a margin
  *   (F10, `magnifierPlacement`);
  * - the arrow keys move the focused corner 1 screen px (Shift: 10);
- * - F10: it opens zoomed onto the frame (`sheetView`); two fingers zoom and
- *   move the photo (`pinchView`), a double tap or a small button shows the
- *   whole photo, a mouse wheel zooms. The view only changes how the photo is
- *   drawn: corners are kept in the photo's pixels.
+ * - F10: two fingers zoom and move the photo (`pinchView`), a mouse wheel
+ *   zooms. The view only changes how the photo is drawn: corners are kept in
+ *   the photo's pixels.
+ * - V3.2 F17 (Kirby, preview 7, 2026-10-23: "the auto magnify should happen
+ *   just like Adobe PDF scanner", candidate): it opens on the WHOLE photo
+ *   (`wholeView`) with the frame on the sheet the detector found, and never
+ *   zooms by itself: no zoom onto the frame when it opens (F10/F16's
+ *   `sheetView`, the "frame trying to magnify" Kirby saw flicker), no double
+ *   tap, no whole / zoomed button and no 改用置中框. The magnifier shows
+ *   only while a corner is dragged. A corner follows the finger 1:1 from the
+ *   first move (the slop only decides whether it was a tap), and the moves
+ *   are drawn once per animation frame.
  * - F14 (Kirby's phone test of preview 5, 2026-10-22: "No need for multiple
  *   indicators in adjustment mode, the user will know how to do it",
  *   candidate): only what is needed is on screen. The heading, the photo with
- *   its frame and four handles, the magnifier, the confirm button, cancel (or
- *   重拍 when the screen opened by itself), the whole / zoomed toggle and,
- *   after a failure, a small 改用置中框. No gesture hint, no instructions, no
+ *   its frame and four handles, the magnifier, the confirm button and cancel
+ *   (or 重拍 when the screen opened by itself). No gesture hint, no
+ *   instructions, no
  *   per-corner marks; a line only when the frame cannot be used as it is.
  *   The handles keep their accessible names.
  * - F15 (Kirby, 2026-10-23, candidate): it also opens by itself on every
@@ -57,7 +65,6 @@ import {
 import type { PaperSize } from "../paper/detect";
 import {
   CORNER_INDICES,
-  centredPaperFrame,
   type CornerIndex,
   type FrameSize,
   type Quad4,
@@ -71,14 +78,12 @@ import {
   clampView,
   cornerPositions,
   frameMoved,
-  isDoubleTap,
   isWholeView,
   magnifierLayout,
   magnifierPlacement,
   nudgeForKey,
   pinchView,
   pointerMoveFor,
-  sheetView,
   startAdjust,
   toScreen,
   wheelZoomFactor,
@@ -91,7 +96,6 @@ import {
   type PhotoFit,
   type PlacedFrame,
   type PointerKind,
-  type StageTap,
 } from "./paperAdjustState";
 
 /**
@@ -141,14 +145,18 @@ export interface PaperAdjustProps {
 }
 
 /**
- * How the photo is shown (F10): zoomed onto a frame (`sheet`, recomputed for
- * the stage's size), the whole photo, or wherever two fingers or the wheel
- * left it (`free`).
+ * How the photo is shown: the whole photo (F17: always how it opens), or
+ * wherever two fingers or the wheel left it (`free`, F10).
  */
 type ViewChoice =
-  | { readonly kind: "sheet"; readonly quad: Quad4 }
   | { readonly kind: "whole" }
   | { readonly kind: "free"; readonly fit: PhotoFit };
+
+/** A pointer move waiting for the next animation frame (F17). */
+interface PendingMove {
+  readonly pointerId: number;
+  readonly point: Point2;
+}
 
 function pointerKind(type: string): PointerKind {
   return type === "mouse" || type === "pen" ? type : "touch";
@@ -176,10 +184,7 @@ export function PaperAdjust({
   const [stageSize, setStageSize] = useState<FrameSize | null>(
     initialStageSize ?? null,
   );
-  const [view, setView] = useState<ViewChoice>(() => ({
-    kind: "sheet",
-    quad: state.start.corners,
-  }));
+  const [view, setView] = useState<ViewChoice>({ kind: "whole" });
   // Where the magnifier was on the last frame of this drag (F10: hysteresis).
   const [magnifierAt, setMagnifierAt] = useState<MagnifierPlacement | null>(
     null,
@@ -196,7 +201,10 @@ export function PaperAdjust({
     readonly from: readonly [Point2, Point2];
     readonly start: PhotoFit;
   } | null>(null);
-  const lastTapRef = useRef<StageTap | null>(null);
+  // F17: the newest corner move, drawn on the next animation frame (at most
+  // one state update per frame, however often the pointer reports).
+  const pendingMoveRef = useRef<PendingMove | null>(null);
+  const frameRef = useRef<number | null>(null);
 
   // A modal of its own (focus stays inside), opened when it mounts.
   useEffect(() => {
@@ -204,6 +212,13 @@ export function PaperAdjust({
     if (dialog && !dialog.open) dialog.showModal();
     titleRef.current?.focus();
   }, []);
+
+  useEffect(
+    () => () => {
+      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+    },
+    [],
+  );
 
   useLayoutEffect(() => {
     const stage = stageRef.current;
@@ -226,9 +241,7 @@ export function PaperAdjust({
   const fit: PhotoFit =
     view.kind === "whole"
       ? wholeView(state.image, stage)
-      : view.kind === "sheet"
-        ? sheetView(state.image, stage, view.quad)
-        : clampView(view.fit, state.image, stage);
+      : clampView(view.fit, state.image, stage);
   const showingWhole = isWholeView(fit, state.image, stage);
   const positions = cornerPositions(state.corners);
   const nameOf = (index: CornerIndex) => copy.cornerNames[positions[index]];
@@ -260,9 +273,9 @@ export function PaperAdjust({
     pointersRef.current.set(pointerId, point);
     if (others.length !== 1) return false;
     const [otherId, otherPoint] = others[0];
+    dropPendingMove();
     if (state.drag) dispatch({ type: "dragCancel" });
     setMagnifierAt(null);
-    lastTapRef.current = null;
     pinchRef.current = {
       ids: [otherId, pointerId],
       from: [otherPoint, point],
@@ -292,6 +305,33 @@ export function PaperAdjust({
     });
   };
 
+  const applyMove = (move: PendingMove) => {
+    if (stageSize)
+      setMagnifierAt((prev) =>
+        magnifierPlacement({
+          pointer: move.point,
+          stage: stageSize,
+          previous: prev,
+        }),
+      );
+    dispatch(pointerMoveFor({ ...move, fit }));
+  };
+
+  const dropPendingMove = () => {
+    if (frameRef.current !== null) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
+    pendingMoveRef.current = null;
+  };
+
+  /** The corner move waiting for a frame, applied now (before a release). */
+  const flushPendingMove = () => {
+    const pending = pendingMoveRef.current;
+    dropPendingMove();
+    if (pending) applyMove(pending);
+  };
+
   const onHandleDown =
     (index: CornerIndex) => (e: ReactPointerEvent<HTMLButtonElement>) => {
       e.preventDefault();
@@ -301,7 +341,6 @@ export function PaperAdjust({
         capture(e.pointerId);
         return;
       }
-      lastTapRef.current = null;
       beginDrag(index, e, point);
     };
 
@@ -312,19 +351,7 @@ export function PaperAdjust({
       capture(e.pointerId);
       return;
     }
-    // A double tap on the photo: the whole photo, or back onto the frame.
-    const tap = { at: e.timeStamp, point };
-    if (isDoubleTap(lastTapRef.current, tap)) {
-      lastTapRef.current = null;
-      pointersRef.current.delete(e.pointerId);
-      setView(
-        showingWhole
-          ? { kind: "sheet", quad: state.corners }
-          : { kind: "whole" },
-      );
-      return;
-    }
-    lastTapRef.current = tap;
+    // F17: no double tap any more (it zoomed the photo, Kirby's flicker).
     beginDrag(null, e, point);
   };
 
@@ -350,19 +377,19 @@ export function PaperAdjust({
       return;
     }
     if (!state.drag || state.drag.pointerId !== e.pointerId) return;
-    lastTapRef.current = null;
-    if (stageSize)
-      setMagnifierAt((prev) =>
-        magnifierPlacement({
-          pointer: point,
-          stage: stageSize,
-          previous: prev,
-        }),
-      );
-    dispatch(pointerMoveFor({ pointerId: e.pointerId, point, fit }));
+    // F17: drawn on the next animation frame, with the newest point only.
+    pendingMoveRef.current = { pointerId: e.pointerId, point };
+    if (frameRef.current === null)
+      frameRef.current = requestAnimationFrame(() => {
+        frameRef.current = null;
+        const pending = pendingMoveRef.current;
+        pendingMoveRef.current = null;
+        if (pending) applyMove(pending);
+      });
   };
 
   const onStageUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (pendingMoveRef.current?.pointerId === e.pointerId) flushPendingMove();
     pointersRef.current.delete(e.pointerId);
     const pinch = pinchRef.current;
     if (pinch && pinch.ids.includes(e.pointerId)) pinchRef.current = null;
@@ -542,39 +569,6 @@ export function PaperAdjust({
       <p id="paper-adjust-keys" className="visuallyHidden">
         {copy.keyboardHint}
       </p>
-      <div className="paperAdjustTools">
-        <button
-          type="button"
-          className="paperAdjustTool"
-          data-testid="paper-adjust-view"
-          onClick={() =>
-            setView(
-              showingWhole
-                ? { kind: "sheet", quad: state.corners }
-                : { kind: "whole" },
-            )
-          }
-        >
-          {showingWhole ? copy.zoomToFrame : copy.wholePhoto}
-        </button>
-        {entry === "rescue" && state.start.from !== "centred" && (
-          <button
-            type="button"
-            className="paperAdjustTool"
-            data-testid="paper-adjust-centre"
-            onClick={() => {
-              setRefusal(null);
-              dispatch({ type: "centre" });
-              setView({
-                kind: "sheet",
-                quad: centredPaperFrame(state.image, state.paperSize),
-              });
-            }}
-          >
-            {copy.centreFrame}
-          </button>
-        )}
-      </div>
       <div className="paperAdjustActions">
         <button
           type="button"

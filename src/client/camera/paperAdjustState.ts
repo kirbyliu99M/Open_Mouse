@@ -63,9 +63,11 @@ export const PAPER_ADJUST_LAYOUT = {
   keyBigStepFactor: 10,
   /**
    * V3.2 F15 (candidate 未拍板, Kirby to decide): how far a press must travel
-   * on screen before it drags the corner. Below it the press is a tap (it only
+   * on screen before it counts as a drag. Below it the press is a tap (it only
    * selects): a finger's wobble on a handle, now that every measured photo
    * opens this screen, must not count as a moved frame and measure again.
+   * Since F17 the corner follows the finger from the first move all the
+   * same; a tap's corner goes back on release (`adjustReducer`).
    * Touch takes the result sheet's tap slop (`TAP_SLOP_PX` 8); a mouse or pen
    * barely wobbles. Not measured on a phone (不確定 how far a tap wobbles).
    */
@@ -488,9 +490,10 @@ export interface DragState {
   /** Where the corner was when the press began (photo px). */
   readonly startCorner: Point2;
   /**
-   * Whether the pointer has left `startPointer` at any time in this drag. Once
-   * it has, the corner follows it exactly, back to `startCorner` when the
-   * pointer comes back to where it pressed.
+   * Whether the pointer has gone past the drag slop (`dragSlopScreenPx`)
+   * from `startPointer` at any time in this drag. The corner follows the
+   * pointer exactly either way (F17); only a drag that never went past it is
+   * undone on release (a tap).
    */
   readonly moved: boolean;
   /**
@@ -817,9 +820,14 @@ export function adjustReducer(
         },
         state.image,
       );
-      // A press that has not moved past the drag slop changes nothing (a tap
-      // only selects, F15); once it has, the corner is always start +
-      // movement, including a return to the very point where the press began.
+      // V3.2 F17 (Kirby, preview 7: "the corner indicator dot may lag from
+      // user's gesture", candidate): the corner is start + movement from the
+      // very first move, 1:1 with the finger. The drag slop (F15) only sets
+      // `moved`: a press released before it ever went past the slop was a tap
+      // (it only selects), and `pointerUp` puts the corner back where the
+      // press found it, so a wobble is still not a moved frame. Once past the
+      // slop the drag stays moved, including a return to the very point where
+      // the press began.
       const moved =
         drag.moved ||
         Math.hypot(
@@ -830,11 +838,21 @@ export function adjustReducer(
         ...state,
         drag: { ...drag, pointer: action.point, moved },
       };
-      return moved ? withCorner(next, drag.index, corner) : next;
+      return withCorner(next, drag.index, corner);
     }
     case "pointerUp": {
       const drag = state.drag;
       if (drag?.pointerId !== action.pointerId) return state;
+      // A tap (never past the slop): the corner goes back, as if untouched.
+      if (!drag.moved)
+        return {
+          ...state,
+          corners: drag.before.corners,
+          placed: drag.before.placed,
+          solved: drag.before.solved,
+          notice: drag.before.notice,
+          drag: null,
+        };
       return { ...state, drag: null };
     }
     case "nudge": {

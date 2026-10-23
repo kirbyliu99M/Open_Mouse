@@ -114,7 +114,7 @@ describe("a sheet at 0.3 of the photo's width (a phone held too high)", () => {
   });
 
   for (const stage of STAGES)
-    it(`${stage.width}x${stage.height}: it opens zoomed so the frame fills about 8 tenths of the stage, below the closest zoom`, () => {
+    it(`${stage.width}x${stage.height}: sheetView (no longer how the screen opens since F17, which opens on the whole photo) fills about 8 tenths of the stage, below the closest zoom`, () => {
       const f = fill(FRAME, guess, stage);
       expect(Math.max(f.width, f.height)).toBeGreaterThan(0.7);
       const base = wholeView(FRAME, stage);

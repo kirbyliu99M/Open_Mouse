@@ -23,11 +23,6 @@ export interface PaperAdjustCopy {
   entry: string;
   /** The screen's heading. */
   title: string;
-  /** F10: show the whole photo, and zoom back onto the frame. */
-  wholePhoto: string;
-  zoomToFrame: string;
-  /** F10 (rescue): start again from the centred frame. */
-  centreFrame: string;
   /** The four corners as the person sees them, top left first, clockwise. */
   cornerNames: readonly [string, string, string, string];
   /** A handle's accessible name. */
@@ -49,9 +44,6 @@ export interface PaperAdjustCopy {
 export const zhTW: PaperAdjustCopy = {
   entry: "手動調整邊框",
   title: "調整紙張邊框",
-  wholePhoto: "看整張照片",
-  zoomToFrame: "放大到邊框",
-  centreFrame: "改用置中框",
   cornerNames: ["左上角", "右上角", "右下角", "左下角"],
   handleLabel: (corner) => corner,
   handleNotPlaced: "，還沒對齊",
@@ -79,9 +71,6 @@ export const zhTW: PaperAdjustCopy = {
 export const en: PaperAdjustCopy = {
   entry: "Adjust the frame by hand",
   title: "Adjust the paper's frame",
-  wholePhoto: "Show the whole photo",
-  zoomToFrame: "Zoom to the frame",
-  centreFrame: "Start from a centred frame",
   cornerNames: [
     "Top-left corner",
     "Top-right corner",
