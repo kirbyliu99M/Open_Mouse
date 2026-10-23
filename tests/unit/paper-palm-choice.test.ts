@@ -185,6 +185,35 @@ const PALM: Point2[] = [
   { x: 332, y: 602 },
 ];
 
+/**
+ * F17 review: the same desk with the window drawn A4-shaped (260 x 368 px,
+ * 1.415) and still larger than the sheet (220 x 311 px), side by side, the
+ * hand on the sheet.
+ */
+function a4WindowScene(): ImageData {
+  const data = new Uint8ClampedArray(W * H * 4);
+  const put = (x: number, y: number, r: number, g: number, b: number) => {
+    const i = (y * W + x) * 4;
+    data[i] = r;
+    data[i + 1] = g;
+    data[i + 2] = b;
+    data[i + 3] = 255;
+  };
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const inWindow = x >= 30 && x < 290 && y >= 20 && y < 388;
+      const inSheet = x >= 340 && x < 560 && y >= 420 && y < 731;
+      const inHand = x >= 410 && x < 490 && y >= 560 && y < 800;
+      if (inHand) put(x, y, 205, 140, 110);
+      else if (inWindow) put(x, y, 250, 250, 252);
+      else if (inSheet) put(x, y, 238, 238, 236);
+      else put(x, y, 55, 50, 48);
+    }
+  return { width: W, height: H, data } as unknown as ImageData;
+}
+
+const PALM_A4_SCENE: Point2[] = PALM.map((p) => ({ x: p.x + 150, y: p.y }));
+
 describe("the detector, a window larger than the sheet (模擬)", () => {
   const frame = windowScene();
 
@@ -405,22 +434,46 @@ describe("livePalmHint (the live detector's palm, F17)", () => {
 });
 
 describe("F17 review: the live loop over time, a window larger than the sheet and a still hand on the sheet (模擬)", () => {
-  const frame = windowScene();
-  // A hand reader that always finds the same still hand (the palm on the sheet).
-  const landmarks: Point2[] = Array.from({ length: 21 }, () => ({
-    ...PALM[0],
-  }));
-  PALM_LANDMARK_INDICES.forEach((li, k) => (landmarks[li] = { ...PALM[k] }));
   const STEP_MS = 125; // the live loop's 8 Hz
   const C = CAMERA_CONSTANTS.noSheetCapture;
+
+  /** The 21 landmarks of a still hand whose palm is at `palm`. */
+  const handAt = (palm: readonly Point2[]): Point2[] => {
+    const landmarks: Point2[] = Array.from({ length: 21 }, () => ({
+      ...palm[0],
+    }));
+    PALM_LANDMARK_INDICES.forEach((li, k) => (landmarks[li] = { ...palm[k] }));
+    return landmarks;
+  };
+
+  type Sampler = (input: {
+    readonly sheetFound: boolean;
+    readonly palmChose: boolean;
+    readonly lastReadingAtMs: number | null;
+    readonly nowMs: number;
+  }) => boolean;
+  /** The shipped rule: the detector is loaded, every handSampleIntervalMs. */
+  const shipped: Sampler = (i) =>
+    shouldSampleHand({
+      detectorReady: true,
+      lastReadingAtMs: i.lastReadingAtMs,
+      nowMs: i.nowMs,
+    });
 
   /**
    * The live loop's order per sample (EasyScanCamera): the palm hint from
    * the newest reading, the detector, then whether to read the hand. The
-   * sheet counts as found when the detector found it (the window here is not
-   * A4-shaped and never is). Returns, per sample, whether the sheet was taken.
+   * sheet counts as found when the detector found corners (an A4-shaped
+   * window passes on its own). `read(now)` is what one hand reading finds
+   * (landmarks, or null for none). Returns, per sample, whether the palm's
+   * sheet was taken.
    */
-  function simulate(keepReadingWhilePalmChose: boolean, durationMs = 3000) {
+  function simulate(
+    frame: ImageData,
+    read: (nowMs: number) => Point2[] | null,
+    sample: Sampler,
+    durationMs = 3000,
+  ) {
     let readings: HandReadings = EMPTY_HAND_READINGS;
     const tookSheet: boolean[] = [];
     for (let now = 0; now <= durationMs; now += STEP_MS) {
@@ -435,38 +488,38 @@ describe("F17 review: the live loop over time, a window larger than the sheet an
         "a4",
         palm ? { palmPointsPx: palm } : {},
       );
-      const sheetFound = d.corners !== null;
-      tookSheet.push(d.paperChoice?.reason === "palm");
+      const palmChose = d.paperChoice?.reason === "palm";
+      tookSheet.push(palmChose);
       if (
-        shouldSampleHand({
-          sheetFound,
-          detectorReady: true,
+        sample({
+          sheetFound: d.corners !== null,
+          palmChose,
           lastReadingAtMs: readings.latest?.atMs ?? null,
           nowMs: now,
-          palmChoiceInUse: keepReadingWhilePalmChose
-            ? d.paperChoice?.reason === "palm"
-            : false,
         })
       )
         readings = recordHandReading(readings, {
           atMs: now,
-          points: landmarks,
+          points: read(now),
         });
     }
     return tookSheet;
   }
 
-  it("with the palm choice keeping the hand read: once the sheet is taken it stays taken for 3 s, no flip back to the window", () => {
-    const took = simulate(true);
+  it("the drawn window (not A4-shaped): once the sheet is taken it stays taken for 3 s, no flip back to the window", () => {
+    const hand = handAt(PALM);
+    const took = simulate(windowScene(), () => hand, shipped);
     const first = took.indexOf(true);
     expect(first).toBeGreaterThanOrEqual(0);
     expect(first).toBeLessThanOrEqual(1);
     expect(took.slice(first).every(Boolean)).toBe(true);
   }, 60_000);
 
-  it("what it fixes: with readings stopped while the sheet is found, the hint goes stale and the window comes back about every 1.25 s", () => {
+  it("what the first review fixed: with readings stopped while the sheet is found, the hint goes stale and the window comes back about every 1.25 s", () => {
     expect(C.handStaleMs).toBe(1200);
-    const took = simulate(false);
+    const hand = handAt(PALM);
+    const f14: Sampler = (i) => !i.sheetFound && shipped(i); // F14: read only while no sheet is found
+    const took = simulate(windowScene(), () => hand, f14);
     const first = took.indexOf(true);
     const flips = took
       .slice(first)
@@ -474,33 +527,57 @@ describe("F17 review: the live loop over time, a window larger than the sheet an
     expect(flips).toBeGreaterThanOrEqual(2);
   }, 60_000);
 
-  it("shouldSampleHand: a found sheet stops the readings unless the palm chose it", () => {
-    const base = {
-      sheetFound: true,
-      detectorReady: true,
-      lastReadingAtMs: 0,
-      nowMs: C.handSampleIntervalMs,
-    };
-    expect(shouldSampleHand(base)).toBe(false);
-    expect(shouldSampleHand({ ...base, palmChoiceInUse: false })).toBe(false);
-    expect(shouldSampleHand({ ...base, palmChoiceInUse: true })).toBe(true);
-    // Still at most every handSampleIntervalMs, and never before the detector loads.
-    expect(shouldSampleHand({ ...base, palmChoiceInUse: true, nowMs: 1 })).toBe(
-      false,
-    );
+  // F17 review (second): a window that is itself A4-shaped passes the live
+  // gate without the palm. The sampling rule of the first review (read while
+  // no sheet is found, or while the palm chose it) then never read the hand
+  // (scene A), or stopped for good after one reading that missed it (B).
+  const a4Window = a4WindowScene();
+  const a4Hand = handAt(PALM_A4_SCENE);
+  const firstReview: Sampler = (i) =>
+    (!i.sheetFound || i.palmChose) && shipped(i);
+
+  it("the A4-shaped window is found as a sheet without the palm (the situation)", () => {
+    const d = detectPaperQuad(a4Window, "a4", {});
+    expect(d.corners).not.toBeNull();
+    expect(d.paperChoice).toBeUndefined();
+    const cy = d.corners!.reduce((sum, p) => sum + p.y, 0) / 4;
+    expect(cy).toBeLessThan(400); // the window, at the top
+  }, 60_000);
+
+  it("A: no reading yet and the window passes: the hand is still read and the sheet is taken", () => {
     expect(
       shouldSampleHand({
-        ...base,
-        palmChoiceInUse: true,
-        detectorReady: false,
+        detectorReady: true,
+        lastReadingAtMs: null,
+        nowMs: 0,
       }),
+    ).toBe(true);
+    const took = simulate(a4Window, () => a4Hand, shipped, 1500);
+    const first = took.indexOf(true);
+    expect(first).toBeGreaterThanOrEqual(0);
+    expect(first).toBeLessThanOrEqual(1);
+    expect(took.slice(first).every(Boolean)).toBe(true);
+    // The first review's rule never reads it: the window is kept throughout.
+    expect(
+      simulate(a4Window, () => a4Hand, firstReview, 1500).some(Boolean),
     ).toBe(false);
-  });
+  }, 60_000);
 
-  it("EasyScanCamera tells shouldSampleHand when this sample's sheet was taken because of the palm", () => {
+  it("B: one reading misses the hand: the sheet comes back with the next reading, not the window for good", () => {
+    // The third reading (t = 1000 ms) finds no hand; every other one does.
+    const read = (t: number) => (t === 1000 ? null : a4Hand);
+    const took = simulate(a4Window, read, shipped);
+    const tail = took.slice(Math.round(1750 / STEP_MS));
+    expect(tail.every(Boolean)).toBe(true);
+    const old = simulate(a4Window, read, firstReview);
+    expect(old.slice(Math.round(1750 / STEP_MS)).some(Boolean)).toBe(false);
+  }, 60_000);
+
+  it("EasyScanCamera reads the hand by shouldSampleHand alone: no sheet or palm-choice condition", () => {
     const camera = readFileSync("src/client/camera/EasyScanCamera.tsx", "utf8");
     expect(camera).toMatch(
-      /shouldSampleHand\(\{[\s\S]*?palmChoiceInUse: detection\.paperChoice\?\.reason === "palm",[\s\S]*?\}\)/,
+      /shouldSampleHand\(\{\s*detectorReady: isHandLandmarkerReady\(\),\s*lastReadingAtMs: handReadingsRef\.current\.latest\?\.atMs \?\? null,\s*nowMs: now,\s*\}\)/,
     );
+    expect(camera).not.toContain("palmChoiceInUse");
   });
 });

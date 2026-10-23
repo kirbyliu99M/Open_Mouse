@@ -143,28 +143,28 @@ export interface LiveHandReading {
 }
 
 /**
- * Whether the live loop reads the hand on this sample: only when the sheet
- * is not found (the wait is paused otherwise, `sheetFoundByCue`), only once
- * the hand detector is loaded, and at most every `handSampleIntervalMs`.
+ * Whether the live loop reads the hand on this sample: once the hand
+ * detector is loaded, at most every `handSampleIntervalMs`, whether or not
+ * the sheet is found.
  *
- * F17 review (candidate): also while the sheet is found when this sample's
- * detector took the sheet BECAUSE of the palm (`paperChoice.reason`
- * `palm`, `palmChoiceInUse`). Otherwise the found sheet stopped the
- * readings, the palm hint went stale after `handStaleMs`, the detector went
- * back to the larger region (a window), and the live frame flipped between
- * the two about every 1.25 s (模擬, from the constants). With readings kept
- * up, the hint stays fresh until a reading no longer finds the hand.
+ * F17 review (candidate 未拍板): F14 read the hand only while the sheet was
+ * not found (the wait is paused otherwise, `sheetFoundByCue`), and the first
+ * F17 review kept it read only while the detector took the sheet BECAUSE of
+ * the palm. Either way a bright window that passes the live gate on its own
+ * (A4-like in shape) stopped the readings: with no reading yet the palm hint
+ * never came, and after one reading that missed the hand it never came back,
+ * so the live frame stayed on the window. Reading on every interval keeps
+ * the hint (`livePalmHint`) as fresh as the hand. What a reading costs on a
+ * phone while the sheet is found is not measured (不確定). The wait itself
+ * still goes by `sheetFound` (`advanceNoSheetCapture`).
  */
 export function shouldSampleHand(input: {
-  readonly sheetFound: boolean;
   readonly detectorReady: boolean;
   readonly lastReadingAtMs: number | null;
   readonly nowMs: number;
   readonly intervalMs?: number;
-  readonly palmChoiceInUse?: boolean;
 }): boolean {
   if (!input.detectorReady) return false;
-  if (input.sheetFound && input.palmChoiceInUse !== true) return false;
   const interval =
     input.intervalMs ?? CAMERA_CONSTANTS.noSheetCapture.handSampleIntervalMs;
   return (

@@ -2151,19 +2151,16 @@ export default function EasyScanCamera({
       // that is found and only needs the phone moved or held (too far,
       // tilted, dark, hold still...) pauses the wait: the live cue and the
       // ring guard that shot (sheetFoundByCue). The hand is read from this
-      // same sample, only while the sheet is not found and at most every
-      // `handSampleIntervalMs`; only whether it is there and still is used,
-      // nothing is measured from it.
+      // same sample at most every `handSampleIntervalMs`, found sheet or not
+      // (F17 review: the palm hint must not stop because a window passed
+      // the gate); only whether it is there, still, and where its palm is
+      // are used, nothing is measured from it.
       const sheetFound = sheetFoundByCue(nextCue.code);
       if (
         shouldSampleHand({
-          sheetFound,
           detectorReady: isHandLandmarkerReady(),
           lastReadingAtMs: handReadingsRef.current.latest?.atMs ?? null,
           nowMs: now,
-          // F17 review: a sheet taken because of the palm keeps the hand
-          // read, so the hint does not go stale and flip back to a window.
-          palmChoiceInUse: detection.paperChoice?.reason === "palm",
         })
       ) {
         const points = readLiveHandPoints(canvas, width, height);

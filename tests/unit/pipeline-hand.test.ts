@@ -567,12 +567,7 @@ describe("blank paper pipeline: the detector's failure stage (scan S2)", () => {
       paperRegionFound: true,
       cornersSeen: 2,
       cornersFound: [true, true, false, false],
-      partialCorners: [
-        { x: 60, y: 120 },
-        { x: 690, y: 120 },
-        null,
-        null,
-      ],
+      partialCorners: [{ x: 60, y: 120 }, { x: 690, y: 120 }, null, null],
     } as never);
     const result = await run(
       { method: "paper-edge", paperSize: "a4" },
