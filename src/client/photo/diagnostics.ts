@@ -6,7 +6,7 @@
  * error code alone does not say why (a sheet that fills 65 % of the photo and a
  * sheet that fills 90 % can both read "PAPER_CURLED").
  */
-import type { PaperChoiceRecord } from "../paper/detect";
+import type { EdgeFitRecord, PaperChoiceRecord } from "../paper/detect";
 import { computeQuadSkew } from "../camera/quad";
 import { screenSideOfPaperSide, type PaperSide } from "../camera/paperGate";
 import { lowestCoverageSide } from "../paper/detect";
@@ -29,6 +29,29 @@ import type {
  */
 export interface PaperChoiceDiagnostics extends PaperChoiceRecord {
   readonly used: boolean;
+}
+
+/**
+ * V3.2 F19 (candidate): the detector's second call (secondLook.ts): whether
+ * it carried the palm (F17) and the hand's landmarks (F19), whether its
+ * answer was taken, and how long it took (ms, measured in the browser).
+ */
+export interface PaperSecondLookDiagnostics {
+  readonly palm: boolean;
+  readonly handMask: boolean;
+  readonly used: boolean;
+  readonly ms: number;
+}
+
+/**
+ * V3.2 F19 (candidate): how the sides of the sheet in the result were fitted
+ * (`EdgeFitRecord`: per-side residuals in px, points left out under the hand,
+ * whether a hand mask was used, pieces joined), `null` without a found
+ * sheet; and the second call, `null` when there was none.
+ */
+export interface PaperEdgeFitDiagnostics {
+  readonly edgeFit: EdgeFitRecord | null;
+  readonly secondLook: PaperSecondLookDiagnostics | null;
 }
 
 export interface PaperDiagnostics {
@@ -189,6 +212,12 @@ export interface PipelineDiagnostics {
    * not sent to analytics.
    */
   readonly paperChoice?: PaperChoiceDiagnostics;
+  /**
+   * V3.2 F19 (candidate): per-side residuals, points left out under the hand
+   * and the second call, present where there is a found sheet or a second
+   * call. Local attempt log only; not sent to analytics.
+   */
+  readonly paperEdgeFit?: PaperEdgeFitDiagnostics;
   /**
    * V3.2 F8 (candidate): where the sheet detector and the sharpness ran,
    * `worker` (a Web Worker, off the main thread) or `fallback` (the main

@@ -79,6 +79,7 @@ import {
   computeReportingStats,
   computeSideCoverage,
   convexHull,
+  sideEndsSeen,
   fitLineRansac,
   intersectLines,
   isConvexQuad,
@@ -91,7 +92,17 @@ import {
   RANSAC_SEED,
 } from "./quad-math";
 import { assumedFocalPxFromFov, resolveOrientation } from "./orientation";
-import { choosePaperCandidate, type PaperChoice } from "./palmChoice";
+import {
+  choosePaperCandidate,
+  pointInConvexQuad,
+  type PaperChoice,
+} from "./palmChoice";
+import {
+  buildHandMask,
+  excludeCoveredPoints,
+  rasterizeHandMask,
+  type HandMask,
+} from "./handMask";
 import {
   MIN_PIECE_FRACTION,
   stageForSmallRegions,
@@ -143,6 +154,40 @@ export interface DetectPaperQuadOptions {
    * preview 7). Omitted, the detector is exactly what it was.
    */
   readonly palmPointsPx?: readonly Point2[];
+  /**
+   * V3.2 F19 (candidate): the hand's 21 landmarks in this frame's pixels,
+   * when the hand is known (`handMask.ts`). Boundary points the hand or the
+   * arm cover are left out of the side fits, and a sheet the arm cut into
+   * pieces is looked for again with the pieces that touch the hand taken
+   * together. Omitted, the detector is exactly what it was.
+   */
+  readonly handLandmarksPx?: readonly Point2[];
+}
+
+/**
+ * V3.2 F19 (candidate): how the sides were fitted, on every found sheet.
+ * Diagnostic only (the local attempt log); no gate reads it.
+ */
+export interface EdgeFitRecord {
+  /** Each side's mean residual to its fitted line in frame px (the figure whose maximum is `edgeFitResidualPx`), in `sideCoverages`' order; `null` for a side that was not fitted. */
+  readonly sideResidualsPx: readonly [
+    number | null,
+    number | null,
+    number | null,
+    number | null,
+  ];
+  /** Boundary points left out because the hand or the arm covered them (0 without a hand mask). */
+  readonly excludedPoints: number;
+  /**
+   * Per side, in the same order: whether its points reach both of its ends
+   * (the first and last `SIDE_END_BINS` of `COVERAGE_BINS`, `sideEndsSeen`),
+   * so both of its corners rest on evidence; `false` for a side not fitted.
+   */
+  readonly sideEndsSeen: readonly [boolean, boolean, boolean, boolean];
+  /** Whether a hand mask was used (`handLandmarksPx` given and usable). */
+  readonly handMask: boolean;
+  /** How many bright pieces were taken together for the sheet: 1, or 2+ when F19 joined pieces the hand or arm cut apart. */
+  readonly piecesJoined: number;
 }
 
 /**
@@ -235,6 +280,13 @@ export interface SheetQuadDetection {
    * gate, homography or number reads it.
    */
   readonly guessCorners?: readonly [Point2, Point2, Point2, Point2] | null;
+  /**
+   * V3.2 F19 (candidate): per-side residuals, points left out under the hand
+   * and whether pieces were joined; on every found sheet the detector
+   * returns, absent on "no sheet" and on hand-built detections. Local
+   * attempt log only; no gate reads it.
+   */
+  readonly edgeFit?: EdgeFitRecord;
 }
 
 const NONE: SheetQuadDetection = {
@@ -266,6 +318,8 @@ const SIDE_ASSIGNMENT_MAX_DISTANCE_FRACTION = 0.05;
 const RANSAC_ITERATIONS = 50;
 const RANSAC_MIN_POINTS = 6;
 const COVERAGE_BINS = 40;
+/** F19: a side's "ends" for `EdgeFitRecord.sideEndsSeen`: its first and last 4 of 40 buckets (10 % of its length each). Diagnostic only. */
+const SIDE_END_BINS = 4;
 /**
  * `RANSAC_INLIER_THRESHOLD_PX` / `REPORTING_THRESHOLD_PX` below are
  * defined at this reference long-edge size and then SCALED by the actual
@@ -533,7 +587,7 @@ const LOCAL_LEVEL_OFFSET_PX = 4;
  */
 function collectBoundaryCandidates(
   labels: Int32Array,
-  bestLabel: number,
+  keep: Uint8Array,
   gray: Float32Array,
   threshold: number,
   width: number,
@@ -541,7 +595,9 @@ function collectBoundaryCandidates(
 ): BoundaryCandidates {
   const rowPoints: Point2[] = [];
   const colPoints: Point2[] = [];
-  const isComponent = (idx: number) => labels[idx] === bestLabel;
+  // `keep[label]` is 1 for the region taken for the sheet (one label, or with
+  // F19's merge several); a label of -1 (no region) reads `undefined`.
+  const isComponent = (idx: number) => keep[labels[idx]] === 1;
   const interp = (
     level: number,
     outsideVal: number,
@@ -892,11 +948,6 @@ function detectPaperQuadImpl(
   const pixelCount = width * height;
   if (width < 20 || height < 20) return none("unknown");
 
-  const scale = resolutionScale(width, height);
-  const ransacInlierThresholdPx =
-    RANSAC_INLIER_THRESHOLD_PX_AT_REFERENCE * scale;
-  const reportingThresholdPx = REPORTING_THRESHOLD_PX_AT_REFERENCE * scale;
-
   const { gray, sat } = computeGrayscaleAndSaturation(data, pixelCount);
   const blurredGray = boxBlur(gray, width, height, BLUR_RADIUS_PX);
   const blurredSat = boxBlur(sat, width, height, BLUR_RADIUS_PX);
@@ -959,18 +1010,146 @@ function detectPaperQuadImpl(
       }
     }
   }
+  // F19 (candidate): where the hand and arm lie, when the caller knows them.
+  // Without landmarks there is no mask, and everything below is what it was.
+  const handMask = options.handLandmarksPx
+    ? buildHandMask(options.handLandmarksPx, width, height)
+    : null;
+  const ctx: RegionContext = {
+    width,
+    height,
+    pixelCount,
+    labels,
+    areas,
+    blurredGray,
+    threshold,
+    paperSize,
+    options,
+    handMask,
+  };
+  const keep = new Uint8Array(areas.length);
+  keep[bestLabel] = 1;
+  const first = fitRegion(
+    ctx,
+    { keep, area: bestArea, palmPicked, maybePaper: null },
+    guess,
+  );
+  if (!handMask || !first.failureStage) return first;
+  if (!RETRY_STAGES.has(first.failureStage)) return first;
+
+  // F19: the bright pixels are in pieces. With the hand known, the sizeable
+  // pieces that touch the hand or arm are taken together (a sheet the arm cut
+  // across), and the pixels under the hand count as possibly sheet for the
+  // region-to-quad check. Taken only when that finds the sheet; otherwise the
+  // first answer stands.
+  const covered = rasterizeHandMask(handMask, width, height);
+  const minPiece = MIN_PIECE_FRACTION * pixelCount;
+  const merged = new Uint8Array(areas.length);
+  let mergedArea = 0;
+  let pieces = 0;
+  for (let i = 0; i < pixelCount; i++) {
+    if (!covered[i]) continue;
+    const label = labels[i];
+    if (label < 0 || merged[label] || areas[label] < minPiece) continue;
+    merged[label] = 1;
+    mergedArea += areas[label];
+    pieces++;
+  }
+  if (pieces < 2) return first;
+  const retryGuess: GuessSink | null = guess ? { corners: null } : null;
+  const second = fitRegion(
+    ctx,
+    { keep: merged, area: mergedArea, palmPicked: false, maybePaper: covered },
+    retryGuess,
+  );
+  if (!second.paperRegionFound) return first;
+  if (guess && retryGuess) guess.corners = retryGuess.corners;
+  return second.edgeFit
+    ? { ...second, edgeFit: { ...second.edgeFit, piecesJoined: pieces } }
+    : second;
+}
+
+/**
+ * F19: the stages after which a frame with the hand known is looked at again
+ * with the pieces the hand touches taken together. `region_split` is the
+ * named one; a sheet the arm cuts in two also ends at `aspect_mismatch` (the
+ * larger piece alone is the wrong shape) or `too_small` (each piece under
+ * the floor). The second look is taken only when it finds the sheet.
+ */
+const RETRY_STAGES: ReadonlySet<PaperDetectionStage> = new Set([
+  "region_split",
+  "aspect_mismatch",
+  "too_small",
+]);
+
+/** What `fitRegion` reads of the frame, the same for every region it is given. */
+interface RegionContext {
+  readonly width: number;
+  readonly height: number;
+  readonly pixelCount: number;
+  readonly labels: Int32Array;
+  readonly areas: readonly number[];
+  readonly blurredGray: Float32Array;
+  readonly threshold: number;
+  readonly paperSize: PaperSize;
+  readonly options: DetectPaperQuadOptions;
+  readonly handMask: HandMask | null;
+}
+
+/** The bright region taken for the sheet. */
+interface RegionChoice {
+  /** 1 for every label that is part of it (one label, or F19's joined pieces). */
+  readonly keep: Uint8Array;
+  /** Its pixel count. */
+  readonly area: number;
+  /** F17 took it because it holds the palm. */
+  readonly palmPicked: boolean;
+  /**
+   * F19: pixels the hand covers, counted as possibly sheet (inside the
+   * fitted quad, outside the region) in the region-to-quad check; `null`
+   * for an ordinary region.
+   */
+  readonly maybePaper: Uint8Array | null;
+}
+
+/**
+ * From a chosen bright region to the detection: boundary points, the coarse
+ * quad, the side fits, the sanity checks and the reported numbers (steps 4-8
+ * of the module doc). A region of one label with no hand mask is exactly the
+ * detector before F19.
+ */
+function fitRegion(
+  ctx: RegionContext,
+  region: RegionChoice,
+  guess: GuessSink | null,
+): SheetQuadDetection {
+  const {
+    width,
+    height,
+    pixelCount,
+    labels,
+    areas,
+    blurredGray,
+    threshold,
+    paperSize,
+    options,
+    handMask,
+  } = ctx;
+  const { keep, palmPicked } = region;
+  const bestArea = region.area;
+  const inRegion = (label: number) => keep[label] === 1;
+  const scale = resolutionScale(width, height);
+  const ransacInlierThresholdPx =
+    RANSAC_INLIER_THRESHOLD_PX_AT_REFERENCE * scale;
+  const reportingThresholdPx = REPORTING_THRESHOLD_PX_AT_REFERENCE * scale;
+
   if (bestArea < MIN_PAPER_AREA_FRACTION * pixelCount) {
     if (guess && palmPicked) {
       // F17 review: the region that holds the palm is under the sheet's area
       // floor (a sheet held high, part of it under the hand). Not found (the
       // floor is unchanged), but the rough quad the adjustment screen opens
       // on is that region's own hull, never one that takes in the window.
-      const q = regionGuessQuad(
-        labels,
-        width,
-        height,
-        (label) => label === bestLabel,
-      );
+      const q = regionGuessQuad(labels, width, height, inRegion);
       const focal = options.focalPxHint ?? assumedFocalPxFromFov(width);
       if (
         q &&
@@ -1004,12 +1183,7 @@ function detectPaperQuadImpl(
   // region's own hull until a better one (the fitted quad) exists.
   const regionGuess = () => {
     if (!guess) return;
-    const q = regionGuessQuad(
-      labels,
-      width,
-      height,
-      (label) => label === bestLabel,
-    );
+    const q = regionGuessQuad(labels, width, height, inRegion);
     const focal = options.focalPxHint ?? assumedFocalPxFromFov(width);
     if (
       q &&
@@ -1021,7 +1195,7 @@ function detectPaperQuadImpl(
 
   const { rowPoints, colPoints } = collectBoundaryCandidates(
     labels,
-    bestLabel,
+    keep,
     blurredGray,
     threshold,
     width,
@@ -1085,9 +1259,22 @@ function detectPaperQuadImpl(
   const buckets = [0, 1, 2, 3].map((i) =>
     orientations[i] === "h" ? hBuckets[i] : vBuckets[i],
   );
+  // F19 (candidate): with the hand known, a side's points the hand or the
+  // arm cover are left out of its fit and of its residual: they are where
+  // the region meets the hand, its shadow or the arm, not the sheet's edge.
+  // The coverage below still counts every point, as before, so leaving
+  // points out never makes an edge read as more hidden than it did.
+  let excludedPoints = 0;
+  const fitBuckets = handMask
+    ? buckets.map((pts) => {
+        const { kept, excluded } = excludeCoveredPoints(pts, handMask);
+        excludedPoints += excluded;
+        return kept;
+      })
+    : buckets;
 
   const rng = mulberry32(RANSAC_SEED);
-  const fits = buckets.map((pts) =>
+  const fits = fitBuckets.map((pts) =>
     fitLineRansac(pts, {
       iterations: RANSAC_ITERATIONS,
       inlierThresholdPx: ransacInlierThresholdPx,
@@ -1142,7 +1329,18 @@ function detectPaperQuadImpl(
   // can still fit a perfectly convex quad, but that quad won't actually
   // match the connected component it was fit from.
   const quadArea = polygonArea(workingCorners);
-  const componentToQuadAreaRatio = bestArea / quadArea;
+  const componentToQuadAreaRatio =
+    (region.maybePaper
+      ? bestArea +
+        maybePaperInside(
+          region.maybePaper,
+          labels,
+          keep,
+          workingCorners,
+          width,
+          height,
+        )
+      : bestArea) / quadArea;
   // Under the minimum: the region fills too little of its own quad, as when
   // it is cut into or split. Over the maximum: it spills well past the quad
   // (merged with the background), which no named stage describes.
@@ -1198,6 +1396,7 @@ function detectPaperQuadImpl(
     ];
     fits.push(fits.shift()!);
     buckets.push(buckets.shift()!);
+    if (fitBuckets !== buckets) fitBuckets.push(fitBuckets.shift()!);
     coarseSides.push(coarseSides.shift()!);
   }
 
@@ -1236,6 +1435,9 @@ function detectPaperQuadImpl(
   // Diagnostic only (see `minCoverageSideIndex`): the side with the lowest
   // coverage, `null` while nothing is below 1 yet and on an exact tie.
   const sideCoverages: number[] = [1, 1, 1, 1];
+  // F19: each side's own residual (px), for the local attempt log only.
+  const sideResidualsPx: (number | null)[] = [null, null, null, null];
+  const endsSeen: boolean[] = [false, false, false, false];
   for (let i = 0; i < 4; i++) {
     const fit = fits[i];
     const segStart = workingCorners[i];
@@ -1250,6 +1452,12 @@ function detectPaperQuadImpl(
       fit.line,
       reportingThresholdPx,
     );
+    // F19: the residual from the points the hand does not cover; without a
+    // hand mask, the same points as the coverage (as before F19).
+    const residual =
+      fitBuckets === buckets
+        ? reporting
+        : computeReportingStats(fitBuckets[i], fit.line, reportingThresholdPx);
     const coverage = computeSideCoverage(
       reporting.points,
       segStart,
@@ -1258,11 +1466,19 @@ function detectPaperQuadImpl(
     );
     coverageMin = Math.min(coverageMin, coverage);
     sideCoverages[i] = coverage;
+    sideResidualsPx[i] = residual.meanResidualPx;
+    endsSeen[i] = sideEndsSeen(
+      reporting.points,
+      segStart,
+      segEnd,
+      COVERAGE_BINS,
+      SIDE_END_BINS,
+    );
     // The WORST side, not the average: a single curled side must not be
     // diluted by the other three (typically near-flat) sides — see this
     // function's header comment.
-    if (reporting.meanResidualPx > residualMax) {
-      residualMax = reporting.meanResidualPx;
+    if (residual.meanResidualPx > residualMax) {
+      residualMax = residual.meanResidualPx;
       worstSideIndex = i as 0 | 1 | 2 | 3;
     }
   }
@@ -1288,7 +1504,50 @@ function detectPaperQuadImpl(
       sideCoverages[2],
       sideCoverages[3],
     ],
+    edgeFit: {
+      sideResidualsPx: [
+        sideResidualsPx[0],
+        sideResidualsPx[1],
+        sideResidualsPx[2],
+        sideResidualsPx[3],
+      ],
+      sideEndsSeen: [endsSeen[0], endsSeen[1], endsSeen[2], endsSeen[3]],
+      excludedPoints,
+      handMask: handMask !== null,
+      piecesJoined: 1,
+    },
   };
+}
+
+/**
+ * F19: how many pixels the hand covers (`maybePaper`) inside `quad` that are
+ * not already part of the region (`keep`). Only the quad's bounding box is
+ * visited. Pure.
+ */
+function maybePaperInside(
+  maybePaper: Uint8Array,
+  labels: Int32Array,
+  keep: Uint8Array,
+  quad: readonly [Point2, Point2, Point2, Point2],
+  width: number,
+  height: number,
+): number {
+  const xs = quad.map((p) => p.x);
+  const ys = quad.map((p) => p.y);
+  const x0 = Math.max(0, Math.floor(Math.min(...xs)));
+  const x1 = Math.min(width - 1, Math.ceil(Math.max(...xs)));
+  const y0 = Math.max(0, Math.floor(Math.min(...ys)));
+  const y1 = Math.min(height - 1, Math.ceil(Math.max(...ys)));
+  let count = 0;
+  for (let y = y0; y <= y1; y++) {
+    const row = y * width;
+    for (let x = x0; x <= x1; x++) {
+      const i = row + x;
+      if (!maybePaper[i] || keep[labels[i]] === 1) continue;
+      if (pointInConvexQuad({ x: x + 0.5, y: y + 0.5 }, quad)) count++;
+    }
+  }
+  return count;
 }
 
 /**

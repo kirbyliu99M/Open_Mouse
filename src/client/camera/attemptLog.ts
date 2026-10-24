@@ -288,7 +288,35 @@ export interface AttemptRecord {
    * only on an attempt that had one. Local only, never sent.
    */
   readonly paperChoice?: AttemptPaperChoice;
+  /**
+   * V3.2 F19 (candidate): how the sheet's sides were fitted (each side's
+   * residual in px to 0.001, `null` for a side not fitted; whether each
+   * side's points reached both its ends; boundary points left out under the
+   * hand; whether a hand mask was used; pieces joined), and the detector's
+   * second call (what it carried, whether it was taken, its ms). Present only
+   * on an attempt with a found sheet or a second call. Local only, never sent.
+   */
+  readonly paperEdgeFit?: AttemptPaperEdgeFit;
   readonly userAgent: string;
+}
+
+export interface AttemptPaperEdgeFit {
+  readonly sideResidualsPx: readonly [
+    number | null,
+    number | null,
+    number | null,
+    number | null,
+  ] | null;
+  readonly sideEndsSeen: readonly [boolean, boolean, boolean, boolean] | null;
+  readonly excludedPoints: number | null;
+  readonly handMask: boolean;
+  readonly piecesJoined: number | null;
+  readonly secondLook: {
+    readonly palm: boolean;
+    readonly handMask: boolean;
+    readonly used: boolean;
+    readonly ms: number | null;
+  } | null;
 }
 
 export interface AttemptPaperChoice {
@@ -548,6 +576,8 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
     parallaxGuard: cleanParallaxGuard(raw.parallaxGuard),
     // Only on an attempt with F17's second look; absent on every other one.
     ...paperChoiceField(raw.paperChoice),
+    // Only on an attempt F19 had something to say about; absent otherwise.
+    ...paperEdgeFitField(raw.paperEdgeFit),
     userAgent: cleanString(raw.userAgent, MAX_USER_AGENT_LENGTH) ?? "",
   };
 }
@@ -573,6 +603,47 @@ function paperChoiceField(value: unknown): {
       palmInside: cleanNumber(o.palmInside, 0),
       largestPalmInside: cleanNumber(o.largestPalmInside, 0),
       used: o.used === true,
+    },
+  };
+}
+
+/** The F19 record, rebuilt field by field; anything that is not an object is left out. */
+function paperEdgeFitField(value: unknown): {
+  paperEdgeFit?: AttemptPaperEdgeFit;
+} {
+  const o = asObject(value);
+  if (!o) return {};
+  const residuals =
+    Array.isArray(o.sideResidualsPx) && o.sideResidualsPx.length === 4
+      ? (o.sideResidualsPx.map((v) => cleanNumber(v, 3)) as [
+          number | null,
+          number | null,
+          number | null,
+          number | null,
+        ])
+      : null;
+  const ends =
+    Array.isArray(o.sideEndsSeen) &&
+    o.sideEndsSeen.length === 4 &&
+    o.sideEndsSeen.every((v) => typeof v === "boolean")
+      ? (o.sideEndsSeen as [boolean, boolean, boolean, boolean])
+      : null;
+  const look = asObject(o.secondLook);
+  return {
+    paperEdgeFit: {
+      sideResidualsPx: residuals,
+      sideEndsSeen: ends ? [ends[0], ends[1], ends[2], ends[3]] : null,
+      excludedPoints: cleanNumber(o.excludedPoints, 0),
+      handMask: o.handMask === true,
+      piecesJoined: cleanNumber(o.piecesJoined, 0),
+      secondLook: look
+        ? {
+            palm: look.palm === true,
+            handMask: look.handMask === true,
+            used: look.used === true,
+            ms: cleanNumber(look.ms, 0),
+          }
+        : null,
     },
   };
 }
@@ -984,6 +1055,23 @@ export function buildAttemptRecord(input: {
     ...(diagnostics?.paperChoice
       ? { paperChoice: diagnostics.paperChoice }
       : {}),
+    ...(diagnostics?.paperEdgeFit
+      ? {
+          paperEdgeFit: {
+            sideResidualsPx:
+              diagnostics.paperEdgeFit.edgeFit?.sideResidualsPx ?? null,
+            sideEndsSeen: diagnostics.paperEdgeFit.edgeFit?.sideEndsSeen ?? null,
+            excludedPoints:
+              diagnostics.paperEdgeFit.edgeFit?.excludedPoints ?? null,
+            handMask:
+              diagnostics.paperEdgeFit.edgeFit?.handMask === true ||
+              diagnostics.paperEdgeFit.secondLook?.handMask === true,
+            piecesJoined:
+              diagnostics.paperEdgeFit.edgeFit?.piecesJoined ?? null,
+            secondLook: diagnostics.paperEdgeFit.secondLook,
+          },
+        }
+      : {}),
     userAgent: input.userAgent,
   });
   // `result` and `at` are set above, so the record is always valid; the
@@ -1073,6 +1161,22 @@ export function describeAttempt(record: AttemptRecord): string {
   if (record.paper?.sideCoverages)
     parts.push(
       `edge ${record.paper.worstSide ?? "?"} worst · cov ${record.paper.sideCoverages.join("/")}`,
+    );
+  if (record.paperEdgeFit?.sideResidualsPx)
+    parts.push(
+      `side resid ${record.paperEdgeFit.sideResidualsPx.map((v) => v ?? "?").join("/")} px`,
+    );
+  if (record.paperEdgeFit?.handMask)
+    parts.push(
+      `hand mask · ${record.paperEdgeFit.excludedPoints ?? "?"} pts out${
+        (record.paperEdgeFit.piecesJoined ?? 1) > 1
+          ? ` · ${record.paperEdgeFit.piecesJoined} pieces joined`
+          : ""
+      }`,
+    );
+  if (record.paperEdgeFit?.secondLook)
+    parts.push(
+      `second look ${record.paperEdgeFit.secondLook.used ? "used" : "not used"}`,
     );
   if (record.hand.handPose !== null)
     parts.push(

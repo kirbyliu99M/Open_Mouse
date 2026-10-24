@@ -76,6 +76,9 @@ import {
 } from "../camera/visibleView";
 import { finishPaperEdge } from "./paperEdgeFinish";
 import { PALM_CHOICE, palmPointsOf, pointsInside } from "../paper/palmChoice";
+import { handLandmarksOf } from "../paper/handMask";
+import type { EdgeFitRecord } from "../paper/detect";
+import { adoptSecondLook, planSecondLook } from "../paper/secondLook";
 import type { ReusedFocal } from "../geometry/parallax";
 import type { IssueDetail } from "./issue-detail";
 import {
@@ -87,6 +90,7 @@ import {
   type HandDiagnostics,
   type PaperChoiceDiagnostics,
   type PaperDiagnostics,
+  type PaperSecondLookDiagnostics,
   type PipelineDiagnostics,
   type ParallaxGuardDiagnostics,
   type ShadowPriorDiagnostics,
@@ -294,6 +298,10 @@ interface PipelineTrace {
   analysisThread: AnalysisThread | null;
   /** V3.2 F17: the palm-guided second look at the sheet, when there was one. */
   paperChoice: PaperChoiceDiagnostics | null;
+  /** V3.2 F19: the second call to the detector (F17 and/or F19), when there was one. */
+  paperSecondLook: PaperSecondLookDiagnostics | null;
+  /** V3.2 F19: how the sides of the sheet in the result were fitted, when one was found. */
+  paperEdgeFit: EdgeFitRecord | null;
 }
 
 function newTrace(): PipelineTrace {
@@ -319,6 +327,8 @@ function newTrace(): PipelineTrace {
     parallaxGuard: null,
     analysisThread: null,
     paperChoice: null,
+    paperSecondLook: null,
+    paperEdgeFit: null,
   };
 }
 
@@ -476,6 +486,15 @@ export async function runPhotoPipeline(
     analysisThread: trace.analysisThread,
     // Only where there was a second look, so every other record is as it was.
     ...(trace.paperChoice ? { paperChoice: trace.paperChoice } : {}),
+    // F19: only where there is something to say, so other records are as they were.
+    ...(trace.paperEdgeFit || trace.paperSecondLook
+      ? {
+          paperEdgeFit: {
+            edgeFit: trace.paperEdgeFit,
+            secondLook: trace.paperSecondLook,
+          },
+        }
+      : {}),
   };
   return { ...result, diagnostics };
 }
@@ -941,27 +960,60 @@ async function runPaperEdgePipeline(
       paperEval?.geometry != null &&
       palm !== null &&
       pointsInside(quad.corners, palm) >= PALM_CHOICE.minPointsInside;
-    if (palm && !holdsPalm) {
+    // V3.2 F19 (candidate): when the first answer failed a paper check and
+    // the hand is known, the same second call also carries the hand's 21
+    // landmarks, so points under the hand and arm are left out and pieces
+    // the arm cut apart are joined (secondLook.ts decides when, and whether
+    // its answer is taken). A photo whose sheet held the palm and passed is
+    // never looked at twice.
+    const plan = planSecondLook({
+      firstHasCorners: quad.corners !== null,
+      firstOk: paperEval?.ok === true,
+      palm,
+      holdsPalm,
+      hand: hand ? handLandmarksOf(hand.landmarksPx) : null,
+    });
+    if (plan) {
+      const secondStartedAt = performance.now();
       const again = await getAnalysisRunner().run(
         {
           kind: "paper",
           paperSize,
-          options: { focalPxHint, failureGuess: true, palmPointsPx: palm },
+          options: { focalPxHint, failureGuess: true, ...plan },
         },
         frame,
         reread,
       );
       frame = again.frame;
       noteAnalysisThread(trace, again.thread);
-      const choice = again.outcome.quad.paperChoice;
-      const used = choice?.reason === "palm";
-      trace.paperChoice = choice ? { ...choice, used } : null;
+      const second = again.outcome.quad;
+      const secondOk =
+        second.corners !== null &&
+        evaluatePaperEdgeCalibration(second, paperSize, false).ok;
+      const used = adoptSecondLook({
+        plan,
+        palmChose: second.paperChoice?.reason === "palm",
+        firstHasCorners: quad.corners !== null,
+        secondHasCorners: second.corners !== null,
+        secondOk,
+      });
+      if (plan.palmPointsPx) {
+        const choice = second.paperChoice;
+        trace.paperChoice = choice ? { ...choice, used } : null;
+      }
+      trace.paperSecondLook = {
+        palm: plan.palmPointsPx !== undefined,
+        handMask: plan.handLandmarksPx !== undefined,
+        used,
+        ms: performance.now() - secondStartedAt,
+      };
       if (used) {
-        quad = again.outcome.quad;
+        quad = second;
         notePaper(quad);
         paperEval = evaluate(quad);
       }
     }
+    trace.paperEdgeFit = quad.edgeFit ?? null;
 
     if (!quad.corners) {
       // With the step the detector stopped at (scan S2): the words name it,

@@ -410,6 +410,37 @@ export function computeSideCoverage(
   return count / bins;
 }
 
+/**
+ * V3.2 F19: whether `points` reach both ENDS of the segment `[segStart,
+ * segEnd]`: some point projects into its first `endBins` of `bins` equal
+ * buckets, and some into its last `endBins` (the same buckets as
+ * `computeSideCoverage`). A side seen near both of its corners pins both
+ * corners even with its middle hidden. `false` for a degenerate segment.
+ */
+export function sideEndsSeen(
+  points: readonly Point2[],
+  segStart: Point2,
+  segEnd: Point2,
+  bins = 40,
+  endBins = 4,
+): boolean {
+  const dx = segEnd.x - segStart.x;
+  const dy = segEnd.y - segStart.y;
+  const segLenSq = dx * dx + dy * dy;
+  if (segLenSq < 1e-9 || endBins < 1) return false;
+  let start = false;
+  let end = false;
+  for (const p of points) {
+    const t = ((p.x - segStart.x) * dx + (p.y - segStart.y) * dy) / segLenSq;
+    if (t < 0 || t > 1) continue;
+    const bin = clamp(Math.floor(t * bins), 0, bins - 1);
+    if (bin < endBins) start = true;
+    if (bin >= bins - endBins) end = true;
+    if (start && end) return true;
+  }
+  return false;
+}
+
 /** Signed polygon area via the shoelace formula (always ≥ 0 here since callers only need magnitude). */
 export function polygonArea(points: readonly Point2[]): number {
   let sum = 0;
