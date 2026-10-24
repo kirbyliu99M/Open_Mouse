@@ -262,6 +262,86 @@ describe("F19 — the arm across the sheet (region split, 模擬)", () => {
   });
 });
 
+/** Paints a sheet-white strip `widthPx` wide, `gapPx` left of the sheet's left edge, over the background only (the arm stays on top). */
+function withStrip(scene: HandScene, gapPx: number, widthPx = 22): HandScene {
+  const data = new Uint8ClampedArray(scene.data);
+  const x1 = Math.round(scene.corners[0].x) - gapPx;
+  const x0 = Math.max(0, x1 - widthPx);
+  for (let y = 0; y < scene.height; y++)
+    for (let x = x0; x < x1; x++) {
+      const i = (y * scene.width + x) * 4;
+      const background =
+        data[i]! < 130 && Math.abs(data[i]! - data[i + 2]!) < 10;
+      if (background) data[i] = data[i + 1] = data[i + 2] = 236;
+    }
+  return { ...scene, data };
+}
+
+/** Keeps only two mismatched bright blocks of the sheet, one above the arm and one below: no sheet in the picture. */
+function twoBlobs(scene: HandScene, armYmm: number): HandScene {
+  const data = new Uint8ClampedArray(scene.data);
+  const [tl, tr] = scene.corners;
+  const sheetW = tr.x - tl.x;
+  const armY = tl.y + armYmm * scene.pxPerMm;
+  for (let y = 0; y < scene.height; y++)
+    for (let x = 0; x < scene.width; x++) {
+      const i = (y * scene.width + x) * 4;
+      const paper = data[i]! > 150 && Math.abs(data[i]! - data[i + 2]!) < 12;
+      if (!paper) continue;
+      const inA = y < armY && x < tl.x + 0.45 * sheetW;
+      const inB =
+        y > armY && x > tl.x + 0.3 * sheetW && y < armY + 0.25 * scene.height;
+      if (!inA && !inB) {
+        data[i] = data[i + 1] = 95;
+        data[i + 2] = 98;
+      }
+    }
+  return { ...scene, data };
+}
+
+// F19 review (2026-10-25, 模擬): the pieces the arm touches are joined, so a
+// bright region that is NOT the sheet and touches the arm (a white strip of
+// desk or a sleeve beside the sheet) could be joined too. Before the fix the
+// strip was taken in: corners 26-30 px (about 12-13 mm) off and every paper
+// gate passed. With three or more pieces the smallest is now left out while
+// the rest still give four corners.
+describe("F19 review — joined pieces that are not all the sheet (模擬)", () => {
+  it.each([
+    [110, 90, 4],
+    [110, 90, 8],
+    [90, 100, 8],
+    [190, 80, 4],
+  ])(
+    "arm across at y = %i mm (arm %i°), a white strip %i px left of the sheet: the strip is not joined, the corners within 1 px",
+    (y, armDeg, gap) => {
+      const scene = withStrip(
+        renderHandScene({ wristMm: { x: 120, y }, handDeg: 90, armDeg }),
+        gap,
+      );
+      const r = run(scene, true);
+      expect(r.detection.corners).not.toBeNull();
+      expect(r.cornerErrorPx!).toBeLessThan(1);
+      expect(r.detection.edgeFit?.piecesJoined).toBe(2);
+      expect(r.codes).toStrictEqual([]);
+    },
+    60_000,
+  );
+
+  it.each([110, 150, 190])(
+    "no sheet, two mismatched bright blocks the arm touches (y = %i mm): no four corners",
+    (y) => {
+      const scene = twoBlobs(
+        renderHandScene({ wristMm: { x: 120, y }, handDeg: 90 }),
+        y,
+      );
+      const r = run(scene, true);
+      expect(r.detection.corners).toBeNull();
+      expect(r.evaluation.ok).toBe(false);
+    },
+    60_000,
+  );
+});
+
 describe("F19 — what does not change", () => {
   const plain = renderHandScene({ wristMm: { x: 105, y: 250 }, noHand: true });
 

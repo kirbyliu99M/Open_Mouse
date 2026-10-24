@@ -69,8 +69,10 @@
  * before, from every point near the fitted line. A frame that stops at
  * `region_split`, `aspect_mismatch` or `too_small`, or finds a region with
  * fewer than four corners, is fitted once more with the sizeable bright
- * pieces the hand touches taken together; that answer is kept only when it
- * finds the sheet (with four corners, in the second case). Every found sheet also carries `edgeFit` (per-side
+ * pieces the hand touches taken together (with three or more, the
+ * smallest is left out while the rest still give four corners, F19 review);
+ * that answer is kept only when it finds the sheet (with four corners, in
+ * the second case). Every found sheet also carries `edgeFit` (per-side
  * residuals, for the local attempt log). Without landmarks every number is
  * exactly what it was (the S2 golden scenes, bit for bit).
  *
@@ -1066,26 +1068,56 @@ function detectPaperQuadImpl(
   const covered = rasterizeHandMask(handMask, width, height);
   const minPiece = MIN_PIECE_FRACTION * pixelCount;
   const merged = new Uint8Array(areas.length);
-  let mergedArea = 0;
-  let pieces = 0;
+  const joined: number[] = [];
   for (let i = 0; i < pixelCount; i++) {
     if (!covered[i]) continue;
     const label = labels[i];
     if (label < 0 || merged[label] || areas[label] < minPiece) continue;
     merged[label] = 1;
-    mergedArea += areas[label];
-    pieces++;
+    joined.push(label);
   }
-  if (pieces < 2) return first;
-  const retryGuess: GuessSink | null = guess ? { corners: null } : null;
-  const second = fitRegion(
-    ctx,
-    { keep: merged, area: mergedArea, palmPicked: false, maybePaper: covered },
-    retryGuess,
-  );
+  if (joined.length < 2) return first;
+  const fitJoined = (keep: Uint8Array, area: number) => {
+    const sink: GuessSink | null = guess ? { corners: null } : null;
+    const result = fitRegion(
+      ctx,
+      { keep, area, palmPicked: false, maybePaper: covered },
+      sink,
+    );
+    return { result, sink };
+  };
+  let mergedArea = 0;
+  for (const label of joined) mergedArea += areas[label];
+  let best = fitJoined(merged, mergedArea);
+  // F19 review (2026-10-25, candidate): a bright region that is not the
+  // sheet (a white strip of desk or a sleeve beside it) can touch the arm
+  // too and be joined, and the quad then takes it in (simulated: corners
+  // 26-30 px, about 12-13 mm, off and every paper gate passed). With three
+  // or more pieces, the smallest piece other than the largest is left out
+  // while the rest still give a sheet with all four corners: a piece that
+  // is part of the sheet is not needed for the four sides the larger
+  // pieces already show, and one that is not would bend them.
+  const order = joined
+    .slice()
+    .sort((a, b) => areas[a] - areas[b] || a - b)
+    .slice(0, -1);
+  let pieces = joined.length;
+  for (const label of order) {
+    if (pieces <= 2 || !best.result.paperRegionFound) break;
+    const fewer = merged.slice();
+    fewer[label] = 0;
+    const trial = fitJoined(fewer, mergedArea - areas[label]);
+    if (!trial.result.paperRegionFound || trial.result.corners === null)
+      continue;
+    merged[label] = 0;
+    mergedArea -= areas[label];
+    pieces--;
+    best = trial;
+  }
+  const second = best.result;
   if (!second.paperRegionFound) return first;
   if (shortOfCorners && second.corners === null) return first;
-  if (guess && retryGuess) guess.corners = retryGuess.corners;
+  if (guess && best.sink) guess.corners = best.sink.corners;
   return second.edgeFit
     ? { ...second, edgeFit: { ...second.edgeFit, piecesJoined: pieces } }
     : second;
