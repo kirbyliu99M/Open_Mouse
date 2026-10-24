@@ -17,12 +17,14 @@ import "./cookie-banner.css";
  * The cookie question, for GA4 only: a quiet glass strip across the bottom, in
  * the site's own tokens, laid out like Sony Taiwan's (Kirby, 2026-10-24): one
  * sentence on the left, the answers on the right, one row, a fixed content
- * width. The sentence ends in a "details" link that opens the full statement, and the two answers as the
- * same outline pill, Accept on the left. Shown until a choice is made (and again when the footer
- * reopens it), never on the pages that bring their own full-page layout (the
- * camera, the print pages), and never when no GA4 ID is configured, since
- * there is then nothing to ask about. Accept and Decline are the same size and
- * weight; neither is pre-selected. It does not take focus.
+ * width. The sentence ends in a "details" link that opens the full statement;
+ * the answers are the same outline pill, Accept on the left. At first only
+ * Accept shows, and Decline joins it when the details are opened (always, when
+ * reopened from the footer). Shown until a choice is made (and again when the
+ * footer reopens it), never on the pages that bring their own full-page layout
+ * (the camera, the print pages), and never when no GA4 ID is configured, since
+ * there is then nothing to ask about. Ignoring the banner loads nothing: GA4
+ * starts only on Accept. Neither answer is pre-selected. It does not take focus.
  */
 export function CookieBanner() {
   const pathname = usePathname();
@@ -36,6 +38,10 @@ export function CookieBanner() {
   if (consent === "unknown") return null;
   if (consent !== "unset" && !reopened) return null;
   const copy = cookieConsentCopy(locale);
+  // The first time, Decline appears once the details are open (Kirby,
+  // 2026-10-24). Reopened from the footer it is always there: someone who
+  // accepted must be able to take it back without hunting for it.
+  const showDecline = open || consent !== "unset";
 
   return (
     <section
@@ -75,13 +81,15 @@ export function CookieBanner() {
           >
             {copy.accept}
           </button>
-          <button
-            type="button"
-            className="cookieBanner-button"
-            onClick={() => setConsent("denied")}
-          >
-            {copy.decline}
-          </button>
+          {showDecline ? (
+            <button
+              type="button"
+              className="cookieBanner-button"
+              onClick={() => setConsent("denied")}
+            >
+              {copy.decline}
+            </button>
+          ) : null}
         </div>
         {open ? (
           <p id={detailsId} className="cookieBanner-details">

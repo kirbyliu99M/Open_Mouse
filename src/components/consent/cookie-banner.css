@@ -118,7 +118,9 @@
    --text-primary), the same for both, 44 px tall. */
 .cookieBanner-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* One column per button, equal width: Accept alone, or Accept and Decline. */
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   gap: 0.5rem;
 }
 
@@ -156,10 +158,6 @@
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     column-gap: 1.5rem;
-  }
-  /* Two equal columns, as wide as the wider answer: the pills stay the same size. */
-  .cookieBanner-actions {
-    grid-template-columns: 1fr 1fr;
   }
   .cookieBanner-details {
     grid-column: 1 / -1;

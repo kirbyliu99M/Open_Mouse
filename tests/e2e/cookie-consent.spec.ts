@@ -47,6 +47,9 @@ test("nothing is requested from Google before a choice, and Decline keeps it tha
   await page.waitForTimeout(1500);
   expect(seen).toEqual([]);
 
+  // Decline is not on the first view; it appears with the details.
+  await expect(banner.getByRole("button", { name: "Decline" })).toHaveCount(0);
+  await banner.getByRole("button", { name: "Details" }).click();
   await banner.getByRole("button", { name: "Decline" }).click();
   await expect(banner).toBeHidden();
   await page.reload();
@@ -318,6 +321,19 @@ for (const [name, width, height, sideBySide, maxHeight] of [
       ),
       "the sentence end and the link are one unbroken piece",
     ).toBe(1);
+    // At first only Accept shows, and it is tall enough to tap and on screen.
+    await expect(banner.getByRole("button", { name: "Decline" })).toHaveCount(
+      0,
+    );
+    const first = (await banner
+      .getByRole("button", { name: "Accept" })
+      .boundingBox())!;
+    expect(first.height).toBeGreaterThanOrEqual(44);
+    expect(first.x).toBeGreaterThanOrEqual(0);
+    expect(first.x + first.width).toBeLessThanOrEqual(m.viewport.w);
+    // Opening the details brings Decline in beside it.
+    await banner.getByRole("button", { name: "Details" }).click();
+    await expect(banner.getByRole("button", { name: "Decline" })).toBeVisible();
     // Accept is on the left of Decline (Kirby, 2026-10-24).
     const [ax, dx] = [
       (await banner.getByRole("button", { name: "Accept" }).boundingBox())!.x,
