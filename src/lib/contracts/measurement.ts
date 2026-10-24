@@ -175,7 +175,8 @@ export const FIT_SCALE_FROM_CORRECTED = {
   palmLength: 1.067,
   palmWidth: 1.044,
   referenceFill: 0.65,
-  basis: "S25 measured at the 18 mm frame prior, 2026-10-24: median uncorrected/corrected of 3 near-straight frame scans (tilt <= 4 deg, fill 0.41-0.67); R7 simulation gave 1.035/1.061/1.051",
+  basis:
+    "S25 measured at the 18 mm frame prior, 2026-10-24: median uncorrected/corrected of 3 near-straight frame scans (tilt <= 4 deg, fill 0.41-0.67); R7 simulation gave 1.035/1.061/1.051",
 } as const;
 export type MeasurementModelVersion =
   (typeof MEASUREMENT_MODEL_VERSIONS)[number];
