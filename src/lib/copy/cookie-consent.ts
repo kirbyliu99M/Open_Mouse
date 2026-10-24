@@ -15,10 +15,8 @@ import { pickCopy } from "../i18n/copy";
 export interface CookieConsentCopy {
   /** The `aria-label` of the banner region. */
   regionLabel: string;
-  /** The first line: what is asked. */
-  lead: string;
-  /** The second line: what it costs, and that no is fine. */
-  note: string;
+  /** The one sentence: what is asked, and that no is fine (Sony-style, Kirby 2026-10-24). */
+  text: string;
   accept: string;
   decline: string;
   detailsToggle: string;
@@ -42,8 +40,7 @@ export interface CookieConsentCopy {
 
 export const zhTW: CookieConsentCopy = {
   regionLabel: "Cookie 設定",
-  lead: "我們用 Google Analytics 統計瀏覽情形",
-  note: "會在你的瀏覽器放 Cookie，不同意也不影響使用。",
+  text: "我們使用 Cookie 與 Google Analytics 統計瀏覽情形、改善網站，不同意也不影響使用。",
   accept: "同意",
   decline: "不同意",
   detailsToggle: "詳細說明",
@@ -68,8 +65,7 @@ export const zhTW: CookieConsentCopy = {
 
 export const en: CookieConsentCopy = {
   regionLabel: "Cookie settings",
-  lead: "We use Google Analytics to count visits",
-  note: "It sets cookies in your browser. Declining changes nothing you can do.",
+  text: "We use cookies and Google Analytics to count visits and improve the site. Declining changes nothing you can do.",
   accept: "Accept",
   decline: "Decline",
   detailsToggle: "Details",

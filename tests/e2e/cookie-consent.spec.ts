@@ -254,11 +254,11 @@ test("the banner has no axe violations, and its text keeps 4.5:1 even over a whi
 // page sideways, keeps its content to a readable width on a wide screen, and
 // puts the two answers beside the text only when there is room.
 for (const [name, width, height, sideBySide, maxHeight] of [
-  ["phone", 390, 844, false, 160],
+  ["phone", 390, 844, false, 150],
   ["small phone", 320, 568, false, 190],
-  ["tablet", 768, 1024, true, 120],
-  ["laptop", 1440, 900, true, 90],
-  ["ultrawide", 2560, 1080, true, 90],
+  ["tablet", 768, 1024, true, 100],
+  ["laptop", 1440, 900, true, 76],
+  ["ultrawide", 2560, 1080, true, 76],
 ] as const) {
   test(`the banner spans the screen and adapts on a ${name} (${width} px)`, async ({
     page,
@@ -301,7 +301,7 @@ for (const [name, width, height, sideBySide, maxHeight] of [
     );
     expect(m.overflowX).toBe(false);
     // The content keeps to a readable width, centred.
-    expect(m.inner.width).toBeLessThanOrEqual(72 * 16 + 1);
+    expect(m.inner.width).toBeLessThanOrEqual(64 * 16 + 1);
     expect(
       Math.abs(m.inner.left - (m.viewport.w - m.inner.right)),
     ).toBeLessThanOrEqual(1);

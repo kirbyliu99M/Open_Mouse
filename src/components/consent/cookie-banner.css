@@ -1,5 +1,7 @@
 /* The cookie banner (root layout): a quiet glass strip across the bottom edge.
-   Redrawn 2026-10-24 (Kirby: still jarring) to use ONLY the tokens in
+   Redrawn 2026-10-24 (Kirby: still jarring; Sony Taiwan's bar as the model for
+   text and proportions: one sentence, one row, about 1000 px of content,
+   about 7 % of the screen) to use ONLY the tokens in
    tokens.css: no colour is written here, and tests/unit/cookie-banner-css.test.ts
    fails if one is. Every size and spacing is a CANDIDATE (未拍板), from the
    Pencil board "Cookie banner · GA4".
@@ -19,8 +21,8 @@
   z-index: 50;
   /* Edge to edge; the content keeps to a readable width (.cookieBanner-inner)
      and clears the notch and the home indicator. */
-  padding: 0.75rem max(1rem, env(safe-area-inset-right))
-    calc(0.75rem + env(safe-area-inset-bottom, 0px))
+  padding: 0.5rem max(1rem, env(safe-area-inset-right))
+    calc(0.5rem + env(safe-area-inset-bottom, 0px))
     max(1rem, env(safe-area-inset-left));
   border-top: 1px solid var(--hairline);
   border-radius: 1rem 1rem 0 0;
@@ -54,7 +56,7 @@
 .cookieBanner-inner {
   display: grid;
   gap: 0.75rem;
-  max-width: 72rem;
+  max-width: 64rem;
   margin: 0 auto;
 }
 
@@ -63,18 +65,19 @@
   text-wrap: balance;
 }
 
-/* Two lines: what is asked, then what it costs. */
-.cookieBanner-lead {
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-.cookieBanner-note,
+/* One sentence, in the secondary colour: what is asked, and that no is fine. */
+.cookieBanner-sentence,
 .cookieBanner-current {
   color: var(--text-secondary);
 }
 
-/* "Details" ends the second line. An inline link keeps its underline: against
+/* Chinese breaks only at punctuation and spaces, so a phrase such as
+   「統計瀏覽情形」 is never split across two lines. */
+.cookieBanner-sentence {
+  word-break: keep-all;
+}
+
+/* "Details" ends the sentence. An inline link keeps its underline: against
    --text-secondary the blue is under 3:1, so colour alone would not mark it. */
 .cookieBanner-link {
   display: inline;

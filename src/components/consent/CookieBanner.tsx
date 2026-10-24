@@ -15,9 +15,9 @@ import "./cookie-banner.css";
 
 /**
  * The cookie question, for GA4 only: a quiet glass strip across the bottom, in
- * the site's own tokens (Kirby, 2026-10-24: it was still jarring). Two lines of
- * text (what is asked in the primary colour, what it costs in the secondary),
- * a "details" link that opens the full statement, and the two answers as the
+ * the site's own tokens, laid out like Sony Taiwan's (Kirby, 2026-10-24): one
+ * sentence on the left, the answers on the right, one row, a fixed content
+ * width. The sentence ends in a "details" link that opens the full statement, and the two answers as the
  * same outline pill. Shown until a choice is made (and again when the footer
  * reopens it), never on the pages that bring their own full-page layout (the
  * camera, the print pages), and never when no GA4 ID is configured, since
@@ -46,9 +46,8 @@ export function CookieBanner() {
     >
       <div className="cookieBanner-inner">
         <div className="cookieBanner-text">
-          <p className="cookieBanner-lead">{copy.lead}</p>
-          <p className="cookieBanner-note">
-            {copy.note}{" "}
+          <p className="cookieBanner-sentence">
+            {copy.text}{" "}
             <button
               type="button"
               className="cookieBanner-link"
