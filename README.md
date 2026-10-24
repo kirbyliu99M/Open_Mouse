@@ -89,9 +89,14 @@ photo measurement is validated.
   logs. MediaPipe's library tries to send usage metrics to Google (its own privacy
   notice says so); the app's Content-Security-Policy blocks that request, see
   [`public/mediapipe/README.md`](public/mediapipe/README.md).
-- The app loads no analytics or advertising scripts. Its Content-Security-Policy
-  allows no third-party origins for scripts or connections (it does allow inline
-  scripts, which Next.js needs; see `next.config.ts`). For images it allows one
+- The app loads no advertising scripts. Unless it is built with
+  `NEXT_PUBLIC_GA_ID` (local runs, CI and previews are not), it loads no
+  third-party analytics script either, and its Content-Security-Policy allows no
+  third-party origins for scripts or connections (it does allow inline scripts,
+  which Next.js needs; see `next.config.ts`). In a build with that ID, Google
+  Analytics 4 is requested only after a visitor accepts the cookie banner, and
+  only that build's policy names Google's analytics hosts; what GA4 may receive
+  is listed in `src/client/analytics/ga4.ts`. For images it allows one
   third-party origin, `lh3.googleusercontent.com`, from which a signed-in user's browser loads
   their Google profile picture, so Google's image host sees that browser's IP
   address and User-Agent (the request sends no referrer).

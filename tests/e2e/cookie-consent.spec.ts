@@ -353,7 +353,11 @@ for (const [name, width, height, sideBySide, maxHeight] of [
     expect(first.x).toBeGreaterThanOrEqual(0);
     expect(first.x + first.width).toBeLessThanOrEqual(m.viewport.w);
     // Opening the details brings Decline in beside it.
-    await banner.getByRole("button", { name: "Details" }).click();
+    // On a phone the link is inline text; its invisible tap layer reaches 10 px
+    // above the line, so a tap there still opens the details.
+    await banner
+      .getByRole("button", { name: "Details" })
+      .click(sideBySide ? {} : { position: { x: 4, y: -10 } });
     await expect(banner.getByRole("button", { name: "Decline" })).toBeVisible();
     // Accept is on the left of Decline (Kirby, 2026-10-24).
     const [ax, dx] = [

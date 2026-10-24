@@ -125,6 +125,19 @@ function currentReferrer(): string | undefined {
   return redactedUrl(document.referrer) ?? undefined;
 }
 
+/**
+ * What GA4 should be doing for a consent state: load on "granted"; switch off
+ * on "denied" and on "unset" (a choice that was cleared, say from another tab,
+ * is no consent); leave alone while the state is still unknown (server render).
+ */
+export function ga4Step(
+  consent: "granted" | "denied" | "unset" | "unknown",
+): "enable" | "disable" | "idle" {
+  if (!ga4Configured()) return "idle";
+  if (consent === "granted") return "enable";
+  return consent === "unknown" ? "idle" : "disable";
+}
+
 /** True while GA4 is loaded and not switched off. */
 export function ga4Active(): boolean {
   const id = ga4Id();

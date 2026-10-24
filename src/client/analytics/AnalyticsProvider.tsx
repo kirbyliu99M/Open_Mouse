@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { useConsent } from "@/client/consent/consent";
 import { startAnalytics } from "./client";
-import { disableGa4, enableGa4, ga4Configured, ga4PageView } from "./ga4";
+import { disableGa4, enableGa4, ga4PageView, ga4Step } from "./ga4";
 import { track } from "./track";
 
 /**
@@ -15,7 +15,8 @@ import { track } from "./track";
 export function AnalyticsProvider() {
   const pathname = usePathname();
   const consent = useConsent();
-  const ga4On = ga4Configured() && consent === "granted";
+  const step = ga4Step(consent);
+  const ga4On = step === "enable";
   useEffect(() => {
     startAnalytics();
   }, []);
@@ -23,9 +24,9 @@ export function AnalyticsProvider() {
     track("$pageview", {});
   }, [pathname]);
   useEffect(() => {
-    if (ga4On) enableGa4();
-    else if (consent === "denied") disableGa4();
-  }, [ga4On, consent]);
+    if (step === "enable") enableGa4();
+    else if (step === "disable") disableGa4();
+  }, [step]);
   // After the effect above, so GA4 is active by the time the first page
   // view is sent; again on every route change and when consent is given.
   useEffect(() => {

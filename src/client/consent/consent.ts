@@ -17,7 +17,17 @@ export function parseConsent(raw: string | null): ConsentChoice | null {
   return raw === "granted" || raw === "denied" ? raw : null;
 }
 
-function readChoice(): ConsentChoice | null {
+/**
+ * The choice while the browser refuses to write it (blocked site data, a full
+ * quota), so the banner still closes and a withdrawal still takes effect on
+ * this page. Null whenever a write succeeded: then storage is the truth, and
+ * another tab clearing it means no choice.
+ */
+let memoryChoice: ConsentChoice | null = null;
+
+/** The stored choice, or null when none was made (or none can be read). */
+export function readConsent(): ConsentChoice | null {
+  if (memoryChoice) return memoryChoice;
   try {
     return parseConsent(window.localStorage.getItem(CONSENT_STORAGE_KEY));
   } catch {
@@ -51,8 +61,11 @@ function subscribe(listener: () => void): () => void {
 export function setConsent(choice: ConsentChoice): void {
   try {
     window.localStorage.setItem(CONSENT_STORAGE_KEY, choice);
+    memoryChoice = null;
   } catch {
-    // Not stored: the choice is asked again next visit, which is the safe side.
+    // Not stored: kept in memory for this page, and asked again next visit,
+    // which is the safe side.
+    memoryChoice = choice;
   }
   reopened = false;
   emit();
@@ -67,7 +80,7 @@ export function reopenConsent(): void {
 export function useConsent(): ConsentState {
   return useSyncExternalStore(
     subscribe,
-    () => readChoice() ?? "unset",
+    () => readConsent() ?? "unset",
     () => "unknown",
   );
 }

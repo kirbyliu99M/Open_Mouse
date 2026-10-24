@@ -107,7 +107,19 @@
   transform: none;
 }
 
-/* Phone: the link ends the sentence. Wider: it moves left of Accept. */
+/* Phone: the link ends the sentence and is the only way to Decline, so its tap
+   area is stretched to 44 px with an invisible layer; the line itself does not
+   grow. Wider: it moves left of Accept. */
+.cookieBanner-link--inline {
+  position: relative;
+}
+
+.cookieBanner-link--inline::after {
+  content: "";
+  position: absolute;
+  inset: -0.75rem -0.5rem;
+}
+
 .cookieBanner-link--beside {
   display: none;
 }

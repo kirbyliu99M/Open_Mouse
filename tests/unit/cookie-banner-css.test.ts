@@ -43,6 +43,15 @@ describe("cookie-banner.css", () => {
     expect(rules).toMatch(/@supports not/);
   });
 
+  it("stretches the phone's inline details link to a 44 px tap area without growing the line", () => {
+    expect(rules).toMatch(
+      /\.cookieBanner-link--inline::after\s*\{[^}]*position:\s*absolute;[^}]*inset:\s*-0\.75rem/,
+    );
+    expect(rules).toMatch(
+      /\.cookieBanner-link--beside\s*\{[^}]*min-height:\s*2\.75rem/,
+    );
+  });
+
   it("sizes the two answers to the 44 px touch target", () => {
     expect(rules).toMatch(
       /\.cookieBanner-button\s*\{[^}]*min-height:\s*2\.75rem/,
