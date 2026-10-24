@@ -81,18 +81,9 @@ export function CookieBanner() {
           </button>
         </div>
         {open ? (
-          <dl id={detailsId} className="cookieBanner-details">
-            <dt>{copy.detailsWhatLabel}</dt>
-            <dd>{copy.detailsWhat}</dd>
-            <dt>{copy.detailsSentLabel}</dt>
-            <dd>{copy.detailsSent}</dd>
-            <dt>{copy.detailsNotLabel}</dt>
-            <dd>{copy.detailsNot}</dd>
-            <dt>{copy.detailsOtherLabel}</dt>
-            <dd>{copy.detailsOther}</dd>
-            <dt>{copy.detailsChangeLabel}</dt>
-            <dd>{copy.detailsChange}</dd>
-          </dl>
+          <p id={detailsId} className="cookieBanner-details">
+            {copy.details}
+          </p>
         ) : null}
       </div>
     </section>

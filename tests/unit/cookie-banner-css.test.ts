@@ -37,7 +37,7 @@ describe("cookie-banner.css", () => {
   });
 
   it("is a glass layer per the guidelines, with solid fallbacks", () => {
-    expect(rules).toContain("blur(20px) saturate(180%)");
+    expect(rules).toContain("blur(20px) saturate(180%) brightness(0.4)");
     expect(rules).toContain("prefers-reduced-transparency: reduce");
     expect(rules).toContain("prefers-contrast: more");
     expect(rules).toMatch(/@supports not/);

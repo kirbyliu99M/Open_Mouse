@@ -215,7 +215,12 @@ test("the banner has no axe violations, and its text keeps 4.5:1 even over a whi
     );
     // The brightest page there can be (white) behind the pane, then the tint,
     // then the sheen: the lightest the pane can ever be under its text.
-    let pane = over(tint.slice(0, 3), tint[3] ?? 1, [255, 255, 255]);
+    // brightness(x) in the backdrop filter darkens the page behind the glass.
+    const filter =
+      style.backdropFilter || style.getPropertyValue("-webkit-backdrop-filter");
+    const dim = Number(/brightness\(([\d.]+)\)/.exec(filter)?.[1] ?? 1);
+    const backdrop = [255 * dim, 255 * dim, 255 * dim];
+    let pane = over(tint.slice(0, 3), tint[3] ?? 1, backdrop);
     pane = over([255, 255, 255], sheen, pane);
     const out: Array<{ text: string; ratio: number }> = [];
     for (const el of bar.querySelectorAll("p, summary, dt, dd, button")) {
@@ -235,16 +240,13 @@ test("the banner has no axe violations, and its text keeps 4.5:1 even over a whi
         ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
       });
     }
-    return {
-      out,
-      blur:
-        style.backdropFilter ||
-        style.getPropertyValue("-webkit-backdrop-filter"),
-    };
+    return { out, blur: filter };
   });
-  // It really is glass: the backdrop is blurred.
+  // It really is glass: the backdrop is blurred and dimmed.
   expect(glass.blur).toContain("blur");
-  expect(glass.out.length).toBeGreaterThan(5);
+  expect(glass.blur).toContain("brightness");
+  // The sentence, the details link, the statement and the two answers.
+  expect(glass.out.length).toBeGreaterThanOrEqual(5);
   for (const r of glass.out) {
     expect(r.ratio, r.text).toBeGreaterThanOrEqual(4.5);
   }

@@ -7,13 +7,16 @@
    Pencil board "Cookie banner · GA4".
 
    Material (design-guidelines.md, Materials): a translucent layer,
-   blur(20px) saturate(180%) over the page's own colour (--bg) at 88 %, so it
-   reads as part of the page and still frosts what is behind it. Over a white
-   page behind it the strip is still near-black, so --text-secondary and
-   --accent-text keep more than 4.5:1 (the e2e blends it over white and
-   measures). Reduced transparency and more contrast get a solid strip. */
+   blur(20px) saturate(180%) over the page's own colour (--bg) at 55 %, so the
+   page shows through it (Kirby, 2026-10-24: the black bar should look like
+   Liquid Glass). The one addition to the guideline's recipe is brightness(0.4):
+   like real glass it darkens what is behind it, so a light page (a product
+   photo) cannot wash the text out. Over a pure white page the strip is then
+   still dark enough for --text-secondary and --accent-text to keep 4.5:1
+   (the e2e blends it over white and measures). Reduced transparency and more
+   contrast get a solid strip. */
 .cookieBanner {
-  --cookie-glass: color-mix(in srgb, var(--bg) 88%, transparent);
+  --cookie-glass: color-mix(in srgb, var(--bg) 55%, transparent);
   position: fixed;
   left: 0;
   right: 0;
@@ -27,8 +30,8 @@
   border-top: 1px solid var(--hairline);
   border-radius: 1rem 1rem 0 0;
   background: var(--cookie-glass);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%) brightness(0.4);
+  backdrop-filter: blur(20px) saturate(180%) brightness(0.4);
   color: var(--text-primary);
   font-size: 0.8125rem;
   line-height: 1.6;
@@ -73,7 +76,8 @@
 
 /* Chinese breaks only at punctuation and spaces, so a phrase such as
    「統計瀏覽情形」 is never split across two lines. */
-.cookieBanner-sentence {
+.cookieBanner-sentence,
+.cookieBanner-details {
   word-break: keep-all;
 }
 
@@ -134,28 +138,11 @@
   background: var(--hairline);
 }
 
-/* The opened statement sits under a hairline, label over text on a phone. */
+/* The opened statement: one paragraph under a hairline. */
 .cookieBanner-details {
-  display: grid;
-  gap: 0.125rem;
-  margin: 0;
   padding-top: 0.75rem;
   border-top: 1px solid var(--hairline);
   color: var(--text-secondary);
-}
-
-.cookieBanner-details dt {
-  margin-top: 0.5rem;
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.cookieBanner-details dt:first-child {
-  margin-top: 0;
-}
-
-.cookieBanner-details dd {
-  margin: 0;
 }
 
 /* Wider than a phone: one row, text on the left, the answers on the right. */
@@ -170,17 +157,6 @@
   }
   .cookieBanner-details {
     grid-column: 1 / -1;
-  }
-}
-
-/* Room for it: the opened statement reads as a table, label then text. */
-@media (min-width: 48rem) {
-  .cookieBanner-details {
-    grid-template-columns: max-content minmax(0, 1fr);
-    gap: 0.5rem 1.5rem;
-  }
-  .cookieBanner-details dt {
-    margin-top: 0;
   }
 }
 

@@ -211,7 +211,7 @@ describe("cookie statement copy", () => {
   });
 
   it("says in both languages that photos and measurements are not sent", () => {
-    expect(zhTW.detailsSent).toContain("不含照片、手部量測值");
-    expect(en.detailsSent).toContain("No photos, hand measurements");
+    expect(zhTW.details).toContain("不含照片、手部量測值");
+    expect(en.details).toContain("No photos, hand measurements");
   });
 });
