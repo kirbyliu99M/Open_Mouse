@@ -835,7 +835,7 @@ async function runPaperEdgePipeline(
     // step on a large photo (F7).
     await yieldToBrowser();
 
-    let paperStartedAt = performance.now();
+    const paperStartedAt = performance.now();
     // The assumed focal length is the whole photo's, not the crop's: a crop
     // narrows the picture, not the lens (visibleView.ts). Without a crop it is
     // what the detector would have assumed anyway. A frame that was cut before
@@ -887,7 +887,8 @@ async function runPaperEdgePipeline(
     const handHint = hand
       ? paperHandHint(hand.landmarksPx, width, height)
       : null;
-    paperStartedAt = performance.now();
+    // The sheet's own clock (`paperMs`), without the hand's time.
+    const detectStartedAt = performance.now();
     // The detector runs once, in the worker where there is one (F8), else
     // here: the same `detectPaperQuad`, the same pixels and arguments.
     // `failureGuess` (F10): a photo that fails also says where the bright
@@ -909,10 +910,10 @@ async function runPaperEdgePipeline(
     frame = detected.frame;
     noteAnalysisThread(trace, detected.thread);
     let quad = detected.outcome.quad;
-    trace.paperMs = performance.now() - paperStartedAt;
+    trace.paperMs = performance.now() - detectStartedAt;
     notifyStage(input, "paper");
-    notifyStage(input, "hand");
     await yieldToBrowser();
+    notifyStage(input, "hand");
     const notePaper = (q: typeof quad) => {
       const quadSize = q.corners
         ? paperSizeFractions(q.corners, width, height)
