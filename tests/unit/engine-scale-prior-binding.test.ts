@@ -71,12 +71,20 @@ describe("F17 review: the engine scale and the video frame's focal prior (模擬
     expect(k.kW).toBeCloseTo(1.035, 2);
   });
 
-  it("the contract (Claude, 2026-10-23) is the method at today's frame prior, 998 px (18 mm on 1920)", () => {
+  it("at today's frame prior, 998 px (18 mm on 1920), the method gives 1.035 / 1.061 / 1.051; the contract (measured, Kirby B 2026-10-25) sits within 1.5 % of it, hand length above", () => {
     const prior = nominalFocalPxFromLongEdge(H)!;
     expect(prior).toBeCloseTo(998.4, 0);
     const k = engineScaleAt(prior, fill);
-    expect(k.kL).toBeCloseTo(FIT_SCALE_FROM_CORRECTED.handLength, 2);
-    expect(k.kP).toBeCloseTo(FIT_SCALE_FROM_CORRECTED.palmLength, 2);
-    expect(k.kW).toBeCloseTo(FIT_SCALE_FROM_CORRECTED.palmWidth, 2);
+    expect(k.kL).toBeCloseTo(1.035, 2);
+    expect(k.kP).toBeCloseTo(1.061, 2);
+    expect(k.kW).toBeCloseTo(1.051, 2);
+    expect(FIT_SCALE_FROM_CORRECTED.handLength).toBe(1.047);
+    expect(FIT_SCALE_FROM_CORRECTED.handLength).toBeGreaterThan(k.kL);
+    for (const [c, sim] of [
+      [FIT_SCALE_FROM_CORRECTED.handLength, k.kL],
+      [FIT_SCALE_FROM_CORRECTED.palmLength, k.kP],
+      [FIT_SCALE_FROM_CORRECTED.palmWidth, k.kW],
+    ])
+      expect(Math.abs(c / sim - 1)).toBeLessThan(0.015);
   });
 });
