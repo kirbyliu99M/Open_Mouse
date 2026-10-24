@@ -44,7 +44,7 @@
     "drizzle-orm": "0.45.2",
     "js-aruco2": "2.0.0",
     "jsqr": "1.4.0",
-    "next": "15.5.27",
+    "next": "15.5.28",
     "next-auth": "^5.0.0-beta.32",
     "posthog-js": "1.438.2",
     "qrcode": "1.5.4",
@@ -52,7 +52,7 @@
     "react-dom": "19.3.0",
     "server-only": "0.0.1",
     "three": "0.186.1",
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
