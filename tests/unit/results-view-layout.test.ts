@@ -650,7 +650,12 @@ describe("the enlarge-photo button", () => {
     const html = render(many);
     expect(html).toContain('data-has-photo="false"');
     expect(html).not.toContain("results-photoZoom");
-    expect(html).not.toContain("aria-haspopup");
+    // The share entries open a dialog too (V3.2 F21); no other control does.
+    const withoutShare = html.replace(
+      /<button[^>]*data-testid="share-card-button"[^>]*>/g,
+      "",
+    );
+    expect(withoutShare).not.toContain("aria-haspopup");
   });
 
   it("is not on the small cards or in the other-mice list", () => {

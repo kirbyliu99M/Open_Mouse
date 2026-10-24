@@ -144,8 +144,13 @@ test("main page, a detail page and back, Details, Other mice, share card, reload
   // phone project the primary button is the one under Other mice.
   const primary = page.getByRole("button", { name: "Make my share card" });
   await expect(primary).toBeVisible();
-  const download = page.waitForEvent("download");
+  // V3.2 F21: the button opens a preview; its Download hands the file over.
   await primary.click();
+  await expect(page.getByTestId("share-preview-image")).toBeVisible({
+    timeout: 15_000,
+  });
+  const download = page.waitForEvent("download");
+  await page.getByTestId("share-preview-download").click();
   const file = await download;
   expect(file.suggestedFilename()).toMatch(/^palmate-.*\.png$/);
   const png = readFileSync(await file.path());
@@ -156,7 +161,9 @@ test("main page, a detail page and back, Details, Other mice, share card, reload
     return [img.naturalWidth, img.naturalHeight];
   }, png.toString("base64"));
   expect(size).toEqual([1080, 1920]);
-  await expect(page.locator(".shareCard-error")).toHaveCount(0);
+  await expect(page.locator(".sharePreview-actionError")).toHaveCount(0);
+  await page.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 
   // 7. A reload keeps the results, and delete removes them.
   await page.reload();

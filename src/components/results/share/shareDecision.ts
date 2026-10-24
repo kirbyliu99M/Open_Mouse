@@ -6,7 +6,7 @@
 
 export type ShareAction = "share" | "download";
 
-interface ShareCapable {
+export interface ShareCapable {
   canShare?: (data?: ShareData) => boolean;
   share?: (data?: ShareData) => Promise<void>;
 }
