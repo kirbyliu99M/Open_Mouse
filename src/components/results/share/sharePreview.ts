@@ -74,7 +74,14 @@ export interface SharePreviewDeps {
   };
   cache: CardCache;
   onChange: (state: SharePreviewState) => void;
-  /** Analytics only: each action's outcome, and "failed" when the card cannot be made. */
+  /**
+   * Analytics only (`share_finished`). Called exactly once per open, so each
+   * `share_started` (sent when the entry opens the preview) has one
+   * `share_finished`, as before the preview: the first action's outcome,
+   * "failed" when the card cannot be made, or "cancelled" when the preview is
+   * closed (or unmounted) before any action. Later actions in the same open
+   * are not reported.
+   */
   onFinished?: (outcome: ShareOutcome) => void;
   /** Gives focus back to the entry that opened the preview. */
   returnFocus?: () => void;
@@ -105,6 +112,21 @@ export function createSharePreview(deps: SharePreviewDeps): SharePreview {
   // (a card still drawing when the preview was closed) is dropped.
   let session = 0;
   let hintTimer: unknown = null;
+  // One per open: whether this open's `share_finished` has been sent, and
+  // whether an action that will send it is still running.
+  let report: { done: boolean; pending: boolean } | null = null;
+
+  const finish = (token: { done: boolean } | null, outcome: ShareOutcome) => {
+    if (token === null || token.done) return;
+    token.done = true;
+    deps.onFinished?.(outcome);
+  };
+
+  /** Closing an open with nothing reported yet: "cancelled". */
+  const finishOnClose = () => {
+    if (report !== null && !report.pending) finish(report, "cancelled");
+    report = null;
+  };
 
   const set = (patch: Partial<SharePreviewState>) => {
     state = { ...state, ...patch };
@@ -151,6 +173,8 @@ export function createSharePreview(deps: SharePreviewDeps): SharePreview {
     if (state.phase !== "closed") return;
     session += 1;
     const mine = session;
+    report = { done: false, pending: false };
+    const token = report;
     const cached = deps.cache.current;
     if (cached && sameKey(cached.key, key)) {
       state = { ...CLOSED_PREVIEW };
@@ -168,7 +192,7 @@ export function createSharePreview(deps: SharePreviewDeps): SharePreview {
     } catch {
       if (mine !== session) return;
       set({ phase: "error" });
-      deps.onFinished?.("failed");
+      finish(token, "failed");
       return;
     }
     deps.cache.current = { key: [...key], file: made };
@@ -178,6 +202,7 @@ export function createSharePreview(deps: SharePreviewDeps): SharePreview {
 
   function close(): void {
     if (state.phase === "closed") return;
+    finishOnClose();
     teardown();
     set(CLOSED_PREVIEW);
     deps.returnFocus?.();
@@ -185,6 +210,7 @@ export function createSharePreview(deps: SharePreviewDeps): SharePreview {
 
   function dispose(): void {
     if (state.phase === "closed") return;
+    finishOnClose();
     teardown();
     state = CLOSED_PREVIEW;
   }
@@ -194,6 +220,10 @@ export function createSharePreview(deps: SharePreviewDeps): SharePreview {
       return;
     const mine = session;
     const f = file;
+    const token = report;
+    // An action still running when the preview closes reports its own
+    // outcome, so the close does not also say "cancelled".
+    if (token !== null) token.pending = true;
     set({ acting: kind, actionFailed: false });
     // 下載 asks the same function with no navigator, which always downloads;
     // 分享 keeps its rules: a cancel is "cancelled", another failure falls back
@@ -203,7 +233,8 @@ export function createSharePreview(deps: SharePreviewDeps): SharePreview {
       kind === "share" ? deps.getNavigator() : undefined,
       deps.download,
     );
-    deps.onFinished?.(outcome);
+    if (token !== null) token.pending = false;
+    finish(token, outcome);
     if (mine !== session) return;
     set({ acting: null, actionFailed: outcome === "failed" });
     if (outcome === "downloaded") showHint();

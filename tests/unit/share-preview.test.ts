@@ -341,6 +341,102 @@ describe("share and download", () => {
   });
 });
 
+// Before the preview, one press sent one share_started and exactly one
+// share_finished. share_started is now sent when the preview opens, so
+// onFinished must fire exactly once per open (review of F21, 2026-10-25).
+describe("share_finished: exactly once per open", () => {
+  const calls = (t: ReturnType<typeof setup>) =>
+    (t.deps.onFinished as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0]);
+
+  it("opened and closed with no action: one cancelled", async () => {
+    const t = setup();
+    await t.preview.open(KEY);
+    t.preview.close();
+    expect(calls(t)).toEqual(["cancelled"]);
+  });
+
+  it("closed with Esc with no action: one cancelled", async () => {
+    const t = setup();
+    await t.preview.open(KEY);
+    onPreviewCancel({ preventDefault: () => {} }, t.preview);
+    expect(calls(t)).toEqual(["cancelled"]);
+  });
+
+  it("closed while the card is still drawing: one cancelled", async () => {
+    const made = deferred<File>();
+    const t = setup({ makeFile: () => made.promise });
+    const opening = t.preview.open(KEY);
+    t.preview.close();
+    made.resolve(card);
+    await opening;
+    expect(calls(t)).toEqual(["cancelled"]);
+  });
+
+  it("unmounted with no action: one cancelled", async () => {
+    const t = setup();
+    await t.preview.open(KEY);
+    t.preview.dispose();
+    expect(calls(t)).toEqual(["cancelled"]);
+  });
+
+  it("download, download, share in one open: only the first outcome", async () => {
+    const t = setup();
+    await t.preview.open(KEY);
+    await t.preview.download();
+    await t.preview.download();
+    await t.preview.share();
+    t.preview.close();
+    expect(calls(t)).toEqual(["downloaded"]);
+    expect(t.deps.download).toHaveBeenCalledTimes(2);
+  });
+
+  it("a cancelled share sheet, then a download: only cancelled", async () => {
+    const share = vi.fn(() =>
+      Promise.reject(new DOMException("cancelled", "AbortError")),
+    );
+    const t = setup({ nav: { share, canShare: () => true } });
+    await t.preview.open(KEY);
+    await t.preview.share();
+    await t.preview.download();
+    t.preview.close();
+    expect(calls(t)).toEqual(["cancelled"]);
+  });
+
+  it("a card that cannot be made, then closed: only failed", async () => {
+    const t = setup({ makeFile: () => Promise.reject(new Error("no canvas")) });
+    await t.preview.open(KEY);
+    t.preview.close();
+    expect(calls(t)).toEqual(["failed"]);
+  });
+
+  it("closed while the share sheet is open: the share's outcome, not cancelled", async () => {
+    const sheet = deferred<void>();
+    const share = vi.fn(() => sheet.promise);
+    const t = setup({ nav: { share, canShare: () => true } });
+    await t.preview.open(KEY);
+    const sharing = t.preview.share();
+    t.preview.close();
+    expect(calls(t)).toEqual([]);
+    sheet.resolve();
+    await sharing;
+    expect(calls(t)).toEqual(["shared"]);
+  });
+
+  it("each open is reported on its own (reopening the cached card)", async () => {
+    const t = setup();
+    await t.preview.open(KEY);
+    await t.preview.download();
+    t.preview.close();
+    await t.preview.open(KEY);
+    t.preview.close();
+    await t.preview.open(KEY);
+    await t.preview.share();
+    await t.preview.download();
+    t.preview.close();
+    expect(calls(t)).toEqual(["downloaded", "cancelled", "shared"]);
+  });
+});
+
 function renderDialog(state: Partial<SharePreviewState>, copy = zhTW): string {
   return renderToStaticMarkup(
     createElement(SharePreviewDialog, {
