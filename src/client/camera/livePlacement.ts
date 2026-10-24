@@ -153,6 +153,49 @@ export function pushLivePlacement(
 }
 
 /**
+ * A live reading older than this at the shutter is not "the placement just
+ * before the photo" and is left out of the log (WP1b review fix, 2026-10-25).
+ * The loop keeps readings until newer ones replace them, so after the hand or
+ * the sheet has been lost for a while the last ones can be minutes old.
+ */
+export const LIVE_READING_MAX_AGE_MS = 60000;
+
+/** One live reading as the attempt log copies it: aged at the shutter. */
+export interface LiveReadingAtShutter {
+  readonly ageMs: number;
+  readonly fill: number | null;
+  readonly wristToEdgeMm: number | null;
+  readonly handAxisDeg: number | null;
+  readonly palmOverHand: number | null;
+}
+
+/**
+ * The readings aged at `firedAtMs` (oldest first, as kept), without the ones
+ * older than `maxAgeMs` or with an age that is not a finite number, so a
+ * stale reading is never logged as if it were taken just before the photo.
+ * A reading stamped after the shutter counts as age 0. Pure.
+ */
+export function liveReadingsAtShutter(
+  list: readonly LivePlacementReading[],
+  firedAtMs: number,
+  maxAgeMs: number = LIVE_READING_MAX_AGE_MS,
+): LiveReadingAtShutter[] {
+  const out: LiveReadingAtShutter[] = [];
+  for (const r of list) {
+    const ageMs = Math.max(0, firedAtMs - r.atMs);
+    if (!Number.isFinite(ageMs) || ageMs > maxAgeMs) continue;
+    out.push({
+      ageMs,
+      fill: r.fill,
+      wristToEdgeMm: r.wristToEdgeMm,
+      handAxisDeg: r.handAxisDeg,
+      palmOverHand: r.palmOverHand,
+    });
+  }
+  return out;
+}
+
+/**
  * Which shutter fired, from the two auto-shutter flags of the sample that
  * fired it; a call that did not come from the loop is the person's tap. The
  * ring wins when both fired on the same sample (the sheet was found). Pure.

@@ -9,6 +9,8 @@ import {
   isExperimentTag,
   LIVE_PLACEMENT_KEEP,
   liveNominalFocalPx,
+  liveReadingsAtShutter,
+  LIVE_READING_MAX_AGE_MS,
   pushLivePlacement,
   readLivePlacement,
   shutterKindOf,
@@ -193,5 +195,71 @@ describe("experiment tags", () => {
     expect(isExperimentTag("pencil/0.65")).toBe(true);
     expect(isExperimentTag("pencil/0.66")).toBe(false);
     expect(isExperimentTag(3)).toBe(false);
+  });
+});
+
+describe("liveReadingsAtShutter (stale readings never reach the log)", () => {
+  const at = (atMs: number) => ({
+    atMs,
+    fill: 0.65,
+    wristToEdgeMm: 7,
+    handAxisDeg: 1,
+    palmOverHand: 0.5,
+  });
+
+  it("ages each reading at the shutter, oldest first, values unchanged", () => {
+    expect(liveReadingsAtShutter([at(1000), at(1500)], 2000)).toStrictEqual([
+      {
+        ageMs: 1000,
+        fill: 0.65,
+        wristToEdgeMm: 7,
+        handAxisDeg: 1,
+        palmOverHand: 0.5,
+      },
+      {
+        ageMs: 500,
+        fill: 0.65,
+        wristToEdgeMm: 7,
+        handAxisDeg: 1,
+        palmOverHand: 0.5,
+      },
+    ]);
+  });
+
+  it("a reading 70 s old is left out whole, not kept with its values and no age", () => {
+    expect(LIVE_READING_MAX_AGE_MS).toBe(60000);
+    const out = liveReadingsAtShutter([at(0), at(10000), at(69000)], 70000);
+    expect(out.map((r) => r.ageMs)).toEqual([60000, 1000]);
+    expect(liveReadingsAtShutter([at(0)], 70000)).toEqual([]);
+  });
+
+  it("a reading stamped after the shutter is age 0; a non-finite age is left out", () => {
+    expect(liveReadingsAtShutter([at(2100)], 2000)[0].ageMs).toBe(0);
+    expect(liveReadingsAtShutter([at(Number.NaN)], 2000)).toEqual([]);
+  });
+});
+
+describe("cost per live hand reading (desktop, 實測 on this machine)", () => {
+  it("readLivePlacement on the 360×640 sample: mean < 1 ms (brief WP1b acceptance 5)", () => {
+    const s = liveScene({ x: 105, y: 290 }, 4);
+    const input = {
+      atMs: 0,
+      points: s.points,
+      corners: s.corners,
+      paperSize: "a4" as const,
+      focalPx: s.fPx,
+      width: SAMPLE_W,
+      height: SAMPLE_H,
+    };
+    for (let i = 0; i < 200; i++) readLivePlacement(input); // warm-up
+    const N = 2000;
+    const t0 = performance.now();
+    for (let i = 0; i < N; i++) readLivePlacement(input);
+    const meanMs = (performance.now() - t0) / N;
+    console.log(
+      `[WP1b bench] readLivePlacement ${meanMs.toFixed(4)} ms per reading (mean of ${N}, 360×640)`,
+    );
+    expect(readLivePlacement(input)).not.toBeNull();
+    expect(meanMs).toBeLessThan(1);
   });
 });

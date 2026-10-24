@@ -44,7 +44,7 @@ describe("EasyScanCamera wires WP1b (log only)", () => {
 
   it("the capture carries the guidance and the tag, and the tag is for one scan only", () => {
     expect(source).toMatch(
-      /guidance: \{\s*shutter,\s*live: livePlacementRef\.current\.map\(/,
+      /guidance: \{\s*shutter,[\s\S]{0,120}?live: liveReadingsAtShutter\(livePlacementRef\.current, firedAt\),/,
     );
     expect(source).toContain("experimentTag: experimentTagRef.current,");
     expect(source).toContain(

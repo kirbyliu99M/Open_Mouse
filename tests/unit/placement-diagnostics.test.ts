@@ -354,3 +354,41 @@ describe("computeShadowRing", () => {
     ).toBeNull();
   });
 });
+
+describe("computeShadowRing cost (desktop, 實測 on this machine)", () => {
+  /** A uniform frame (the cost does not depend on the luma) with the 360×640 scene scaled up. */
+  function bigScene(width: number, height: number) {
+    const k = Math.min(width / 360, height / 640);
+    const corners: Point2[] = [
+      { x: 20 * k, y: 20 * k },
+      { x: 340 * k, y: 20 * k },
+      { x: 340 * k, y: 620 * k },
+      { x: 20 * k, y: 620 * k },
+    ];
+    const hand = syntheticHand(
+      { spread: false },
+      { scale: 1.2 * k, offset: { x: 180 * k, y: 560 * k } },
+    );
+    const data = new Uint8ClampedArray(width * height * 4).fill(200);
+    return { frame: { data, width, height }, corners, hand };
+  }
+
+  it.each([
+    [1080, 1920, 3],
+    [3000, 4000, 6],
+  ])("%i×%i: step %i, time reported", (width, height, step) => {
+    const s = bigScene(width, height);
+    const first = computeShadowRing(s.frame, s.corners, s.hand)!;
+    expect(first).not.toBeNull();
+    expect(first.step).toBe(step);
+    const N = 5;
+    const t0 = performance.now();
+    for (let i = 0; i < N; i++) computeShadowRing(s.frame, s.corners, s.hand);
+    const meanMs = (performance.now() - t0) / N;
+    console.log(
+      `[WP1b bench] computeShadowRing ${width}×${height} step ${first.step}: ${meanMs.toFixed(2)} ms (mean of ${N})`,
+    );
+    // Loose bound so a busy machine does not flake; the number is reported, the step keeps it small.
+    expect(meanMs).toBeLessThan(200);
+  });
+});

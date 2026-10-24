@@ -57,6 +57,7 @@ import {
 } from "../photo/landmarks";
 import {
   liveNominalFocalPx,
+  liveReadingsAtShutter,
   pushLivePlacement,
   readLivePlacement,
   shutterKindOf,
@@ -1729,13 +1730,8 @@ export default function EasyScanCamera({
         // at the shutter; the debug panel's tag goes with this one scan.
         guidance: {
           shutter,
-          live: livePlacementRef.current.map((r) => ({
-            ageMs: Math.max(0, firedAt - r.atMs),
-            fill: r.fill,
-            wristToEdgeMm: r.wristToEdgeMm,
-            handAxisDeg: r.handAxisDeg,
-            palmOverHand: r.palmOverHand,
-          })),
+          // Readings older than LIVE_READING_MAX_AGE_MS are left out.
+          live: liveReadingsAtShutter(livePlacementRef.current, firedAt),
         },
         experimentTag: experimentTagRef.current,
       };

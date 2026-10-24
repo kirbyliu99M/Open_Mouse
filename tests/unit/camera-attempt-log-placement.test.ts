@@ -283,6 +283,44 @@ describe("placement in the attempt log", () => {
     });
   });
 
+  it("guidance: a reading past 60 s, or without an age, is dropped whole (no values without an age)", () => {
+    const reading = (ageMs: unknown) => ({
+      ageMs,
+      fill: 0.65,
+      wristToEdgeMm: 7,
+      handAxisDeg: 1,
+      palmOverHand: 0.5,
+    });
+    const r = build({
+      capture: {
+        guidance: {
+          shutter: "manual",
+          live: [reading(70000), reading(Number.NaN), reading(59000)],
+        } as never,
+      },
+    });
+    expect(r.guidance).toStrictEqual({
+      shutter: "manual",
+      live: {
+        latest: {
+          ageMs: 59000,
+          fill: 0.65,
+          wristToEdgeMm: 7,
+          handAxisDeg: 1,
+          palmOverHand: 0.5,
+        },
+        previous: null,
+        earlier: null,
+      },
+    });
+    const stale = build({
+      capture: {
+        guidance: { shutter: "manual", live: [reading(70000)] } as never,
+      },
+    });
+    expect(stale.guidance!.live.latest).toBeNull();
+  });
+
   it("experiment tag: only a known one is kept", () => {
     expect(
       build({ capture: { experimentTag: "pencil/0.65" } }).experimentTag,

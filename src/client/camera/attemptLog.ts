@@ -899,11 +899,18 @@ function worldField(value: unknown): { world?: AttemptWorld } {
   return any ? { world } : {};
 }
 
+/**
+ * One live reading, or `null` as a whole when its age is missing or beyond
+ * `MAX_AGE_MS`: values without a known, recent age would read as the
+ * placement just before the shutter when they may be stale.
+ */
 function cleanLiveReading(value: unknown): AttemptLiveReading | null {
   const o = asObject(value);
   if (!o) return null;
+  const ageMs = cleanBounded(o.ageMs, 0, 0, MAX_AGE_MS);
+  if (ageMs === null) return null;
   return {
-    ageMs: cleanBounded(o.ageMs, 0, 0, MAX_AGE_MS),
+    ageMs,
     fill: cleanBounded(o.fill, 4, 0, 10),
     wristToEdgeMm: cleanBounded(
       o.wristToEdgeMm,
