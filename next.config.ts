@@ -50,7 +50,9 @@ import type { NextConfig } from "next";
  *
  * WARNING: do not widen `connect-src`. MediaPipe's bundle tries to POST usage
  * metrics to https://odml.pa.googleapis.com/v1/log every 60 seconds, and this
- * directive is the only thing that stops that request. Adding any origin (or
+ * directive is the only thing that stops that request. The one exception is
+ * the GA4 host list below, added only when a GA4 ID is configured: three
+ * named hosts, none of them that one. Adding any other origin (or
  * `*`) would let the metrics leave the browser. The source list is pinned to
  * exactly `'self'` by `tests/unit/next-config-headers.test.ts`; changing it
  * means deciding what to do about the metrics first (see
@@ -73,12 +75,47 @@ import type { NextConfig } from "next";
  */
 const IS_DEV = process.env.NODE_ENV !== "production";
 
+/**
+ * Google Analytics 4 (GA4), consent-gated in the client. Its hosts are added to
+ * the CSP ONLY when `NEXT_PUBLIC_GA_ID` is a valid measurement ID at build
+ * time; without it (previews, e2e, local) every directive below is exactly as
+ * before, including `connect-src 'self'` and a script-src with no third party.
+ * With it, three host lists and nothing wider: gtag.js comes from
+ * www.googletagmanager.com; hits go to *.google-analytics.com (the regional
+ * collectors, e.g. region1) and *.analytics.google.com; both also appear as
+ * `img-src` because gtag falls back to an image beacon. None of these is
+ * odml.pa.googleapis.com, so MediaPipe's usage metrics (WARNING above) stay
+ * blocked. The script is requested only after the visitor accepts cookies
+ * (src/client/analytics/ga4.ts), but the CSP cannot know that, so it allows
+ * the hosts for the whole site.
+ */
+const GA4_ENABLED = /^G-[A-Z0-9]{4,20}$/.test(
+  process.env.NEXT_PUBLIC_GA_ID ?? "",
+);
+const GA4_SCRIPT_SRC = GA4_ENABLED ? ["https://www.googletagmanager.com"] : [];
+const GA4_CONNECT_SRC = GA4_ENABLED
+  ? [
+      "https://*.google-analytics.com",
+      "https://*.analytics.google.com",
+      "https://*.googletagmanager.com",
+    ]
+  : [];
+const GA4_IMG_SRC = GA4_ENABLED
+  ? ["https://*.google-analytics.com", "https://*.googletagmanager.com"]
+  : [];
+
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  `script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'${IS_DEV ? " 'unsafe-eval'" : ""}`,
+  [
+    `script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'${IS_DEV ? " 'unsafe-eval'" : ""}`,
+    ...GA4_SCRIPT_SRC,
+  ].join(" "),
   "worker-src 'self' blob:",
-  "connect-src 'self'",
-  "img-src 'self' data: blob: https://lh3.googleusercontent.com",
+  ["connect-src 'self'", ...GA4_CONNECT_SRC].join(" "),
+  [
+    "img-src 'self' data: blob: https://lh3.googleusercontent.com",
+    ...GA4_IMG_SRC,
+  ].join(" "),
   "style-src 'self' 'unsafe-inline'",
   "frame-ancestors 'none'",
   "base-uri 'self'",

@@ -1,0 +1,223 @@
+/* The cookie banner (root layout): a quiet glass strip across the bottom edge.
+   Redrawn 2026-10-24 (Kirby: still jarring; Sony Taiwan's bar as the model for
+   text and proportions: one sentence, one row, about 1000 px of content,
+   about 7 % of the screen) to use ONLY the tokens in
+   tokens.css: no colour is written here, and tests/unit/cookie-banner-css.test.ts
+   fails if one is. Every size and spacing is a CANDIDATE (未拍板), from the
+   Pencil board "Cookie banner · GA4".
+
+   Material (design-guidelines.md, Materials): a translucent layer,
+   blur(20px) saturate(180%) over the page's own colour (--bg) at 55 %, so the
+   page shows through it (Kirby, 2026-10-24: the black bar should look like
+   Liquid Glass). The one addition to the guideline's recipe is brightness(0.4):
+   like real glass it darkens what is behind it, so a light page (a product
+   photo) cannot wash the text out. Over a pure white page the strip is then
+   still dark enough for --text-secondary and --accent-text to keep 4.5:1
+   (the e2e blends it over white and measures). Reduced transparency and more
+   contrast get a solid strip. */
+.cookieBanner {
+  --cookie-glass: color-mix(in srgb, var(--bg) 55%, transparent);
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  /* Edge to edge; the content keeps to a readable width (.cookieBanner-inner)
+     and clears the notch and the home indicator. */
+  padding: 0.5rem max(1rem, env(safe-area-inset-right))
+    calc(0.5rem + env(safe-area-inset-bottom, 0px))
+    max(1rem, env(safe-area-inset-left));
+  border-top: 1px solid var(--hairline);
+  border-radius: 1rem 1rem 0 0;
+  background: var(--cookie-glass);
+  -webkit-backdrop-filter: blur(20px) saturate(180%) brightness(0.4);
+  backdrop-filter: blur(20px) saturate(180%) brightness(0.4);
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  /* Opened on a short screen the strip scrolls inside itself, never off-screen. */
+  max-height: 70dvh;
+  overflow-y: auto;
+  /* Leaving (Kirby, 2026-10-25: vanishing was not smooth): it slides back down
+     the way it sat and fades, on transform and opacity only, with an ease-out
+     that settles without bounce. CookieBanner.tsx keeps it mounted for the same
+     time (EXIT_MS). A reopen mid-exit runs the same transition back. */
+  transition:
+    transform 0.36s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cookieBanner[data-state="closing"] {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Reduced motion: a cross-fade, no slide (design-guidelines.md, Accessibility). */
+@media (prefers-reduced-motion: reduce) {
+  .cookieBanner {
+    transition: opacity 0.2s linear;
+  }
+
+  .cookieBanner[data-state="closing"] {
+    transform: none;
+  }
+}
+
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .cookieBanner {
+    background: var(--bg);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .cookieBanner {
+    background: var(--bg);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+.cookieBanner-inner {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 64rem;
+  margin: 0 auto;
+}
+
+.cookieBanner p {
+  margin: 0;
+  text-wrap: balance;
+}
+
+/* One sentence, in the secondary colour: what is asked, and that no is fine. */
+.cookieBanner-sentence,
+.cookieBanner-current {
+  color: var(--text-secondary);
+}
+
+/* Chinese breaks only at punctuation and spaces, so a phrase such as
+   「統計瀏覽情形」 is never split across two lines. */
+.cookieBanner-sentence,
+.cookieBanner-details {
+  word-break: keep-all;
+}
+
+/* The end of the sentence and the link never break apart. */
+.cookieBanner-tail {
+  white-space: nowrap;
+}
+
+/* "Details" ends the sentence. An inline link keeps its underline: against
+   --text-secondary the blue is under 3:1, so colour alone would not mark it. */
+.cookieBanner-link {
+  display: inline;
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cookieBanner-link:active {
+  transform: none;
+}
+
+/* Phone: the link ends the sentence and is the only way to Decline, so its tap
+   area is stretched to 44 px with an invisible layer; the line itself does not
+   grow. Wider: it moves left of Accept. */
+.cookieBanner-link--inline {
+  position: relative;
+}
+
+.cookieBanner-link--inline::after {
+  content: "";
+  position: absolute;
+  inset: -0.75rem -0.5rem;
+}
+
+.cookieBanner-link--beside {
+  display: none;
+}
+
+.cookieBanner-link:focus-visible,
+.cookieBanner-button:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+  border-radius: 0.25rem;
+}
+
+/* The two answers: the home page's outline pill (--control-border, 999px,
+   --text-primary), the same for both, 44 px tall. */
+.cookieBanner-actions {
+  display: grid;
+  /* One column per button, equal width: Accept alone, or Accept and Decline. */
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 0.5rem;
+}
+
+.cookieBanner-button {
+  min-height: 2.75rem;
+  padding: 0 1.25rem;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cookieBanner-button:hover {
+  background: var(--footer-line);
+}
+
+.cookieBanner-button:active {
+  background: var(--hairline);
+}
+
+/* The opened statement: one paragraph under a hairline. */
+.cookieBanner-details {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--hairline);
+  color: var(--text-secondary);
+}
+
+/* Wider than a phone: one row, text on the left, the answers on the right. */
+@media (min-width: 40rem) {
+  .cookieBanner-inner {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: 1.5rem;
+  }
+  .cookieBanner-link--inline {
+    display: none;
+  }
+  /* Beside the answers it is a 44 px target of its own. */
+  .cookieBanner-link--beside {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: 0 0.25rem;
+    white-space: nowrap;
+  }
+  .cookieBanner-details {
+    grid-column: 1 / -1;
+  }
+}
+
+@media print {
+  .cookieBanner {
+    display: none;
+  }
+}

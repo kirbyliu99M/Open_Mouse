@@ -181,7 +181,8 @@
 .siteFooter li {
   display: flex;
 }
-.siteFooter a {
+.siteFooter a,
+.siteFooter-linkButton {
   display: inline-flex;
   align-items: center;
   gap: 0.625rem;
@@ -190,15 +191,26 @@
   color: var(--footer-link);
   text-decoration: none;
 }
+/* The cookie-settings button looks like a link: same row, same colours. */
+.siteFooter-linkButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
 .siteFooter-icon {
   flex: none;
   color: var(--accent-text);
 }
-.siteFooter a:hover {
+.siteFooter a:hover,
+.siteFooter-linkButton:hover {
   color: var(--text-primary);
   text-decoration: underline;
 }
-.siteFooter a:focus-visible {
+.siteFooter a:focus-visible,
+.siteFooter-linkButton:focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 2px;
   border-radius: 0.25rem;
@@ -264,6 +276,12 @@
    focus ring is drawn in full either way. */
 @media (min-width: 64rem) and (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
   .siteFooter a {
+    min-height: 1.25rem;
+    line-height: 1.25rem;
+  }
+  /* The same compact row for the cookie-settings button (a separate rule: the
+     e2e test finds the link rule above by its exact selector). */
+  .siteFooter-linkButton {
     min-height: 1.25rem;
     line-height: 1.25rem;
   }
