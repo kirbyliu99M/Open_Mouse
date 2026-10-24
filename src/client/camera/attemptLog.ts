@@ -301,12 +301,9 @@ export interface AttemptRecord {
 }
 
 export interface AttemptPaperEdgeFit {
-  readonly sideResidualsPx: readonly [
-    number | null,
-    number | null,
-    number | null,
-    number | null,
-  ] | null;
+  readonly sideResidualsPx:
+    | readonly [number | null, number | null, number | null, number | null]
+    | null;
   readonly sideEndsSeen: readonly [boolean, boolean, boolean, boolean] | null;
   readonly excludedPoints: number | null;
   readonly handMask: boolean;
@@ -1060,7 +1057,8 @@ export function buildAttemptRecord(input: {
           paperEdgeFit: {
             sideResidualsPx:
               diagnostics.paperEdgeFit.edgeFit?.sideResidualsPx ?? null,
-            sideEndsSeen: diagnostics.paperEdgeFit.edgeFit?.sideEndsSeen ?? null,
+            sideEndsSeen:
+              diagnostics.paperEdgeFit.edgeFit?.sideEndsSeen ?? null,
             excludedPoints:
               diagnostics.paperEdgeFit.edgeFit?.excludedPoints ?? null,
             handMask:

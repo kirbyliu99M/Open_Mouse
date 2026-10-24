@@ -64,7 +64,10 @@ export interface HandSceneOptions {
   /** The shadow's darkest factor at the skin's edge (paper brightness × this). */
   readonly shadowDarkest?: number;
   /** A bow of this many mm on one side (0 = top, 1 = right, 2 = bottom, 3 = left), outward. */
-  readonly curl?: { readonly side: 0 | 1 | 2 | 3; readonly amplitudeMm: number };
+  readonly curl?: {
+    readonly side: 0 | 1 | 2 | 3;
+    readonly amplitudeMm: number;
+  };
   /** The skin's colour; the default is saturated enough for the detector's saturation gate to leave it out. A pale, low-saturation one (in bright light) is not. */
   readonly skinRgb?: readonly [number, number, number];
   /** The shadow drawn this many mm away from the skin along +x/+y (a hand or arm held above the sheet casts it off to one side). */
@@ -98,7 +101,10 @@ function segDist(p: Point2, a: Point2, b: Point2): number {
   const ex = b.x - a.x;
   const ey = b.y - a.y;
   const l2 = ex * ex + ey * ey || 1;
-  const t = Math.max(0, Math.min(1, ((p.x - a.x) * ex + (p.y - a.y) * ey) / l2));
+  const t = Math.max(
+    0,
+    Math.min(1, ((p.x - a.x) * ex + (p.y - a.y) * ey) / l2),
+  );
   return Math.hypot(p.x - (a.x + t * ex), p.y - (a.y + t * ey));
 }
 
@@ -178,7 +184,10 @@ export function renderHandScene(o: HandSceneOptions): HandScene {
         skinOut = Math.min(skinOut, segDist(mm, a, c) - rad);
       let shadowOut = skinOut;
       if (o.shadowOffsetMm) {
-        const sm = { x: mm.x - o.shadowOffsetMm.x, y: mm.y - o.shadowOffsetMm.y };
+        const sm = {
+          x: mm.x - o.shadowOffsetMm.x,
+          y: mm.y - o.shadowOffsetMm.y,
+        };
         shadowOut = Infinity;
         for (const [a, c, rad] of capsules)
           shadowOut = Math.min(shadowOut, segDist(sm, a, c) - rad);

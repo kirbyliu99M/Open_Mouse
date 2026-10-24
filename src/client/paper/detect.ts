@@ -63,6 +63,16 @@
  * gate reads it, and nothing above changes for it: a found sheet's result is
  * exactly what it was, with or without the option (`failureGuessFor`).
  *
+ * V3.2 F19 (candidate 未拍板): with `handLandmarksPx` (the hand's 21
+ * landmarks), a side's points the hand or the arm cover (`handMask.ts`) are
+ * left out of its RANSAC fit and of its residual (its coverage still counts
+ * every point, as before), and a frame that stops at `region_split`,
+ * `aspect_mismatch` or `too_small` is fitted once more with the sizeable
+ * bright pieces the hand touches taken together; that answer is kept only
+ * when it finds the sheet. Every found sheet also carries `edgeFit` (per-side
+ * residuals, for the local attempt log). Without landmarks every number is
+ * exactly what it was (the S2 golden scenes, bit for bit).
+ *
  * `cornersSeen` is exactly the count of `true` in `cornersFound`
  * (TL/TR/BR/BL, both adjacent sides fit); `minSideCoverage` is the
  * smallest fraction of any side's length that had inlier points spread

@@ -181,8 +181,14 @@ export function buildHandMask(
   const py = ux;
   const arm: [Point2, Point2, Point2, Point2] = [
     { x: wrist.x + px * half, y: wrist.y + py * half },
-    { x: wrist.x + px * half + ux * reach, y: wrist.y + py * half + uy * reach },
-    { x: wrist.x - px * half + ux * reach, y: wrist.y - py * half + uy * reach },
+    {
+      x: wrist.x + px * half + ux * reach,
+      y: wrist.y + py * half + uy * reach,
+    },
+    {
+      x: wrist.x - px * half + ux * reach,
+      y: wrist.y - py * half + uy * reach,
+    },
     { x: wrist.x - px * half, y: wrist.y - py * half },
   ];
   const hand = convexHull(pts);
