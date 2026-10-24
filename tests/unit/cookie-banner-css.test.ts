@@ -52,6 +52,20 @@ describe("cookie-banner.css", () => {
     );
   });
 
+  it("leaves by sliding and fading, on transform and opacity only, with a plain fade for reduced motion", () => {
+    const base = rules.match(/\.cookieBanner\s*\{[^}]*\}/)![0];
+    const transition = base.match(/transition:([^;]*);/)![1]!;
+    expect(transition).toMatch(/transform/);
+    expect(transition).toMatch(/opacity/);
+    expect(transition).not.toMatch(/all|height|top|bottom|margin/);
+    expect(rules).toMatch(
+      /\.cookieBanner\[data-state="closing"\]\s*\{[^}]*translateY\(100%\)[^}]*opacity:\s*0/,
+    );
+    expect(rules).toMatch(
+      /prefers-reduced-motion: reduce\)\s*\{[^@]*transition:\s*opacity/,
+    );
+  });
+
   it("sizes the two answers to the 44 px touch target", () => {
     expect(rules).toMatch(
       /\.cookieBanner-button\s*\{[^}]*min-height:\s*2\.75rem/,
