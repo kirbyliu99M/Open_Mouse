@@ -197,11 +197,16 @@ test.describe("results: the back button leaves the results page", () => {
     await other.locator("summary").click();
     await expect(other).toHaveAttribute("open", "");
 
-    // Share.
+    // Share: the preview (V3.2 F21), its 分享, then Esc.
     await page
       .locator('[data-testid="share-card-button"]:visible')
       .first()
       .click();
+    const preview = page.getByTestId("share-preview");
+    await expect(preview).toBeVisible();
+    await page.getByTestId("share-preview-share").click({ timeout: 30_000 });
+    await page.keyboard.press("Escape");
+    await expect(preview).toHaveCount(0);
 
     // The feedback sheet: reach the end of the list, wait the 20 s, close it.
     await page.mouse.wheel(0, 400);
