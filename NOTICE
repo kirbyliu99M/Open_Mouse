@@ -156,7 +156,7 @@ and package-lock.json.
   drizzle-orm                 0.45.2           Apache-2.0
   js-aruco2                   2.0.0            MIT
   jsqr                        1.4.0            Apache-2.0
-  next                        15.5.27          MIT
+  next                        15.5.28          MIT
   next-auth                   5.0.0-beta.32    ISC
   posthog-js                  1.438.2          (Apache-2.0 AND MIT)
   qrcode                      1.5.4            MIT
@@ -164,7 +164,7 @@ and package-lock.json.
   react-dom                   19.3.0           MIT
   server-only                 0.0.1            MIT
   three                       0.186.1          MIT
-  zod                         4.6.5            MIT
+  zod                         4.6.7            MIT
 
 3.1 js-aruco2
 
