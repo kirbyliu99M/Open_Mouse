@@ -171,7 +171,7 @@ export function goldenFrames(): Frame[] {
   return [...syntheticFrames(), ...independentFrames()];
 }
 
-/** The record for one frame, without the field S2 adds. */
+/** The record for one frame, without the fields S2 and F19 add. */
 export function goldenRecord(frame: Frame): GoldenRecord {
   const imageData = {
     width: frame.width,
@@ -179,10 +179,18 @@ export function goldenRecord(frame: Frame): GoldenRecord {
     data: frame.data,
   } as unknown as ImageData;
   const detection = detectPaperQuad(imageData, "a4");
-  const { failureStage: _ignored, ...rest } = detection as typeof detection & {
+  // S2's failure stage and F19's edge-fit record (per-side residuals for the
+  // attempt log) came after the fixture; every field that was there before
+  // is compared.
+  const {
+    failureStage: _ignored,
+    edgeFit: _edgeFit,
+    ...rest
+  } = detection as typeof detection & {
     failureStage?: unknown;
   };
   void _ignored;
+  void _edgeFit;
   const evaluation = evaluatePaperEdgeCalibration(detection, "a4", false);
   const homography = evaluation.geometry?.homography ?? null;
   let heldOutMm: number | null = null;

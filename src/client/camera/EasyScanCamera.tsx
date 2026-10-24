@@ -102,6 +102,7 @@ import {
   advanceNoSheetCapture,
   liveHandSignal,
   livePalmHint,
+  liveHandHint,
   recordHandReading,
   sheetFoundByCue,
   shouldSampleHand,
@@ -2065,6 +2066,14 @@ export default function EasyScanCamera({
           width,
           height,
         });
+        // V3.2 F19 (candidate): with the same fresh reading, the hand's 21
+        // landmarks, so the points the hand and arm cover are left out.
+        const handLandmarks = liveHandHint({
+          latest: handReadingsRef.current.latest,
+          nowMs: now,
+          width,
+          height,
+        });
         detection = quadSourceRef.current(imageData, paperSizeRef.current, {
           focalPxHint: assumedSampleFocalPx(
             { width: video.videoWidth, height: video.videoHeight },
@@ -2072,6 +2081,7 @@ export default function EasyScanCamera({
             { width, height },
           ),
           ...(palm ? { palmPointsPx: palm } : {}),
+          ...(handLandmarks ? { handLandmarksPx: handLandmarks } : {}),
         });
       } catch {
         detection = NO_QUAD_DETECTION;

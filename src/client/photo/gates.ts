@@ -301,6 +301,57 @@ export function checkPaperEdgeCoverage(
   };
 }
 
+/**
+ * V3.2 F19 (candidate 未拍板): when one edge of the sheet may be mostly
+ * covered without refusing the photo. Measured (實測, 2026-10-24): the second
+ * person's right edge showed 22.5-25 % (fingers over it) and was refused by
+ * `checkPaperEdgeCoverage`, though the adjustment screen confirmed the frame
+ * and the photo measured. A side's line needs only its two ends: when both
+ * of its corners rest on evidence and the other three sides are complete,
+ * the covered middle changes neither corner.
+ *
+ * - `minCoverage` 0.15: the covered side must still show 6 of its 40
+ *   buckets (the 22.5 % measured case shows 9), so a side seen at two
+ *   isolated specks is still refused.
+ * - The covered side's points must reach both of its ends (the detector's
+ *   `sideEndsSeen`: its first and last 10 %), and all four corners must have
+ *   been found.
+ * - Every other side must pass the ordinary coverage limit.
+ */
+export const PAPER_EDGE_HIDDEN_RELIEF = {
+  minCoverage: 0.15,
+} as const;
+
+export interface CoveredEdgeInput {
+  readonly cornersSeen: 0 | 1 | 2 | 3 | 4;
+  readonly sideCoverages: readonly [number, number, number, number];
+  readonly sideEndsSeen: readonly [boolean, boolean, boolean, boolean];
+}
+
+/**
+ * V3.2 F19 (candidate): whether a photo `checkPaperEdgeCoverage` refuses may
+ * pass because exactly one side is low, both of its ends were seen, and the
+ * other three sides are complete (`PAPER_EDGE_HIDDEN_RELIEF`). Pure.
+ *
+ * NOT WIRED into `checkPaperEdgeGatesOnly`: a photo it lets through carries a
+ * `minSideCoverage` under `PAPER_EDGE_LIMITS.minSideCoverage`, which the
+ * contract's `paperEdgeEvidenceSchema` rejects (`.min(...)` on that field), so
+ * the calibration would throw. Wiring it needs a contract change (Claude).
+ */
+export function coveredEdgeTolerated(
+  input: CoveredEdgeInput,
+  threshold: number = PAPER_EDGE_LIMITS.minSideCoverage,
+  relief: { readonly minCoverage: number } = PAPER_EDGE_HIDDEN_RELIEF,
+): boolean {
+  if (input.cornersSeen !== 4) return false;
+  const low = input.sideCoverages
+    .map((coverage, side) => ({ coverage, side }))
+    .filter(({ coverage }) => !(coverage >= threshold));
+  if (low.length !== 1) return false;
+  const { coverage, side } = low[0]!;
+  return coverage >= relief.minCoverage && input.sideEndsSeen[side] === true;
+}
+
 export function checkPaperCurled(
   edgeFitResidualMm: number,
   threshold: number = PAPER_EDGE_LIMITS.maxEdgeFitResidualMm,

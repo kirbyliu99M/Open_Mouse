@@ -38,6 +38,7 @@ import { CAMERA_CONSTANTS } from "./constants";
 import type { CueCode } from "./cues";
 import type { Point } from "./quad";
 import { palmPointsOf } from "../paper/palmChoice";
+import { paperHandHint } from "../paper/handMask";
 
 /**
  * Per live cue (`pickCue`), whether the sheet counts as found for this wait.
@@ -275,4 +276,24 @@ export function livePalmHint(input: {
     (p) => p.x >= 0 && p.x <= input.width && p.y >= 0 && p.y <= input.height,
   );
   return onSample ? palm : undefined;
+}
+
+/**
+ * V3.2 F19 (candidate): the hand's 21 landmarks the live detector may use to
+ * leave out what the hand and arm cover (handMask.ts), under exactly the
+ * conditions of `livePalmHint` (a fresh reading whose palm lies on this
+ * sample). `undefined` otherwise, and the detector is then exactly what it
+ * was. Pure.
+ */
+export function liveHandHint(input: {
+  readonly latest: LiveHandReading | null;
+  readonly nowMs: number;
+  readonly width: number;
+  readonly height: number;
+}): Point[] | undefined {
+  if (!livePalmHint(input)) return undefined;
+  // The same rule as the photo pipeline's paper call (F19 review).
+  return (
+    paperHandHint(input.latest?.points, input.width, input.height) ?? undefined
+  );
 }

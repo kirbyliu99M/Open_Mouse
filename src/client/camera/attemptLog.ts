@@ -288,7 +288,43 @@ export interface AttemptRecord {
    * only on an attempt that had one. Local only, never sent.
    */
   readonly paperChoice?: AttemptPaperChoice;
+  /**
+   * V3.2 F19 (candidate): how the sheet's sides were fitted (each side's
+   * residual in px to 0.001, `null` for a side not fitted; whether each
+   * side's points reached both its ends; boundary points left out under the
+   * hand; whether a hand mask was used; pieces joined), and the detector's
+   * second call (what it carried, whether it was taken, its ms). Present only
+   * on an attempt with a found sheet or a second call. Local only, never sent.
+   */
+  readonly paperEdgeFit?: AttemptPaperEdgeFit;
   readonly userAgent: string;
+}
+
+export interface AttemptPaperEdgeFit {
+  readonly sideResidualsPx:
+    | readonly [number | null, number | null, number | null, number | null]
+    | null;
+  readonly sideEndsSeen: readonly [boolean, boolean, boolean, boolean] | null;
+  readonly excludedPoints: number | null;
+  readonly handMask: boolean;
+  readonly piecesJoined: number | null;
+  readonly secondLook: {
+    readonly palm: boolean;
+    readonly handMask: boolean;
+    readonly used: boolean;
+    readonly ms: number | null;
+    /** F19 review: the masked second answer that was not taken; present only then. */
+    readonly notUsed?: AttemptSecondLookNotUsed;
+  } | null;
+}
+
+export interface AttemptSecondLookNotUsed {
+  readonly cornersSeen: number | null;
+  readonly sideResidualsPx:
+    | readonly [number | null, number | null, number | null, number | null]
+    | null;
+  readonly excludedPoints: number | null;
+  readonly piecesJoined: number | null;
 }
 
 export interface AttemptPaperChoice {
@@ -548,6 +584,8 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
     parallaxGuard: cleanParallaxGuard(raw.parallaxGuard),
     // Only on an attempt with F17's second look; absent on every other one.
     ...paperChoiceField(raw.paperChoice),
+    // Only on an attempt F19 had something to say about; absent otherwise.
+    ...paperEdgeFitField(raw.paperEdgeFit),
     userAgent: cleanString(raw.userAgent, MAX_USER_AGENT_LENGTH) ?? "",
   };
 }
@@ -573,6 +611,69 @@ function paperChoiceField(value: unknown): {
       palmInside: cleanNumber(o.palmInside, 0),
       largestPalmInside: cleanNumber(o.largestPalmInside, 0),
       used: o.used === true,
+    },
+  };
+}
+
+/** The F19 record, rebuilt field by field; anything that is not an object is left out. */
+function paperEdgeFitField(value: unknown): {
+  paperEdgeFit?: AttemptPaperEdgeFit;
+} {
+  const o = asObject(value);
+  if (!o) return {};
+  const residuals = cleanResiduals(o.sideResidualsPx);
+  const ends =
+    Array.isArray(o.sideEndsSeen) &&
+    o.sideEndsSeen.length === 4 &&
+    o.sideEndsSeen.every((v) => typeof v === "boolean")
+      ? (o.sideEndsSeen as [boolean, boolean, boolean, boolean])
+      : null;
+  const look = asObject(o.secondLook);
+  return {
+    paperEdgeFit: {
+      sideResidualsPx: residuals,
+      sideEndsSeen: ends ? [ends[0], ends[1], ends[2], ends[3]] : null,
+      excludedPoints: cleanNumber(o.excludedPoints, 0),
+      handMask: o.handMask === true,
+      piecesJoined: cleanNumber(o.piecesJoined, 0),
+      secondLook: look
+        ? {
+            palm: look.palm === true,
+            handMask: look.handMask === true,
+            used: look.used === true,
+            ms: cleanNumber(look.ms, 0),
+            ...notUsedField(look.notUsed),
+          }
+        : null,
+    },
+  };
+}
+
+/** Four per-side residuals (px, to 0.001; each `null` when not a finite number), or `null` unless an array of four. */
+function cleanResiduals(
+  value: unknown,
+): [number | null, number | null, number | null, number | null] | null {
+  if (!Array.isArray(value) || value.length !== 4) return null;
+  return value.map((v) => cleanNumber(v, 3)) as [
+    number | null,
+    number | null,
+    number | null,
+    number | null,
+  ];
+}
+
+/** F19 review: the masked second answer that was not taken, rebuilt field by field; left out unless an object. */
+function notUsedField(value: unknown): {
+  notUsed?: AttemptSecondLookNotUsed;
+} {
+  const o = asObject(value);
+  if (!o) return {};
+  return {
+    notUsed: {
+      cornersSeen: cleanNumber(o.cornersSeen, 0),
+      sideResidualsPx: cleanResiduals(o.sideResidualsPx),
+      excludedPoints: cleanNumber(o.excludedPoints, 0),
+      piecesJoined: cleanNumber(o.piecesJoined, 0),
     },
   };
 }
@@ -984,6 +1085,28 @@ export function buildAttemptRecord(input: {
     ...(diagnostics?.paperChoice
       ? { paperChoice: diagnostics.paperChoice }
       : {}),
+    ...(diagnostics?.paperEdgeFit
+      ? {
+          paperEdgeFit: {
+            sideResidualsPx:
+              diagnostics.paperEdgeFit.edgeFit?.sideResidualsPx ?? null,
+            sideEndsSeen:
+              diagnostics.paperEdgeFit.edgeFit?.sideEndsSeen ?? null,
+            excludedPoints:
+              diagnostics.paperEdgeFit.edgeFit?.excludedPoints ?? null,
+            // F19 review: whether the fit recorded here (its residuals and
+            // points left out) used the mask. Only with no fit to record (no
+            // sheet in the result) does it say whether the second call
+            // carried the hand.
+            handMask: diagnostics.paperEdgeFit.edgeFit
+              ? diagnostics.paperEdgeFit.edgeFit.handMask === true
+              : diagnostics.paperEdgeFit.secondLook?.handMask === true,
+            piecesJoined:
+              diagnostics.paperEdgeFit.edgeFit?.piecesJoined ?? null,
+            secondLook: diagnostics.paperEdgeFit.secondLook,
+          },
+        }
+      : {}),
     userAgent: input.userAgent,
   });
   // `result` and `at` are set above, so the record is always valid; the
@@ -1074,6 +1197,37 @@ export function describeAttempt(record: AttemptRecord): string {
     parts.push(
       `edge ${record.paper.worstSide ?? "?"} worst · cov ${record.paper.sideCoverages.join("/")}`,
     );
+  if (record.paperEdgeFit?.sideResidualsPx)
+    parts.push(
+      `side resid ${record.paperEdgeFit.sideResidualsPx.map((v) => v ?? "?").join("/")} px`,
+    );
+  if (record.paperEdgeFit?.handMask)
+    parts.push(
+      `hand mask · ${record.paperEdgeFit.excludedPoints ?? "?"} pts out${
+        (record.paperEdgeFit.piecesJoined ?? 1) > 1
+          ? ` · ${record.paperEdgeFit.piecesJoined} pieces joined`
+          : ""
+      }`,
+    );
+  if (record.paperEdgeFit?.secondLook) {
+    const look = record.paperEdgeFit.secondLook;
+    const missed = look.notUsed;
+    parts.push(
+      `second look ${look.used ? "used" : "not used"}${
+        missed
+          ? ` (with hand mask: ${missed.cornersSeen ?? "?"} corners · resid ${
+              missed.sideResidualsPx
+                ? missed.sideResidualsPx.map((v) => v ?? "?").join("/")
+                : "?"
+            } px · ${missed.excludedPoints ?? "?"} pts out${
+              (missed.piecesJoined ?? 1) > 1
+                ? ` · ${missed.piecesJoined} pieces joined`
+                : ""
+            })`
+          : ""
+      }`,
+    );
+  }
   if (record.hand.handPose !== null)
     parts.push(
       `pose ${record.hand.handPose}${

@@ -76,6 +76,9 @@ import {
 } from "../camera/visibleView";
 import { finishPaperEdge } from "./paperEdgeFinish";
 import { PALM_CHOICE, palmPointsOf, pointsInside } from "../paper/palmChoice";
+import { paperHandHint } from "../paper/handMask";
+import type { EdgeFitRecord } from "../paper/detect";
+import { adoptSecondLook, planSecondLook } from "../paper/secondLook";
 import type { ReusedFocal } from "../geometry/parallax";
 import type { IssueDetail } from "./issue-detail";
 import {
@@ -87,6 +90,7 @@ import {
   type HandDiagnostics,
   type PaperChoiceDiagnostics,
   type PaperDiagnostics,
+  type PaperSecondLookDiagnostics,
   type PipelineDiagnostics,
   type ParallaxGuardDiagnostics,
   type ShadowPriorDiagnostics,
@@ -294,6 +298,10 @@ interface PipelineTrace {
   analysisThread: AnalysisThread | null;
   /** V3.2 F17: the palm-guided second look at the sheet, when there was one. */
   paperChoice: PaperChoiceDiagnostics | null;
+  /** V3.2 F19: the second call to the detector (F17 and/or F19), when there was one. */
+  paperSecondLook: PaperSecondLookDiagnostics | null;
+  /** V3.2 F19: how the sides of the sheet in the result were fitted, when one was found. */
+  paperEdgeFit: EdgeFitRecord | null;
 }
 
 function newTrace(): PipelineTrace {
@@ -319,6 +327,8 @@ function newTrace(): PipelineTrace {
     parallaxGuard: null,
     analysisThread: null,
     paperChoice: null,
+    paperSecondLook: null,
+    paperEdgeFit: null,
   };
 }
 
@@ -373,6 +383,9 @@ async function detectHandTraced(
   bitmap: ImageBitmap,
   trace: PipelineTrace,
   input: RunPhotoPipelineInput,
+  // F19 review: the paper-edge run finds the hand before the sheet and
+  // reports "hand" itself, after "paper", so the loader's steps keep their order.
+  announce = true,
 ): Promise<Awaited<ReturnType<typeof detectHandLandmarks>>> {
   const startedAt = performance.now();
   let hand: Awaited<ReturnType<typeof detectHandLandmarks>>;
@@ -395,7 +408,7 @@ async function detectHandTraced(
         };
   } finally {
     trace.handMs = performance.now() - startedAt;
-    notifyStage(input, "hand");
+    if (announce) notifyStage(input, "hand");
   }
   // A frame for the loader before the measurements are worked out (F7).
   await yieldToBrowser();
@@ -476,6 +489,15 @@ export async function runPhotoPipeline(
     analysisThread: trace.analysisThread,
     // Only where there was a second look, so every other record is as it was.
     ...(trace.paperChoice ? { paperChoice: trace.paperChoice } : {}),
+    // F19: only where there is something to say, so other records are as they were.
+    ...(trace.paperEdgeFit || trace.paperSecondLook
+      ? {
+          paperEdgeFit: {
+            edgeFit: trace.paperEdgeFit,
+            secondLook: trace.paperSecondLook,
+          },
+        }
+      : {}),
   };
   return { ...result, diagnostics };
 }
@@ -841,6 +863,32 @@ async function runPaperEdgePipeline(
         paperStartedAt,
       });
     }
+    // V3.2 F17 (candidate, 未拍板; Kirby's preview 7: "it went to my
+    // window") and F19: the hand is looked for before the sheet. F17 review:
+    // the hand detector failing to LOAD (offline, the model or its wasm not
+    // downloaded) is taken as no hand here, so a photo with no sheet still
+    // gets its paper error and its partial corners (and the adjustment
+    // opens) exactly as before F17; the load error itself is thrown once the
+    // sheet is found, where the hand was looked for before F17. Any other
+    // failure is thrown here as it was. Its time is `handMs`, not `paperMs`.
+    let hand: Awaited<ReturnType<typeof detectHandTraced>>;
+    let handLoadError: unknown = null;
+    try {
+      hand = await detectHandTraced(bitmap, trace, input, false);
+    } catch (error) {
+      if (!isHandLoaderFailure(error)) throw error;
+      hand = null;
+      handLoadError = error;
+    }
+    // F19 review (candidate): the hand's landmarks go with the FIRST paper
+    // call, by the same rule as the live viewfinder (`paperHandHint`), so the
+    // preview and the photo are judged by one detection. No hand (or a palm
+    // off the frame): no landmarks, and the call is exactly what it was.
+    const handHint = hand
+      ? paperHandHint(hand.landmarksPx, width, height)
+      : null;
+    // The sheet's own clock (`paperMs`), without the hand's time.
+    const detectStartedAt = performance.now();
     // The detector runs once, in the worker where there is one (F8), else
     // here: the same `detectPaperQuad`, the same pixels and arguments.
     // `failureGuess` (F10): a photo that fails also says where the bright
@@ -850,7 +898,11 @@ async function runPaperEdgePipeline(
       {
         kind: "paper",
         paperSize,
-        options: { focalPxHint, failureGuess: true },
+        options: {
+          focalPxHint,
+          failureGuess: true,
+          ...(handHint ? { handLandmarksPx: handHint } : {}),
+        },
       },
       frame,
       reread,
@@ -858,9 +910,10 @@ async function runPaperEdgePipeline(
     frame = detected.frame;
     noteAnalysisThread(trace, detected.thread);
     let quad = detected.outcome.quad;
-    trace.paperMs = performance.now() - paperStartedAt;
+    trace.paperMs = performance.now() - detectStartedAt;
     notifyStage(input, "paper");
     await yieldToBrowser();
+    notifyStage(input, "hand");
     const notePaper = (q: typeof quad) => {
       const quadSize = q.corners
         ? paperSizeFractions(q.corners, width, height)
@@ -915,53 +968,62 @@ async function runPaperEdgePipeline(
     };
     let paperEval = evaluate(quad);
 
-    // V3.2 F17 (candidate, 未拍板; Kirby's preview 7: "it went to my
-    // window"): the hand is looked for here, before the paper's verdict is
-    // returned. When the sheet was not found, or does not hold the palm, the
-    // detector looks again with the palm (palmChoice.ts) and its answer is
-    // taken only if it chose another bright region. A photo with no hand, or
-    // a sheet that holds the palm, goes on exactly as before.
-    // F17 review: the hand detector failing to LOAD (offline, the model or
-    // its wasm not downloaded) is taken as no palm here, so a photo with no
-    // sheet still gets its paper error and its partial corners (and the
-    // adjustment opens) exactly as before F17; the load error itself is
-    // thrown once the sheet is found, where the hand was looked for before
-    // F17. Any other failure is thrown here as it was.
-    let hand: Awaited<ReturnType<typeof detectHandTraced>>;
-    let handLoadError: unknown = null;
-    try {
-      hand = await detectHandTraced(bitmap, trace, input);
-    } catch (error) {
-      if (!isHandLoaderFailure(error)) throw error;
-      hand = null;
-      handLoadError = error;
-    }
     const palm = hand ? palmPointsOf(hand.landmarksPx) : null;
     const holdsPalm =
       paperEval?.geometry != null &&
       palm !== null &&
       pointsInside(quad.corners, palm) >= PALM_CHOICE.minPointsInside;
-    if (palm && !holdsPalm) {
+    // V3.2 F17 (candidate): when the sheet was not found, or does not hold
+    // the palm, the detector looks again with the palm (palmChoice.ts), and
+    // with the same hand landmarks as the first call (F19 review: as the live
+    // viewfinder sends them together); its answer is taken only if it chose
+    // another bright region (secondLook.ts). A photo with no hand, or a sheet
+    // that holds the palm, is never looked at twice.
+    const plan = planSecondLook({ palm, holdsPalm, hand: handHint });
+    if (plan) {
+      const secondStartedAt = performance.now();
       const again = await getAnalysisRunner().run(
         {
           kind: "paper",
           paperSize,
-          options: { focalPxHint, failureGuess: true, palmPointsPx: palm },
+          options: { focalPxHint, failureGuess: true, ...plan },
         },
         frame,
         reread,
       );
       frame = again.frame;
       noteAnalysisThread(trace, again.thread);
-      const choice = again.outcome.quad.paperChoice;
-      const used = choice?.reason === "palm";
+      const second = again.outcome.quad;
+      const used = adoptSecondLook({
+        palmChose: second.paperChoice?.reason === "palm",
+      });
+      const choice = second.paperChoice;
       trace.paperChoice = choice ? { ...choice, used } : null;
+      trace.paperSecondLook = {
+        palm: true,
+        handMask: plan.handLandmarksPx !== undefined,
+        used,
+        ms: performance.now() - secondStartedAt,
+        // F19 review: a masked second answer that was not taken, so the log
+        // keeps its numbers (the result's edge fit is then the first call's).
+        ...(!used && plan.handLandmarksPx !== undefined
+          ? {
+              notUsed: {
+                cornersSeen: second.cornersSeen,
+                sideResidualsPx: second.edgeFit?.sideResidualsPx ?? null,
+                excludedPoints: second.edgeFit?.excludedPoints ?? null,
+                piecesJoined: second.edgeFit?.piecesJoined ?? null,
+              },
+            }
+          : {}),
+      };
       if (used) {
-        quad = again.outcome.quad;
+        quad = second;
         notePaper(quad);
         paperEval = evaluate(quad);
       }
     }
+    trace.paperEdgeFit = quad.edgeFit ?? null;
 
     if (!quad.corners) {
       // With the step the detector stopped at (scan S2): the words name it,
