@@ -15,7 +15,10 @@ import { pickCopy } from "../i18n/copy";
 export interface CookieConsentCopy {
   /** The `aria-label` of the banner region. */
   regionLabel: string;
-  body: string;
+  /** The first line: what is asked. */
+  lead: string;
+  /** The second line: what it costs, and that no is fine. */
+  note: string;
   accept: string;
   decline: string;
   detailsToggle: string;
@@ -39,13 +42,14 @@ export interface CookieConsentCopy {
 
 export const zhTW: CookieConsentCopy = {
   regionLabel: "Cookie 設定",
-  body: "我們用 Google Analytics（GA4）統計整體瀏覽情形，會放 Cookie。不同意也不影響任何功能。",
+  lead: "我們用 Google Analytics 統計瀏覽情形",
+  note: "會在你的瀏覽器放 Cookie，不同意也不影響使用。",
   accept: "同意",
   decline: "不同意",
   detailsToggle: "詳細說明",
   detailsWhatLabel: "放哪些 Cookie",
   detailsWhat:
-    "_ga 和以 _ga_ 開頭的各一個，用來認出同一個瀏覽器的多次造訪，最長保留約 2 年。",
+    "Google Analytics 4（GA4）放兩個：_ga 和以 _ga_ 開頭的各一個，用來認出同一個瀏覽器的多次造訪，最長保留約 2 年。",
   detailsSentLabel: "送出什麼",
   detailsSent:
     "頁面路徑（結果頁的編號已被取代，網址的問號後面也不送）、少數流程與按鈕事件，以及連線時 Google 一定會收到的資訊（例如 IP 位址、瀏覽器種類）。不含照片、手部量測值、握法和帳號。",
@@ -64,13 +68,14 @@ export const zhTW: CookieConsentCopy = {
 
 export const en: CookieConsentCopy = {
   regionLabel: "Cookie settings",
-  body: "We use Google Analytics (GA4) to count visits, with cookies. Declining changes nothing you can do on the site.",
+  lead: "We use Google Analytics to count visits",
+  note: "It sets cookies in your browser. Declining changes nothing you can do.",
   accept: "Accept",
   decline: "Decline",
   detailsToggle: "Details",
   detailsWhatLabel: "Which cookies",
   detailsWhat:
-    "One named _ga and one starting with _ga_, which recognise the same browser across visits. They last up to about 2 years.",
+    "Google Analytics 4 (GA4) sets two: one named _ga and one starting with _ga_, which recognise the same browser across visits. They last up to about 2 years.",
   detailsSentLabel: "What is sent",
   detailsSent:
     "The page path (a results page's ID is replaced, and anything after a question mark is not sent), a few flow and button events, and what Google always receives on a connection (for example the IP address and browser type). No photos, hand measurements, grip or account.",

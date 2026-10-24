@@ -14,13 +14,15 @@ import { cookieConsentCopy } from "@/lib/copy/cookie-consent";
 import "./cookie-banner.css";
 
 /**
- * The cookie question, for GA4 only. Kept small on purpose (Kirby, 2026-10-24:
- * too big, too much text): one short sentence, a "details" link that opens the
- * full statement, and the two answers. Shown until a choice is made (and again
- * when the footer reopens it), never on the pages that bring their own
- * full-page layout (the camera, the print pages), and never when no GA4 ID is
- * configured, since there is then nothing to ask about. Accept and Decline are
- * the same size and weight; neither is pre-selected. It does not take focus.
+ * The cookie question, for GA4 only: a quiet glass strip across the bottom, in
+ * the site's own tokens (Kirby, 2026-10-24: it was still jarring). Two lines of
+ * text (what is asked in the primary colour, what it costs in the secondary),
+ * a "details" link that opens the full statement, and the two answers as the
+ * same outline pill. Shown until a choice is made (and again when the footer
+ * reopens it), never on the pages that bring their own full-page layout (the
+ * camera, the print pages), and never when no GA4 ID is configured, since
+ * there is then nothing to ask about. Accept and Decline are the same size and
+ * weight; neither is pre-selected. It does not take focus.
  */
 export function CookieBanner() {
   const pathname = usePathname();
@@ -44,8 +46,9 @@ export function CookieBanner() {
     >
       <div className="cookieBanner-inner">
         <div className="cookieBanner-text">
-          <p>
-            {copy.body}{" "}
+          <p className="cookieBanner-lead">{copy.lead}</p>
+          <p className="cookieBanner-note">
+            {copy.note}{" "}
             <button
               type="button"
               className="cookieBanner-link"
@@ -60,20 +63,6 @@ export function CookieBanner() {
             <p className="cookieBanner-current" data-testid="cookie-current">
               {consent === "granted" ? copy.currentGranted : copy.currentDenied}
             </p>
-          ) : null}
-          {open ? (
-            <dl id={detailsId} className="cookieBanner-details">
-              <dt>{copy.detailsWhatLabel}</dt>
-              <dd>{copy.detailsWhat}</dd>
-              <dt>{copy.detailsSentLabel}</dt>
-              <dd>{copy.detailsSent}</dd>
-              <dt>{copy.detailsNotLabel}</dt>
-              <dd>{copy.detailsNot}</dd>
-              <dt>{copy.detailsOtherLabel}</dt>
-              <dd>{copy.detailsOther}</dd>
-              <dt>{copy.detailsChangeLabel}</dt>
-              <dd>{copy.detailsChange}</dd>
-            </dl>
           ) : null}
         </div>
         <div className="cookieBanner-actions">
@@ -92,6 +81,20 @@ export function CookieBanner() {
             {copy.accept}
           </button>
         </div>
+        {open ? (
+          <dl id={detailsId} className="cookieBanner-details">
+            <dt>{copy.detailsWhatLabel}</dt>
+            <dd>{copy.detailsWhat}</dd>
+            <dt>{copy.detailsSentLabel}</dt>
+            <dd>{copy.detailsSent}</dd>
+            <dt>{copy.detailsNotLabel}</dt>
+            <dd>{copy.detailsNot}</dd>
+            <dt>{copy.detailsOtherLabel}</dt>
+            <dd>{copy.detailsOther}</dd>
+            <dt>{copy.detailsChangeLabel}</dt>
+            <dd>{copy.detailsChange}</dd>
+          </dl>
+        ) : null}
       </div>
     </section>
   );

@@ -156,9 +156,9 @@ test("the cookie statement is in the banner and names what is not sent", async (
 
 // axe cannot decide the banner's text colour: the bar is fixed over page
 // content, and a paragraph that wraps has a different page element under each
-// line, which axe reads as "partially overlaps other elements"; and the
-// glass has a sheen gradient, which axe cannot read either ("background
-// gradient"). Both are needs review, not violations. The generic audit (a11y-axe.spec.ts) never sees the banner
+// line, which axe reads as "partially overlaps other elements"; and on a
+// short screen the strip covers part of the page's own button ("partially
+// obscured by another element"). Those are needs review, not violations. The generic audit (a11y-axe.spec.ts) never sees the banner
 // because the default e2e server has no GA ID, so this settles it here: axe may
 // report nothing but those open items, and the contrast is measured from the
 // computed colours of every text element, worst case: the pane is translucent
@@ -181,14 +181,19 @@ test("the banner has no axe violations, and its text keeps 4.5:1 even over a whi
     expect(open.id).toBe("color-contrast");
     for (const node of open.nodes) {
       expect(JSON.stringify(node.any)).toMatch(
-        /elmPartiallyObscuring|bgGradient/,
+        /elmPartiallyObscur(ing|ed)|bgGradient/,
       );
     }
   }
 
   const glass = await page.evaluate(() => {
-    const channels = (css: string) =>
-      (css.match(/[\d.]+/g) ?? []).slice(0, 4).map(Number);
+    const channels = (css: string) => {
+      const n = (css.match(/[\d.]+(?:e-?\d+)?/g) ?? []).map(Number);
+      // color-mix() comes back as color(srgb r g b / a), channels 0..1.
+      return css.startsWith("color(")
+        ? [n[0]! * 255, n[1]! * 255, n[2]! * 255, n[3] ?? 1]
+        : n.slice(0, 4);
+    };
     const lum = ([r, g, b]: number[]) => {
       const f = (v: number) => {
         const c = v / 255;
@@ -218,9 +223,10 @@ test("the banner has no axe violations, and its text keeps 4.5:1 even over a whi
         (n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim(),
       );
       if (!own) continue;
-      // A button is a glass pill on the pane: its hover fill (14 % white, .cookieBanner-button:hover) is its worst case.
-      const behind =
-        el.tagName === "BUTTON" ? over([255, 255, 255], 0.14, pane) : pane;
+      // A button is a glass pill on the pane: its hover fill (14 % white, --hairline, the pressed state) is its worst case.
+      const behind = el.classList.contains("cookieBanner-button")
+        ? over([255, 255, 255], 0.14, pane)
+        : pane;
       const c = channels(getComputedStyle(el).color);
       const text = over(c.slice(0, 3), c[3] ?? 1, behind);
       const [a, b] = [lum(text), lum(behind)];
@@ -307,7 +313,7 @@ for (const [name, width, height, sideBySide, maxHeight] of [
       const b = (await banner
         .getByRole("button", { name: label })
         .boundingBox())!;
-      expect(b.height).toBeGreaterThanOrEqual(width < 640 ? 44 : 36);
+      expect(b.height).toBeGreaterThanOrEqual(44);
       expect(b.x).toBeGreaterThanOrEqual(0);
       expect(b.x + b.width).toBeLessThanOrEqual(m.viewport.w);
     }
