@@ -34,6 +34,7 @@ import {
   type Quad4,
 } from "../paper/manualQuad";
 import { orderQuadCorners } from "../paper/quad-math";
+import { PALM_CHOICE, palmPointsOf, pointsInside } from "../paper/palmChoice";
 import type {
   PhotoOverlay,
   PipelineIssue,
@@ -614,9 +615,32 @@ export function openingPlaced(
   // three-corner find starts deliberately inside the sheet (`isGuessedCorner`):
   // neither is an automatic fit, so those corners still need a move (Claude's
   // call on F14, 2026-10-22). Every other corner opens placed.
-  return start.from === "centred" || start.from === "partial"
+  // V3.2 F22 (final review): nor is a rough quad that does not hold the
+  // palm, so it is never measured with as it opened.
+  return start.from === "centred" ||
+    start.from === "partial" ||
+    start.withoutPalm === true
     ? start.detected
     : ALL_PLACED;
+}
+
+/**
+ * V3.2 F22 (final review, candidate): whether a frame may open placed as far
+ * as the hand goes. Only a rough quad (`from: "guess"`) is checked: it must
+ * hold at least `PALM_CHOICE.minPointsInside` of the palm points. With no
+ * hand on record nothing is known, and the frame keeps its usual opening.
+ * Pure.
+ */
+export function guessHoldsPalm(
+  start: DefaultAdjustFrame,
+  landmarksPx: readonly Point2[] | null | undefined,
+): boolean {
+  if (start.from !== "guess") return true;
+  const palm = palmPointsOf(landmarksPx);
+  if (!palm) return true;
+  return (
+    pointsInside(start.corners as Quad4, palm) >= PALM_CHOICE.minPointsInside
+  );
 }
 
 /**
@@ -651,7 +675,7 @@ export function startAdjust(input: {
     checkManualQuad(input.previous.corners, image, input.paperSize).ok
       ? input.previous
       : null;
-  const start: DefaultAdjustFrame = previous
+  const rawStart: DefaultAdjustFrame = previous
     ? {
         corners: [
           { ...previous.corners[0] },
@@ -674,6 +698,9 @@ export function startAdjust(input: {
         image,
         paperSize: input.paperSize,
       });
+  const start = guessHoldsPalm(rawStart, input.overlay.landmarksPx)
+    ? rawStart
+    : { ...rawStart, withoutPalm: true as const };
   return {
     entry: input.entry,
     image,
