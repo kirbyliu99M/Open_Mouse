@@ -10,6 +10,7 @@ import {
   type AnalyticsEventProps,
 } from "@/lib/contracts/analytics";
 import { loadAnalyticsNow, sendToPostHog } from "./client";
+import { ga4Active, sendToGa4 } from "./ga4";
 
 export type Sender = (name: string, props: Record<string, unknown>) => void;
 
@@ -19,6 +20,13 @@ export interface TrackDeps {
   send: Sender;
   /** Called after an urgent event is sent: load PostHog now, not at idle. */
   urgent?: () => void;
+  /**
+   * A second destination (GA4). It gets the same parsed props and decides
+   * for itself which events it takes. Independent of PostHog: it works with
+   * no PostHog key, and is skipped when `mirrorEnabled` says false.
+   */
+  mirror?: Sender;
+  mirrorEnabled?: () => boolean;
 }
 
 /**
@@ -37,16 +45,28 @@ export function createTrack(deps: TrackDeps) {
     name: E,
     props: AnalyticsEventProps<E>,
   ): void {
-    if (!deps.enabled()) return;
+    const toPostHog = deps.enabled();
+    const toMirror = Boolean(deps.mirror) && (deps.mirrorEnabled?.() ?? true);
+    if (!toPostHog && !toMirror) return;
     const schema = analyticsEventSchemas[name];
     if (!schema) return;
     const parsed = schema.safeParse(props);
     if (!parsed.success) return;
-    try {
-      deps.send(name, parsed.data as Record<string, unknown>);
-      if (URGENT_EVENTS.has(name)) deps.urgent?.();
-    } catch {
-      // Analytics never breaks the app.
+    const data = parsed.data as Record<string, unknown>;
+    if (toPostHog) {
+      try {
+        deps.send(name, data);
+        if (URGENT_EVENTS.has(name)) deps.urgent?.();
+      } catch {
+        // Analytics never breaks the app.
+      }
+    }
+    if (toMirror) {
+      try {
+        deps.mirror?.(name, data);
+      } catch {
+        // Same: a second destination never breaks the app or the first.
+      }
     }
   };
 }
@@ -58,4 +78,6 @@ export const track = createTrack({
   enabled: analyticsEnabled,
   send: sendToPostHog,
   urgent: loadAnalyticsNow,
+  mirror: sendToGa4,
+  mirrorEnabled: ga4Active,
 });

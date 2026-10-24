@@ -25,6 +25,8 @@ export interface SiteFooterCopy {
   /** Trust group. */
   howItWorks: string;
   privacy: string;
+  /** Reopens the cookie banner; shown only when GA4 is configured (2026-10-24, candidate). */
+  cookieSettings: string;
   /** Project group. */
   github: string;
   /** The `aria-label` of the link area. */
@@ -40,6 +42,7 @@ export const zhTW: SiteFooterCopy = {
   allMice: "所有滑鼠",
   howItWorks: "運作方式",
   privacy: "隱私",
+  cookieSettings: "Cookie 設定",
   github: "GitHub",
   linksLabel: "網站連結",
 };
@@ -53,6 +56,7 @@ export const en: SiteFooterCopy = {
   allMice: "All mice",
   howItWorks: "How it works",
   privacy: "Privacy",
+  cookieSettings: "Cookie settings",
   github: "GitHub",
   linksLabel: "Site links",
 };

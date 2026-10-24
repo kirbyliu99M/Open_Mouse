@@ -15,6 +15,7 @@ const modules = import.meta.glob<Record<string, unknown>>(
 const EXPECTED_MODULES = [
   "account.ts",
   "camera-cues.ts",
+  "cookie-consent.ts",
   "easy-scan.ts",
   "errors.ts",
   "fit-bands.ts",
