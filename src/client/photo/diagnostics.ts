@@ -41,6 +41,22 @@ export interface PaperSecondLookDiagnostics {
   readonly handMask: boolean;
   readonly used: boolean;
   readonly ms: number;
+  /**
+   * F19 review (2026-10-25): what the second call found when it carried the
+   * hand and its answer was NOT taken (the result's `edgeFit` is then the
+   * first call's, without a mask), so the log still shows the masked fit:
+   * corners seen, per-side residuals (px), points left out, pieces joined.
+   * Absent otherwise. Local attempt log only.
+   */
+  readonly notUsed?: PaperSecondLookNotUsed;
+}
+
+/** F19: the masked second answer that was not taken (`PaperSecondLookDiagnostics.notUsed`). */
+export interface PaperSecondLookNotUsed {
+  readonly cornersSeen: number;
+  readonly sideResidualsPx: EdgeFitRecord["sideResidualsPx"] | null;
+  readonly excludedPoints: number | null;
+  readonly piecesJoined: number | null;
 }
 
 /**

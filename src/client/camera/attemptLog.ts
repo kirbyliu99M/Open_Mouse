@@ -313,7 +313,18 @@ export interface AttemptPaperEdgeFit {
     readonly handMask: boolean;
     readonly used: boolean;
     readonly ms: number | null;
+    /** F19 review: the masked second answer that was not taken; present only then. */
+    readonly notUsed?: AttemptSecondLookNotUsed;
   } | null;
+}
+
+export interface AttemptSecondLookNotUsed {
+  readonly cornersSeen: number | null;
+  readonly sideResidualsPx:
+    | readonly [number | null, number | null, number | null, number | null]
+    | null;
+  readonly excludedPoints: number | null;
+  readonly piecesJoined: number | null;
 }
 
 export interface AttemptPaperChoice {
@@ -610,15 +621,7 @@ function paperEdgeFitField(value: unknown): {
 } {
   const o = asObject(value);
   if (!o) return {};
-  const residuals =
-    Array.isArray(o.sideResidualsPx) && o.sideResidualsPx.length === 4
-      ? (o.sideResidualsPx.map((v) => cleanNumber(v, 3)) as [
-          number | null,
-          number | null,
-          number | null,
-          number | null,
-        ])
-      : null;
+  const residuals = cleanResiduals(o.sideResidualsPx);
   const ends =
     Array.isArray(o.sideEndsSeen) &&
     o.sideEndsSeen.length === 4 &&
@@ -639,8 +642,38 @@ function paperEdgeFitField(value: unknown): {
             handMask: look.handMask === true,
             used: look.used === true,
             ms: cleanNumber(look.ms, 0),
+            ...notUsedField(look.notUsed),
           }
         : null,
+    },
+  };
+}
+
+/** Four per-side residuals (px, to 0.001; each `null` when not a finite number), or `null` unless an array of four. */
+function cleanResiduals(
+  value: unknown,
+): [number | null, number | null, number | null, number | null] | null {
+  if (!Array.isArray(value) || value.length !== 4) return null;
+  return value.map((v) => cleanNumber(v, 3)) as [
+    number | null,
+    number | null,
+    number | null,
+    number | null,
+  ];
+}
+
+/** F19 review: the masked second answer that was not taken, rebuilt field by field; left out unless an object. */
+function notUsedField(value: unknown): {
+  notUsed?: AttemptSecondLookNotUsed;
+} {
+  const o = asObject(value);
+  if (!o) return {};
+  return {
+    notUsed: {
+      cornersSeen: cleanNumber(o.cornersSeen, 0),
+      sideResidualsPx: cleanResiduals(o.sideResidualsPx),
+      excludedPoints: cleanNumber(o.excludedPoints, 0),
+      piecesJoined: cleanNumber(o.piecesJoined, 0),
     },
   };
 }
@@ -1061,9 +1094,13 @@ export function buildAttemptRecord(input: {
               diagnostics.paperEdgeFit.edgeFit?.sideEndsSeen ?? null,
             excludedPoints:
               diagnostics.paperEdgeFit.edgeFit?.excludedPoints ?? null,
-            handMask:
-              diagnostics.paperEdgeFit.edgeFit?.handMask === true ||
-              diagnostics.paperEdgeFit.secondLook?.handMask === true,
+            // F19 review: whether the fit recorded here (its residuals and
+            // points left out) used the mask. Only with no fit to record (no
+            // sheet in the result) does it say whether the second call
+            // carried the hand.
+            handMask: diagnostics.paperEdgeFit.edgeFit
+              ? diagnostics.paperEdgeFit.edgeFit.handMask === true
+              : diagnostics.paperEdgeFit.secondLook?.handMask === true,
             piecesJoined:
               diagnostics.paperEdgeFit.edgeFit?.piecesJoined ?? null,
             secondLook: diagnostics.paperEdgeFit.secondLook,
@@ -1172,10 +1209,25 @@ export function describeAttempt(record: AttemptRecord): string {
           : ""
       }`,
     );
-  if (record.paperEdgeFit?.secondLook)
+  if (record.paperEdgeFit?.secondLook) {
+    const look = record.paperEdgeFit.secondLook;
+    const missed = look.notUsed;
     parts.push(
-      `second look ${record.paperEdgeFit.secondLook.used ? "used" : "not used"}`,
+      `second look ${look.used ? "used" : "not used"}${
+        missed
+          ? ` (with hand mask: ${missed.cornersSeen ?? "?"} corners · resid ${
+              missed.sideResidualsPx
+                ? missed.sideResidualsPx.map((v) => v ?? "?").join("/")
+                : "?"
+            } px · ${missed.excludedPoints ?? "?"} pts out${
+              (missed.piecesJoined ?? 1) > 1
+                ? ` · ${missed.piecesJoined} pieces joined`
+                : ""
+            })`
+          : ""
+      }`,
     );
+  }
   if (record.hand.handPose !== null)
     parts.push(
       `pose ${record.hand.handPose}${

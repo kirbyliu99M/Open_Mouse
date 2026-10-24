@@ -113,6 +113,85 @@ describe("F19 — an arm over the bottom edge (模擬)", () => {
     expect(r.detection.worstSideIndex).toBe(1);
   });
 
+  // F19 review (2026-10-25, 模擬): a curl on a side the arm covers or
+  // touches. The line is fitted without the covered points; the residual is
+  // read from every point near that line, so the bow seen beside the arm
+  // still counts.
+  it("F19 review: the bottom side (the one the arm covers) curled 6 mm still reads curled with the hand", () => {
+    const curled = renderHandScene({
+      ...ARM_OVER_BOTTOM,
+      curl: { side: 2, amplitudeMm: 6 },
+    });
+    const r = run(curled, true);
+    expect(r.codes).toContain("PAPER_CURLED");
+    expect(r.detection.worstSideIndex).toBe(2);
+    expect(r.detection.edgeFit?.excludedPoints).toBeGreaterThan(0);
+  });
+
+  it("F19 review: the mask leaves the left side's evidence alone when the arm only touches its lower end (curled 4-8 mm: the same side residual, within 0.05 px, with and without the hand)", () => {
+    for (const amplitudeMm of [4, 6, 8]) {
+      const curled = renderHandScene({
+        ...ARM_OVER_BOTTOM,
+        curl: { side: 3, amplitudeMm },
+      });
+      const without = run(curled, false);
+      const withHand = run(curled, true);
+      expect(withHand.detection.edgeFit!.sideResidualsPx[3]).toBeCloseTo(
+        without.detection.edgeFit!.sideResidualsPx[3]!,
+        1,
+      );
+      // 8 mm is still caught with the hand.
+      if (amplitudeMm === 8) expect(withHand.codes).toContain("PAPER_CURLED");
+    }
+  }, 60_000);
+
+  // Known limits (模擬), kept as failing expectations so a fix shows up:
+  // the arm hides the part of the side that bows most, so what is left in
+  // sight is nearly straight. The same scene WITHOUT the hand's landmarks
+  // reads curled only because the arm's own edge is fitted as the sheet's
+  // (bottom side 4.3 px even with no curl), not because the bow is seen.
+  it.fails(
+    "known limit: the bottom side curled 4 mm next to the arm reads curled with the hand",
+    () => {
+      const r = run(
+        renderHandScene({
+          ...ARM_OVER_BOTTOM,
+          curl: { side: 2, amplitudeMm: 4 },
+        }),
+        true,
+      );
+      expect(r.codes).toContain("PAPER_CURLED");
+    },
+  );
+  it.fails(
+    "known limit: the bottom side curled 8 mm next to the arm reads curled with the hand",
+    () => {
+      const r = run(
+        renderHandScene({
+          ...ARM_OVER_BOTTOM,
+          curl: { side: 2, amplitudeMm: 8 },
+        }),
+        true,
+      );
+      expect(r.codes).toContain("PAPER_CURLED");
+    },
+  );
+  it.fails(
+    "known limit: the left side curled 4-6 mm, its lower end under the arm, reads curled with the hand",
+    () => {
+      for (const amplitudeMm of [4, 6]) {
+        const r = run(
+          renderHandScene({
+            ...ARM_OVER_BOTTOM,
+            curl: { side: 3, amplitudeMm },
+          }),
+          true,
+        );
+        expect(r.codes).toContain("PAPER_CURLED");
+      }
+    },
+  );
+
   it("with the hand known but nowhere near the sheet's edges, a curled sheet still reads curled", () => {
     const curled = renderHandScene({
       wristMm: { x: 105, y: 230 },
@@ -141,6 +220,32 @@ describe("F19 — the arm across the sheet (region split, 模擬)", () => {
     expect(r.cornerErrorPx!).toBeLessThan(1);
     expect(r.detection.edgeFit?.piecesJoined).toBe(2);
     expect(r.codes).toStrictEqual([]);
+  });
+
+  // F19 review (2026-10-25, 模擬): with the arm at some heights the larger
+  // piece alone is close to A4 turned sideways, so it is fitted on its own;
+  // with the hand's points left out, the side along the arm has too few
+  // points: a region, two corners, no failure stage. That case is looked at
+  // again with the pieces joined too.
+  it.each([90, 100, 110, 120, 130, 140, 150, 170, 190])(
+    "F19 review: the arm across at y = %i mm: the whole sheet, corners within 1 px",
+    (y) => {
+      const r = run(
+        renderHandScene({ wristMm: { x: 120, y }, handDeg: 90 }),
+        true,
+      );
+      expect(r.detection.corners).not.toBeNull();
+      expect(r.cornerErrorPx!).toBeLessThan(1);
+      expect(r.detection.edgeFit?.piecesJoined).toBe(2);
+      expect(r.codes).toStrictEqual([]);
+    },
+  );
+
+  it("F19 review: the case that had stopped at two corners (y = 110): without the hand the larger piece is taken for the whole sheet", () => {
+    const scene = renderHandScene({ wristMm: { x: 120, y: 110 }, handDeg: 90 });
+    const without = run(scene, false);
+    expect(without.cornerErrorPx!).toBeGreaterThan(100);
+    expect(without.detection.edgeFit?.piecesJoined).toBe(1);
   });
 
   it("a lower, slanted arm: without the hand a wrong sheet (one piece), with it the whole sheet", () => {

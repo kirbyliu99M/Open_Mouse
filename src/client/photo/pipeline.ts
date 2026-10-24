@@ -1006,6 +1006,18 @@ async function runPaperEdgePipeline(
         handMask: plan.handLandmarksPx !== undefined,
         used,
         ms: performance.now() - secondStartedAt,
+        // F19 review: the masked answer that was not taken, so the log keeps
+        // its numbers (the result's edge fit is then the first call's).
+        ...(!used && plan.handLandmarksPx !== undefined
+          ? {
+              notUsed: {
+                cornersSeen: second.cornersSeen,
+                sideResidualsPx: second.edgeFit?.sideResidualsPx ?? null,
+                excludedPoints: second.edgeFit?.excludedPoints ?? null,
+                piecesJoined: second.edgeFit?.piecesJoined ?? null,
+              },
+            }
+          : {}),
       };
       if (used) {
         quad = second;

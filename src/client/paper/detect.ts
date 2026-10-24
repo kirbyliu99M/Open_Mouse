@@ -65,11 +65,12 @@
  *
  * V3.2 F19 (candidate 未拍板): with `handLandmarksPx` (the hand's 21
  * landmarks), a side's points the hand or the arm cover (`handMask.ts`) are
- * left out of its RANSAC fit and of its residual (its coverage still counts
- * every point, as before), and a frame that stops at `region_split`,
- * `aspect_mismatch` or `too_small` is fitted once more with the sizeable
- * bright pieces the hand touches taken together; that answer is kept only
- * when it finds the sheet. Every found sheet also carries `edgeFit` (per-side
+ * left out of its RANSAC fit; its residual and coverage are read, as
+ * before, from every point near the fitted line. A frame that stops at
+ * `region_split`, `aspect_mismatch` or `too_small`, or finds a region with
+ * fewer than four corners, is fitted once more with the sizeable bright
+ * pieces the hand touches taken together; that answer is kept only when it
+ * finds the sheet (with four corners, in the second case). Every found sheet also carries `edgeFit` (per-side
  * residuals, for the local attempt log). Without landmarks every number is
  * exactly what it was (the S2 golden scenes, bit for bit).
  *
@@ -1044,13 +1045,23 @@ function detectPaperQuadImpl(
     { keep, area: bestArea, palmPicked, maybePaper: null },
     guess,
   );
-  if (!handMask || !first.failureStage) return first;
-  if (!RETRY_STAGES.has(first.failureStage)) return first;
+  if (!handMask) return first;
+  // F19 review (2026-10-25): a sheet the arm cuts across can also end with
+  // the larger piece fitted on its own (it can be close to A4 turned
+  // sideways) and the side along the arm left with too few points once the
+  // hand's are left out: a found region, fewer than four corners, no
+  // failure stage. That is looked at again too, and the second answer is
+  // taken only when it has all four corners.
+  const shortOfCorners = first.paperRegionFound && first.corners === null;
+  const failedAtRetryStage =
+    first.failureStage !== undefined && RETRY_STAGES.has(first.failureStage);
+  if (!shortOfCorners && !failedAtRetryStage) return first;
 
   // F19: the bright pixels are in pieces. With the hand known, the sizeable
   // pieces that touch the hand or arm are taken together (a sheet the arm cut
   // across), and the pixels under the hand count as possibly sheet for the
-  // region-to-quad check. Taken only when that finds the sheet; otherwise the
+  // region-to-quad check. Taken only when that finds the sheet (with all
+  // four corners, when the first answer had found a region); otherwise the
   // first answer stands.
   const covered = rasterizeHandMask(handMask, width, height);
   const minPiece = MIN_PIECE_FRACTION * pixelCount;
@@ -1073,6 +1084,7 @@ function detectPaperQuadImpl(
     retryGuess,
   );
   if (!second.paperRegionFound) return first;
+  if (shortOfCorners && second.corners === null) return first;
   if (guess && retryGuess) guess.corners = retryGuess.corners;
   return second.edgeFit
     ? { ...second, edgeFit: { ...second.edgeFit, piecesJoined: pieces } }
@@ -1270,10 +1282,11 @@ function fitRegion(
     orientations[i] === "h" ? hBuckets[i] : vBuckets[i],
   );
   // F19 (candidate): with the hand known, a side's points the hand or the
-  // arm cover are left out of its fit and of its residual: they are where
-  // the region meets the hand, its shadow or the arm, not the sheet's edge.
-  // The coverage below still counts every point, as before, so leaving
-  // points out never makes an edge read as more hidden than it did.
+  // arm cover are left out of its line fit: they are where the region meets
+  // the hand, its shadow or the arm, not the sheet's edge. The coverage and
+  // the residual below still count every point near the fitted line, as
+  // before, so leaving points out never makes an edge read as more hidden,
+  // or flatter, than the points beside the line show.
   let excludedPoints = 0;
   const fitBuckets = handMask
     ? buckets.map((pts) => {
@@ -1406,7 +1419,6 @@ function fitRegion(
     ];
     fits.push(fits.shift()!);
     buckets.push(buckets.shift()!);
-    if (fitBuckets !== buckets) fitBuckets.push(fitBuckets.shift()!);
     coarseSides.push(coarseSides.shift()!);
   }
 
@@ -1462,12 +1474,15 @@ function fitRegion(
       fit.line,
       reportingThresholdPx,
     );
-    // F19: the residual from the points the hand does not cover; without a
-    // hand mask, the same points as the coverage (as before F19).
-    const residual =
-      fitBuckets === buckets
-        ? reporting
-        : computeReportingStats(fitBuckets[i], fit.line, reportingThresholdPx);
+    // F19: the line comes from the points the hand does not cover (above);
+    // the residual is read from every point near that line, covered or not
+    // (the same points as the coverage, as before F19). Points the hand
+    // covers that lie off the line (the arm's edge, its shadow) are past
+    // the reporting threshold and count for nothing, while a bow of the
+    // sheet seen right beside the hand still counts (F19 review 2026-10-25:
+    // reading the residual from the uncovered points alone let a side
+    // curled 6 mm next to the arm pass, 模擬).
+    const residual = reporting;
     const coverage = computeSideCoverage(
       reporting.points,
       segStart,

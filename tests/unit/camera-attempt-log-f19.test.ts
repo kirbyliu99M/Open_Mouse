@@ -154,6 +154,78 @@ describe("F19 in the attempt log", () => {
     expect(describeAttempt(r)).toContain("second look not used");
   });
 
+  it("F19 review: the recorded fit is the first call's (no mask) and the masked second was not taken: no mask words for it, the second's numbers kept apart", () => {
+    const r = build({
+      edgeFit: {
+        sideResidualsPx: [0.01, 0.02, 9.876, 0.03],
+        sideEndsSeen: [true, true, true, true],
+        excludedPoints: 0,
+        handMask: false,
+        piecesJoined: 1,
+      },
+      secondLook: {
+        palm: false,
+        handMask: true,
+        used: false,
+        ms: 55.4,
+        notUsed: {
+          cornersSeen: 2,
+          sideResidualsPx: [0.01, 0.02, 0.1234, null],
+          excludedPoints: 212,
+          piecesJoined: 1,
+        },
+      },
+    });
+    expect(r.paperEdgeFit?.handMask).toBe(false);
+    expect(r.paperEdgeFit?.excludedPoints).toBe(0);
+    expect(r.paperEdgeFit?.secondLook).toStrictEqual({
+      palm: false,
+      handMask: true,
+      used: false,
+      ms: 55,
+      notUsed: {
+        cornersSeen: 2,
+        sideResidualsPx: [0.01, 0.02, 0.123, null],
+        excludedPoints: 212,
+        piecesJoined: 1,
+      },
+    });
+    const line = describeAttempt(r);
+    expect(line).not.toContain("hand mask · ");
+    expect(line).toContain("side resid 0.01/0.02/9.876/0.03 px");
+    expect(line).toContain(
+      "second look not used (with hand mask: 2 corners · resid 0.01/0.02/0.123/? px · 212 pts out)",
+    );
+  });
+
+  it("read back, a malformed record of the second answer is rebuilt field by field", () => {
+    const base = build(FIT);
+    const r = sanitizeAttempt({
+      ...base,
+      paperEdgeFit: {
+        ...base.paperEdgeFit,
+        secondLook: {
+          palm: false,
+          handMask: true,
+          used: false,
+          ms: 3,
+          notUsed: {
+            cornersSeen: "four",
+            sideResidualsPx: [1, 2],
+            excludedPoints: 7,
+            photo: "data:image/png;base64,AAAA",
+          },
+        },
+      },
+    });
+    expect(r?.paperEdgeFit?.secondLook?.notUsed).toStrictEqual({
+      cornersSeen: null,
+      sideResidualsPx: null,
+      excludedPoints: 7,
+      piecesJoined: null,
+    });
+  });
+
   it("read back, anything malformed is dropped field by field, never kept as given", () => {
     const base = build(FIT);
     const r = sanitizeAttempt({
