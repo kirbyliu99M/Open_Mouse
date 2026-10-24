@@ -70,7 +70,7 @@ function setup(
   over: Partial<SharePreviewDeps> & {
     nav?: {
       share?: (d?: ShareData) => Promise<void>;
-      canShare?: () => boolean;
+      canShare?: (d?: ShareData) => boolean;
     };
   } = {},
 ) {
@@ -154,6 +154,8 @@ describe("opening and closing the preview", () => {
     expect(t.deps.makeFile).toHaveBeenCalledTimes(1);
     expect(t.preview.getState().phase).toBe("ready");
     expect(t.preview.getState().imageUrl).toBe("blob:card-2");
+    // The Share button is still offered on the second open.
+    expect(t.preview.getState().canShareFiles).toBe(true);
     // Another entry on the same page shares the cache.
     const other = setup({ cache });
     await other.preview.open(KEY);
@@ -223,6 +225,25 @@ describe("share and download", () => {
     const noCanShare = setup({ nav: { share: () => Promise.resolve() } });
     void noCanShare.preview.open(KEY);
     expect(noCanShare.preview.getState().canShareFiles).toBe(false);
+  });
+
+  it("asks again with the real card once it is ready, on first open and on reopen", async () => {
+    // The empty probe file can be shared, the real card cannot (too big, say).
+    const canShare = (d?: ShareData) => (d?.files?.[0]?.size ?? 0) === 0;
+    const cache: CardCache = { current: null };
+    const t = setup({
+      cache,
+      nav: { share: () => Promise.resolve(), canShare },
+    });
+    const opening = t.preview.open(KEY);
+    expect(t.preview.getState().canShareFiles).toBe(true);
+    await opening;
+    expect(t.preview.getState().phase).toBe("ready");
+    expect(t.preview.getState().canShareFiles).toBe(false);
+    t.preview.close();
+    await t.preview.open(KEY);
+    expect(t.deps.makeFile).toHaveBeenCalledTimes(1);
+    expect(t.preview.getState().canShareFiles).toBe(false);
   });
 
   it("does nothing until the card is ready", async () => {
