@@ -162,13 +162,20 @@ export type FocalLengthSource = (typeof FOCAL_LENGTH_SOURCES)[number];
  * the ratios were recomputed at 998 px. Kirby's measured ratios at the old
  * prior (median kL 1.041, kP 1.056, kW 1.036, n = 8) are not comparable.
  * One phone only; an iPhone is not checked (不確定).
+ * 2026-10-24 (Kirby, D5): replaced by the S25 ratios MEASURED at the 18 mm
+ * prior, from near-straight scans only (tilted scans read a smaller ratio
+ * because their uncorrected numbers carry a different bias; the corrected
+ * numbers agree across tilt, 177.4-186.1 mm over 7 scans). Measured kL sat
+ * about 1.2 % above the simulation at both priors (1.039 vs 1.024 at 26 mm,
+ * 1.047 vs 1.035 at 18 mm), so the simulation's hand-height model likely
+ * under-states the parallax a little (不確定, n = 3).
  */
 export const FIT_SCALE_FROM_CORRECTED = {
-  handLength: 1.035,
-  palmLength: 1.061,
-  palmWidth: 1.051,
+  handLength: 1.047,
+  palmLength: 1.067,
+  palmWidth: 1.044,
   referenceFill: 0.65,
-  basis: "R7 script at the 18 mm frame prior (998 px on 1920), fill 0.65, hand 190 mm, 2026-10-23 (F17); S25 tilt scans put the real frame focal at 894-1153 px",
+  basis: "S25 measured at the 18 mm frame prior, 2026-10-24: median uncorrected/corrected of 3 near-straight frame scans (tilt <= 4 deg, fill 0.41-0.67); R7 simulation gave 1.035/1.061/1.051",
 } as const;
 export type MeasurementModelVersion =
   (typeof MEASUREMENT_MODEL_VERSIONS)[number];
@@ -404,7 +411,7 @@ export const MANUAL_ENTRY = {
   /**
    * A typed (ruler, skin-to-skin) hand width times this is the width on the
    * engine's scale (landmarks 5 to 17; since landmark-raw-v3 the engine
-   * scale of `FIT_SCALE_FROM_CORRECTED`, about 0.73 on the corrected landmark
+   * scale of `FIT_SCALE_FROM_CORRECTED`, about 0.74 on the corrected landmark
    * scale), so a typed width and a scanned width
    * enter the fit on the same scale. It converts skin to landmarks only and
    * does not depend on any engine's grip-width factor (v1 x 0.88, v3 x 1.00).

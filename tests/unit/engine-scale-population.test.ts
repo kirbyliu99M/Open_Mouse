@@ -77,9 +77,18 @@ const hands = Array.from({ length: 600 }, () => {
 // f17_scale.out.txt, 190 mm row), linear between fill 0.55 and 0.80 (模擬).
 const lin = (a: number, b: number) => (f: number) =>
   a + ((b - a) * (f - 0.55)) / 0.25;
-const kL = lin(1.0294, 1.0427);
-const kP = lin(1.051, 1.0753);
-const kW = lin(1.0428, 1.0634);
+// 2026-10-24/25: measured k sat above the simulation (S25 and an iPhone), so
+// the population's "real" k(fill) is the simulated curve scaled to the
+// measured value at fill 0.65 (kL 1.047 / 1.0348, kP 1.067 / 1.0606, kW 1.044 / 1.0509).
+const realL = 1.047 / 1.0348;
+const realP = 1.067 / 1.0606;
+const realW = 1.044 / 1.0509;
+const kL0 = lin(1.0294, 1.0427);
+const kP0 = lin(1.051, 1.0753);
+const kW0 = lin(1.0428, 1.0634);
+const kL = (f: number) => kL0(f) * realL;
+const kP = (f: number) => kP0(f) * realP;
+const kW = (f: number) => kW0(f) * realW;
 
 const CORRECTED_SCAN = {
   calibrationMethod: "paper-edge",
@@ -165,10 +174,10 @@ function population(gi: number) {
 describe("R7 §5.1 item 7: the engine scale keeps the v3 ranking (V1 population, seed 20261018, 模擬)", () => {
   // grip, then the script's fitScale Jaccard and same-first share (d12.out.txt).
   it.each([
-    [0, "unstated", 0.877, 0.872],
-    [1, "palm", 0.83, 0.812],
-    [2, "claw", 0.882, 0.86],
-    [3, "fingertip", 0.936, 0.923],
+    [0, "unstated", 0.877, 0.87],
+    [1, "palm", 0.829, 0.818],
+    [2, "claw", 0.88, 0.862],
+    [3, "fingertip", 0.934, 0.925],
   ] as const)(
     "grip %i (%s): within 0.02 of a second uncorrected scan, as documented",
     (gi, _name, docJaccard, docTop1) => {
