@@ -22,6 +22,16 @@ const tick = source.slice(
   ),
 );
 
+const logAttemptBlock = source.slice(
+  source.indexOf("const logAttempt = useCallback("),
+  source.indexOf("const runPipeline = useCallback("),
+);
+const snapshotStart = source.indexOf("placement: debugPlacement({");
+const snapshotBuild =
+  snapshotStart < 0
+    ? ""
+    : source.slice(snapshotStart, source.indexOf("}),", snapshotStart));
+
 describe("EasyScanCamera wires WP1b (log only)", () => {
   it("reads the live placement only with a hand reading and four corners, and keeps the last three", () => {
     expect(tick).toMatch(
@@ -51,6 +61,46 @@ describe("EasyScanCamera wires WP1b (log only)", () => {
       "if (experimentTagRef.current !== null) setExperimentTag(null);",
     );
     expect(source).toContain("livePlacementRef.current = [];");
+  });
+
+  it("logAttempt carries the capture's guidance and tag into the attempt record", () => {
+    expect(source.indexOf("const logAttempt = useCallback(")).toBeGreaterThan(
+      0,
+    );
+    expect(source.indexOf("const runPipeline = useCallback(")).toBeGreaterThan(
+      source.indexOf("const logAttempt = useCallback("),
+    );
+    expect(logAttemptBlock).toMatch(
+      /const capture: AttemptCapture = \{[\s\S]*?\.\.\.\(info\?\.guidance \? \{ guidance: info\.guidance \} : \{\}\),[\s\S]*?\};/,
+    );
+    expect(logAttemptBlock).toMatch(
+      /const capture: AttemptCapture = \{[\s\S]*?\.\.\.\(info\?\.experimentTag \? \{ experimentTag: info\.experimentTag \} : \{\}\),[\s\S]*?\};/,
+    );
+    // The record is built from that capture.
+    expect(logAttemptBlock).toMatch(
+      /buildAttemptRecord\(\{[\s\S]*?\bcapture,[\s\S]*?\}\)/,
+    );
+  });
+
+  it("logAttempt hands the kept attempts to the soft-hint throttle", () => {
+    expect(logAttemptBlock).toMatch(
+      /buildAttemptRecord\(\{[\s\S]*?softHintHistory: softHintHistoryOf\(attemptsRef\.current\),[\s\S]*?\}\)/,
+    );
+  });
+
+  it("each sample records its sheet fill, and the debug snapshot builds its placement row from it", () => {
+    expect(tick).toMatch(
+      /live\.fill = sampleQuad\s*\?\s*computeQuadWidthFraction\(sampleQuad, width\)\s*:\s*null;/,
+    );
+    expect(snapshotBuild.length).toBeGreaterThan(0);
+    expect(snapshotBuild).toContain("fill: live.fill,");
+    expect(snapshotBuild).toContain("readings: livePlacementRef.current,");
+    expect(snapshotBuild).toContain("costMs: live.placementMs,");
+    expect(snapshotBuild).toContain("nowMs: performance.now(),");
+    // The cost window is filled where the reading is taken.
+    expect(tick).toMatch(
+      /debugLiveRef\.current\.placementMs = pushWindow\(\s*debugLiveRef\.current\.placementMs \?\? \[\],\s*performance\.now\(\) - placementStartedAt,/,
+    );
   });
 
   it("no analytics call carries any WP1b field", () => {

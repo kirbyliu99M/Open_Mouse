@@ -185,6 +185,7 @@ import { paperAdjustCopy } from "../../lib/copy/paper-adjust";
 import { ScanDebugPanel } from "./ScanDebugPanel";
 import { usePrefersReducedMotion } from "./useReducedMotion";
 import {
+  debugPlacement,
   mean,
   percentile,
   pushWindow,
@@ -2499,20 +2500,12 @@ export default function EasyScanCamera({
         cueShown: cueDebounceRef.current.shown,
         ringFraction: autoCaptureRingFraction(autoCaptureRef.current),
         consecutiveFailures: autoCaptureRef.current.failStreak,
-        placement: (() => {
-          const latest =
-            livePlacementRef.current[livePlacementRef.current.length - 1] ??
-            null;
-          const cost = live.placementMs ?? [];
-          return {
-            fill: live.fill ?? null,
-            wristToEdgeMm: latest?.wristToEdgeMm ?? null,
-            handAxisDeg: latest?.handAxisDeg ?? null,
-            ageMs: latest ? performance.now() - latest.atMs : null,
-            costMsAverage: mean(cost),
-            costMsMax: cost.length ? Math.max(...cost) : null,
-          };
-        })(),
+        placement: debugPlacement({
+          fill: live.fill,
+          readings: livePlacementRef.current,
+          costMs: live.placementMs,
+          nowMs: performance.now(),
+        }),
       },
       experimentTag: experimentTagRef.current,
       capture: {

@@ -9,6 +9,7 @@
  */
 import type { AttemptRecord } from "./attemptLog";
 import type { CueCode } from "./cues";
+import type { LivePlacementReading } from "./livePlacement";
 
 /** How many of the latest samples the timing statistics look at. */
 export const DEBUG_WINDOW = 30;
@@ -187,6 +188,35 @@ export interface ScanDebugSnapshot {
   readonly preview: DebugPreviewInfo;
   /** The last 20 scan attempts kept on this device (attemptLog.ts), oldest first. Numbers and codes only. */
   readonly attempts: readonly AttemptRecord[];
+}
+
+/** The debug panel's placement row (V3.3 WP1b, log only). */
+export type DebugPlacement = NonNullable<
+  ScanDebugSnapshot["live"]["placement"]
+>;
+
+/**
+ * V3.3 WP1b: the debug panel's placement row from this sample's sheet fill,
+ * the kept live readings (the newest last) and what each reading cost (ms).
+ * Wrist distance and hand axis come from the newest reading; its age is
+ * `nowMs` minus its `atMs`.
+ */
+export function debugPlacement(input: {
+  readonly fill: number | null | undefined;
+  readonly readings: readonly LivePlacementReading[];
+  readonly costMs: readonly number[] | undefined;
+  readonly nowMs: number;
+}): DebugPlacement {
+  const latest = input.readings[input.readings.length - 1] ?? null;
+  const cost = input.costMs ?? [];
+  return {
+    fill: input.fill ?? null,
+    wristToEdgeMm: latest?.wristToEdgeMm ?? null,
+    handAxisDeg: latest?.handAxisDeg ?? null,
+    ageMs: latest ? input.nowMs - latest.atMs : null,
+    costMsAverage: mean(cost),
+    costMsMax: cost.length ? Math.max(...cost) : null,
+  };
 }
 
 /** The snapshot as pasted back: rounded, stable key order. */
