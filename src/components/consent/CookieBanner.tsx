@@ -42,6 +42,20 @@ export function CookieBanner() {
   // 2026-10-24). Reopened from the footer it is always there: someone who
   // accepted must be able to take it back without hunting for it.
   const showDecline = open || consent !== "unset";
+  // One toggle, drawn twice: at the end of the sentence on a phone, and left of
+  // Accept from 40rem up (Kirby, 2026-10-24). CSS shows one; the other is
+  // display:none, so only one is ever in the accessibility tree.
+  const detailsButton = (className: string) => (
+    <button
+      type="button"
+      className={className}
+      aria-expanded={open}
+      aria-controls={detailsId}
+      onClick={() => setOpen((value) => !value)}
+    >
+      {copy.detailsToggle}
+    </button>
+  );
 
   return (
     <section
@@ -56,15 +70,7 @@ export function CookieBanner() {
             {copy.text}
             <span className="cookieBanner-tail">
               {copy.textEnd}{" "}
-              <button
-                type="button"
-                className="cookieBanner-link"
-                aria-expanded={open}
-                aria-controls={detailsId}
-                onClick={() => setOpen((value) => !value)}
-              >
-                {copy.detailsToggle}
-              </button>
+              {detailsButton("cookieBanner-link cookieBanner-link--inline")}
             </span>
           </p>
           {consent !== "unset" ? (
@@ -73,6 +79,7 @@ export function CookieBanner() {
             </p>
           ) : null}
         </div>
+        {detailsButton("cookieBanner-link cookieBanner-link--beside")}
         <div className="cookieBanner-actions">
           <button
             type="button"

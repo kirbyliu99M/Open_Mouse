@@ -107,6 +107,11 @@
   transform: none;
 }
 
+/* Phone: the link ends the sentence. Wider: it moves left of Accept. */
+.cookieBanner-link--beside {
+  display: none;
+}
+
 .cookieBanner-link:focus-visible,
 .cookieBanner-button:focus-visible {
   outline: 2px solid var(--accent-text);
@@ -155,9 +160,20 @@
 /* Wider than a phone: one row, text on the left, the answers on the right. */
 @media (min-width: 40rem) {
   .cookieBanner-inner {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center;
     column-gap: 1.5rem;
+  }
+  .cookieBanner-link--inline {
+    display: none;
+  }
+  /* Beside the answers it is a 44 px target of its own. */
+  .cookieBanner-link--beside {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: 0 0.25rem;
+    white-space: nowrap;
   }
   .cookieBanner-details {
     grid-column: 1 / -1;

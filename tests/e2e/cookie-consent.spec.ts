@@ -152,7 +152,7 @@ test("the cookie statement is in the banner and names what is not sent", async (
   await stubGoogle(page);
   await page.goto("/");
   const banner = page.getByTestId("cookie-banner");
-  await banner.getByText("Details").click();
+  await banner.getByRole("button", { name: "Details" }).click();
   await expect(banner).toContainText("No photos, hand measurements");
   await expect(banner).toContainText("_ga");
 });
@@ -172,7 +172,7 @@ test("the banner has no axe violations, and its text keeps 4.5:1 even over a whi
   await stubGoogle(page);
   await page.goto("/");
   const banner = page.getByTestId("cookie-banner");
-  await banner.getByText("Details").click();
+  await banner.getByRole("button", { name: "Details" }).click();
   await expect(banner).toContainText("No photos");
 
   const result = await new AxeBuilder({ page })
@@ -321,6 +321,27 @@ for (const [name, width, height, sideBySide, maxHeight] of [
       ),
       "the sentence end and the link are one unbroken piece",
     ).toBe(1);
+    // Details: at the end of the sentence on a phone, left of Accept beside the
+    // text (Kirby, 2026-10-24). Exactly one of them is ever visible.
+    const detailsBox = (await banner
+      .getByRole("button", { name: "Details" })
+      .boundingBox())!;
+    const acceptBox = (await banner
+      .getByRole("button", { name: "Accept" })
+      .boundingBox())!;
+    if (sideBySide) {
+      expect(detailsBox.x + detailsBox.width).toBeLessThanOrEqual(acceptBox.x);
+      expect(detailsBox.height).toBeGreaterThanOrEqual(44);
+      expect(
+        Math.abs(
+          detailsBox.y +
+            detailsBox.height / 2 -
+            (acceptBox.y + acceptBox.height / 2),
+        ),
+      ).toBeLessThanOrEqual(2);
+    } else {
+      expect(detailsBox.y).toBeLessThan(acceptBox.y);
+    }
     // At first only Accept shows, and it is tall enough to tap and on screen.
     await expect(banner.getByRole("button", { name: "Decline" })).toHaveCount(
       0,
@@ -367,7 +388,7 @@ test("opened on a short screen the banner scrolls inside itself and keeps the bu
   await page.setViewportSize({ width: 320, height: 480 });
   await page.goto("/");
   const banner = page.getByTestId("cookie-banner");
-  await banner.getByText("Details").click();
+  await banner.getByRole("button", { name: "Details" }).click();
   const top = await banner.evaluate((el) => el.getBoundingClientRect().top);
   expect(top).toBeGreaterThanOrEqual(0);
   await banner.getByRole("button", { name: "Accept" }).scrollIntoViewIfNeeded();
