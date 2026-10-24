@@ -157,7 +157,23 @@ export interface ScanDebugSnapshot {
     readonly cueShown: CueCode | null;
     readonly ringFraction: number;
     readonly consecutiveFailures: number;
+    /**
+     * V3.3 WP1b (candidate): the hand's placement on the sheet from the live
+     * viewfinder: this sample's sheet fill (紙占寬), and the latest live
+     * reading's wrist distance and hand axis with its age; what one reading
+     * cost (ms, average and max of the last 30). Absent before WP1b.
+     */
+    readonly placement?: {
+      readonly fill: number | null;
+      readonly wristToEdgeMm: number | null;
+      readonly handAxisDeg: number | null;
+      readonly ageMs: number | null;
+      readonly costMsAverage: number | null;
+      readonly costMsMax: number | null;
+    };
   };
+  /** V3.3 WP1b: the experiment tag the next scan will carry (debug panel only); absent before WP1b. */
+  readonly experimentTag?: string | null;
   readonly capture: {
     readonly method: "takePhoto" | "canvas" | "upload" | null;
     /** What the shutter takes: a frame of the video cut to the part on screen, the camera's photo, or (after a pick) an upload. */
@@ -206,6 +222,18 @@ export function debugSnapshotJson(snapshot: ScanDebugSnapshot): string {
           4,
         ),
         ringFraction: round(live.ringFraction, 2),
+        ...(live.placement
+          ? {
+              placement: {
+                fill: round(live.placement.fill, 4),
+                wristToEdgeMm: round(live.placement.wristToEdgeMm, 1),
+                handAxisDeg: round(live.placement.handAxisDeg, 1),
+                ageMs: round(live.placement.ageMs, 0),
+                costMsAverage: round(live.placement.costMsAverage, 3),
+                costMsMax: round(live.placement.costMsMax, 3),
+              },
+            }
+          : {}),
       },
       capture: {
         ...capture,

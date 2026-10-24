@@ -14,6 +14,7 @@ import type { PaperDetectionStage } from "../paper/detectionStage";
 import type { FrameSize, PixelRect } from "../camera/visibleView";
 import type { HandFlatness } from "./handFlatness";
 import type { AnalysisThread } from "./offMainAnalysis";
+import type { PlacementDiagnostics } from "./placementDiagnostics";
 import type { PaperCornerSource } from "../../lib/contracts/measurement";
 import type {
   ParallaxGuardField,
@@ -243,6 +244,13 @@ export interface PipelineDiagnostics {
    * only: it changes no number and is not sent to analytics.
    */
   readonly analysisThread?: AnalysisThread | null;
+  /**
+   * V3.3 WP1b (candidate, 未拍板): where the hand lay on the sheet and how
+   * flat it looked (placementDiagnostics.ts), present only on a paper-edge
+   * run that ended in a measurement. Local attempt log only: summary numbers,
+   * never a landmark or world-point list; not sent to analytics.
+   */
+  readonly placement?: PlacementDiagnostics;
 }
 
 export interface ShadowPriorDiagnostics {
