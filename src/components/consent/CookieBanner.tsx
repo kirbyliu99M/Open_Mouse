@@ -18,7 +18,7 @@ import "./cookie-banner.css";
  * the site's own tokens, laid out like Sony Taiwan's (Kirby, 2026-10-24): one
  * sentence on the left, the answers on the right, one row, a fixed content
  * width. The sentence ends in a "details" link that opens the full statement, and the two answers as the
- * same outline pill. Shown until a choice is made (and again when the footer
+ * same outline pill, Accept on the left. Shown until a choice is made (and again when the footer
  * reopens it), never on the pages that bring their own full-page layout (the
  * camera, the print pages), and never when no GA4 ID is configured, since
  * there is then nothing to ask about. Accept and Decline are the same size and
@@ -47,16 +47,19 @@ export function CookieBanner() {
       <div className="cookieBanner-inner">
         <div className="cookieBanner-text">
           <p className="cookieBanner-sentence">
-            {copy.text}{" "}
-            <button
-              type="button"
-              className="cookieBanner-link"
-              aria-expanded={open}
-              aria-controls={detailsId}
-              onClick={() => setOpen((value) => !value)}
-            >
-              {copy.detailsToggle}
-            </button>
+            {copy.text}
+            <span className="cookieBanner-tail">
+              {copy.textEnd}{" "}
+              <button
+                type="button"
+                className="cookieBanner-link"
+                aria-expanded={open}
+                aria-controls={detailsId}
+                onClick={() => setOpen((value) => !value)}
+              >
+                {copy.detailsToggle}
+              </button>
+            </span>
           </p>
           {consent !== "unset" ? (
             <p className="cookieBanner-current" data-testid="cookie-current">
@@ -68,16 +71,16 @@ export function CookieBanner() {
           <button
             type="button"
             className="cookieBanner-button"
-            onClick={() => setConsent("denied")}
+            onClick={() => setConsent("granted")}
           >
-            {copy.decline}
+            {copy.accept}
           </button>
           <button
             type="button"
             className="cookieBanner-button"
-            onClick={() => setConsent("granted")}
+            onClick={() => setConsent("denied")}
           >
-            {copy.accept}
+            {copy.decline}
           </button>
         </div>
         {open ? (

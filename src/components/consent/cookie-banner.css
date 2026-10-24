@@ -81,6 +81,11 @@
   word-break: keep-all;
 }
 
+/* The end of the sentence and the link never break apart. */
+.cookieBanner-tail {
+  white-space: nowrap;
+}
+
 /* "Details" ends the sentence. An inline link keeps its underline: against
    --text-secondary the blue is under 3:1, so colour alone would not mark it. */
 .cookieBanner-link {
@@ -152,8 +157,9 @@
     align-items: center;
     column-gap: 1.5rem;
   }
+  /* Two equal columns, as wide as the wider answer: the pills stay the same size. */
   .cookieBanner-actions {
-    grid-template-columns: auto auto;
+    grid-template-columns: 1fr 1fr;
   }
   .cookieBanner-details {
     grid-column: 1 / -1;

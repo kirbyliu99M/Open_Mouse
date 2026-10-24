@@ -17,8 +17,13 @@ import { pickCopy } from "../i18n/copy";
 export interface CookieConsentCopy {
   /** The `aria-label` of the banner region. */
   regionLabel: string;
-  /** The one sentence on the banner (Sony-style, Kirby 2026-10-24). */
+  /**
+   * The one sentence on the banner (Sony-style, Kirby 2026-10-24), in two
+   * parts: `text` may wrap anywhere, `textEnd` and the details link never
+   * break apart, so the link is never alone on a line.
+   */
   text: string;
+  textEnd: string;
   accept: string;
   decline: string;
   detailsToggle: string;
@@ -33,7 +38,8 @@ export interface CookieConsentCopy {
 
 export const zhTW: CookieConsentCopy = {
   regionLabel: "Cookie 設定",
-  text: "我們使用 Cookie 與 Google Analytics 統計瀏覽情形、改善網站。",
+  text: "我們使用 Cookie 與 Google Analytics 統計瀏覽情形、",
+  textEnd: "改善網站。",
   accept: "同意",
   decline: "不同意",
   detailsToggle: "詳細說明",
@@ -46,7 +52,8 @@ export const zhTW: CookieConsentCopy = {
 
 export const en: CookieConsentCopy = {
   regionLabel: "Cookie settings",
-  text: "We use cookies and Google Analytics to count visits and improve the site.",
+  text: "We use cookies and Google Analytics to count visits and ",
+  textEnd: "improve the site.",
   accept: "Accept",
   decline: "Decline",
   detailsToggle: "Details",

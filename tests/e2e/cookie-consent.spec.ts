@@ -310,6 +310,28 @@ for (const [name, width, height, sideBySide, maxHeight] of [
     // The answers sit beside the text when there is room, under it when not.
     if (sideBySide) expect(m.actions.left).toBeGreaterThanOrEqual(m.text.right);
     else expect(m.actions.top).toBeGreaterThanOrEqual(m.text.bottom);
+    // The details link stays on the same line as the end of the sentence.
+    expect(
+      await page.evaluate(
+        () =>
+          document.querySelector(".cookieBanner-tail")!.getClientRects().length,
+      ),
+      "the sentence end and the link are one unbroken piece",
+    ).toBe(1);
+    // Accept is on the left of Decline (Kirby, 2026-10-24).
+    const [ax, dx] = [
+      (await banner.getByRole("button", { name: "Accept" }).boundingBox())!.x,
+      (await banner.getByRole("button", { name: "Decline" }).boundingBox())!.x,
+    ];
+    expect(ax).toBeLessThan(dx);
+    // The two answers are the same size.
+    const [aw, dw] = [
+      (await banner.getByRole("button", { name: "Accept" }).boundingBox())!
+        .width,
+      (await banner.getByRole("button", { name: "Decline" }).boundingBox())!
+        .width,
+    ];
+    expect(Math.abs(aw - dw)).toBeLessThanOrEqual(1);
     // Both buttons stay reachable: inside the screen and tall enough to tap.
     for (const label of ["Decline", "Accept"]) {
       const b = (await banner
