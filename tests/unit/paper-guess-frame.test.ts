@@ -204,12 +204,15 @@ describe("the guess changes nothing a found sheet reports (S2 golden, option on)
       const detection = detectPaperQuad(asImage(f), "a4", {
         failureGuess: true,
       });
+      // F19's edge-fit record came after the fixture, like the stage.
       const {
         failureStage: _stage,
+        edgeFit: _edgeFit,
         guessCorners,
         ...rest
       } = detection as typeof detection & { failureStage?: unknown };
       void _stage;
+      void _edgeFit;
       expect(JSON.parse(JSON.stringify(rest)), f.name).toStrictEqual(
         golden[i].detection,
       );
