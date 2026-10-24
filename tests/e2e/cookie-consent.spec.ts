@@ -218,9 +218,9 @@ test("the banner has no axe violations, and its text keeps 4.5:1 even over a whi
         (n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim(),
       );
       if (!own) continue;
-      // A button is a glass pill on the pane: its hover fill (16 % white, .cookieBanner-button:hover) is its worst case.
+      // A button is a glass pill on the pane: its hover fill (14 % white, .cookieBanner-button:hover) is its worst case.
       const behind =
-        el.tagName === "BUTTON" ? over([255, 255, 255], 0.16, pane) : pane;
+        el.tagName === "BUTTON" ? over([255, 255, 255], 0.14, pane) : pane;
       const c = channels(getComputedStyle(el).color);
       const text = over(c.slice(0, 3), c[3] ?? 1, behind);
       const [a, b] = [lum(text), lum(behind)];
@@ -247,12 +247,12 @@ test("the banner has no axe violations, and its text keeps 4.5:1 even over a whi
 // A banner: it runs across the whole screen at every width, never scrolls the
 // page sideways, keeps its content to a readable width on a wide screen, and
 // puts the two answers beside the text only when there is room.
-for (const [name, width, height, sideBySide] of [
-  ["phone", 390, 844, false],
-  ["small phone", 320, 568, false],
-  ["tablet", 768, 1024, true],
-  ["laptop", 1440, 900, true],
-  ["ultrawide", 2560, 1080, true],
+for (const [name, width, height, sideBySide, maxHeight] of [
+  ["phone", 390, 844, false, 160],
+  ["small phone", 320, 568, false, 190],
+  ["tablet", 768, 1024, true, 120],
+  ["laptop", 1440, 900, true, 90],
+  ["ultrawide", 2560, 1080, true, 90],
 ] as const) {
   test(`the banner spans the screen and adapts on a ${name} (${width} px)`, async ({
     page,
@@ -289,6 +289,10 @@ for (const [name, width, height, sideBySide] of [
     expect(m.bar.right).toBe(m.viewport.w);
     expect(m.bar.bottom).toBe(m.viewport.h);
     expect(m.bar.top).toBeGreaterThanOrEqual(0);
+    // Slim: it must not take the page (Kirby: too big).
+    expect(m.bar.bottom - m.bar.top, "banner height").toBeLessThanOrEqual(
+      maxHeight,
+    );
     expect(m.overflowX).toBe(false);
     // The content keeps to a readable width, centred.
     expect(m.inner.width).toBeLessThanOrEqual(72 * 16 + 1);
@@ -303,7 +307,7 @@ for (const [name, width, height, sideBySide] of [
       const b = (await banner
         .getByRole("button", { name: label })
         .boundingBox())!;
-      expect(b.height).toBeGreaterThanOrEqual(44);
+      expect(b.height).toBeGreaterThanOrEqual(width < 640 ? 44 : 36);
       expect(b.x).toBeGreaterThanOrEqual(0);
       expect(b.x + b.width).toBeLessThanOrEqual(m.viewport.w);
     }

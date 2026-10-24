@@ -15,7 +15,6 @@ import { pickCopy } from "../i18n/copy";
 export interface CookieConsentCopy {
   /** The `aria-label` of the banner region. */
   regionLabel: string;
-  title: string;
   body: string;
   accept: string;
   decline: string;
@@ -40,8 +39,7 @@ export interface CookieConsentCopy {
 
 export const zhTW: CookieConsentCopy = {
   regionLabel: "Cookie 設定",
-  title: "關於 Cookie",
-  body: "我們想用 Google Analytics（GA4）了解網站整體的使用情形，例如哪些頁面常被看。它會在你的瀏覽器放 Cookie。不同意也不影響任何功能。",
+  body: "我們用 Google Analytics（GA4）統計整體瀏覽情形，會放 Cookie。不同意也不影響任何功能。",
   accept: "同意",
   decline: "不同意",
   detailsToggle: "詳細說明",
@@ -66,8 +64,7 @@ export const zhTW: CookieConsentCopy = {
 
 export const en: CookieConsentCopy = {
   regionLabel: "Cookie settings",
-  title: "About cookies",
-  body: "We'd like to use Google Analytics (GA4) to see how the site is used overall, such as which pages are visited. It sets cookies in your browser. Saying no changes nothing you can do on the site.",
+  body: "We use Google Analytics (GA4) to count visits, with cookies. Declining changes nothing you can do on the site.",
   accept: "Accept",
   decline: "Decline",
   detailsToggle: "Details",

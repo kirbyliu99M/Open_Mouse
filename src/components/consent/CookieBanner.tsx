@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useId, useState } from "react";
 import { ga4Configured } from "@/client/analytics/ga4";
 import {
   setConsent,
@@ -13,7 +14,9 @@ import { cookieConsentCopy } from "@/lib/copy/cookie-consent";
 import "./cookie-banner.css";
 
 /**
- * The cookie question, for GA4 only. Shown until a choice is made (and again
+ * The cookie question, for GA4 only. Kept small on purpose (Kirby, 2026-10-24:
+ * too big, too much text): one short sentence, a "details" link that opens the
+ * full statement, and the two answers. Shown until a choice is made (and again
  * when the footer reopens it), never on the pages that bring their own
  * full-page layout (the camera, the print pages), and never when no GA4 ID is
  * configured, since there is then nothing to ask about. Accept and Decline are
@@ -24,6 +27,8 @@ export function CookieBanner() {
   const locale = useLocale();
   const consent = useConsent();
   const reopened = useConsentReopened();
+  const [open, setOpen] = useState(false);
+  const detailsId = useId();
   if (!ga4Configured() || !showsSiteFooter(pathname)) return null;
   // `unknown` is the server render: nothing, so a returning visitor never sees a flash.
   if (consent === "unknown") return null;
@@ -39,16 +44,25 @@ export function CookieBanner() {
     >
       <div className="cookieBanner-inner">
         <div className="cookieBanner-text">
-          <p className="cookieBanner-title">{copy.title}</p>
-          <p>{copy.body}</p>
+          <p>
+            {copy.body}{" "}
+            <button
+              type="button"
+              className="cookieBanner-link"
+              aria-expanded={open}
+              aria-controls={detailsId}
+              onClick={() => setOpen((value) => !value)}
+            >
+              {copy.detailsToggle}
+            </button>
+          </p>
           {consent !== "unset" ? (
             <p className="cookieBanner-current" data-testid="cookie-current">
               {consent === "granted" ? copy.currentGranted : copy.currentDenied}
             </p>
           ) : null}
-          <details className="cookieBanner-details">
-            <summary>{copy.detailsToggle}</summary>
-            <dl>
+          {open ? (
+            <dl id={detailsId} className="cookieBanner-details">
               <dt>{copy.detailsWhatLabel}</dt>
               <dd>{copy.detailsWhat}</dd>
               <dt>{copy.detailsSentLabel}</dt>
@@ -60,7 +74,7 @@ export function CookieBanner() {
               <dt>{copy.detailsChangeLabel}</dt>
               <dd>{copy.detailsChange}</dd>
             </dl>
-          </details>
+          ) : null}
         </div>
         <div className="cookieBanner-actions">
           <button
