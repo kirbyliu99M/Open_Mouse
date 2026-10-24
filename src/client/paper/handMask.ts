@@ -28,6 +28,7 @@
  * nothing it does changes.
  */
 import type { Point2 } from "../geometry/homography";
+import { palmPointsOf } from "./palmChoice";
 import { convexHull } from "./quad-math";
 
 /**
@@ -271,4 +272,26 @@ export function handLandmarksOf(
   const pts = landmarks.slice(0, 21);
   if (!pts.every(isFinitePoint)) return null;
   return pts.map((p) => ({ x: p.x, y: p.y }));
+}
+
+/**
+ * F19 review (2026-10-25, candidate 未拍板): the hand's 21 landmarks the
+ * paper detector is given, the SAME rule for the live viewfinder
+ * (`liveHandHint`, which adds only that the reading is fresh) and the photo
+ * pipeline's first and only paper call: 21 finite landmarks whose five palm
+ * points (`palmPointsOf`) all lie on this `width` x `height` frame. `null`
+ * otherwise, and the detector is then exactly what it was without a hand.
+ * Pure.
+ */
+export function paperHandHint(
+  landmarks: readonly Point2[] | null | undefined,
+  width: number,
+  height: number,
+): Point2[] | null {
+  const palm = palmPointsOf(landmarks);
+  if (!palm) return null;
+  const onFrame = palm.every(
+    (p) => p.x >= 0 && p.x <= width && p.y >= 0 && p.y <= height,
+  );
+  return onFrame ? handLandmarksOf(landmarks) : null;
 }

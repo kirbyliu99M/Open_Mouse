@@ -38,7 +38,7 @@ import { CAMERA_CONSTANTS } from "./constants";
 import type { CueCode } from "./cues";
 import type { Point } from "./quad";
 import { palmPointsOf } from "../paper/palmChoice";
-import { handLandmarksOf } from "../paper/handMask";
+import { paperHandHint } from "../paper/handMask";
 
 /**
  * Per live cue (`pickCue`), whether the sheet counts as found for this wait.
@@ -292,5 +292,8 @@ export function liveHandHint(input: {
   readonly height: number;
 }): Point[] | undefined {
   if (!livePalmHint(input)) return undefined;
-  return handLandmarksOf(input.latest?.points) ?? undefined;
+  // The same rule as the photo pipeline's paper call (F19 review).
+  return (
+    paperHandHint(input.latest?.points, input.width, input.height) ?? undefined
+  );
 }

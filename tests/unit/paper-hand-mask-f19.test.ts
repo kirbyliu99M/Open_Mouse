@@ -12,6 +12,7 @@ import {
   excludeCoveredPoints,
   handLandmarksOf,
   isCoveredByHand,
+  paperHandHint,
   rasterizeHandMask,
 } from "../../src/client/paper/handMask";
 import { sideEndsSeen } from "../../src/client/paper/quad-math";
@@ -166,97 +167,55 @@ describe("planSecondLook / adoptSecondLook (secondLook.ts)", () => {
   const palm = [{ x: 1, y: 1 }];
   const hand = uprightHand();
 
-  it("no hand and no palm: never a second call", () => {
+  it("no palm: never a second call (the hand already went with the first)", () => {
+    expect(planSecondLook({ palm: null, holdsPalm: false, hand })).toBeNull();
     expect(
-      planSecondLook({
-        firstHasCorners: false,
-        firstOk: false,
-        palm: null,
-        holdsPalm: false,
-        hand: null,
-      }),
+      planSecondLook({ palm: null, holdsPalm: false, hand: null }),
     ).toBeNull();
   });
 
-  it("a sheet that held the palm and passed: never a second call (the photo is as it was)", () => {
-    expect(
-      planSecondLook({
-        firstHasCorners: true,
-        firstOk: true,
-        palm,
-        holdsPalm: true,
-        hand,
-      }),
-    ).toBeNull();
+  it("a sheet that held the palm: never a second call, whatever the paper checks said (F19 review: no masked second look)", () => {
+    expect(planSecondLook({ palm, holdsPalm: true, hand })).toBeNull();
   });
 
-  it("F17 only: a passing sheet that does not hold the palm is looked at with the palm, not the hand", () => {
+  it("F17: a sheet that does not hold the palm is looked at with the palm and the same hand landmarks as the first call", () => {
+    expect(planSecondLook({ palm, holdsPalm: false, hand })).toStrictEqual({
+      palmPointsPx: palm,
+      handLandmarksPx: hand,
+    });
     expect(
-      planSecondLook({
-        firstHasCorners: true,
-        firstOk: true,
-        palm,
-        holdsPalm: false,
-        hand,
-      }),
+      planSecondLook({ palm, holdsPalm: false, hand: null }),
     ).toStrictEqual({ palmPointsPx: palm });
   });
 
-  it("F19: a failed paper check with the hand known carries the hand; with the palm off the sheet, both", () => {
-    expect(
-      planSecondLook({
-        firstHasCorners: true,
-        firstOk: false,
-        palm,
-        holdsPalm: true,
-        hand,
-      }),
-    ).toStrictEqual({ handLandmarksPx: hand });
-    expect(
-      planSecondLook({
-        firstHasCorners: false,
-        firstOk: false,
-        palm,
-        holdsPalm: false,
-        hand,
-      }),
-    ).toStrictEqual({ palmPointsPx: palm, handLandmarksPx: hand });
+  it("only a palm choice replaces the first answer", () => {
+    expect(adoptSecondLook({ palmChose: true })).toBe(true);
+    expect(adoptSecondLook({ palmChose: false })).toBe(false);
   });
+});
 
-  it("keeps F17's rule for a palm-only call, and takes a hand call that passes or that found the corners the first did not", () => {
-    const palmOnly = { palmPointsPx: palm };
-    const withHand = { handLandmarksPx: hand };
-    const base = {
-      palmChose: false,
-      firstHasCorners: true,
-      secondHasCorners: true,
-      secondOk: true,
-    };
-    expect(adoptSecondLook({ ...base, plan: palmOnly })).toBe(false);
-    expect(adoptSecondLook({ ...base, plan: palmOnly, palmChose: true })).toBe(
-      true,
-    );
-    expect(adoptSecondLook({ ...base, plan: withHand })).toBe(true);
-    expect(adoptSecondLook({ ...base, plan: withHand, secondOk: false })).toBe(
-      false,
-    );
-    expect(
-      adoptSecondLook({
-        ...base,
-        plan: withHand,
-        secondOk: false,
-        firstHasCorners: false,
-      }),
-    ).toBe(true);
-    expect(
-      adoptSecondLook({
-        ...base,
-        plan: withHand,
-        secondOk: false,
-        firstHasCorners: false,
-        secondHasCorners: false,
-      }),
-    ).toBe(false);
+describe("paperHandHint (F19 review: one rule for the live viewfinder and the photo)", () => {
+  const hand = uprightHand();
+  it("the 21 landmarks when the palm lies on the frame, else null", () => {
+    expect(paperHandHint(hand, 640, 480)).toStrictEqual(hand);
+    expect(paperHandHint(hand, 100, 100)).toBeNull();
+    expect(paperHandHint(hand.slice(0, 20), 640, 480)).toBeNull();
+    expect(paperHandHint(null, 640, 480)).toBeNull();
+  });
+  it("the live hint is exactly the pipeline's for a fresh reading", () => {
+    for (const [w, h] of [
+      [640, 480],
+      [100, 100],
+    ] as const) {
+      expect(
+        liveHandHint({
+          latest: { atMs: 1000, points: hand },
+          nowMs: 1100,
+          width: w,
+          height: h,
+        }) ?? null,
+      ).toStrictEqual(paperHandHint(hand, w, h));
+    }
   });
 });
 
