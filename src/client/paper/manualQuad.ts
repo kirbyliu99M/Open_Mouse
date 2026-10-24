@@ -193,6 +193,14 @@ export interface DefaultAdjustFrame {
    * (`guessCorners`), with any corner it did find in place of the rough one.
    */
   readonly from: "detected" | "partial" | "guess" | "centred";
+  /**
+   * V3.2 F22 (final review, candidate): a rough quad that does not hold the
+   * palm (fewer than `PALM_CHOICE.minPointsInside` of the wrist and four
+   * knuckles inside it) is probably not the sheet (a window, a bright desk):
+   * it opens with every corner still to be moved, like the centred sheet.
+   * Absent: no such doubt.
+   */
+  readonly withoutPalm?: true;
 }
 
 /**
