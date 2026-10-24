@@ -59,6 +59,27 @@ test("nothing is requested from Google before a choice, and Decline keeps it tha
   expect(await dataLayer(page)).toEqual([]);
 });
 
+test("an answer slides the banner down and fades it before it is removed", async ({
+  page,
+}) => {
+  await stubGoogle(page);
+  await page.goto("/");
+  const banner = page.getByTestId("cookie-banner");
+  await expect(banner).toHaveAttribute("data-state", "open");
+  await banner.getByRole("button", { name: "Accept" }).click();
+  // Still in the page, leaving: same text, no longer answerable.
+  await expect(banner).toHaveAttribute("data-state", "closing");
+  await expect(banner).toHaveAttribute("inert", "");
+  await expect(banner.getByTestId("cookie-current")).toHaveCount(0);
+  // Part way through, it is neither in place nor gone.
+  await expect
+    .poll(async () =>
+      banner.evaluate((el) => Number(getComputedStyle(el).opacity)),
+    )
+    .toBeLessThan(1);
+  await expect(banner).toHaveCount(0);
+});
+
 test("Accept loads gtag with the ads signals denied and a redacted page_view, and survives a reload", async ({
   page,
 }) => {

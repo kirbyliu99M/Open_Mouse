@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ga4Configured } from "@/client/analytics/ga4";
 import {
   setConsent,
@@ -12,6 +12,9 @@ import { useLocale } from "@/client/i18n/LocaleProvider";
 import { showsSiteFooter } from "@/components/SiteFooter";
 import { cookieConsentCopy } from "@/lib/copy/cookie-consent";
 import "./cookie-banner.css";
+
+/** How long the banner takes to leave; cookie-banner.css has the same time. */
+const EXIT_MS = 360;
 
 /**
  * The cookie question, for GA4 only: a quiet glass strip across the bottom, in
@@ -25,6 +28,8 @@ import "./cookie-banner.css";
  * (the camera, the print pages), and never when no GA4 ID is configured, since
  * there is then nothing to ask about. Ignoring the banner loads nothing: GA4
  * starts only on Accept. Neither answer is pre-selected. It does not take focus.
+ * After an answer it slides down and fades out (EXIT_MS) instead of vanishing
+ * (Kirby, 2026-10-25: it was not smooth), showing what it showed until gone.
  */
 export function CookieBanner() {
   const pathname = usePathname();
@@ -33,15 +38,37 @@ export function CookieBanner() {
   const reopened = useConsentReopened();
   const [open, setOpen] = useState(false);
   const detailsId = useId();
-  if (!ga4Configured() || !showsSiteFooter(pathname)) return null;
-  // `unknown` is the server render: nothing, so a returning visitor never sees a flash.
-  if (consent === "unknown") return null;
-  if (consent !== "unset" && !reopened) return null;
+  const [, drop] = useState(0);
+  // What the strip last showed, for the exit; null once it is gone.
+  const last = useRef<{ consent: typeof consent; open: boolean } | null>(null);
+  const shown =
+    ga4Configured() &&
+    showsSiteFooter(pathname) &&
+    // `unknown` is the server render: nothing, so a returning visitor never sees a flash.
+    consent !== "unknown" &&
+    (consent === "unset" || reopened);
+  useEffect(() => {
+    if (shown) {
+      last.current = { consent, open };
+      return;
+    }
+    if (!last.current) return;
+    // An answer was just given: keep the strip for the exit, then drop it.
+    const timer = window.setTimeout(() => {
+      last.current = null;
+      drop((n) => n + 1);
+    }, EXIT_MS);
+    return () => window.clearTimeout(timer);
+  }, [shown, consent, open]);
+  // Not shown and nothing to animate out: render nothing.
+  if (!shown && !last.current) return null;
+  // While it leaves it keeps the text and buttons of its last open state.
+  const view = shown ? { consent, open } : (last.current ?? { consent, open });
   const copy = cookieConsentCopy(locale);
   // The first time, Decline appears once the details are open (Kirby,
   // 2026-10-24). Reopened from the footer it is always there: someone who
   // accepted must be able to take it back without hunting for it.
-  const showDecline = open || consent !== "unset";
+  const showDecline = view.open || view.consent !== "unset";
   // One toggle, drawn twice: at the end of the sentence on a phone, and left of
   // Accept from 40rem up (Kirby, 2026-10-24). CSS shows one; the other is
   // display:none, so only one is ever in the accessibility tree.
@@ -49,7 +76,7 @@ export function CookieBanner() {
     <button
       type="button"
       className={className}
-      aria-expanded={open}
+      aria-expanded={view.open}
       aria-controls={detailsId}
       onClick={() => setOpen((value) => !value)}
     >
@@ -63,6 +90,8 @@ export function CookieBanner() {
       role="region"
       aria-label={copy.regionLabel}
       data-testid="cookie-banner"
+      data-state={shown ? "open" : "closing"}
+      inert={!shown}
     >
       <div className="cookieBanner-inner">
         <div className="cookieBanner-text">
@@ -73,9 +102,11 @@ export function CookieBanner() {
               {detailsButton("cookieBanner-link cookieBanner-link--inline")}
             </span>
           </p>
-          {consent !== "unset" ? (
+          {view.consent !== "unset" ? (
             <p className="cookieBanner-current" data-testid="cookie-current">
-              {consent === "granted" ? copy.currentGranted : copy.currentDenied}
+              {view.consent === "granted"
+                ? copy.currentGranted
+                : copy.currentDenied}
             </p>
           ) : null}
         </div>
@@ -98,7 +129,7 @@ export function CookieBanner() {
             </button>
           ) : null}
         </div>
-        {open ? (
+        {view.open ? (
           <p id={detailsId} className="cookieBanner-details">
             {copy.details}
           </p>
