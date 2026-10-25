@@ -213,6 +213,18 @@
    the only visual separation, no full-screen scrim. The first-run tip
    (.easyTipSheet, below) is the one sheet that's an actual primer-style
    modal and keeps the dimmed backdrop. */
+/* Wide screens (a PC): a centred column the width of the question pages
+   (answer-pages.css, 28rem) instead of the whole screen, so the words line
+   up with the photo above and the button is not 2000 px wide (Kirby's
+   screenshot 2026-10-26). Both insets with a width and auto margins centre a
+   fixed box. */
+@media (min-width: 720px) {
+  .easySheet {
+    width: min(100%, 28rem);
+    margin-inline: auto;
+    border-radius: 1.25rem 1.25rem 0 0;
+  }
+}
 .easySheet::backdrop {
   background: transparent;
 }
@@ -1833,7 +1845,11 @@ main.easyScanShell {
   font: inherit;
   cursor: pointer;
 }
-/* Wide screens: the buttons side by side under a bounded column. */
+/* Wide screens: the buttons side by side under a bounded column. The title,
+   the status line and the buttons are centred on the photo, which is centred
+   on the screen and usually narrower than the column (a portrait photo on a
+   PC: Kirby's screenshot 2026-10-26 had the title left of the photo and the
+   buttons right of it). */
 @media (min-width: 720px) {
   .paperAdjustHeader,
   .paperAdjustStatus,
@@ -1841,10 +1857,11 @@ main.easyScanShell {
     width: min(100% - 2rem, 40rem);
     margin-inline: auto;
     padding-inline: 0;
+    text-align: center;
   }
   .paperAdjustActions {
     flex-direction: row-reverse;
-    justify-content: flex-start;
+    justify-content: center;
   }
   .paperAdjustConfirm {
     width: auto;

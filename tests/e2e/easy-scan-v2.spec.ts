@@ -2146,3 +2146,64 @@ test.describe("F15: the adjustment that opens by itself on a measured photo", ()
     await expect(sheet.locator(".easySheetTitle")).toBeFocused();
   });
 });
+
+/**
+ * Kirby's PC screenshots 2026-10-26: on a wide screen the adjustment's title
+ * sat left of the photo, its buttons right of it, and the measured sheet ran
+ * the whole width of the screen. Now both line up with the photo's centre,
+ * and the sheet is a 28rem column.
+ */
+test.describe("a wide screen: the adjustment and the measured sheet are centred on the photo", () => {
+  test("1440x800", async ({ page }) => {
+    // The fake camera finds the paper only in the phone-shaped picture, so
+    // the photo is taken at the phone size and the window then widened, as
+    // a PC window would be.
+    await openLive(page);
+    const adjust = page.getByTestId("paper-adjust");
+    await expect(adjust).toBeVisible({ timeout: 20_000 });
+    await page.setViewportSize({ width: 1440, height: 800 });
+    // The photo is fitted again to the new stage (a resize observer).
+    await page.waitForTimeout(300);
+    const a = await page.evaluate(() => {
+      const box = (el: Element) => el.getBoundingClientRect();
+      const centre = (r: DOMRect) => r.left + r.width / 2;
+      const photo = box(document.querySelector(".paperAdjustPhoto")!);
+      const title = document.querySelector(".paperAdjustHeader h2")!;
+      const range = document.createRange();
+      range.selectNodeContents(title);
+      const words = range.getBoundingClientRect();
+      const confirm = box(
+        document.querySelector('[data-testid="paper-adjust-confirm"]')!,
+      );
+      const cancel = box(
+        document.querySelector('[data-testid="paper-adjust-cancel"]')!,
+      );
+      const buttons =
+        (Math.min(confirm.left, cancel.left) +
+          Math.max(confirm.right, cancel.right)) /
+        2;
+      return {
+        photo: centre(photo),
+        title: centre(words),
+        buttons,
+      };
+    });
+    expect(Math.abs(a.title - a.photo), JSON.stringify(a)).toBeLessThan(4);
+    expect(Math.abs(a.buttons - a.photo), JSON.stringify(a)).toBeLessThan(4);
+
+    await page.getByTestId("paper-adjust-confirm").click();
+    const sheet = page.locator("dialog.easyResultSheet[open]");
+    await expect(sheet).toBeVisible({ timeout: 20_000 });
+    const s = (await sheet.boundingBox())!;
+    const rem = await page.evaluate(() =>
+      parseFloat(getComputedStyle(document.documentElement).fontSize),
+    );
+    expect(s.width).toBeLessThanOrEqual(28 * rem + 1);
+    expect(Math.abs(s.x + s.width / 2 - 720)).toBeLessThan(2);
+    const button = (await sheet
+      .getByRole("button", { name: "Continue" })
+      .boundingBox())!;
+    expect(button.x).toBeGreaterThanOrEqual(s.x);
+    expect(button.x + button.width).toBeLessThanOrEqual(s.x + s.width);
+  });
+});
