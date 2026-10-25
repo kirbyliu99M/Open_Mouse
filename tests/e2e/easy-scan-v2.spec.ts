@@ -2391,49 +2391,67 @@ test.describe("V3.2 motion pass: interrupted transitions end usable", () => {
       .click({ trial: true });
   }
 
-  test("retake tapped twice fast: the second tap falls through the leaving sheet, and the camera comes back once", async ({
+  test("retake tapped twice fast: the second tap is taken by the leaving sheet's layer, nothing under it acts, and the camera comes back once", async ({
     page,
   }) => {
-    // Fix round 2: the second tap lands where the sheet was, after the sheet
-    // has let go of the pointer. On the dev server that spot can be the
-    // Next.js dev tools button (bottom left, `nextjs-portal`, not part of the
-    // product); a tap there opened its panel, which then covered the shutter
-    // (the first run's 30 s timeout). It is hidden here, and an error the page
-    // throws fails the test by name.
+    // The Next.js dev tools button (`nextjs-portal`) exists only on the dev
+    // server the e2e suite runs on, at the bottom left, near 重拍: hidden, so
+    // the test reads the product alone. Any error the page throws fails the
+    // test by name.
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
+    // Counts the camera openings: one for the page, one for the retake.
+    await page.addInitScript(() => {
+      const w = window as Window & { __cameraOpens?: number };
+      w.__cameraOpens = 0;
+      const media = navigator.mediaDevices;
+      if (!media?.getUserMedia) return;
+      const open = media.getUserMedia.bind(media);
+      media.getUserMedia = (constraints) => {
+        w.__cameraOpens! += 1;
+        return open(constraints);
+      };
+    });
+    const cameraOpens = () =>
+      page.evaluate(
+        () => (window as Window & { __cameraOpens?: number }).__cameraOpens,
+      );
     await armManualFreeze(page);
     const { sheet } = await captureAndMeasure(page);
     await page.addStyleTag({
       content: "nextjs-portal { display: none !important; }",
     });
     await page.waitForTimeout(400); // the sheet has risen
+    const opensBefore = await cameraOpens();
     const retake = sheet.getByRole("button", { name: "Retake photo" });
     const b = (await retake.boundingBox())!;
     const x = b.x + b.width / 2;
     const y = b.y + b.height / 2;
     await page.mouse.click(x, y);
     await freezeNow(page); // no new photo is taken by itself meanwhile
-    // Still inside the 240 ms slide-out: the leaving sheet is inert and takes
-    // no pointer, so the tap reaches what is under it (the camera screen
-    // coming back), never a second retake.
+    // Still inside the 240 ms slide-out: what is under the finger is the
+    // transparent layer over the leaving sheet (LeaveShield), not the camera
+    // screen coming back under it.
     const under = await page.evaluate(
-      ([px, py]) =>
-        Boolean(
-          document.elementFromPoint(px, py)?.closest("dialog.easyResultSheet"),
-        ),
+      ([px, py]) => {
+        const el = document.elementFromPoint(px, py);
+        return el?.classList.contains("easyLeaveShield")
+          ? "shield"
+          : (el?.className.toString() ?? "nothing");
+      },
       [x, y] as const,
     );
-    expect(under, "the leaving sheet takes the second tap").toBe(false);
+    expect(under, "what the second tap lands on").toBe("shield");
     await page.mouse.click(x, y);
     await expect(
       page.locator(".easyStage video.cameraVideo.ready"),
     ).toBeVisible({ timeout: 20_000 });
-    // The tap may have landed on the dock's paper-size pill or the
-    // manual-entry strip coming back; close what it opened, if anything.
-    if (await page.getByTestId("manual-entry-sheet").isVisible())
-      await page.keyboard.press("Escape");
+    // Nothing under the sheet's old place acted: no manual-entry sheet, the
+    // paper size as it was, no second camera opening.
     await expect(page.getByTestId("manual-entry-sheet")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^A4/ })).toBeVisible();
+    expect((await cameraOpens())! - opensBefore!).toBe(1);
+    await expect(page.locator(".easyLeaveShield")).toHaveCount(0);
     await cameraUsable(page);
     expect(errors).toEqual([]);
   });

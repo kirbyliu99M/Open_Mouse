@@ -98,6 +98,7 @@ import {
   type PointerKind,
 } from "./paperAdjustState";
 import { closeAsIfRemoved } from "./scanMotion";
+import { LeaveShield } from "./LeaveShield";
 
 /**
  * The status line after a press of the confirm button that was refused (F14):
@@ -475,141 +476,145 @@ export function PaperAdjust({
   const half = PAPER_ADJUST_LAYOUT.handleTargetPx / 2;
 
   return (
-    <dialog
-      ref={dialogRef}
-      className="paperAdjust"
-      aria-labelledby="paper-adjust-title"
-      data-testid="paper-adjust"
-      data-entry={entry}
-      data-leaving={leaving ? "true" : undefined}
-      inert={leaving}
-      aria-hidden={leaving || undefined}
-      onCancel={(e) => {
-        e.preventDefault();
-        if (leaving) return;
-        onCancel();
-      }}
-    >
-      <header className="paperAdjustHeader">
-        <h2 id="paper-adjust-title" ref={titleRef} tabIndex={-1}>
-          {copy.title}
-        </h2>
-      </header>
-      <div
-        className="paperAdjustStage"
-        ref={stageRef}
-        data-testid="paper-adjust-stage"
-        data-view={showingWhole ? "whole" : "zoomed"}
-        onPointerDown={onStageDown}
-        onPointerMove={onStageMove}
-        onPointerUp={onStageUp}
-        onPointerCancel={onStageUp}
-        onWheel={onStageWheel}
+    <>
+      <dialog
+        ref={dialogRef}
+        className="paperAdjust"
+        aria-labelledby="paper-adjust-title"
+        data-testid="paper-adjust"
+        data-entry={entry}
+        data-leaving={leaving ? "true" : undefined}
+        inert={leaving}
+        aria-hidden={leaving || undefined}
+        onCancel={(e) => {
+          e.preventDefault();
+          if (leaving) return;
+          onCancel();
+        }}
       >
-        {fit.width > 0 && (
-          // eslint-disable-next-line @next/next/no-img-element -- a local object URL, drawn as it is
-          <img
-            className="paperAdjustPhoto"
-            src={previewUrl}
-            alt=""
-            draggable={false}
-            style={{
-              left: fit.offsetX,
-              top: fit.offsetY,
-              width: fit.width,
-              height: fit.height,
-            }}
-          />
-        )}
-        {fit.width > 0 && (
-          <svg
-            className="paperAdjustFrame"
-            aria-hidden="true"
-            focusable="false"
-            width={stageSize?.width}
-            height={stageSize?.height}
-          >
-            <polygon
-              points={screenCorners.map((p) => `${p.x},${p.y}`).join(" ")}
+        <header className="paperAdjustHeader">
+          <h2 id="paper-adjust-title" ref={titleRef} tabIndex={-1}>
+            {copy.title}
+          </h2>
+        </header>
+        <div
+          className="paperAdjustStage"
+          ref={stageRef}
+          data-testid="paper-adjust-stage"
+          data-view={showingWhole ? "whole" : "zoomed"}
+          onPointerDown={onStageDown}
+          onPointerMove={onStageMove}
+          onPointerUp={onStageUp}
+          onPointerCancel={onStageUp}
+          onWheel={onStageWheel}
+        >
+          {fit.width > 0 && (
+            // eslint-disable-next-line @next/next/no-img-element -- a local object URL, drawn as it is
+            <img
+              className="paperAdjustPhoto"
+              src={previewUrl}
+              alt=""
+              draggable={false}
+              style={{
+                left: fit.offsetX,
+                top: fit.offsetY,
+                width: fit.width,
+                height: fit.height,
+              }}
             />
-          </svg>
-        )}
-        {fit.width > 0 &&
-          CORNER_INDICES.map((index) => {
-            const p = screenCorners[index];
-            const placed = state.placed[index];
-            return (
-              <button
-                key={index}
-                type="button"
-                className="paperAdjustHandle"
-                data-testid={`paper-adjust-handle-${index}`}
-                data-placed={placed ? "true" : "false"}
-                data-selected={state.selected === index ? "true" : undefined}
-                aria-pressed={state.selected === index}
-                aria-label={`${copy.handleLabel(nameOf(index))}${placed ? "" : copy.handleNotPlaced}`}
-                aria-describedby="paper-adjust-keys"
-                style={{
-                  transform: `translate(${p.x - half}px, ${p.y - half}px)`,
-                }}
-                onPointerDown={onHandleDown(index)}
-                onKeyDown={onHandleKey(index)}
-                onClick={() => dispatch({ type: "select", index })}
-              >
-                <span className="paperAdjustDot" aria-hidden="true" />
-              </button>
-            );
-          })}
-        {magnifier && (
-          <div
-            className="paperAdjustMagnifier"
-            data-testid="paper-adjust-magnifier"
-            data-side={magnifier.side}
-            aria-hidden="true"
-            style={{
-              left: magnifier.left,
-              top: magnifier.top,
-              width: magnifier.size,
-              height: magnifier.size,
-              backgroundImage: `url("${previewUrl}")`,
-              backgroundSize: `${magnifier.backgroundWidth}px ${magnifier.backgroundHeight}px`,
-              backgroundPosition: `${magnifier.backgroundX}px ${magnifier.backgroundY}px`,
-            }}
+          )}
+          {fit.width > 0 && (
+            <svg
+              className="paperAdjustFrame"
+              aria-hidden="true"
+              focusable="false"
+              width={stageSize?.width}
+              height={stageSize?.height}
+            >
+              <polygon
+                points={screenCorners.map((p) => `${p.x},${p.y}`).join(" ")}
+              />
+            </svg>
+          )}
+          {fit.width > 0 &&
+            CORNER_INDICES.map((index) => {
+              const p = screenCorners[index];
+              const placed = state.placed[index];
+              return (
+                <button
+                  key={index}
+                  type="button"
+                  className="paperAdjustHandle"
+                  data-testid={`paper-adjust-handle-${index}`}
+                  data-placed={placed ? "true" : "false"}
+                  data-selected={state.selected === index ? "true" : undefined}
+                  aria-pressed={state.selected === index}
+                  aria-label={`${copy.handleLabel(nameOf(index))}${placed ? "" : copy.handleNotPlaced}`}
+                  aria-describedby="paper-adjust-keys"
+                  style={{
+                    transform: `translate(${p.x - half}px, ${p.y - half}px)`,
+                  }}
+                  onPointerDown={onHandleDown(index)}
+                  onKeyDown={onHandleKey(index)}
+                  onClick={() => dispatch({ type: "select", index })}
+                >
+                  <span className="paperAdjustDot" aria-hidden="true" />
+                </button>
+              );
+            })}
+          {magnifier && (
+            <div
+              className="paperAdjustMagnifier"
+              data-testid="paper-adjust-magnifier"
+              data-side={magnifier.side}
+              aria-hidden="true"
+              style={{
+                left: magnifier.left,
+                top: magnifier.top,
+                width: magnifier.size,
+                height: magnifier.size,
+                backgroundImage: `url("${previewUrl}")`,
+                backgroundSize: `${magnifier.backgroundWidth}px ${magnifier.backgroundHeight}px`,
+                backgroundPosition: `${magnifier.backgroundX}px ${magnifier.backgroundY}px`,
+              }}
+            >
+              <span className="paperAdjustCross" />
+            </div>
+          )}
+        </div>
+        <p
+          className="paperAdjustStatus"
+          role="status"
+          aria-live="polite"
+          data-testid="paper-adjust-status"
+        >
+          {status}
+        </p>
+        <p id="paper-adjust-keys" className="visuallyHidden">
+          {copy.keyboardHint}
+        </p>
+        <div className="paperAdjustActions">
+          <button
+            type="button"
+            className="primaryButton paperAdjustConfirm"
+            data-testid="paper-adjust-confirm"
+            aria-disabled={readiness.ok ? undefined : "true"}
+            onClick={confirm}
           >
-            <span className="paperAdjustCross" />
-          </div>
-        )}
-      </div>
-      <p
-        className="paperAdjustStatus"
-        role="status"
-        aria-live="polite"
-        data-testid="paper-adjust-status"
-      >
-        {status}
-      </p>
-      <p id="paper-adjust-keys" className="visuallyHidden">
-        {copy.keyboardHint}
-      </p>
-      <div className="paperAdjustActions">
-        <button
-          type="button"
-          className="primaryButton paperAdjustConfirm"
-          data-testid="paper-adjust-confirm"
-          aria-disabled={readiness.ok ? undefined : "true"}
-          onClick={confirm}
-        >
-          {copy.confirm}
-        </button>
-        <button
-          type="button"
-          className="paperAdjustCancel"
-          data-testid="paper-adjust-cancel"
-          onClick={onCancel}
-        >
-          {leave === "retake" ? copy.retake : copy.cancel}
-        </button>
-      </div>
-    </dialog>
+            {copy.confirm}
+          </button>
+          <button
+            type="button"
+            className="paperAdjustCancel"
+            data-testid="paper-adjust-cancel"
+            onClick={onCancel}
+          >
+            {leave === "retake" ? copy.retake : copy.cancel}
+          </button>
+        </div>
+      </dialog>
+      {/* Leaving: a transparent layer takes the taps over it (LeaveShield). */}
+      {leaving && <LeaveShield target={dialogRef} />}
+    </>
   );
 }

@@ -94,4 +94,6 @@ export function leftWith(
 export async function expectSettled(page: Page): Promise<void> {
   await expect(page.locator("[data-leaving]")).toHaveCount(0);
   await expect(page.locator("[inert]")).toHaveCount(0);
+  // Nor the transparent layer that takes the taps during a leave.
+  await expect(page.locator(".easyLeaveShield")).toHaveCount(0);
 }

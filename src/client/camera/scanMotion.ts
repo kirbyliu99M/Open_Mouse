@@ -153,6 +153,39 @@ export function leavingView<T>(
   return { shown: leaving ? last : null, leaving };
 }
 
+/** Where a leaving piece was when its leave began (LeaveShield.tsx). */
+export interface ShieldBox {
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
+  /** Its computed z-index ("auto" or a number as text). */
+  readonly zIndex: string;
+}
+
+/**
+ * The tap-absorbing layer's box (e2e round 2): the piece's own box, one
+ * z-index above it, so what comes back under the piece never gets a tap that
+ * landed on it. `null` for a piece with no box (nothing to cover).
+ */
+export function leaveShieldStyle(box: ShieldBox): {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  zIndex: number;
+} | null {
+  if (!(box.width > 0) || !(box.height > 0)) return null;
+  const z = Number.parseInt(box.zIndex, 10);
+  return {
+    left: box.left,
+    top: box.top,
+    width: box.width,
+    height: box.height,
+    zIndex: (Number.isFinite(z) ? z : 0) + 1,
+  };
+}
+
 /** The little of the DOM `closeAsIfRemoved` needs (a test passes fakes). */
 interface FocusableLike {
   focus(options?: FocusOptions): void;
