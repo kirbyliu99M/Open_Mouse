@@ -25,6 +25,30 @@
 .answerDialog::backdrop {
   background: var(--bg);
 }
+/* V3.2 motion pass #4 (candidate / 未拍板): the pages fade in over the sheet
+   and out again (--motion-base), backdrop and all. Leaving, the dialog is
+   already closed (the script keeps it painted and inert, `data-leaving`), so
+   what is under it is usable at once. The change between the two pages is a
+   slide and a fade done by the script (useAnswerPageSwap.ts). */
+.answerDialog[open],
+.answerDialog[open]::backdrop {
+  animation: answerFadeIn var(--motion-base) var(--ease-out) backwards;
+}
+.answerDialog[data-leaving="true"] {
+  display: block;
+  pointer-events: none;
+  animation: answerFadeOut var(--motion-base) var(--ease-in) forwards;
+}
+@keyframes answerFadeIn {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes answerFadeOut {
+  to {
+    opacity: 0;
+  }
+}
 
 .answerPage {
   box-sizing: border-box;
@@ -351,6 +375,12 @@
   font-size: 0.9375rem;
   line-height: 1.5;
 }
+/* V3.2 motion pass #23: the send error and the grip page's required hint
+   fade in (--motion-fast) instead of appearing at once. Opacity only: the
+   space they take is not animated. */
+.answerError {
+  animation: answerFadeIn var(--motion-fast) var(--ease-out) backwards;
+}
 .answerError p {
   margin: 0;
 }
@@ -378,6 +408,17 @@
 @media (prefers-reduced-motion: reduce) {
   .answerPrimary:active:not(:disabled):not([aria-disabled="true"]) {
     transform: none;
+  }
+  /* V3.2 motion pass #4, #23: the --motion-reduced fade. */
+  .answerDialog[open],
+  .answerDialog[open]::backdrop,
+  .answerError {
+    animation-duration: var(--motion-reduced);
+    animation-timing-function: linear;
+  }
+  .answerDialog[data-leaving="true"] {
+    animation-duration: var(--motion-reduced);
+    animation-timing-function: linear;
   }
 }
 

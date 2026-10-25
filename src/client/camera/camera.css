@@ -309,6 +309,10 @@
   font-size: 1.0625rem;
   font-weight: 600;
   text-align: center;
+  /* V3.2 motion pass #20: the cue turns green over --motion-fast instead of
+     at once. The one named exception to "only transform and opacity": a
+     colour, nothing moves (docs/design-guidelines.md, Motion). */
+  transition: background-color var(--motion-fast) var(--ease-out);
 }
 /* The text is 17px, so it needs 4.5:1: #f0fff6 on the old #2f9e5c was 3.29:1
    (axe, live camera). #237a48 with the same text is 5.1:1. */
@@ -534,6 +538,11 @@
     display: none;
   }
   .cameraShutterRing circle {
+    transition: none;
+  }
+  /* A colour change is not motion, but a reading taken mid-fade is neither
+     state's colour (the e2e contrast checks run here): at once. */
+  .cameraCue {
     transition: none;
   }
 }

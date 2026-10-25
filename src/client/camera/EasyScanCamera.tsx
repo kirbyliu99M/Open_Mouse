@@ -33,6 +33,8 @@ import {
   useReducer,
   useRef,
   useState,
+  type CSSProperties,
+  type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/client/i18n/LocaleProvider";
@@ -173,6 +175,10 @@ import {
 import { paperAdjustCopy } from "../../lib/copy/paper-adjust";
 import { ScanDebugPanel } from "./ScanDebugPanel";
 import { usePrefersReducedMotion } from "./useReducedMotion";
+import { leaveMs } from "../../lib/motion";
+import { closeAsIfRemoved, fadeMs } from "./scanMotion";
+import { useLeaving } from "./useLeaving";
+import { useAnswerPageSwap } from "./useAnswerPageSwap";
 import {
   mean,
   percentile,
@@ -844,6 +850,89 @@ export default function EasyScanCamera({
   const onSheet = answers.step === "sheet";
   const answersOpen = (result.kind === "measured" || manualMode) && !onSheet;
 
+  // V3.2 motion pass (candidate / 未拍板): what leaves the screen stays
+  // mounted, painted and inert while it goes the way it came (useLeaving).
+  // #1: the measured / failure sheet slides down when a retake, a question
+  // page or the paper adjustment takes its place, instead of a native close()
+  // or an unmount that made it vanish.
+  const sheetNow =
+    (result.kind === "measured" || result.kind === "gateFailure") &&
+    onSheet &&
+    !adjustOpen
+      ? result
+      : null;
+  const sheetLeave = useLeaving(sheetNow, leaveMs("sheet", reducedMotion));
+  const sheetResult = sheetLeave.shown;
+  // #4: the question pages' dialog fades in and out (--motion-base), and
+  // keeps the page it showed while it fades out.
+  const answersLeave = useLeaving(
+    answersOpen ? answers.step : null,
+    fadeMs("base", reducedMotion),
+  );
+  // #21: the first-run tip slides down like the other sheets.
+  const tipLeave = useLeaving(
+    tipOpen && deviceFit === "phone" && !lengthStep ? true : null,
+    leaveMs("sheet", reducedMotion),
+  );
+  // #22: the paper adjustment fades out (--motion-out) over the sheet coming
+  // back, with the props it had (its key included, so it is not remounted).
+  const adjustLeave = useLeaving(
+    adjustOpen &&
+      (result.kind === "measured" || result.kind === "gateFailure") &&
+      result.overlay
+      ? {
+          key: `${adjustOpen}:${result.previewUrl}`,
+          entry: adjustOpen,
+          overlay: result.overlay,
+          previous:
+            result.kind === "gateFailure" ? (result.placedFrame ?? null) : null,
+          leave: adjustDirect ? ("retake" as const) : ("cancel" as const),
+          paperSize: paperSizeRef.current,
+          previewUrl: result.previewUrl,
+        }
+      : null,
+    leaveMs("fade", reducedMotion),
+  );
+  // #5: the typed-hand-length step fades in and out (--motion-base).
+  const lengthLeave = useLeaving(
+    lengthStep ? true : null,
+    fadeMs("base", reducedMotion),
+  );
+  // #3: the cue and the bottom dock of the live camera fade and slide out
+  // (--motion-fast) when a photo is taken, and back in (--motion-base).
+  const liveChromeLeave = useLeaving(
+    !lengthStep &&
+      (camState.kind === "live" || camState.kind === "requesting") &&
+      result.kind === "none"
+      ? true
+      : null,
+    fadeMs("fast", reducedMotion),
+  );
+  // #19: the 測量中… pill fades in and out (--motion-fast).
+  const measuringLeave = useLeaving(
+    measuringShown(result.kind, shutterMeasuring) ? true : null,
+    fadeMs("fast", reducedMotion),
+  );
+  // #2: the photo of a retake stays mounted and fades out (--motion-base)
+  // while the live picture fades in under it.
+  const photoLeave = useLeaving(
+    result.kind !== "none" ? result.previewUrl : null,
+    fadeMs("base", reducedMotion),
+  );
+  const lastPhotoRef = useRef<{
+    node: ReactNode;
+    style: CSSProperties | undefined;
+  } | null>(null);
+  // The leaving photo (#2) still draws from its object URL: a retake frees the
+  // URL once that fade is over, not before.
+  const revokeAfterFade = useCallback((url: string) => {
+    window.setTimeout(
+      () => URL.revokeObjectURL(url),
+      fadeMs("base", reducedMotionRef.current),
+    );
+  }, []);
+  const swapAnswerPage = useAnswerPageSwap(answerDialogRef, reducedMotion);
+
   // The measured / gate-failure bottom sheet: a native <dialog> for the
   // focus trap + Escape handling, opened the moment the pipeline settles
   // and closed again on retake. Focus goes to the sheet's own heading, not
@@ -864,23 +953,23 @@ export default function EasyScanCamera({
       // move when 返回 opens it again.
       // The same while the paper frame is being adjusted (V3.2 F2): its own
       // full-screen modal is over the photo.
+      // V3.2 motion pass #1: closed at the same moment as before (so focus and
+      // the page's inertness are as they were), but still painted while it
+      // slides down (`sheetLeave`, `data-leaving`), and unmounted after it.
       if (!onSheet || adjustOpen) {
         sheetResumedRef.current = true;
         if (adjustOpen) adjustReturnRef.current = true;
         dialog?.close();
         return;
       }
-      // Coming back from a question page: the sheet does not slide in again
-      // (it was there a moment ago), and focus goes to the button that left.
+      // Coming back from a question page: focus goes to the button that left.
+      // The sheet rises again (V3.2 motion pass #1): it was seen sliding away,
+      // so it comes back the way it went.
       const resumed = sheetResumedRef.current;
       sheetResumedRef.current = false;
       const fromAdjust = adjustReturnRef.current;
       adjustReturnRef.current = false;
-      if (dialog) {
-        if (resumed) dialog.dataset.resumed = "true";
-        else delete dialog.dataset.resumed;
-      }
-      dialog?.showModal();
+      if (dialog && !dialog.open) dialog.showModal();
       (fromAdjust
         ? (adjustButtonRef.current ?? sheetTitleRef.current)
         : resumed
@@ -922,7 +1011,10 @@ export default function EasyScanCamera({
       if (topBarRef.current) observer.observe(topBarRef.current);
       return () => observer.disconnect();
     }
-    sheetDialogRef.current?.close();
+    // A retake (or a new photo): the sheet used to be unmounted here. It now
+    // stays painted while it slides down (V3.2 motion pass #1), closed with
+    // the focus outcome of that unmount.
+    closeAsIfRemoved(sheetDialogRef.current);
     setSheetHeight(null);
     setBarBottom(null);
   }, [result.kind, onSheet, adjustOpen]);
@@ -931,12 +1023,21 @@ export default function EasyScanCamera({
   // opened again if the browser closed it by itself while it should be open
   // (see onClose below). A page change starts at the top, so a short phone
   // does not keep the scroll position of the page before.
+  //
+  // V3.2 motion pass #4: once no page is wanted the dialog is closed at once
+  // (the sheet or the form under it is usable, focus as when it was
+  // unmounted) and fades out, still painted, before it is unmounted.
   useLayoutEffect(() => {
     const dialog = answerDialogRef.current;
-    if (!answersOpen || !dialog) return;
+    if (!dialog) return;
+    if (answersLeave.leaving) {
+      closeAsIfRemoved(dialog);
+      return;
+    }
+    if (!answersOpen) return;
     if (!dialog.open) dialog.showModal();
     dialog.scrollTop = 0;
-  }, [answersOpen, answers.step]);
+  }, [answersOpen, answers.step, answersLeave.leaving]);
 
   const dismissTip = useCallback(() => {
     setTipOpen(false);
@@ -1755,7 +1856,7 @@ export default function EasyScanCamera({
   );
 
   const retake = useCallback(() => {
-    if (result.kind !== "none") URL.revokeObjectURL(result.previewUrl);
+    if (result.kind !== "none") revokeAfterFade(result.previewUrl);
     setResult({ kind: "none" });
     setAdjustOpen(null);
     setAdjustDirect(false);
@@ -1774,7 +1875,7 @@ export default function EasyScanCamera({
       window.isSecureContext &&
       typeof navigator.mediaDevices?.getUserMedia === "function";
     if (canUseCamera && deviceFit === "phone") void startCamera();
-  }, [result, startCamera, deviceFit, clearSubmitError]);
+  }, [result, startCamera, deviceFit, clearSubmitError, revokeAfterFade]);
 
   // 手動調整邊框 (V3.2 F2, candidate). A button only on the failure sheet:
   // after any paper failure or a failure with a frame placed by hand (rescue,
@@ -2499,7 +2600,7 @@ export default function EasyScanCamera({
   // browser's focus restore cannot land after the heading takes focus.
   const editLengthFromFailure = () => {
     sheetDialogRef.current?.close();
-    if (result.kind !== "none") URL.revokeObjectURL(result.previewUrl);
+    if (result.kind !== "none") revokeAfterFade(result.previewUrl);
     setResult({ kind: "none" });
     startLengthStep();
   };
@@ -2537,18 +2638,35 @@ export default function EasyScanCamera({
   // hand size. A native modal, so it is also what makes the page behind inert;
   // it is built before the early return of the desktop screen below, which
   // shows it over the QR page.
-  const answersDialog = answersOpen ? (
+  //
+  // V3.2 motion pass #4: the dialog fades in and out (answer-pages.css), and
+  // a change between the two pages slides the old one out and the new one in
+  // (`swapAnswerPage`: forward to the left, back to the right). 返回 from the
+  // thickness page, by the button or Esc, is such a change; 返回 from the grip
+  // page leaves the dialog, which fades.
+  const answersShownStep = answersLeave.shown;
+  const backFromPage = () => {
+    if (answers.step === "thickness") swapAnswerPage(-1, backFromAnswers);
+    else backFromAnswers();
+  };
+  const answersDialog = answersShownStep ? (
     <dialog
       ref={answerDialogRef}
       className="answerDialog"
       aria-labelledby="answer-title"
+      data-leaving={answersLeave.leaving ? "true" : undefined}
+      inert={answersLeave.leaving}
       onClose={(e) => {
+        // Closed by the effect above to fade out (V3.2 motion pass #4): the
+        // change that closed it has already been made.
+        if (e.currentTarget.dataset.leaving === "true") return;
         // The browser closed it itself: a second Esc, or the Android back
         // gesture, with no tap in between is not cancelable, so onCancel
         // never gets to stop it. State and dialog must stay in step:
         // while the scan is being sent it opens again, otherwise it is a
         // 返回 (and the effect above opens the dialog again if the page
-        // before it is a question page too).
+        // before it is a question page too). Applied at once: the dialog is
+        // already gone from the screen, so there is nothing to slide.
         if (answers.step === "thickness" && submitBusy) {
           e.currentTarget.showModal();
           return;
@@ -2558,17 +2676,22 @@ export default function EasyScanCamera({
       onCancel={(e) => {
         // Escape is 返回, and does nothing while the scan is being sent.
         e.preventDefault();
+        if (answersLeave.leaving) return;
         if (answers.step === "thickness" && submitBusy) return;
-        backFromAnswers();
+        backFromPage();
       }}
     >
-      {answers.step === "grip" ? (
+      {answersShownStep === "grip" ? (
         <GripPage
           value={answers.grip}
           onChange={(grip) => dispatchAnswers({ type: "chooseGrip", grip })}
-          onConfirm={() => dispatchAnswers({ type: "confirmGrip" })}
-          onSkip={() => dispatchAnswers({ type: "skipGrip" })}
-          onBack={backFromAnswers}
+          onConfirm={() =>
+            swapAnswerPage(1, () => dispatchAnswers({ type: "confirmGrip" }))
+          }
+          onSkip={() =>
+            swapAnswerPage(1, () => dispatchAnswers({ type: "skipGrip" }))
+          }
+          onBack={backFromPage}
           required={manualMode}
         />
       ) : (
@@ -2586,7 +2709,7 @@ export default function EasyScanCamera({
             dispatchAnswers({ type: "skipThickness" });
             sendScan(next);
           }}
-          onBack={backFromAnswers}
+          onBack={backFromPage}
           busy={submitBusy}
           onRetake={manualMode ? editManualNumbers : retake}
           retakeLabel={
@@ -2787,6 +2910,10 @@ export default function EasyScanCamera({
         ariaLabel={noPaperMode ? easy.photoLabelNoPaper : easy.photoLabelPaper}
       />
     ) : null;
+  // V3.2 motion pass #2: the photo as it is drawn now (where it is, how it is
+  // scaled), kept for the fade-out after a retake.
+  if (result.kind !== "none" && frozenLayout && stillSize)
+    lastPhotoRef.current = { node: renderPhoto(true), style: moveStyle };
 
   return (
     <main
@@ -2850,6 +2977,24 @@ export default function EasyScanCamera({
               {renderPhoto(true)}
             </div>
           )}
+          {/* V3.2 motion pass #2: after a retake the photo does not vanish. It
+              stays where it was (scaled and moved as the sheet left it) and
+              fades out (--motion-base) over the live picture, which fades in
+              under it as soon as the camera plays. Decoration only: hidden
+              from assistive technology and from the pointer. */}
+          {result.kind === "none" &&
+            photoLeave.leaving &&
+            lastPhotoRef.current && (
+              <div
+                key="photoLeaving"
+                className="easyStageContent easyPhotoLeaving"
+                style={lastPhotoRef.current.style}
+                aria-hidden="true"
+                data-testid="easy-photo-leaving"
+              >
+                {lastPhotoRef.current.node}
+              </div>
+            )}
           {result.kind === "processing" && <div className="easyStageDim" />}
           {result.kind === "processing" && !reducedMotion && (
             <div className="easyScanLine" data-testid="easy-scan-line" />
@@ -2906,8 +3051,16 @@ export default function EasyScanCamera({
           no camera) the notice joins that flow above it. */}
       <DetectorProgress inert={lengthStep} />
 
-      {lengthStep && (
-        <section className="easyLengthStep" aria-labelledby="easy-length-title">
+      {/* V3.2 motion pass #5: the step fades in and out (--motion-base); while
+          it fades out it is inert, and the camera screen under it is already
+          usable. */}
+      {lengthLeave.shown && (
+        <section
+          className="easyLengthStep"
+          aria-labelledby="easy-length-title"
+          data-leaving={lengthLeave.leaving ? "true" : undefined}
+          inert={lengthLeave.leaving}
+        >
           <button
             type="button"
             className="easyLengthBack"
@@ -3074,132 +3227,145 @@ export default function EasyScanCamera({
           </div>
         )}
 
-      {!lengthStep &&
-        (camState.kind === "live" || camState.kind === "requesting") &&
-        result.kind === "none" && (
-          <>
-            <div className="cameraCueWrap">
-              <div
-                className={`cameraCue${cue?.allPass && !captureFailureHint ? " perfect" : ""}`}
-                aria-live="polite"
-                data-testid="camera-cue"
-                data-capture-failure={captureFailureHint ? "true" : undefined}
-              >
-                {captureFailureHint ? (
-                  captureFailureHint
-                ) : userLengthMm !== null ? (
-                  cameraCuesCopy(locale).handFlat
-                ) : cue?.allPass ? (
-                  <>
-                    <CheckIcon width={16} height={16} /> {cueLabel}
-                  </>
-                ) : (
-                  cueLabel
-                )}
-              </div>
+      {/* V3.2 motion pass #3: the cue and the dock come in (--motion-base) and
+          go (--motion-fast) with a fade and a short slide, the cue from the
+          top, the dock from the bottom. While they go they are inert and hand
+          their refs on (the handle and the "no paper" entry of another screen
+          may take them in the same commit). */}
+      {liveChromeLeave.shown && (
+        <>
+          <div
+            className="cameraCueWrap"
+            data-leaving={liveChromeLeave.leaving ? "true" : undefined}
+            inert={liveChromeLeave.leaving}
+          >
+            <div
+              className={`cameraCue${cue?.allPass && !captureFailureHint ? " perfect" : ""}`}
+              aria-live="polite"
+              data-testid="camera-cue"
+              data-capture-failure={captureFailureHint ? "true" : undefined}
+            >
+              {captureFailureHint ? (
+                captureFailureHint
+              ) : userLengthMm !== null ? (
+                cameraCuesCopy(locale).handFlat
+              ) : cue?.allPass ? (
+                <>
+                  <CheckIcon width={16} height={16} /> {cueLabel}
+                </>
+              ) : (
+                cueLabel
+              )}
             </div>
+          </div>
+          {!liveChromeLeave.leaving && (
             <p className="visuallyHiddenLive" aria-live="polite">
               {announced}
             </p>
-            <div className="easyBottomDock easyBottomDock-withHandle">
-              {hintText && (
-                <p className="easyHint" data-testid="easy-hint">
-                  {hintText}
-                </p>
-              )}
+          )}
+          <div
+            className="easyBottomDock easyBottomDock-withHandle"
+            data-leaving={liveChromeLeave.leaving ? "true" : undefined}
+            inert={liveChromeLeave.leaving}
+          >
+            {hintText && (
+              <p className="easyHint" data-testid="easy-hint">
+                {hintText}
+              </p>
+            )}
 
-              <div className="easyBottomRow">
-                {userLengthMm === null ? (
-                  <button
-                    type="button"
-                    className="easyPaperToggle"
-                    onClick={() =>
-                      changePaperSize(paperSize === "a4" ? "letter" : "a4")
-                    }
-                  >
-                    {PAPER_SIZE_LABELS[paperSize]}
-                  </button>
-                ) : (
-                  <span className="easyLengthChip">
-                    {easy.lengthChip(String(userLengthMm))}
-                  </span>
-                )}
+            <div className="easyBottomRow">
+              {userLengthMm === null ? (
                 <button
                   type="button"
-                  className="cameraShutter"
-                  aria-label={common.takePhoto}
-                  onClick={() => void captureNow()}
+                  className="easyPaperToggle"
+                  onClick={() =>
+                    changePaperSize(paperSize === "a4" ? "letter" : "a4")
+                  }
                 >
-                  <div className="cameraShutterInner" />
-                  {userLengthMm === null && (
-                    <svg className="cameraShutterRing" viewBox="0 0 96 96">
-                      <circle
-                        cx="48"
-                        cy="48"
-                        r={40}
-                        strokeDasharray={2 * Math.PI * 40}
-                        strokeDashoffset={2 * Math.PI * 40 * (1 - ringFraction)}
-                      />
-                    </svg>
-                  )}
+                  {PAPER_SIZE_LABELS[paperSize]}
                 </button>
-                <label
-                  className="easyUploadIconButton"
-                  htmlFor="easy-scan-upload"
-                >
-                  <span className="visuallyHidden">{common.uploadInstead}</span>
-                  <svg
-                    viewBox="0 0 24 24"
-                    width="22"
-                    height="22"
-                    aria-hidden="true"
-                    focusable="false"
-                  >
-                    <path
-                      d="M4 16.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5M8 8l4-4 4 4M12 4v12"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+              ) : (
+                <span className="easyLengthChip">
+                  {easy.lengthChip(String(userLengthMm))}
+                </span>
+              )}
+              <button
+                type="button"
+                className="cameraShutter"
+                aria-label={common.takePhoto}
+                onClick={() => void captureNow()}
+              >
+                <div className="cameraShutterInner" />
+                {userLengthMm === null && (
+                  <svg className="cameraShutterRing" viewBox="0 0 96 96">
+                    <circle
+                      cx="48"
+                      cy="48"
+                      r={40}
+                      strokeDasharray={2 * Math.PI * 40}
+                      strokeDashoffset={2 * Math.PI * 40 * (1 - ringFraction)}
                     />
                   </svg>
-                </label>
-              </div>
-              {noPaperLabel && (
-                <div className="easyNoPaperRow">
+                )}
+              </button>
+              <label
+                className="easyUploadIconButton"
+                htmlFor="easy-scan-upload"
+              >
+                <span className="visuallyHidden">{common.uploadInstead}</span>
+                <svg
+                  viewBox="0 0 24 24"
+                  width="22"
+                  height="22"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <path
+                    d="M4 16.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5M8 8l4-4 4 4M12 4v12"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </label>
+            </div>
+            {noPaperLabel && (
+              <div className="easyNoPaperRow">
+                <button
+                  type="button"
+                  className="easyNoPaperLink"
+                  ref={liveChromeLeave.leaving ? undefined : noPaperEntryRef}
+                  onClick={startLengthStep}
+                >
+                  {noPaperLabel}
+                </button>
+                {noPaperMode && (
                   <button
                     type="button"
                     className="easyNoPaperLink"
-                    ref={noPaperEntryRef}
-                    onClick={startLengthStep}
+                    onClick={switchToPaper}
                   >
-                    {noPaperLabel}
+                    {easy.usePaperInstead}
                   </button>
-                  {noPaperMode && (
-                    <button
-                      type="button"
-                      className="easyNoPaperLink"
-                      onClick={switchToPaper}
-                    >
-                      {easy.usePaperInstead}
-                    </button>
-                  )}
-                </div>
-              )}
-              {/* Typing the hand size instead (manual entry, candidate): a strip
+                )}
+              </div>
+            )}
+            {/* Typing the hand size instead (manual entry, candidate): a strip
                   at the very bottom of the camera screen. It is only here
                   while the camera is, not over a finished measurement, and
                   not under the first-run tip (a modal over the same edge). */}
-              {!tipOpen && (
-                <ManualEntryHandle
-                  ref={manualHandleRef}
-                  onOpen={openManualSheet}
-                />
-              )}
-            </div>
-          </>
-        )}
+            {!tipOpen && (
+              <ManualEntryHandle
+                ref={liveChromeLeave.leaving ? undefined : manualHandleRef}
+                onOpen={openManualSheet}
+              />
+            )}
+          </div>
+        </>
+      )}
 
       <input
         id="easy-scan-upload"
@@ -3218,18 +3384,25 @@ export default function EasyScanCamera({
         }
       />
 
-      {measuringShown(result.kind, shutterMeasuring) && (
+      {/* V3.2 motion pass #19: in and out with a short fade (--motion-fast).
+          Leaving, it is inert: out of the accessibility tree at once, as its
+          unmount took it before. */}
+      {measuringLeave.shown && (
         <p
           className="easyProcessingPill"
           role="status"
           aria-live="polite"
           data-testid="easy-measuring"
+          data-leaving={measuringLeave.leaving ? "true" : undefined}
+          inert={measuringLeave.leaving}
         >
           {easy.measuring}
         </p>
       )}
 
-      {(result.kind === "measured" || result.kind === "gateFailure") && (
+      {/* V3.2 motion pass #1: drawn from `sheetResult`, the result it showed,
+          so it keeps its content while it slides down after a retake. */}
+      {sheetResult && (
         <dialog
           ref={sheetDialogRef}
           className="easySheet easyResultSheet"
@@ -3237,24 +3410,27 @@ export default function EasyScanCamera({
           // scroller, and Tab after the last button landed on the dialog.
           tabIndex={-1}
           aria-label={
-            result.kind === "measured"
+            sheetResult.kind === "measured"
               ? common.handMeasured
               : common.retakeNeeded
           }
+          data-leaving={sheetLeave.leaving ? "true" : undefined}
+          inert={sheetLeave.leaving}
           onCancel={(e) => {
             e.preventDefault();
+            if (sheetLeave.leaving) return;
             retake();
           }}
         >
-          {result.kind === "measured" ? (
+          {sheetResult.kind === "measured" ? (
             <>
               <p className="easySheetTitle" ref={sheetTitleRef} tabIndex={-1}>
                 <CheckIcon width={20} height={20} /> {common.handMeasured}
               </p>
               <p className="easySheetNumbers" data-testid="easy-sheet-numbers">
                 {measuredSheetNumbers(
-                  result.measurements,
-                  result.submission.calibration,
+                  sheetResult.measurements,
+                  sheetResult.submission.calibration,
                   locale,
                 )}
               </p>
@@ -3262,12 +3438,12 @@ export default function EasyScanCamera({
                   continue (and Debug with ?debug=1). "Still being
                   validated" and "adjusted by hand" are said on the results
                   page. */}
-              {"method" in result.submission.calibration &&
-                result.submission.calibration.method === "user-length" && (
+              {"method" in sheetResult.submission.calibration &&
+                sheetResult.submission.calibration.method === "user-length" && (
                   <div className="easyLengthDisclosure">
                     <p>
                       {easy.disclosureBased(
-                        String(result.submission.calibration.referenceMm),
+                        String(sheetResult.submission.calibration.referenceMm),
                       )}
                     </p>
                     <p>{easy.disclosureNoPaper}</p>
@@ -3320,9 +3496,11 @@ export default function EasyScanCamera({
                 {common.retakeNeeded}
               </p>
               <p className="easySheetErrorMessage" role="alert">
-                {result.errors[0] ? issueText(result.errors[0], locale) : ""}
+                {sheetResult.errors[0]
+                  ? issueText(sheetResult.errors[0], locale)
+                  : ""}
               </p>
-              {result.errors[0]?.code === "HANDEDNESS_MISMATCH" && (
+              {sheetResult.errors[0]?.code === "HANDEDNESS_MISMATCH" && (
                 <HandToggle state={handChip} onClick={toggleHand} inSheet />
               )}
               <div className="easyStickyActions">
@@ -3337,7 +3515,7 @@ export default function EasyScanCamera({
                 {/* The secondary way on after a paper failure, or after a frame
                     placed by hand was turned back (V3.2 F2, F7, candidate):
                     retaking stays the main one. */}
-                {adjustEntry === "rescue" && (
+                {adjustEntryFor(sheetResult) === "rescue" && (
                   <button
                     type="button"
                     className="easyAdjustFrameButton"
@@ -3351,7 +3529,7 @@ export default function EasyScanCamera({
                 {noPaperLabel &&
                   failureOffersLengthEdit(
                     noPaperMode,
-                    result.errors[0]?.code,
+                    sheetResult.errors[0]?.code,
                   ) && (
                     <button
                       type="button"
@@ -3375,26 +3553,23 @@ export default function EasyScanCamera({
         </dialog>
       )}
 
-      {adjustOpen &&
-        (result.kind === "measured" || result.kind === "gateFailure") &&
-        result.overlay && (
-          <PaperAdjust
-            key={`${adjustOpen}:${result.previewUrl}`}
-            entry={adjustOpen}
-            overlay={result.overlay}
-            previous={
-              result.kind === "gateFailure"
-                ? (result.placedFrame ?? null)
-                : null
-            }
-            leave={adjustDirect ? "retake" : "cancel"}
-            paperSize={paperSizeRef.current}
-            previewUrl={result.previewUrl}
-            locale={locale}
-            onCancel={cancelAdjust}
-            onConfirm={confirmAdjust}
-          />
-        )}
+      {/* V3.2 motion pass #22: drawn from the props it had (`adjustLeave`),
+          so a cancel or a confirm fades it out over what comes back. */}
+      {adjustLeave.shown && (
+        <PaperAdjust
+          key={adjustLeave.shown.key}
+          entry={adjustLeave.shown.entry}
+          overlay={adjustLeave.shown.overlay}
+          previous={adjustLeave.shown.previous}
+          leave={adjustLeave.shown.leave}
+          paperSize={adjustLeave.shown.paperSize}
+          previewUrl={adjustLeave.shown.previewUrl}
+          locale={locale}
+          onCancel={cancelAdjust}
+          onConfirm={confirmAdjust}
+          leaving={adjustLeave.leaving}
+        />
+      )}
 
       {manualSheetOpen && (
         <ManualEntrySheet
@@ -3408,11 +3583,18 @@ export default function EasyScanCamera({
       )}
       {answersDialog}
 
+      {/* V3.2 motion pass #21: the tip closes at once (focus goes back as
+          before) and slides down, still painted; its dimmed backdrop belongs
+          to the open dialog only, so a scrim of the same colour takes its
+          place and fades out with it. */}
+      {tipLeave.leaving && <div className="easyTipScrim" aria-hidden="true" />}
       <dialog
         ref={tipDialogRef}
         className="easySheet easyTipSheet"
         tabIndex={-1}
         aria-label={noPaperMode ? easy.tipTitleNoPaper : easy.tipTitlePaper}
+        data-leaving={tipLeave.leaving ? "true" : undefined}
+        inert={tipLeave.leaving}
         onCancel={(e) => {
           e.preventDefault();
           dismissTip();

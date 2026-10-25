@@ -10,6 +10,9 @@ import {
   type DetectorLoadState,
 } from "../photo/landmarks";
 import { describeDetectorLoad } from "../photo/model-download";
+import { fadeMs } from "./scanMotion";
+import { useLeaving } from "./useLeaving";
+import { usePrefersReducedMotion } from "./useReducedMotion";
 
 const IDLE: DetectorLoadState = { stage: "idle" };
 
@@ -38,6 +41,16 @@ export function DetectorProgress({ inert = false }: { inert?: boolean }) {
   // The same element stays mounted from "failed" through the retry, so focus
   // has somewhere to stay when the retry button goes away.
   const rootRef = useRef<HTMLDivElement>(null);
+  const reducedMotion = usePrefersReducedMotion();
+  // V3.2 motion pass #18 (candidate / 未拍板): once the detector is ready the
+  // notice fades out (--motion-out) with its last reading, instead of
+  // vanishing; inert meanwhile, so nothing reads the bar again.
+  const loadingView =
+    state.stage === "failed" ? null : describeDetectorLoad(state, locale);
+  const loading = useLeaving(
+    loadingView?.visible ? loadingView : null,
+    fadeMs("out", reducedMotion),
+  );
 
   if (state.stage === "failed") {
     return (
@@ -67,8 +80,8 @@ export function DetectorProgress({ inert = false }: { inert?: boolean }) {
     );
   }
 
-  const view = describeDetectorLoad(state, locale);
-  if (!view.visible) return null;
+  const view = loading.shown;
+  if (!view) return null;
   const determinate = view.announced !== null;
   return (
     <div
@@ -76,8 +89,9 @@ export function DetectorProgress({ inert = false }: { inert?: boolean }) {
       className="easyDetectorProgress"
       data-testid="detector-progress"
       data-state="loading"
+      data-leaving={loading.leaving ? "true" : undefined}
       tabIndex={-1}
-      inert={inert}
+      inert={inert || loading.leaving}
     >
       <div
         className="easyDetectorBar"
