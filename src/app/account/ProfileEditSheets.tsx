@@ -131,6 +131,8 @@ export function ProfileSheet({
         pinned ? " profile-sheet-pinned" : ""
       }`}
       data-leaving={leaving ? "true" : undefined}
+      // Leaving: 儲存 and the rest can not be pressed again during the slide.
+      inert={leaving}
       aria-labelledby={labelledBy ?? titleId}
       onClose={modal.onClose}
       onCancel={modal.onCancel}

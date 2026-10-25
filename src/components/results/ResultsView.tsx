@@ -192,7 +192,15 @@ export function ResultsView({
   const view = filteredView(response, filters);
   const reducedMotion = usePrefersReducedMotion();
   const rootRef = useRef<HTMLDivElement>(null);
-  const swap = useSegmentSwap(rootRef, reducedMotion);
+  const swap = useSegmentSwap<Filters>(rootRef, reducedMotion);
+  // The filters as last applied from here, ahead of the render that brings
+  // them: a change made while another is still fading out builds on it.
+  const latestFilters = useRef(filters);
+  latestFilters.current = filters;
+  const commitFilters = (next: Filters, source: ResultsFilterChange) => {
+    latestFilters.current = next;
+    onFiltersChange?.(next, source);
+  };
   // The segment just pressed, until the change it starts reaches `filters`
   // (the cards fade out first): the toggle shows it at once.
   const [pressed, setPressed] = useState<{
@@ -204,10 +212,18 @@ export function ResultsView({
     pressed && pressed.on === filters ? pressed.segment : segmentOf(filters);
   const selectSegment = (segment: ShapeSegment, refocus = false) => {
     if (!onFiltersChange) return;
-    const next = withSegment(filters, segment);
     setPressed({ segment, on: filters });
-    swap(segmentDirection(shownSegment, segment), () =>
-      onFiltersChange(next, "shape_toggle"),
+    // Computed when it is applied, from the latest filters (a chip removed
+    // meanwhile stays removed); a change computed without it is rebased.
+    swap(
+      segmentDirection(shownSegment, segment),
+      () =>
+        commitFilters(
+          withSegment(latestFilters.current, segment),
+          "shape_toggle",
+        ),
+      "out-in",
+      (value) => withSegment(value, segment),
     );
     // The note's button goes away with the change: focus moves to the
     // segment that is now checked.
@@ -224,7 +240,7 @@ export function ResultsView({
   // applied at once, and the new cards come in (V3.2 motion pass #7).
   const filterChange = onFiltersChange
     ? (next: Filters, source: ResultsFilterChange) =>
-        swap(0, () => onFiltersChange(next, source), "in")
+        swap(0, (under) => commitFilters(under(next), source), "in")
     : undefined;
   const card = headerCard(view, rank);
   const entry = card?.entry ?? null;

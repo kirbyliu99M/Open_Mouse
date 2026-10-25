@@ -65,6 +65,7 @@ export function FilterSheet({
   const [state, setState] = useState(() => openSheet(applied));
   const closing = useRef(false);
   const [leaving, setLeaving] = useState(false);
+  const closeTimer = useRef<number | undefined>(undefined);
 
   const draftCount = matchCount(countSource ?? response, state.draft);
 
@@ -78,6 +79,8 @@ export function FilterSheet({
     root.style.overflow = "hidden";
     return () => {
       root.style.overflow = before;
+      // Unmounted during the leave: no late `finish`.
+      window.clearTimeout(closeTimer.current);
     };
   }, []);
 
@@ -97,7 +100,10 @@ export function FilterSheet({
       closing.current = true;
       if (apply) onApply(closeSheet(state, true));
       setLeaving(true);
-      window.setTimeout(finish, leaveMs("sheet", prefersReducedMotion()));
+      closeTimer.current = window.setTimeout(
+        finish,
+        leaveMs("sheet", prefersReducedMotion()),
+      );
     },
     [finish, onApply, state],
   );
@@ -129,7 +135,10 @@ export function FilterSheet({
     const sheet = dialogRef.current;
     if (!d || !sheet || d.id !== e.pointerId) return;
     d.dy = Math.max(0, e.clientY - d.startY);
-    sheet.style.transform = `translateY(${d.dy}px)`;
+    // With reduced motion the sheet does not follow the finger (as the
+    // feedback sheet): the pull is judged, by the same rule, when it ends.
+    if (!prefersReducedMotion())
+      sheet.style.transform = `translateY(${d.dy}px)`;
   };
   const endDrag = (
     e: ReactPointerEvent<HTMLDivElement>,
@@ -162,6 +171,7 @@ export function FilterSheet({
       ref={dialogRef}
       className="results-sheet"
       data-leaving={leaving ? "true" : undefined}
+      inert={leaving}
       aria-labelledby={titleId}
 
       onCancel={(e) => {

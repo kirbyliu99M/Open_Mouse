@@ -220,7 +220,9 @@ export function ResultFeedbackSheet({
   useEffect(() => {
     const sheet = sheetRef.current;
     const section = sectionRef.current;
-    if (!visible || !sheet || !section) return;
+    // Kept until the sheet has slid out (not when it is closed), so the page
+    // does not jump under the leaving sheet.
+    if (!presence.mounted || !sheet || !section) return;
     const root = document.documentElement;
     const measure = () => {
       const gap = parseFloat(getComputedStyle(section).bottom) || 0;
@@ -241,7 +243,7 @@ export function ResultFeedbackSheet({
       observer?.disconnect();
       root.style.removeProperty("--feedback-room");
     };
-  }, [visible]);
+  }, [presence.mounted]);
 
   // The data note opens in place: bring it into view in the scrolling panel.
   useEffect(() => {

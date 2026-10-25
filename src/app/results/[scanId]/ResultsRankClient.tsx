@@ -32,6 +32,11 @@ import {
 import { RESULTS_VIEWER_ENABLED } from "@/lib/results/features";
 import { mainResultsPath } from "@/lib/results/rankRoutes";
 import {
+  enterDirection,
+  lastShownView,
+  noteShownView,
+} from "@/lib/results/viewEnter";
+import {
   currentStamp,
   customHistoryState,
   notePendingArrival,
@@ -77,15 +82,6 @@ function plainClick(event: MouseEvent<HTMLAnchorElement>): boolean {
     !event.defaultPrevented
   );
 }
-
-/**
- * The results page last shown in this tab (V3.2 motion pass #6). A results
- * page that replaces another page of the same scan (main and detail are two
- * routes, so this component mounts afresh) comes in with a fade and a short
- * shift: from the right when going deeper, from the left back to the main
- * page. The first page after the loader has its own fade (`results-entered`).
- */
-let lastView: { scanId: string; key: string } | null = null;
 
 export function ResultsRankClient({ slug }: { slug?: string }) {
   const scan = useResultsScan();
@@ -218,28 +214,23 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
     [isMain, scanId, router],
   );
 
-  // Which page this is, and how it comes in (see `lastView`). Decided once per
-  // page shown, and remembered after it is on screen.
+  // Which page this is, and how it comes in (V3.2 motion pass #6,
+  // `viewEnter.ts`): a page that replaces another of this scan fades in with
+  // a short shift. Decided once per page shown, remembered once on screen.
   const viewKey =
     target?.kind === "detail" ? target.card.entry.mouse.slug : "main";
   const entering = useRef<{ key: string; enter?: "forward" | "back" } | null>(
     null,
   );
   if (entering.current?.key !== viewKey) {
-    const before = lastView;
     entering.current = {
       key: viewKey,
-      enter:
-        before !== null && before.scanId === scanId && before.key !== viewKey
-          ? viewKey === "main"
-            ? "back"
-            : "forward"
-          : undefined,
+      enter: enterDirection(lastShownView(), scanId, viewKey),
     };
   }
   const enter = entering.current.enter;
   useEffect(() => {
-    if (!redirect) lastView = { scanId, key: viewKey };
+    if (!redirect) noteShownView({ scanId, key: viewKey });
   }, [redirect, scanId, viewKey]);
 
   const { requestAnalysis } = scan;

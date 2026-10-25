@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useReducer, useRef } from "react";
+import { useEffect, useId, useLayoutEffect, useReducer, useRef } from "react";
 import shellIndex from "@/lib/viewer/shell-index.generated.json";
 import { shellUrl } from "@/lib/viewer/shells";
 import {
@@ -9,7 +9,8 @@ import {
   viewerReducer,
 } from "@/lib/viewer/viewer-state";
 import { useLocale } from "@/client/i18n/LocaleProvider";
-import { usePresence } from "@/components/motion/Presence";
+import { reducedMotionNow, usePresence } from "@/components/motion/Presence";
+import { leaveMs, MOTION } from "@/lib/motion";
 import { resultsScreensCopy } from "@/lib/copy/results-screens";
 import "./viewer.css";
 
@@ -136,6 +137,20 @@ function ViewerRegionBody({
     status === "idle" || status === "loading",
     "fade",
   );
+  // The fade starts from the opacity the breathing has reached at that moment:
+  // read it, stop the breathing, and fade from there (Web Animations).
+  const skeletonRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = skeletonRef.current;
+    if (!skeleton.leaving || !el || typeof el.animate !== "function") return;
+    const from = Number(getComputedStyle(el).opacity);
+    for (const a of el.getAnimations()) a.cancel();
+    el.animate([{ opacity: from }, { opacity: 0 }], {
+      duration: leaveMs("fade", reducedMotionNow()),
+      easing: MOTION.EASE_IN,
+      fill: "forwards",
+    });
+  }, [skeleton.leaving]);
 
   // The first interaction, for analytics: reports once per mount.
   const onInteractedRef = useRef(onInteracted);
@@ -176,8 +191,10 @@ function ViewerRegionBody({
             working. */}
         {skeleton.mounted && (
           <div
+            ref={skeletonRef}
             className="viewer-skeleton"
             data-leaving={skeleton.leaving ? "true" : undefined}
+            inert={skeleton.leaving}
             aria-hidden="true"
           />
         )}

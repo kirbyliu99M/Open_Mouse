@@ -88,7 +88,9 @@ describe("only transform and opacity move", () => {
 });
 
 describe("reduced motion is a --motion-reduced fade everywhere it was touched", () => {
-  for (const file of CSS_FILES) {
+  // viewer.css: the skeleton's fade is timed in ViewerRegion.tsx by
+  // leaveMs("fade", reducedMotionNow()), pinned below.
+  for (const file of CSS_FILES.filter((f) => !f.endsWith("viewer.css"))) {
     it(file, () => {
       const source = css(file);
       const blocks = [
@@ -143,7 +145,95 @@ describe("reduced motion is a --motion-reduced fade everywhere it was touched", 
   });
 });
 
+const LEAVING_TSX = [
+  "src/app/account/AccountView.tsx",
+  "src/app/account/MouseEditSheets.tsx",
+  "src/app/account/ProfileEditSheets.tsx",
+  "src/components/nav/NavMenu.tsx",
+  "src/components/results/DeleteScanAction.tsx",
+  "src/components/results/filter/FilterSheet.tsx",
+  "src/components/results/PhotoZoom.tsx",
+  "src/components/results/ResultFeedbackPanel.tsx",
+  "src/components/results/share/SharePreviewDialog.tsx",
+  "src/components/viewer/ViewerRegion.tsx",
+];
+
+describe("a leaving element takes no input (review fix #2)", () => {
+  it("lists every component that sets data-leaving", async () => {
+    const { readdirSync, statSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const found: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const path = join(dir, name);
+        if (statSync(path).isDirectory()) walk(path);
+        else if (path.endsWith(".tsx") && read(path).includes("data-leaving="))
+          found.push(path.replaceAll("\\", "/"));
+      }
+    };
+    walk("src");
+    // Builder A's scan flow and the manual-entry template are not this pass's.
+    const mine = found.filter(
+      (f) => !f.startsWith("src/client/") && !f.includes("ManualEntrySheet"),
+    );
+    expect(mine.sort()).toEqual([...LEAVING_TSX].sort());
+  });
+
+  for (const file of LEAVING_TSX) {
+    it(`${file}: each element with data-leaving is inert while leaving`, () => {
+      const source = read(file);
+      // The attributes after data-leaving, up to the end of the tag (`>` or
+      // `/>` alone on its line): `inert` is among them.
+      const at = [...source.matchAll(/data-leaving=\{/g)].map((m) => m.index!);
+      expect(at.length, file).toBeGreaterThan(0);
+      for (const start of at) {
+        const rest = source.slice(start);
+        const end = rest.search(/\n\s*\/?>\n/);
+        expect(rest.slice(0, end), file).toMatch(/\binert=\{/);
+      }
+    });
+  }
+
+  it("each leaving rule in the CSS stops the pointer", () => {
+    for (const file of CSS_FILES) {
+      const all = rules(css(file));
+      const parts = all
+        .flatMap(([selector]) => selector.split(","))
+        .map((p) => p.trim())
+        .filter((p) => p.includes("data-leaving") && !p.includes("::backdrop"));
+      for (const part of new Set(parts)) {
+        const stops = all.some(
+          ([selector, body]) =>
+            selector.split(",").some((p) => p.trim() === part) &&
+            /pointer-events:\s*none/.test(body),
+        );
+        expect(stops, `${part} in ${file}`).toBe(true);
+      }
+    }
+  });
+});
+
 describe("the wiring", () => {
+  it("review fixes: the skeleton fades from its breathing value, the filter sheet clears its timer and does not follow the finger under reduced motion, the feedback room stays until the sheet is gone", () => {
+    const viewer = read("src/components/viewer/ViewerRegion.tsx");
+    expect(viewer).toMatch(/Number\(getComputedStyle\(el\)\.opacity\)/);
+    expect(viewer).toMatch(/\{ opacity: from \}, \{ opacity: 0 \}/);
+    expect(viewer).toContain('leaveMs("fade", reducedMotionNow())');
+    const sheet = read("src/components/results/filter/FilterSheet.tsx");
+    expect(sheet).toMatch(/window\.clearTimeout\(closeTimer\.current\)/);
+    expect(sheet).toMatch(
+      /if \(!prefersReducedMotion\(\)\)\s*sheet\.style\.transform = `translateY\(\$\{d\.dy\}px\)`/,
+    );
+    const feedback = read("src/components/results/ResultFeedbackSheet.tsx");
+    expect(feedback).toMatch(
+      /if \(!presence\.mounted \|\| !sheet \|\| !section\) return;/,
+    );
+    expect(feedback).toContain("}, [presence.mounted]);");
+    const del = read("src/components/results/DeleteScanAction.tsx");
+    expect(del).toContain("const shown = open ? status : lastStatus.current;");
+    expect(del).toMatch(/shown === "error"/);
+  });
+
   it("a native dialog's Esc goes through the same leaving path, never the instant close", () => {
     for (const file of [
       "src/components/nav/NavMenu.tsx",
@@ -226,7 +316,7 @@ describe("the wiring", () => {
   it("a filter change applies at once and only brings the new cards in (#7)", () => {
     const view = read("src/components/results/ResultsView.tsx");
     expect(view).toMatch(
-      /swap\(0, \(\) => onFiltersChange\(next, source\), "in"\)/,
+      /swap\(0, \(under\) => commitFilters\(under\(next\), source\), "in"\)/,
     );
     expect(view).toMatch(/onChange=\{filterChange \?\? onFiltersChange\}/);
     expect(view).toMatch(/filterChange\?\.\(next, "no_match"\)/);

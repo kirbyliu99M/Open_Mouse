@@ -38,6 +38,7 @@ import { sweepLegacyHandKeys } from "@/components/results/handDisclosure";
 import { rankingUpdatedNoticeDue } from "@/components/results/rankingUpdatedNotice";
 import { ResultsUpdatedNotice } from "@/components/results/ResultsUpdatedNotice";
 import { track } from "@/client/analytics/track";
+import { forgetShownView } from "@/lib/results/viewEnter";
 import type { ResultsAnalytics } from "@/lib/results/analyticsEvents";
 import { TopBar } from "@/components/nav/TopBar";
 import { DeleteScanAction } from "@/components/results/DeleteScanAction";
@@ -194,6 +195,9 @@ export function ResultsScanProvider({
   // V3.2 F13 (candidate): 0 = no "results updated" line; each in-place
   // refresh that changed the ranking bumps it (a new line, a fresh timer).
   const [updatedNotice, setUpdatedNotice] = useState(0);
+  // Leaving the results forgets the page last shown (V3.2 motion pass #6):
+  // coming back later is a first arrival, which slides from no side.
+  useEffect(() => forgetShownView, []);
   const language = useLocale();
   const copy = resultsScreensCopy(language);
   const loaderWords = loadingCopy(language).fit;

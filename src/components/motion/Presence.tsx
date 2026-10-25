@@ -10,7 +10,18 @@ import {
   type ReactNode,
 } from "react";
 import { leaveMs } from "@/lib/motion";
-import { createLeave, presenceStep, type PresencePhase } from "@/lib/presence";
+import {
+  createLeave,
+  presenceStep,
+  type Leave,
+  type LeaveTimers,
+  type PresencePhase,
+} from "@/lib/presence";
+
+const windowTimers: LeaveTimers = {
+  set: (fn, ms) => window.setTimeout(fn, ms),
+  clear: (id) => window.clearTimeout(id as number),
+};
 
 /**
  * Leaving instead of vanishing (V3.2 motion pass, candidate / 未拍板). Two
@@ -66,17 +77,30 @@ export function usePresence(
   const exited = useRef(onExited);
   exited.current = onExited;
   const wasLeaving = useRef(false);
+  // The leave itself is `createLeave` (src/lib/presence.ts, tested there):
+  // one per mount, timed by leaveMs(); shown again meanwhile, it is cancelled.
+  const leave = useRef<Leave | null>(null);
+  useEffect(() => {
+    const current = createLeave({
+      wait: () => leaveMs(kind, reducedMotionNow()),
+      finish: () => setPhase((p) => presenceStep(p, "done")),
+      timers: windowTimers,
+    });
+    leave.current = current;
+    return () => {
+      current.dispose();
+      leave.current = null;
+    };
+  }, [kind]);
   useEffect(() => {
     // After the commit that removed it (its own cleanups, such as a modal's
     // `close()`, have run): only now can focus move to the page behind.
     if (phase === "closed" && wasLeaving.current) exited.current?.();
     wasLeaving.current = phase === "leaving";
-    if (phase !== "leaving") return;
-    const timer = window.setTimeout(
-      () => setPhase((p) => presenceStep(p, "done")),
-      leaveMs(kind, reducedMotionNow()),
-    );
-    return () => window.clearTimeout(timer);
+    const current = leave.current;
+    if (!current) return;
+    if (phase === "leaving") current.request();
+    else if (current.leaving) current.cancel();
   }, [phase, kind]);
 
   return { mounted: next !== "closed", leaving: next === "leaving" };
@@ -128,10 +152,7 @@ export function useLeaveThenClose(
       wait: () => leaveMs(kind, reducedMotionNow()),
       finish: () => finishRef.current(),
       onLeaving: setLeaving,
-      timers: {
-        set: (fn, ms) => window.setTimeout(fn, ms),
-        clear: (id) => window.clearTimeout(id as number),
-      },
+      timers: windowTimers,
     });
     leave.current = current;
     return () => {

@@ -438,6 +438,8 @@ export function AccountView({
             setConfirmOpen(false);
           }}
           data-leaving={confirm.leaving ? "true" : undefined}
+          // Leaving: no second 刪除全部 (DELETE) during the fade.
+          inert={confirm.leaving}
           role="alertdialog"
           aria-labelledby="delete-all-title"
           aria-describedby="delete-all-body"

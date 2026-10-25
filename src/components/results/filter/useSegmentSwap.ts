@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useLayoutEffect, useRef, type RefObject } from "react";
+import { createChangeGate, type ChangeGate } from "@/lib/results/changeGate";
 import {
   cardMotion,
   rowDelayMs,
@@ -41,8 +42,10 @@ function release(held: { current: Animation[] }) {
  * The hand type above the card stays where it is: a switch does not change it.
  *
  * Where there is nothing to animate (no large card, or a browser without
- * `Element.animate`), the change is applied at once. A second press while the
- * first is still fading out wins: only the last change is applied.
+ * `Element.animate`), the change is applied at once. A change that arrives
+ * while an earlier one is still fading out first applies that earlier one
+ * (`createChangeGate`): none is dropped, and they apply in order. `apply`
+ * receives how to put the flushed change under a value computed without it.
  *
  * `swap(dir, apply, "in")` (the filter's changes, V3.2 motion pass #7, dir 0):
  * the change is applied AT ONCE, with no fade-out first, and the new cards
@@ -51,33 +54,39 @@ function release(held: { current: Animation[] }) {
  * drop the earlier one; and its `filter_applied` event and the URL keep
  * their timing.
  */
-export function useSegmentSwap(
+export function useSegmentSwap<T>(
   rootRef: RefObject<HTMLElement | null>,
   reducedMotion: boolean,
 ) {
-  const token = useRef(0);
+  const gateRef = useRef<ChangeGate<T> | null>(null);
+  if (gateRef.current === null) gateRef.current = createChangeGate<T>();
+  const gate = gateRef.current;
   const pendingIn = useRef<{ dir: -1 | 0 | 1 } | null>(null);
   // Animations still holding an element (the fade-outs, which keep their end).
   const held = useRef<Animation[]>([]);
 
   const swap = useCallback(
-    (dir: -1 | 0 | 1, apply: () => void, mode: "out-in" | "in" = "out-in") => {
-      const n = ++token.current;
+    (
+      dir: -1 | 0 | 1,
+      apply: (rebase: (value: T) => T) => void,
+      mode: "out-in" | "in" = "out-in",
+      rebase: (value: T) => T = (value) => value,
+    ) => {
       const root = rootRef.current;
       const parts = cardParts(root);
-      if (!root || parts.length === 0) {
+      if (!root || parts.length === 0 || mode === "in") {
+        // At once: whatever is still fading out goes first.
+        const under = gate.flush();
         release(held);
-        apply();
+        // The layout effect below brings the new cards in (mode "in"); a
+        // change that renders nothing new still gets that one short fade.
+        if (root && parts.length > 0) pendingIn.current = { dir };
+        apply(under);
         return;
       }
-      if (mode === "in") {
-        // The layout effect below brings the new cards in; a change that
-        // renders nothing new still gets that one short fade.
-        release(held);
-        pendingIn.current = { dir };
-        apply();
-        return;
-      }
+      const id = gate.hold({ apply: () => apply((value) => value), rebase });
+      // A flush just applied an earlier change: its cards come in, and
+      // this change's fade-out starts from them.
       const m = cardMotion(dir, reducedMotion);
       // One keyframe: each fade starts from where the element is now, so a
       // second press during a fade-out does not flash the card back.
@@ -100,21 +109,22 @@ export function useSegmentSwap(
       Promise.all(outs.map((a) => a.finished))
         .catch(() => undefined)
         .then(() => {
-          if (n !== token.current) return;
+          // Flushed by a later change: it is applied already.
+          if (!gate.holds(id)) return;
           pendingIn.current = { dir };
-          apply();
+          gate.release(id);
           // A change that rendered nothing new must not leave the cards
           // faded out: two frames later, show them as they are.
           requestAnimationFrame(() =>
             requestAnimationFrame(() => {
-              if (n !== token.current || pendingIn.current === null) return;
+              if (pendingIn.current === null) return;
               pendingIn.current = null;
               release(held);
             }),
           );
         });
     },
-    [rootRef, reducedMotion],
+    [rootRef, reducedMotion, gate],
   );
 
   // After the change has rendered and before it is painted: the new cards

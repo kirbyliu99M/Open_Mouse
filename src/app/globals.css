@@ -301,6 +301,7 @@ dialog.dialog[data-leaving="true"]::backdrop {
 }
 .dialog[data-leaving="true"] {
   transform: scale(0.96);
+  pointer-events: none;
 }
 dialog.dialog::backdrop {
   animation: motion-fade-in var(--motion-base) var(--ease-out) backwards;

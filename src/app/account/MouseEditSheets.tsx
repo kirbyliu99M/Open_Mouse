@@ -415,6 +415,8 @@ export function RemoveConfirm({
       ref={modal.dialogRef}
       className="qn-confirm"
       data-leaving={leaving ? "true" : undefined}
+      // Leaving: 移除 can not be pressed again during the fade.
+      inert={leaving}
       role="alertdialog"
       aria-labelledby={titleId}
       aria-describedby={bodyId}

@@ -79,6 +79,7 @@ export function NavMenu({
           className="navMenu"
           aria-label={copy.menuDialogLabel}
           data-leaving={menu.leaving ? "true" : undefined}
+          inert={menu.leaving}
           onClose={() => setOpen(false)}
           onCancel={(event) => {
             // Esc: slide out like the close button, not the browser's
