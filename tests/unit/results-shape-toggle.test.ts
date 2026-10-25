@@ -419,9 +419,11 @@ describe("the results page with the toggle", () => {
     expect(html).toContain("人體工學第 1 名");
     expect(html).toContain("總排名第 3 名");
     expect(html).toMatch(/aria-checked="true"[^>]*>人體工學</);
-    // The analysis line and the share button follow the filter's rules.
+    // The analysis line follows the filter's rule; the share button is the
+    // usual one, its card about this ergonomic #1 (V3.2 F24, Kirby 2026-10-26).
     expect(html).toContain("results-analysisLine");
-    expect(html).toContain("分享總排名第 1 名");
+    expect(html).not.toContain("分享總排名第 1 名");
+    expect(html).toContain("shareCard-button-primary");
   });
 
   it("a shape with few mice lists exactly those, with the note and a way back to 綜合", () => {

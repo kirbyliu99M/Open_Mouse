@@ -168,6 +168,32 @@ describe("layoutShareCard: the standard card", () => {
   });
 });
 
+describe("layoutShareCard: a filter's #1 (V3.2 F24)", () => {
+  it.each(["zh-TW", "en"] as const)(
+    "titles the pick with its place instead of best fit or closest (%s)",
+    (lang) => {
+      const copy = shareCardCopy(lang);
+      for (const total of [79, null]) {
+        const all = texts(
+          layoutShareCard(
+            {
+              ...BASE,
+              lang,
+              total,
+              bandLabel: null,
+              placeLabel: "人體工學第 1 名",
+            },
+            measure,
+          ).ops,
+        ).map((o) => o.text);
+        expect(all).toContain("人體工學第 1 名");
+        expect(all).not.toContain(copy.topPickLabel);
+        expect(all).not.toContain(copy.closestPickLabel);
+      }
+    },
+  );
+});
+
 describe("layoutShareCard: no score (the hand is outside the catalogue's range)", () => {
   const NO_SCORE: ShareCardInput = { ...BASE, total: null, bandLabel: null };
 

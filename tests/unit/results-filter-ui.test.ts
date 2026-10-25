@@ -344,12 +344,12 @@ describe("the results page under a filter", () => {
     expect(html).toContain("share-filter-note");
   });
 
-  it("the share button turns secondary and says it shares the overall #1", () => {
+  it("when the filter puts another mouse first, the share button is the usual one: the card follows the page (V3.2 F24, Kirby 2026-10-26)", () => {
     const html = render(response(), razer);
-    expect(html).toContain("分享總排名第 1 名");
-    expect(html).toContain("篩選中，分享圖仍放總排名第 1 名");
-    expect(html).toContain("shareCard-button-secondary");
-    expect(html).not.toContain("shareCard-button-primary");
+    expect(html).toContain("shareCard-button-primary");
+    expect(html).not.toContain("shareCard-button-secondary");
+    expect(html).not.toContain("分享總排名第 1 名");
+    expect(html).not.toContain("篩選中，分享圖仍放總排名第 1 名");
   });
 
   it("the other picks are the filtered list, renumbered, with the overall rank beside the score", () => {

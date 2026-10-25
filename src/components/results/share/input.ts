@@ -20,6 +20,17 @@ export function topPick(fit: FitResponse): FitEntry | null {
   return best;
 }
 
+/**
+ * The mouse the card is about when it is not the overall #1 (V3.2 F24,
+ * Kirby 2026-10-26, candidate / 未拍板): under a filter whose #1 is another
+ * mouse, the card follows the page and shows that #1, titled with its place
+ * there (「人體工學第 1 名」) instead of 「最適合我的滑鼠」.
+ */
+export interface SharePick {
+  entry: FitEntry;
+  placeLabel: string;
+}
+
 /** The band's name in the card's language, or null if the total is not gradable. */
 export function bandLabelFor(total: number, lang: Locale): string | null {
   let band;
@@ -32,13 +43,17 @@ export function bandLabelFor(total: number, lang: Locale): string | null {
   return (lang === "zh-TW" ? zhTW : en).bands[band].label;
 }
 
-/** `photoSrc` is the product photo's path once it has loaded, else null. */
+/**
+ * `photoSrc` is the product photo's path once it has loaded, else null. With
+ * a `pick` the card is about that mouse and carries its place (F24).
+ */
 export function buildShareCardInput(
   fit: FitResponse,
   lang: Locale,
   photoSrc: string | null,
+  pick: SharePick | null = null,
 ): ShareCardInput | null {
-  const top = topPick(fit);
+  const top = pick?.entry ?? topPick(fit);
   if (top === null) return null;
   // Out of the catalogue's length range `total` is the value the engine sorted
   // by against the catalogue's edge, not a distance to this hand (contract,
@@ -53,12 +68,16 @@ export function buildShareCardInput(
     total: hidden ? null : top.total,
     bandLabel: hidden ? null : bandLabelFor(top.total, lang),
     photoSrc: isSitePath(photoSrc) ? photoSrc : null,
+    ...(pick ? { placeLabel: pick.placeLabel } : {}),
   };
 }
 
 /** The photo the card should try to load, or null (then it draws the silhouette). */
-export function topPickPhotoPath(fit: FitResponse): string | null {
-  const path = topPick(fit)?.mouse.imageUrl;
+export function topPickPhotoPath(
+  fit: FitResponse,
+  pick: SharePick | null = null,
+): string | null {
+  const path = (pick?.entry ?? topPick(fit))?.mouse.imageUrl;
   return isSitePath(path) ? path : null;
 }
 

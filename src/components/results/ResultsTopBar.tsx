@@ -5,6 +5,7 @@ import type { Locale } from "@/lib/contracts/locale";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { SITE_NAME } from "@/lib/site";
 import { ShareCardButton } from "./share/ShareCardButton";
+import type { SharePick } from "./share/input";
 import type { ShareOutcome } from "./share/shareDecision";
 import { SurveyReminderLink } from "./SurveyReminderLink";
 
@@ -12,11 +13,13 @@ import { SurveyReminderLink } from "./SurveyReminderLink";
  * Top bar of every results page: the way back to a new scan on the left, the
  * site name in the centre (wide screens only), and on the right the
  * questionnaire reminder (a link to the profile page, candidate) and the small
- * share link. The share card is about the top pick, whichever page this is.
+ * share link. The share card is about the top pick, whichever page this is:
+ * the overall #1, or the filter's #1 when that is another mouse (F24).
  */
 export function ResultsTopBar({
   fit,
   language,
+  sharePick = null,
   onRetake,
   onSurveyReminderClick,
   onShareStarted,
@@ -25,6 +28,8 @@ export function ResultsTopBar({
 }: {
   fit: FitResponse;
   language: Locale;
+  /** The filter's #1 the share card is about, when it is not the overall #1 (V3.2 F24). */
+  sharePick?: SharePick | null;
   /** The four callbacks are analytics only; the bar behaves the same without them. */
   onRetake?: () => void;
   onSurveyReminderClick?: (unanswered: boolean) => void;
@@ -71,6 +76,7 @@ export function ResultsTopBar({
             fit={fit}
             lang={language}
             variant="link"
+            pick={sharePick}
             onShareStarted={onShareStarted}
             onShareFinished={onShareFinished}
           />

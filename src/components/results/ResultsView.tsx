@@ -54,6 +54,7 @@ import { ResultFeedbackSheet } from "./ResultFeedbackSheet";
 import { ResultsDetails } from "./ResultsDetails";
 import { ResultsTopBar } from "./ResultsTopBar";
 import { ShareCardButton } from "./share/ShareCardButton";
+import type { SharePick } from "./share/input";
 import { SimilarHands } from "./SimilarHands";
 import { PrintOpenDetails } from "./PrintOpenDetails";
 import { useMouseLinks } from "./useMouseLinks";
@@ -242,13 +243,26 @@ export function ResultsView({
   const showOverall =
     showPlace && card !== null && card.overallRank !== card.displayRank;
   const empty = filtering && view.count === 0;
-  // The share card is always the overall #1. Only when that mouse is not the
-  // filtered #1 (a swapped view, or nothing matches) does the button say so;
-  // when the overall #1 still leads it is exactly the button of an unfiltered
-  // page (Kirby, 2026-10-11).
-  const shareOverall = filtering && (view.count === 0 || view.swapped);
   // The place line names the shape when it is the only filter (「人體工學第 1 名」).
   const onlyShape = segmentOnly(filters);
+  // The share card follows the list on screen (V3.2 F24, Kirby 2026-10-26,
+  // candidate / 未拍板; before, it was always the overall #1): when a filter
+  // puts another mouse first, the card is about that #1, titled with its
+  // place in the filter. Only when nothing matches does the button share the
+  // overall #1 and say so.
+  const shareOverall = filtering && view.count === 0;
+  const sharePick: SharePick | null =
+    view.swapped && view.large
+      ? {
+          entry: view.large.entry,
+          placeLabel: onlyShape
+            ? copy.shapeToggle.segmentRank(
+                1,
+                copy.shapeToggle.segment[onlyShape],
+              )
+            : copy.filter.filteredRank(1),
+        }
+      : null;
   const few =
     isMain && onFiltersChange ? fewSegmentNote(filters, view.count) : null;
 
@@ -515,6 +529,7 @@ export function ResultsView({
                     lang={language}
                     variant="primary"
                     filtering={shareOverall}
+                    pick={sharePick}
                     {...shareHandlers("hero", shareOverall)}
                   />
                 </div>
@@ -642,6 +657,7 @@ export function ResultsView({
           lang={language}
           variant="primary"
           filtering={shareOverall}
+          pick={sharePick}
           {...shareHandlers("bottom", shareOverall)}
         />
       </div>
@@ -672,6 +688,7 @@ export function ResultsView({
       <ResultsTopBar
         fit={response}
         language={language}
+        sharePick={sharePick}
         onRetake={analytics ? () => emit("rescan_clicked", {}) : undefined}
         onSurveyReminderClick={
           analytics

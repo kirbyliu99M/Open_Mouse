@@ -9,7 +9,7 @@
 import type { Locale } from "../../../lib/contracts/locale";
 import type { FitResponse } from "../../../lib/contracts/fit";
 import { SITE_NAME } from "../../../lib/site";
-import { buildShareCardInput, topPickPhotoPath } from "./input";
+import { buildShareCardInput, topPickPhotoPath, type SharePick } from "./input";
 import {
   PHOTO_RADIUS,
   type ShareCardOptions,
@@ -379,11 +379,15 @@ async function paint(
   }
 }
 
-/** The card as a 1080 x 1920 PNG. Rejects if the canvas cannot be made. */
+/**
+ * The card as a 1080 x 1920 PNG. Rejects if the canvas cannot be made. About
+ * the overall #1, or about `pick` when the page shows a filter's #1 (F24).
+ */
 export async function makeShareCardPng(
   fit: FitResponse,
   lang: Locale,
   options: ShareCardOptions = {},
+  pick: SharePick | null = null,
 ): Promise<Blob> {
   // Fonts first: measuring and drawing before the site's font is ready would
   // wrap the text for one font and paint it in another. The wordmark's Inter
@@ -404,9 +408,9 @@ export async function makeShareCardPng(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas 2D is not available.");
 
-  const photoPath = topPickPhotoPath(fit);
+  const photoPath = topPickPhotoPath(fit, pick);
   const photo = photoPath ? await loadImage(photoPath) : null;
-  const input = buildShareCardInput(fit, lang, photo ? photoPath : null);
+  const input = buildShareCardInput(fit, lang, photo ? photoPath : null, pick);
   if (!input) throw new Error("There is no result to share.");
 
   const measure: MeasureText = (text, font) => {

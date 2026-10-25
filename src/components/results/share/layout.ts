@@ -96,6 +96,12 @@ export interface ShareCardInput {
   bandLabel: string | null;
   /** A site-relative path that has already loaded, or null for the silhouette. */
   photoSrc: string | null;
+  /**
+   * The title over the mouse when it is a filter's #1, not the overall #1
+   * (V3.2 F24, candidate / 未拍板): 「人體工學第 1 名」. Missing: the usual
+   * 「最適合我的滑鼠」 (or "closest" with no score).
+   */
+  placeLabel?: string;
 }
 
 export interface ShareCardLayout {
@@ -333,7 +339,8 @@ export function layoutShareCard(
 
   let y = resultTop;
   text(
-    scoreText === null ? copy.closestPickLabel : copy.topPickLabel,
+    input.placeLabel ??
+      (scoreText === null ? copy.closestPickLabel : copy.topPickLabel),
     CARD_PADDING,
     y + labelFont.size,
     labelFont,
