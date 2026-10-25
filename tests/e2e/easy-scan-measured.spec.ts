@@ -425,9 +425,15 @@ test.describe("the palm-thickness page (2 of 2)", () => {
             width: number;
             height: number;
           } | null;
+          firstPainted: boolean | null;
         };
       };
-      w.__f23 = { sawPending: false, sawLateLoader: false, firstBox: null };
+      w.__f23 = {
+        sawPending: false,
+        sawLateLoader: false,
+        firstBox: null,
+        firstPainted: null,
+      };
       const check = () => {
         if (document.querySelector(".results-page-pending"))
           w.__f23.sawPending = true;
@@ -437,6 +443,21 @@ test.describe("the palm-thickness page (2 of 2)", () => {
           ".results-page-handoff .particleLoader-canvas",
         );
         if (canvas && !w.__f23.firstBox) {
+          // Whether anything is drawn on it yet: this runs after React's
+          // commit, before the browser paints that frame, so an empty canvas
+          // here is the blink at the page switch (Kirby 2026-10-26).
+          const c = canvas as HTMLCanvasElement;
+          const pixels = c
+            .getContext("2d")
+            ?.getImageData(0, 0, c.width, c.height).data;
+          let painted = false;
+          if (pixels)
+            for (let i = 3; i < pixels.length; i += 4)
+              if (pixels[i]! > 0) {
+                painted = true;
+                break;
+              }
+          w.__f23.firstPainted = painted;
           const r = canvas.getBoundingClientRect();
           w.__f23.firstBox = {
             x: r.x,
@@ -492,6 +513,7 @@ test.describe("the palm-thickness page (2 of 2)", () => {
                 width: number;
                 height: number;
               } | null;
+              firstPainted: boolean | null;
             };
           }
         ).__f23,
@@ -499,6 +521,10 @@ test.describe("the palm-thickness page (2 of 2)", () => {
     expect(seen.sawPending, "no empty loading screen first").toBe(false);
     expect(seen.sawLateLoader, "not the 300 ms loader").toBe(false);
     expect(seen.firstBox).not.toBeNull();
+    expect(
+      seen.firstPainted,
+      "the loader is drawn in the frame it first appears in",
+    ).toBe(true);
     for (const key of ["x", "y", "width", "height"] as const)
       expect(
         Math.abs(seen.firstBox![key] - veilBox[key]),
