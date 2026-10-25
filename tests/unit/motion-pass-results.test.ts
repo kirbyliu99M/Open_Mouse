@@ -158,7 +158,11 @@ const LEAVING_TSX = [
   "src/components/viewer/ViewerRegion.tsx",
 ];
 
-describe("a leaving element takes no input (review fix #2)", () => {
+// Review fix #2, corrected: a leaving element SWALLOWS taps. It is inert (so
+// it does nothing) and aria-hidden (inert alone still counts for getByRole),
+// but it keeps pointer events: with pointer-events: none a double tap's second
+// tap fell through to a card or a link underneath.
+describe("a leaving element swallows taps and leaves the accessibility tree", () => {
   it("lists every component that sets data-leaving", async () => {
     const { readdirSync, statSync } = await import("node:fs");
     const { join } = await import("node:path");
@@ -180,7 +184,7 @@ describe("a leaving element takes no input (review fix #2)", () => {
   });
 
   for (const file of LEAVING_TSX) {
-    it(`${file}: each element with data-leaving is inert while leaving`, () => {
+    it(`${file}: each element with data-leaving is inert and aria-hidden while leaving`, () => {
       const source = read(file);
       // The attributes after data-leaving, up to the end of the tag (`>` or
       // `/>` alone on its line): `inert` is among them.
@@ -194,22 +198,22 @@ describe("a leaving element takes no input (review fix #2)", () => {
     });
   }
 
-  it("each leaving rule in the CSS stops the pointer", () => {
+  it("no leaving rule in the CSS sets pointer-events: none (taps must not fall through)", () => {
     for (const file of CSS_FILES) {
-      const all = rules(css(file));
-      const parts = all
-        .flatMap(([selector]) => selector.split(","))
-        .map((p) => p.trim())
-        .filter((p) => p.includes("data-leaving") && !p.includes("::backdrop"));
-      for (const part of new Set(parts)) {
-        const stops = all.some(
-          ([selector, body]) =>
-            selector.split(",").some((p) => p.trim() === part) &&
-            /pointer-events:\s*none/.test(body),
+      for (const [selector, body] of rules(css(file))) {
+        if (!/data-leaving|data-state="closing"/.test(selector)) continue;
+        expect(body, `${selector} in ${file}`).not.toMatch(
+          /pointer-events:\s*none/,
         );
-        expect(stops, `${part} in ${file}`).toBe(true);
       }
     }
+  });
+
+  it("the cookie banner on its way out is inert and aria-hidden too", () => {
+    const banner = read("src/components/consent/CookieBanner.tsx");
+    expect(banner).toMatch(
+      /inert=\{!shown\}\s*aria-hidden=\{!shown \? true : undefined\}/,
+    );
   });
 });
 

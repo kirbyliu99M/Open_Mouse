@@ -442,7 +442,6 @@ dialog.results-sheet[open] {
 }
 dialog.results-sheet[data-leaving="true"] {
   transform: translateY(100%);
-  pointer-events: none;
 }
 dialog.results-sheet::backdrop {
   background: color-mix(in srgb, var(--bg) 70%, transparent);

@@ -172,6 +172,7 @@ export function FilterSheet({
       className="results-sheet"
       data-leaving={leaving ? "true" : undefined}
       inert={leaving}
+      aria-hidden={leaving ? true : undefined}
       aria-labelledby={titleId}
 
       onCancel={(e) => {

@@ -220,6 +220,7 @@ export function ResultFeedbackPanel({
       data-phase={phase}
       data-leaving={leaving ? "true" : undefined}
       inert={leaving}
+      aria-hidden={leaving ? true : undefined}
       role="dialog"
       aria-labelledby={titleId}
       onKeyDown={(event) => {

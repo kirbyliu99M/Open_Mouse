@@ -261,8 +261,19 @@ test("the banner has no axe violations, and its text keeps 4.5:1 even over a whi
   await stubGoogle(page);
   await page.goto("/");
   const banner = page.getByTestId("cookie-banner");
+  await settled(banner);
   await banner.getByRole("button", { name: "Details" }).click();
   await expect(banner).toContainText("No photos");
+  // axe reads what is behind each line of text: only at rest is that the
+  // banner's own glass (V3.2 motion pass #27: it now comes up from the bottom
+  // edge, and a moving or fading strip shows the page's canvas through it).
+  await settled(banner);
+  expect(
+    await banner.evaluate((el) => ({
+      transform: getComputedStyle(el).transform,
+      opacity: getComputedStyle(el).opacity,
+    })),
+  ).toEqual({ transform: "none", opacity: "1" });
 
   const result = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])

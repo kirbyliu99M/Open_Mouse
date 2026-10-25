@@ -39,7 +39,6 @@
 }
 .navMenu[data-leaving="true"] {
   transform: translateX(100%);
-  pointer-events: none;
 }
 .navMenu[data-leaving="true"]::backdrop {
   opacity: 0;

@@ -417,6 +417,7 @@ export function RemoveConfirm({
       data-leaving={leaving ? "true" : undefined}
       // Leaving: 移除 can not be pressed again during the fade.
       inert={leaving}
+      aria-hidden={leaving ? true : undefined}
       role="alertdialog"
       aria-labelledby={titleId}
       aria-describedby={bodyId}

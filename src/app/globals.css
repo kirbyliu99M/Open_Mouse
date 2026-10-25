@@ -289,19 +289,17 @@ button:disabled {
 /* Leaving (V3.2 motion pass #25/#26, candidate / 未拍板): the confirmation
    goes the way it came, a fade and the same small scale, over --motion-out;
    the dimmed page fades with it. The component keeps it mounted (or the native
-   dialog open) for leaveMs("fade") and sets data-leaving. A leaving dialog
-   takes no clicks, so nothing behind it waits for it. */
+   dialog open) for leaveMs("fade") and sets data-leaving. A leaving dialog is
+   inert and aria-hidden, NOT pointer-events: none: a second tap (a double
+   tap on Cancel) stops on it and does nothing, rather than falling through to
+   a card or a link underneath. */
 .dialog-backdrop[data-leaving="true"],
 .dialog[data-leaving="true"],
 dialog.dialog[data-leaving="true"]::backdrop {
   opacity: 0;
 }
-.dialog-backdrop[data-leaving="true"] {
-  pointer-events: none;
-}
 .dialog[data-leaving="true"] {
   transform: scale(0.96);
-  pointer-events: none;
 }
 dialog.dialog::backdrop {
   animation: motion-fade-in var(--motion-base) var(--ease-out) backwards;

@@ -1010,7 +1010,6 @@
 }
 .results-photoDialog[data-leaving="true"] {
   opacity: 0;
-  pointer-events: none;
 }
 .results-photoDialog-caption {
   position: absolute;
@@ -1901,7 +1900,6 @@ body {
 .results-feedback[data-leaving="true"] .results-feedback-sheet {
   transform: translateY(100%);
   opacity: 0;
-  pointer-events: none;
   transition:
     transform var(--motion-sheet-out) var(--ease-in),
     opacity var(--motion-sheet-out) var(--ease-in);

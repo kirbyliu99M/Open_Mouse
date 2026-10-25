@@ -493,7 +493,6 @@ dialog.profile-sheet::backdrop {
 }
 dialog.profile-sheet[data-leaving="true"] {
   transform: translateY(100%);
-  pointer-events: none;
 }
 dialog.profile-sheet[data-leaving="true"]::backdrop {
   opacity: 0;

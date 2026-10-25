@@ -62,6 +62,7 @@ export function SharePreviewDialog({
       data-testid="share-preview"
       data-leaving={leaving ? "true" : undefined}
       inert={leaving}
+      aria-hidden={leaving ? true : undefined}
       onCancel={(event) => onPreviewCancel(event, { close: onClose })}
       // Closed some other way (a form, the browser): tell the owner, unless it
       // is our own unmount or StrictMode's second mount (see `lockModal`).
