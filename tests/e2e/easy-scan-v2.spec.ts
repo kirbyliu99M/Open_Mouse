@@ -222,12 +222,15 @@ test.describe("AC6: the debug panel", () => {
       "attempts",
       "capabilities",
       "capture",
+      "experimentTag",
       "focusApplied",
       "live",
       "preview",
       "track",
       "userAgent",
     ]);
+    // V3.3 WP1b: no tag picked, so none on record.
+    expect(json.experimentTag).toBeNull();
     expect(Array.isArray(json.attempts)).toBe(true);
     expect(json.userAgent).toMatch(/Chrome/);
     expect(json.track).toMatchObject({ width: 800, height: 1300 });
