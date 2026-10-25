@@ -9,6 +9,7 @@ import {
   viewerReducer,
 } from "@/lib/viewer/viewer-state";
 import { useLocale } from "@/client/i18n/LocaleProvider";
+import { usePresence } from "@/components/motion/Presence";
 import { resultsScreensCopy } from "@/lib/copy/results-screens";
 import "./viewer.css";
 
@@ -129,6 +130,12 @@ function ViewerRegionBody({
   }, [running, url, scanId]);
 
   const interactive = status === "ready";
+  // The stand-in fades out once the model (or the fallback) is there (V3.2
+  // motion pass #33), rather than leaving in one frame.
+  const skeleton = usePresence(
+    status === "idle" || status === "loading",
+    "fade",
+  );
 
   // The first interaction, for analytics: reports once per mount.
   const onInteractedRef = useRef(onInteracted);
@@ -167,8 +174,12 @@ function ViewerRegionBody({
         {/* Before there is a model: a quiet shape, so the box is not an empty
             rectangle. No text of its own; `aria-busy` on the box says it is
             working. */}
-        {(status === "idle" || status === "loading") && (
-          <div className="viewer-skeleton" aria-hidden="true" />
+        {skeleton.mounted && (
+          <div
+            className="viewer-skeleton"
+            data-leaving={skeleton.leaving ? "true" : undefined}
+            aria-hidden="true"
+          />
         )}
         {/* A status region that is always there, so the line is announced when
             it appears, not only found by someone reading the page through. */}

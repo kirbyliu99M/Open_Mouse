@@ -43,6 +43,13 @@ function release(held: { current: Animation[] }) {
  * Where there is nothing to animate (no large card, or a browser without
  * `Element.animate`), the change is applied at once. A second press while the
  * first is still fading out wins: only the last change is applied.
+ *
+ * `swap(dir, apply, "in")` (the filter's changes, V3.2 motion pass #7, dir 0):
+ * the change is applied AT ONCE, with no fade-out first, and the new cards
+ * only come in. A filter builds each change on the one before (two quick
+ * clicks in the sidebar, two chips removed), so it can not wait 160 ms and
+ * drop the earlier one; and its `filter_applied` event and the URL keep
+ * their timing.
  */
 export function useSegmentSwap(
   rootRef: RefObject<HTMLElement | null>,
@@ -54,12 +61,20 @@ export function useSegmentSwap(
   const held = useRef<Animation[]>([]);
 
   const swap = useCallback(
-    (dir: -1 | 0 | 1, apply: () => void) => {
+    (dir: -1 | 0 | 1, apply: () => void, mode: "out-in" | "in" = "out-in") => {
       const n = ++token.current;
       const root = rootRef.current;
       const parts = cardParts(root);
       if (!root || parts.length === 0) {
         release(held);
+        apply();
+        return;
+      }
+      if (mode === "in") {
+        // The layout effect below brings the new cards in; a change that
+        // renders nothing new still gets that one short fade.
+        release(held);
+        pendingIn.current = { dir };
         apply();
         return;
       }

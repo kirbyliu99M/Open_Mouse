@@ -100,10 +100,19 @@
   }
 }
 
+/* The model is there: the stand-in fades out over --motion-out (V3.2 motion
+   pass #33, candidate / 未拍板), from wherever its breathing was. */
+.viewer-skeleton[data-leaving="true"] {
+  animation: motion-fade-out var(--motion-out) var(--ease-in) forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .viewer-skeleton {
     animation: none;
     opacity: 0.55;
+  }
+  .viewer-skeleton[data-leaving="true"] {
+    animation: motion-fade-out var(--motion-reduced) linear forwards;
   }
 }
 

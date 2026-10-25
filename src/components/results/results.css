@@ -315,6 +315,19 @@
   padding-top: 1.5rem;
 }
 
+/* The written analysis, or its error, replaces "preparing" with a fade over
+   --motion-base (V3.2 motion pass #15, candidate / 未拍板). Its height is not
+   animated (#24 waits for Kirby). */
+.results-analysis-ready,
+.results-analysis-error {
+  animation: motion-fade-in var(--motion-base) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .results-analysis-ready,
+  .results-analysis-error {
+    animation-duration: var(--motion-reduced);
+  }
+}
 .results-analysis-retry {
   min-height: 44px;
   padding: 0.5rem 1rem;
@@ -676,6 +689,30 @@
 .resultsMain.results-entered {
   animation: results-enter 200ms ease-out;
 }
+/* A results page that replaces another of the same scan (V3.2 motion pass #6,
+   candidate / 未拍板): a fade and a --motion-shift along x over --motion-base,
+   from the right going to a detail page, from the left back to the main page
+   (data-enter, set by ResultsRankClient). Only once, when it mounts. */
+.results-view[data-enter] {
+  animation: motion-shift-in var(--motion-base) var(--ease-out);
+}
+.results-view[data-enter="forward"] {
+  --motion-enter-x: var(--motion-shift);
+}
+.results-view[data-enter="back"] {
+  --motion-enter-x: calc(var(--motion-shift) * -1);
+}
+/* The error and deleted screens fade in where the loader was (#12). The
+   loader handoff itself is untouched (F23). */
+.results-page-error {
+  animation: motion-fade-in var(--motion-base) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .results-view[data-enter],
+  .results-page-error {
+    animation: motion-fade-in var(--motion-reduced) linear;
+  }
+}
 @keyframes results-enter {
   from {
     opacity: 0;
@@ -685,7 +722,9 @@
   }
 }
 @media print {
-  .resultsMain.results-entered {
+  .resultsMain.results-entered,
+  .results-view[data-enter],
+  .results-page-error {
     animation: none;
   }
 }
@@ -1437,6 +1476,16 @@
 
 /* The similar-hand block (candidate, 2026-10-12): plain rows between the other
    picks and Other mice. No link, no badge. */
+/* It shows only once its answer is in: it fades in over --motion-base
+   rather than appearing in one frame (V3.2 motion pass #16). */
+.results-similar {
+  animation: motion-fade-in var(--motion-base) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .results-similar {
+    animation-duration: var(--motion-reduced);
+  }
+}
 .results-similar {
   display: flex;
   flex-direction: column;
@@ -1845,6 +1894,22 @@ body {
   animation: results-feedback-in 200ms var(--feedback-ease);
   transition: transform 160ms var(--feedback-ease);
 }
+/* Closed (X, Esc, the handle, the thanks closing itself): it slides back
+   down and fades over --motion-sheet-out (V3.2 motion pass #8, candidate /
+   未拍板). A release of the handle sets the inline transform to 100 %, so it
+   carries on from where the finger let go. */
+.results-feedback[data-leaving="true"] .results-feedback-sheet {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform var(--motion-sheet-out) var(--ease-in),
+    opacity var(--motion-sheet-out) var(--ease-in);
+}
+/* The thanks (or "already sent") replaces the form with a fade (#31). */
+.results-feedback-scroll[data-finished="true"] {
+  animation: motion-fade-in var(--motion-base) var(--ease-out);
+}
 @keyframes results-feedback-in {
   from {
     opacity: 0;
@@ -2226,9 +2291,15 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .results-feedback-sheet {
-    animation: none;
+  /* A --motion-reduced fade in and out, no movement. */
+  .results-feedback-sheet,
+  .results-feedback-scroll[data-finished="true"] {
+    animation: motion-fade-in var(--motion-reduced) linear;
     transition: none;
+  }
+  .results-feedback[data-leaving="true"] .results-feedback-sheet {
+    transform: none;
+    transition: opacity var(--motion-reduced) linear;
   }
   .results-feedback-collapse,
   .results-feedback-collapse[data-open="true"],

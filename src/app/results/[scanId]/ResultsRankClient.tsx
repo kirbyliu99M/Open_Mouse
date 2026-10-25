@@ -78,6 +78,15 @@ function plainClick(event: MouseEvent<HTMLAnchorElement>): boolean {
   );
 }
 
+/**
+ * The results page last shown in this tab (V3.2 motion pass #6). A results
+ * page that replaces another page of the same scan (main and detail are two
+ * routes, so this component mounts afresh) comes in with a fade and a short
+ * shift: from the right when going deeper, from the left back to the main
+ * page. The first page after the loader has its own fade (`results-entered`).
+ */
+let lastView: { scanId: string; key: string } | null = null;
+
 export function ResultsRankClient({ slug }: { slug?: string }) {
   const scan = useResultsScan();
   const router = useRouter();
@@ -209,6 +218,30 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
     [isMain, scanId, router],
   );
 
+  // Which page this is, and how it comes in (see `lastView`). Decided once per
+  // page shown, and remembered after it is on screen.
+  const viewKey =
+    target?.kind === "detail" ? target.card.entry.mouse.slug : "main";
+  const entering = useRef<{ key: string; enter?: "forward" | "back" } | null>(
+    null,
+  );
+  if (entering.current?.key !== viewKey) {
+    const before = lastView;
+    entering.current = {
+      key: viewKey,
+      enter:
+        before !== null && before.scanId === scanId && before.key !== viewKey
+          ? viewKey === "main"
+            ? "back"
+            : "forward"
+          : undefined,
+    };
+  }
+  const enter = entering.current.enter;
+  useEffect(() => {
+    if (!redirect) lastView = { scanId, key: viewKey };
+  }, [redirect, scanId, viewKey]);
+
   const { requestAnalysis } = scan;
   // The rule (main page only, once per scan) is `shouldRequestAnalysis`.
   useEffect(() => {
@@ -219,7 +252,9 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
 
   return (
     <ResultsView
+      // The same key as `viewKey` above, written out (a unit test pins it).
       key={target?.kind === "detail" ? target.card.entry.mouse.slug : "main"}
+      enter={enter}
       response={response}
       rank={target?.kind === "detail" ? target.card.displayRank : 1}
       language={scan.language}

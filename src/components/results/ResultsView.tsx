@@ -131,6 +131,7 @@ export function ResultsView({
   filters = emptyFilters(),
   onFiltersChange,
   navigation,
+  enter,
 }: {
   response: FitResponse;
   /**
@@ -181,6 +182,12 @@ export function ResultsView({
   onFiltersChange?: (next: Filters, source: ResultsFilterChange) => void;
   /** The real results pages only (V3.2 F11). */
   navigation?: ResultsNavigation;
+  /**
+   * This page replaces another results page of the same scan (V3.2 motion
+   * pass #6): it fades in with a short shift, from the right going deeper
+   * ("forward") or from the left back to the main page ("back").
+   */
+  enter?: "forward" | "back";
 }) {
   const view = filteredView(response, filters);
   const reducedMotion = usePrefersReducedMotion();
@@ -213,6 +220,12 @@ export function ResultsView({
           ?.focus(),
       );
   };
+  // A filter change (the sidebar, the sheet, a chip, the no-match button):
+  // applied at once, and the new cards come in (V3.2 motion pass #7).
+  const filterChange = onFiltersChange
+    ? (next: Filters, source: ResultsFilterChange) =>
+        swap(0, () => onFiltersChange(next, source), "in")
+    : undefined;
   const card = headerCard(view, rank);
   const entry = card?.entry ?? null;
   // The official link and the purchase links of the one mouse in the big
@@ -319,7 +332,7 @@ export function ResultsView({
               response={response}
               filters={filters}
               language={language}
-              onChange={(next) => onFiltersChange(next, "no_match")}
+              onChange={(next) => filterChange?.(next, "no_match")}
               headingLevel={hand ? 2 : 1}
             />
           )}
@@ -681,7 +694,12 @@ export function ResultsView({
   );
 
   return (
-    <div className="results-view" data-rank={card?.displayRank} ref={rootRef}>
+    <div
+      className="results-view"
+      data-rank={card?.displayRank}
+      data-enter={enter}
+      ref={rootRef}
+    >
       <PrintOpenDetails />
       {/* Decorative haze behind the hero: see .results-glow in results.css. */}
       <div className="results-glow" aria-hidden="true" />
@@ -719,7 +737,7 @@ export function ResultsView({
           language={language}
           filters={filters}
           count={view.count}
-          onChange={onFiltersChange}
+          onChange={filterChange ?? onFiltersChange}
           onSheetOpened={
             analytics ? () => emit("filter_sheet_opened", {}) : undefined
           }
