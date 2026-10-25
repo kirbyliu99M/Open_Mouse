@@ -36,6 +36,7 @@ import {
   fetchReminderStatus,
   type ReminderStatus,
 } from "@/lib/results/surveyReminder";
+import { LeaveShield } from "@/client/camera/LeaveShield";
 import { ResultFeedbackPanel } from "./ResultFeedbackPanel";
 import { resultFeedbackCopy } from "@/lib/copy/result-feedback";
 
@@ -435,6 +436,11 @@ export function ResultFeedbackSheet({
           />,
           document.body,
         )}
+      {/* While it slides out, a second tap on its ✕ or handle stops here
+          instead of reaching the results card under it (an inert node is
+          hit-tested as if it had no pointer events; LeaveShield.tsx). */}
+      {presence.leaving &&
+        createPortal(<LeaveShield target={sectionRef} />, document.body)}
     </>
   );
 }

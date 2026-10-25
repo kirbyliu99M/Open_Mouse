@@ -23,6 +23,9 @@ import { leaveShieldStyle, type ShieldBox } from "./scanMotion";
  * modal dialog) stays above it and usable.
  *
  * Render it only while `leaving`; it measures its target once, before paint.
+ * It places itself (fixed, transparent) so it works on pages without
+ * easy-scan.css too: the results page's feedback sheet and the cookie banner
+ * use it for the same reason.
  */
 export function LeaveShield({
   target,
@@ -42,8 +45,13 @@ export function LeaveShield({
       zIndex: getComputedStyle(el).zIndex,
     });
   }, [target]);
-  const style: CSSProperties | null = box ? leaveShieldStyle(box) : null;
-  if (!style) return null;
+  const placed = box ? leaveShieldStyle(box) : null;
+  if (!placed) return null;
+  const style: CSSProperties = {
+    position: "fixed",
+    background: "transparent",
+    ...placed,
+  };
   return (
     <div
       className="easyLeaveShield"

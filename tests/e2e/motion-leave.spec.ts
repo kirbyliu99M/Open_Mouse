@@ -423,6 +423,26 @@ test.describe("motion: things leave, and the page is usable after", () => {
       );
     });
 
+    test("a double click on its X presses nothing underneath (a tap shield covers it while it leaves)", async ({
+      page,
+    }) => {
+      const sheet = await openFeedback(page);
+      const url = page.url();
+      const history = await page.evaluate(() => window.history.length);
+      await clearLeaving(page);
+      await sheet.locator(".results-feedback-close").dblclick();
+      await expect.poll(() => sawLeaving(page, ".results-feedback")).toBe(true);
+      // The second click landed on the shield, not on what is under the sheet.
+      await expect(page.getByTestId("leave-shield")).toHaveCount(1);
+      await page.clock.runFor(SHEET + 100);
+      await expect(sheet).toHaveCount(0, { timeout: SHEET + 300 });
+      await expect(page.getByTestId("leave-shield")).toHaveCount(0);
+      expect(page.url()).toBe(url);
+      expect(await page.evaluate(() => window.history.length)).toBe(history);
+      await expect(page.locator("dialog[open]")).toHaveCount(0);
+      await expect(page.getByTestId("share-preview")).toHaveCount(0);
+    });
+
     test("a pull on the handle carries it down; focus lands on the page", async ({
       page,
     }) => {

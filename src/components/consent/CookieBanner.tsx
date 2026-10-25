@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { ga4Configured } from "@/client/analytics/ga4";
+import { LeaveShield } from "@/client/camera/LeaveShield";
 import {
   setConsent,
   useConsent,
@@ -48,6 +49,7 @@ export function CookieBanner() {
   const [entered, setEntered] = useState(false);
   // What the strip last showed, for the exit; null once it is gone.
   const last = useRef<{ consent: typeof consent; open: boolean } | null>(null);
+  const stripRef = useRef<HTMLElement>(null);
   const shown =
     ga4Configured() &&
     showsSiteFooter(pathname) &&
@@ -107,57 +109,63 @@ export function CookieBanner() {
   );
 
   return (
-    <section
-      className="cookieBanner"
-      role="region"
-      aria-label={copy.regionLabel}
-      data-testid="cookie-banner"
-      data-state={shown ? (entered ? "open" : "entering") : "closing"}
-      inert={!shown}
-      aria-hidden={!shown ? true : undefined}
-    >
-      <div className="cookieBanner-inner">
-        <div className="cookieBanner-text">
-          <p className="cookieBanner-sentence">
-            {copy.text}
-            <span className="cookieBanner-tail">
-              {copy.textEnd}{" "}
-              {detailsButton("cookieBanner-link cookieBanner-link--inline")}
-            </span>
-          </p>
-          {view.consent !== "unset" ? (
-            <p className="cookieBanner-current" data-testid="cookie-current">
-              {view.consent === "granted"
-                ? copy.currentGranted
-                : copy.currentDenied}
+    <>
+      <section
+        ref={stripRef}
+        className="cookieBanner"
+        role="region"
+        aria-label={copy.regionLabel}
+        data-testid="cookie-banner"
+        data-state={shown ? (entered ? "open" : "entering") : "closing"}
+        inert={!shown}
+        aria-hidden={!shown ? true : undefined}
+      >
+        <div className="cookieBanner-inner">
+          <div className="cookieBanner-text">
+            <p className="cookieBanner-sentence">
+              {copy.text}
+              <span className="cookieBanner-tail">
+                {copy.textEnd}{" "}
+                {detailsButton("cookieBanner-link cookieBanner-link--inline")}
+              </span>
             </p>
-          ) : null}
-        </div>
-        {detailsButton("cookieBanner-link cookieBanner-link--beside")}
-        <div className="cookieBanner-actions">
-          <button
-            type="button"
-            className="cookieBanner-button"
-            onClick={() => setConsent("granted")}
-          >
-            {copy.accept}
-          </button>
-          {showDecline ? (
+            {view.consent !== "unset" ? (
+              <p className="cookieBanner-current" data-testid="cookie-current">
+                {view.consent === "granted"
+                  ? copy.currentGranted
+                  : copy.currentDenied}
+              </p>
+            ) : null}
+          </div>
+          {detailsButton("cookieBanner-link cookieBanner-link--beside")}
+          <div className="cookieBanner-actions">
             <button
               type="button"
               className="cookieBanner-button"
-              onClick={() => setConsent("denied")}
+              onClick={() => setConsent("granted")}
             >
-              {copy.decline}
+              {copy.accept}
             </button>
+            {showDecline ? (
+              <button
+                type="button"
+                className="cookieBanner-button"
+                onClick={() => setConsent("denied")}
+              >
+                {copy.decline}
+              </button>
+            ) : null}
+          </div>
+          {view.open ? (
+            <p id={detailsId} className="cookieBanner-details">
+              {copy.details}
+            </p>
           ) : null}
         </div>
-        {view.open ? (
-          <p id={detailsId} className="cookieBanner-details">
-            {copy.details}
-          </p>
-        ) : null}
-      </div>
-    </section>
+      </section>
+      {/* While it goes down, a second tap on Accept or Decline stops here
+        instead of reaching the page under it (LeaveShield.tsx). */}
+      {!shown && <LeaveShield target={stripRef} />}
+    </>
   );
 }

@@ -283,8 +283,14 @@ test("the banner has no axe violations, and its text keeps 4.5:1 even over a whi
   for (const open of result.incomplete) {
     expect(open.id).toBe("color-contrast");
     for (const node of open.nodes) {
+      // "Could not tell" only, never a violation. The glass is translucent,
+      // so what axe finds behind a line depends on the frame: the page's
+      // edge (partially obscured), the sheen (gradient), or the home page's
+      // particle canvas (imgNode). Which one it is varies run to run since
+      // the banner slides in (V3.2 motion pass #27). The real ratio is
+      // checked below, over a white page, as the worst case.
       expect(JSON.stringify(node.any)).toMatch(
-        /elmPartiallyObscur(ing|ed)|bgGradient/,
+        /elmPartiallyObscur(ing|ed)|bgGradient|imgNode/,
       );
     }
   }
