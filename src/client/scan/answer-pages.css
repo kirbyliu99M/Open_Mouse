@@ -27,8 +27,10 @@
 }
 /* V3.2 motion pass #4 (candidate / 未拍板): the pages fade in over the sheet
    and out again (--motion-base), backdrop and all. Leaving, the dialog is
-   already closed (the script keeps it painted and inert, `data-leaving`), so
-   what is under it is usable at once. The change between the two pages is a
+   already closed (the script keeps it painted and inert, `data-leaving`):
+   the sheet or form that comes back in the top layer is usable at once, and
+   a transparent layer over the fading dialog takes any other tap
+   (LeaveShield.tsx), so none reaches the screen under it. The change between the two pages is a
    slide and a fade done by the script (useAnswerPageSwap.ts). */
 .answerDialog[open],
 .answerDialog[open]::backdrop {
@@ -36,8 +38,16 @@
 }
 .answerDialog[data-leaving="true"] {
   display: block;
-  pointer-events: none;
   animation: answerFadeOut var(--motion-base) var(--ease-in) forwards;
+}
+/* The box the two pages swap in (EasyScanCamera.tsx): the swap slides a page
+   24 px sideways, and a transform counts towards what a scroller can scroll.
+   Clipped here along x only (clip makes no scroller), so the dialog never
+   gains a horizontal scroll from it; the page's height is not clipped, and
+   the page's min-height: 100% still fills the dialog. */
+.answerSwap {
+  height: 100%;
+  overflow-x: clip;
 }
 @keyframes answerFadeIn {
   from {

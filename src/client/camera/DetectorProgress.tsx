@@ -12,6 +12,7 @@ import {
 import { describeDetectorLoad } from "../photo/model-download";
 import { fadeMs } from "./scanMotion";
 import { useLeaving } from "./useLeaving";
+import { LeaveShield } from "./LeaveShield";
 import { usePrefersReducedMotion } from "./useReducedMotion";
 
 const IDLE: DetectorLoadState = { stage: "idle" };
@@ -84,43 +85,50 @@ export function DetectorProgress({ inert = false }: { inert?: boolean }) {
   if (!view) return null;
   const determinate = view.announced !== null;
   return (
-    <div
-      ref={rootRef}
-      className="easyDetectorProgress"
-      data-testid="detector-progress"
-      data-state="loading"
-      data-leaving={loading.leaving ? "true" : undefined}
-      tabIndex={-1}
-      inert={inert || loading.leaving}
-    >
+    <>
       <div
-        className="easyDetectorBar"
-        role="progressbar"
-        aria-label={view.text}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        {...(determinate
-          ? {
-              "aria-valuenow": view.announced,
-              "aria-valuetext": words.detectorPercent(view.announced as number),
-            }
-          : {})}
+        ref={rootRef}
+        className="easyDetectorProgress"
+        data-testid="detector-progress"
+        data-state="loading"
+        data-leaving={loading.leaving ? "true" : undefined}
+        tabIndex={-1}
+        inert={inert || loading.leaving}
+        aria-hidden={loading.leaving || undefined}
       >
-        <span
-          className={`easyDetectorFill${determinate ? "" : " indeterminate"}`}
-          // A transform, not a width: the bar moves on the compositor and the
-          // layout does not change on every chunk.
-          style={
-            determinate
-              ? { transform: `scaleX(${(view.percent ?? 0) / 100})` }
-              : undefined
-          }
-        />
+        <div
+          className="easyDetectorBar"
+          role="progressbar"
+          aria-label={view.text}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          {...(determinate
+            ? {
+                "aria-valuenow": view.announced,
+                "aria-valuetext": words.detectorPercent(
+                  view.announced as number,
+                ),
+              }
+            : {})}
+        >
+          <span
+            className={`easyDetectorFill${determinate ? "" : " indeterminate"}`}
+            // A transform, not a width: the bar moves on the compositor and the
+            // layout does not change on every chunk.
+            style={
+              determinate
+                ? { transform: `scaleX(${(view.percent ?? 0) / 100})` }
+                : undefined
+            }
+          />
+        </div>
+        <p className="easyDetectorText" aria-hidden="true">
+          {view.text}
+          {view.detail ? ` · ${view.detail}` : "…"}
+        </p>
       </div>
-      <p className="easyDetectorText" aria-hidden="true">
-        {view.text}
-        {view.detail ? ` · ${view.detail}` : "…"}
-      </p>
-    </div>
+      {/* Leaving: a transparent layer takes the taps over it (LeaveShield). */}
+      {loading.leaving && <LeaveShield target={rootRef} />}
+    </>
   );
 }

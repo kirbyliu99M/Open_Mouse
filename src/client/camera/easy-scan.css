@@ -1977,22 +1977,32 @@ main.easyScanShell {
 .easySheet[data-leaving="true"] {
   display: block;
   overflow: hidden;
-  pointer-events: none;
   animation: easySheetSlideOut var(--motion-sheet-out) var(--ease-in) forwards;
 }
+/* Taps during a leave (e2e round 2): a leaving piece is inert, and an inert
+   node is hit-tested as if pointer events were off for it, so a tap would pass
+   through to what comes back under it (a double tap on 重拍 reached the
+   manual-entry strip). No rule here turns pointer events off; a transparent
+   layer that is not inert takes those taps instead and does nothing with
+   them (LeaveShield.tsx: the piece's box, one z-index above it). The tip's
+   scrim is that layer for the tip, as its backdrop was while it was open. */
+.easyLeaveShield {
+  position: fixed;
+  background: transparent;
+  -webkit-tap-highlight-color: transparent;
+}
 /* #21: the tip's dimming. The closed dialog's ::backdrop is gone, so this
-   scrim (the same colour) stands in for it and fades out with the sheet. */
+   scrim (the same colour) stands in for it and fades out with the sheet; like
+   the backdrop, it takes the taps on the screen under it meanwhile. */
 .easyTipScrim {
   position: fixed;
   inset: 0;
   z-index: 9;
   background: rgb(0 0 0 / 45%);
-  pointer-events: none;
   animation: easyFadeOut var(--motion-sheet-out) var(--ease-in) forwards;
 }
 /* #2: the retaken photo fades out over the live picture fading in. */
 .easyPhotoLeaving {
-  pointer-events: none;
   animation: easyFadeOut var(--motion-base) var(--ease-in) forwards;
 }
 /* The drawing on it is a copy mounted for the fade: it shows as it ended (the
@@ -2011,7 +2021,6 @@ main.easyScanShell {
   animation: easyRiseIn var(--motion-base) var(--ease-out) backwards;
 }
 .easyBottomDock[data-leaving="true"] {
-  pointer-events: none;
   animation: easySinkOut var(--motion-fast) var(--ease-in) forwards;
 }
 /* #5: the typed-hand-length step. */
@@ -2019,7 +2028,6 @@ main.easyScanShell {
   animation: easyFadeIn var(--motion-base) var(--ease-out) backwards;
 }
 .easyLengthStep[data-leaving="true"] {
-  pointer-events: none;
   animation: easyFadeOut var(--motion-base) var(--ease-in) forwards;
 }
 /* #17: the screens where the camera cannot be used, and their strip. */
@@ -2031,7 +2039,6 @@ main.easyScanShell {
 }
 /* #18: the detector's download notice, once the detector is ready. */
 .easyDetectorProgress[data-leaving="true"] {
-  pointer-events: none;
   animation: easyFadeOut var(--motion-out) var(--ease-in) forwards;
 }
 /* #19: the 測量中… pill. Opacity only: its transform centres it. */
@@ -2045,7 +2052,6 @@ main.easyScanShell {
 .paperAdjust[data-leaving="true"] {
   display: flex;
   flex-direction: column;
-  pointer-events: none;
   animation: easyFadeOut var(--motion-out) var(--ease-in) forwards;
 }
 

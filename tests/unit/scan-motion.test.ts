@@ -7,6 +7,7 @@ import {
   leavingAfter,
   leavingTimedOut,
   leavingView,
+  leaveShieldStyle,
   pageSwapKeyframes,
   settleSwap,
   type LeavingState,
@@ -166,6 +167,39 @@ describe("useLeaving's rules (leavingAfter, leavingTimedOut, leavingView)", () =
       shown: null,
       leaving: false,
     });
+  });
+});
+
+describe("leaveShieldStyle (the tap-absorbing layer over a leaving piece)", () => {
+  it("covers the piece's box, one z-index above it", () => {
+    expect(
+      leaveShieldStyle({
+        left: 0,
+        top: 600,
+        width: 390,
+        height: 244,
+        zIndex: "10",
+      }),
+    ).toEqual({ left: 0, top: 600, width: 390, height: 244, zIndex: 11 });
+  });
+  it("an auto z-index counts as 0", () => {
+    expect(
+      leaveShieldStyle({
+        left: 1,
+        top: 2,
+        width: 3,
+        height: 4,
+        zIndex: "auto",
+      })!.zIndex,
+    ).toBe(1);
+  });
+  it("a piece with no box gets no layer", () => {
+    expect(
+      leaveShieldStyle({ left: 0, top: 0, width: 0, height: 10, zIndex: "4" }),
+    ).toBeNull();
+    expect(
+      leaveShieldStyle({ left: 0, top: 0, width: 10, height: 0, zIndex: "4" }),
+    ).toBeNull();
   });
 });
 
@@ -356,28 +390,59 @@ describe("the scan flow's motion CSS (source pins)", () => {
       expect(rule(selector), selector).toContain(`animation: ${animation}`);
   });
 
-  it("a closed dialog that is leaving is still painted, and nothing leaving takes the pointer", () => {
+  it("a closed dialog that is leaving is still painted, and no leaving rule lets taps through (e2e round 2: no pointer-events: none)", () => {
     for (const selector of [
       '.easySheet[data-leaving="true"] {\n  display: block;',
       '.paperAdjust[data-leaving="true"] {\n  display: flex;',
     ])
       expect(easyNormal).toContain(selector);
     expect(answerCss).toContain(
-      '.answerDialog[data-leaving="true"] {\n  display: block;\n  pointer-events: none;',
+      '.answerDialog[data-leaving="true"] {\n  display: block;\n  animation:',
     );
-    for (const selector of [
-      '.easySheet[data-leaving="true"]',
-      ".easyTipScrim",
-      ".easyPhotoLeaving",
-      '.easyBottomDock[data-leaving="true"]',
-      '.easyLengthStep[data-leaving="true"]',
-      '.easyDetectorProgress[data-leaving="true"]',
-      '.paperAdjust[data-leaving="true"]',
-    ]) {
-      const at = easyNormal.indexOf(`${selector} {`);
-      const block = easyNormal.slice(at, easyNormal.indexOf("}", at));
-      expect(block, selector).toContain("pointer-events: none;");
-    }
+    // Not in any rule of the motion section (leaving, scrim, shield, photo),
+    // nor in the question dialog's leaving rule.
+    expect(easySection).not.toContain("pointer-events: none");
+    const answerLeaving = answerCss.slice(
+      answerCss.indexOf('.answerDialog[data-leaving="true"] {'),
+      answerCss.indexOf(
+        "}",
+        answerCss.indexOf('.answerDialog[data-leaving="true"] {'),
+      ),
+    );
+    expect(answerLeaving).not.toContain("pointer-events");
+    // The tap-absorbing layer: fixed, transparent, takes the pointer.
+    expect(easySection).toMatch(
+      /\.easyLeaveShield \{\s*position: fixed;\s*background: transparent;/,
+    );
+  });
+
+  it("every piece that leaves has the tap-absorbing layer while it leaves, but for the two listed exceptions", () => {
+    const camera = source("src/client/camera/EasyScanCamera.tsx");
+    for (const [leave, target] of [
+      ["answersLeave", "answerDialogRef"],
+      ["lengthLeave", "lengthStepRef"],
+      ["liveChromeLeave", "dockRef"],
+      ["measuringLeave", "pillRef"],
+      ["sheetLeave", "sheetDialogRef"],
+    ])
+      expect(camera, leave).toContain(
+        `{${leave}.leaving && <LeaveShield target={${target}} />}`,
+      );
+    expect(source("src/client/camera/PaperAdjust.tsx")).toContain(
+      "{leaving && <LeaveShield target={dialogRef} />}",
+    );
+    expect(source("src/client/camera/DetectorProgress.tsx")).toContain(
+      "{loading.leaving && <LeaveShield target={rootRef} />}",
+    );
+    // The tip: its scrim is the layer (it covers the screen, as the backdrop did).
+    expect(camera).toContain(
+      '<div className="easyTipScrim" aria-hidden="true" />',
+    );
+    // Exceptions, by design: the cue never takes a tap (pointer-events: none
+    // on .easyScanStaged .cameraCueWrap while shown), and the retaken photo is
+    // part of the stage, whose own tap (focus the live camera coming back) is
+    // the control now under the finger.
+    expect(camera.split("<LeaveShield").length - 1).toBe(5);
   });
 
   it("reduced motion: every leaving piece is a --motion-reduced fade, every entrance too, nothing moves", () => {
@@ -483,6 +548,48 @@ describe("the wiring (source pins)", () => {
       'leaveMs("fade", reducedMotion),\n  );\n  // #5',
     ])
       expect(camera).toContain(line);
+  });
+
+  it("every leaving copy is out of the accessibility tree, not only inert (e2e round: Playwright saw two 'Edit hand length' buttons)", () => {
+    const leaving = [
+      "answersLeave",
+      "lengthLeave",
+      "liveChromeLeave",
+      "measuringLeave",
+      "sheetLeave",
+      "tipLeave",
+    ];
+    for (const name of leaving) {
+      const inerts = camera.split(`inert={${name}.leaving}`).length - 1;
+      const hidden =
+        camera.split(`aria-hidden={${name}.leaving || undefined}`).length - 1;
+      expect(inerts, name).toBeGreaterThan(0);
+      expect(hidden, name).toBe(inerts);
+    }
+    expect(source("src/client/camera/PaperAdjust.tsx")).toContain(
+      "aria-hidden={leaving || undefined}",
+    );
+    expect(source("src/client/camera/DetectorProgress.tsx")).toContain(
+      "aria-hidden={loading.leaving || undefined}",
+    );
+  });
+
+  it("the pages swap inside a box that clips the slide sideways only, so the dialog never scrolls sideways (e2e round: short screens)", () => {
+    expect(camera).toContain('<div className="answerSwap">');
+    expect(answerCss).toMatch(
+      /\.answerSwap \{\s*height: 100%;\s*overflow-x: clip;\s*\}/,
+    );
+  });
+
+  it("a send first ends a page still sliding in (the F23 veil is fixed to the viewport only without a transform)", () => {
+    const send = camera.slice(
+      camera.indexOf("const sendScan = useCallback("),
+      camera.indexOf(
+        "if (manualValues) {",
+        camera.indexOf("const sendScan = useCallback("),
+      ),
+    );
+    expect(send).toContain("finishAnswerPageSwap();");
   });
 
   it("the answer dialog's own close (to fade out) is not taken as a Back", () => {

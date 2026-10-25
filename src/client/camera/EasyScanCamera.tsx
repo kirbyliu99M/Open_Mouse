@@ -179,6 +179,7 @@ import { leaveMs } from "../../lib/motion";
 import { closeAsIfRemoved, fadeMs } from "./scanMotion";
 import { useLeaving } from "./useLeaving";
 import { useAnswerPageSwap } from "./useAnswerPageSwap";
+import { LeaveShield } from "./LeaveShield";
 import {
   mean,
   percentile,
@@ -941,7 +942,12 @@ export default function EasyScanCamera({
       fadeMs("base", reducedMotionRef.current),
     );
   }, []);
-  const swapAnswerPage = useAnswerPageSwap(answerDialogRef, reducedMotion);
+  // The pieces a tap-absorbing layer covers while they leave (LeaveShield).
+  const lengthStepRef = useRef<HTMLElement>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
+  const pillRef = useRef<HTMLParagraphElement>(null);
+  const { swap: swapAnswerPage, finish: finishAnswerPageSwap } =
+    useAnswerPageSwap(answerDialogRef, reducedMotion);
   // What a page swap checks once its old page has faded (fix round, review
   // item 2): still on the page it was pressed on, and nothing being sent.
   const answersStepRef = useRef(answers.step);
@@ -1982,6 +1988,9 @@ export default function EasyScanCamera({
   // grip is mandatory (the grip page has no 跳過 then).
   const sendScan = useCallback(
     (final: Pick<typeof answers, "grip" | "thickness">) => {
+      // A page still sliding in ends where it rests first: the send veil
+      // (F23) is fixed to the viewport only while no transform is on the page.
+      finishAnswerPageSwap();
       if (manualValues) {
         // Cannot happen from the screen (the grip page is required and has no
         // 跳過); if it ever did, the person is taken back to choose rather than
@@ -2002,7 +2011,7 @@ export default function EasyScanCamera({
         }),
       });
     },
-    [submitScanNow, manualValues],
+    [submitScanNow, manualValues, finishAnswerPageSwap],
   );
 
   // The handle's press. Ignored while a photo is being taken or analysed, or
@@ -2670,94 +2679,106 @@ export default function EasyScanCamera({
       swapAnswerPage(-1, backFromAnswers, stillOnPage("thickness"));
     } else backFromAnswers();
   };
+  // While it fades out, a transparent layer over it takes the taps (e2e
+  // round 2): none reaches the screen under it (LeaveShield.tsx).
   const answersDialog = answersShownStep ? (
-    <dialog
-      ref={answerDialogRef}
-      className="answerDialog"
-      aria-labelledby="answer-title"
-      data-leaving={answersLeave.leaving ? "true" : undefined}
-      inert={answersLeave.leaving}
-      onClose={(e) => {
-        // Closed by the effect above to fade out (V3.2 motion pass #4): the
-        // change that closed it has already been made.
-        if (e.currentTarget.dataset.leaving === "true") return;
-        // The browser closed it itself: a second Esc, or the Android back
-        // gesture, with no tap in between is not cancelable, so onCancel
-        // never gets to stop it. State and dialog must stay in step:
-        // while the scan is being sent it opens again, otherwise it is a
-        // 返回 (and the effect above opens the dialog again if the page
-        // before it is a question page too). Applied at once: the dialog is
-        // already gone from the screen, so there is nothing to slide.
-        if (answers.step === "thickness" && submitBusy) {
-          e.currentTarget.showModal();
-          return;
-        }
-        backFromAnswers();
-      }}
-      onCancel={(e) => {
-        // Escape is 返回, and does nothing while the scan is being sent.
-        e.preventDefault();
-        if (answersLeave.leaving) return;
-        if (answers.step === "thickness" && submitBusy) return;
-        backFromPage();
-      }}
-    >
-      {answersShownStep === "grip" ? (
-        <GripPage
-          value={answers.grip}
-          onChange={(grip) => dispatchAnswers({ type: "chooseGrip", grip })}
-          onConfirm={() =>
-            swapAnswerPage(
-              1,
-              () => dispatchAnswers({ type: "confirmGrip" }),
-              stillOnPage("grip"),
-            )
+    <>
+      <dialog
+        ref={answerDialogRef}
+        className="answerDialog"
+        aria-labelledby="answer-title"
+        data-leaving={answersLeave.leaving ? "true" : undefined}
+        inert={answersLeave.leaving}
+        aria-hidden={answersLeave.leaving || undefined}
+        onClose={(e) => {
+          // Closed by the effect above to fade out (V3.2 motion pass #4): the
+          // change that closed it has already been made.
+          if (e.currentTarget.dataset.leaving === "true") return;
+          // The browser closed it itself: a second Esc, or the Android back
+          // gesture, with no tap in between is not cancelable, so onCancel
+          // never gets to stop it. State and dialog must stay in step:
+          // while the scan is being sent it opens again, otherwise it is a
+          // 返回 (and the effect above opens the dialog again if the page
+          // before it is a question page too). Applied at once: the dialog is
+          // already gone from the screen, so there is nothing to slide.
+          if (answers.step === "thickness" && submitBusy) {
+            e.currentTarget.showModal();
+            return;
           }
-          onSkip={() =>
-            swapAnswerPage(
-              1,
-              () => dispatchAnswers({ type: "skipGrip" }),
-              stillOnPage("grip"),
-            )
-          }
-          onBack={backFromPage}
-          required={manualMode}
-        />
-      ) : (
-        <ThicknessPage
-          value={answers.thickness}
-          onChange={(thickness) => {
-            clearSubmitError();
-            dispatchAnswers({ type: "chooseThickness", thickness });
-          }}
-          onSubmit={() => sendScan(answers)}
-          onSkip={() => {
-            const next = answersReducer(answers, {
-              type: "skipThickness",
-            });
-            dispatchAnswers({ type: "skipThickness" });
-            sendScan(next);
-          }}
-          onBack={backFromPage}
-          busy={submitBusy}
-          onRetake={manualMode ? editManualNumbers : retake}
-          retakeLabel={
-            manualMode ? manualEntryCopy(locale).editNumbers : undefined
-          }
-          errorText={
-            manualMode
-              ? {
-                  invalid: manualEntryCopy(locale).sendInvalid,
-                  tooLarge: manualEntryCopy(locale).sendTooLarge,
-                }
-              : undefined
-          }
-          errorKind={
-            submitState.kind === "error" ? submitState.errorKind : null
-          }
-        />
-      )}
-    </dialog>
+          backFromAnswers();
+        }}
+        onCancel={(e) => {
+          // Escape is 返回, and does nothing while the scan is being sent.
+          e.preventDefault();
+          if (answersLeave.leaving) return;
+          if (answers.step === "thickness" && submitBusy) return;
+          backFromPage();
+        }}
+      >
+        {/* V3.2 motion pass #4: the pages slide 24 px while they swap. This
+          box clips that sideways (overflow-x: clip, not a scroller), so the
+          dialog never gains a horizontal scroll from it; the page's height is
+          not clipped (answer-pages.css). */}
+        <div className="answerSwap">
+          {answersShownStep === "grip" ? (
+            <GripPage
+              value={answers.grip}
+              onChange={(grip) => dispatchAnswers({ type: "chooseGrip", grip })}
+              onConfirm={() =>
+                swapAnswerPage(
+                  1,
+                  () => dispatchAnswers({ type: "confirmGrip" }),
+                  stillOnPage("grip"),
+                )
+              }
+              onSkip={() =>
+                swapAnswerPage(
+                  1,
+                  () => dispatchAnswers({ type: "skipGrip" }),
+                  stillOnPage("grip"),
+                )
+              }
+              onBack={backFromPage}
+              required={manualMode}
+            />
+          ) : (
+            <ThicknessPage
+              value={answers.thickness}
+              onChange={(thickness) => {
+                clearSubmitError();
+                dispatchAnswers({ type: "chooseThickness", thickness });
+              }}
+              onSubmit={() => sendScan(answers)}
+              onSkip={() => {
+                const next = answersReducer(answers, {
+                  type: "skipThickness",
+                });
+                dispatchAnswers({ type: "skipThickness" });
+                sendScan(next);
+              }}
+              onBack={backFromPage}
+              busy={submitBusy}
+              onRetake={manualMode ? editManualNumbers : retake}
+              retakeLabel={
+                manualMode ? manualEntryCopy(locale).editNumbers : undefined
+              }
+              errorText={
+                manualMode
+                  ? {
+                      invalid: manualEntryCopy(locale).sendInvalid,
+                      tooLarge: manualEntryCopy(locale).sendTooLarge,
+                    }
+                  : undefined
+              }
+              errorKind={
+                submitState.kind === "error" ? submitState.errorKind : null
+              }
+            />
+          )}
+        </div>
+      </dialog>
+      {answersLeave.leaving && <LeaveShield target={answerDialogRef} />}
+    </>
   ) : null;
 
   // The device is only known after mount. Until then show a neutral screen
@@ -3085,10 +3106,12 @@ export default function EasyScanCamera({
           usable. */}
       {lengthLeave.shown && (
         <section
+          ref={lengthStepRef}
           className="easyLengthStep"
           aria-labelledby="easy-length-title"
           data-leaving={lengthLeave.leaving ? "true" : undefined}
           inert={lengthLeave.leaving}
+          aria-hidden={lengthLeave.leaving || undefined}
         >
           <button
             type="button"
@@ -3169,6 +3192,7 @@ export default function EasyScanCamera({
           </form>
         </section>
       )}
+      {lengthLeave.leaving && <LeaveShield target={lengthStepRef} />}
       {!lengthStep &&
         camState.kind === "streamEnded" &&
         result.kind === "none" && (
@@ -3267,6 +3291,7 @@ export default function EasyScanCamera({
             className="cameraCueWrap"
             data-leaving={liveChromeLeave.leaving ? "true" : undefined}
             inert={liveChromeLeave.leaving}
+            aria-hidden={liveChromeLeave.leaving || undefined}
           >
             <div
               className={`cameraCue${cue?.allPass && !captureFailureHint ? " perfect" : ""}`}
@@ -3293,9 +3318,11 @@ export default function EasyScanCamera({
             </p>
           )}
           <div
+            ref={dockRef}
             className="easyBottomDock easyBottomDock-withHandle"
             data-leaving={liveChromeLeave.leaving ? "true" : undefined}
             inert={liveChromeLeave.leaving}
+            aria-hidden={liveChromeLeave.leaving || undefined}
           >
             {hintText && (
               <p className="easyHint" data-testid="easy-hint">
@@ -3393,6 +3420,7 @@ export default function EasyScanCamera({
               />
             )}
           </div>
+          {liveChromeLeave.leaving && <LeaveShield target={dockRef} />}
         </>
       )}
 
@@ -3418,16 +3446,19 @@ export default function EasyScanCamera({
           unmount took it before. */}
       {measuringLeave.shown && (
         <p
+          ref={pillRef}
           className="easyProcessingPill"
           role="status"
           aria-live="polite"
           data-testid="easy-measuring"
           data-leaving={measuringLeave.leaving ? "true" : undefined}
           inert={measuringLeave.leaving}
+          aria-hidden={measuringLeave.leaving || undefined}
         >
           {easy.measuring}
         </p>
       )}
+      {measuringLeave.leaving && <LeaveShield target={pillRef} />}
 
       {/* V3.2 motion pass #1: drawn from `sheetResult`, the result it showed,
           so it keeps its content while it slides down after a retake. */}
@@ -3445,6 +3476,7 @@ export default function EasyScanCamera({
           }
           data-leaving={sheetLeave.leaving ? "true" : undefined}
           inert={sheetLeave.leaving}
+          aria-hidden={sheetLeave.leaving || undefined}
           onCancel={(e) => {
             e.preventDefault();
             if (sheetLeave.leaving) return;
@@ -3581,6 +3613,7 @@ export default function EasyScanCamera({
           )}
         </dialog>
       )}
+      {sheetLeave.leaving && <LeaveShield target={sheetDialogRef} />}
 
       {/* V3.2 motion pass #22: drawn from the props it had (`adjustLeave`),
           so a cancel or a confirm fades it out over what comes back. */}
@@ -3624,6 +3657,7 @@ export default function EasyScanCamera({
         aria-label={noPaperMode ? easy.tipTitleNoPaper : easy.tipTitlePaper}
         data-leaving={tipLeave.leaving ? "true" : undefined}
         inert={tipLeave.leaving}
+        aria-hidden={tipLeave.leaving || undefined}
         onCancel={(e) => {
           e.preventDefault();
           dismissTip();
