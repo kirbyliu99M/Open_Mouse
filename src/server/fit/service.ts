@@ -5,6 +5,7 @@ import { readSessionCookie } from "../scans/cookies";
 import type { RateLimiter } from "../scans/rate-limit-config";
 import type { ScanRepo } from "../scans/repo";
 import { loadOwnedFit, type LoadOwnedFitResult } from "./core";
+import type { SurveyReferenceSource } from "./auto-calibration";
 import type { FitRepo } from "./repo";
 
 /** Same role as `submit.ts`'s constant of the same name: a no-DB, always-
@@ -27,6 +28,8 @@ function json(status: number, body: unknown): Response {
 export interface FitServiceDeps {
   scanRepo: ScanRepo;
   fitRepo: FitRepo;
+  /** Survey ratings for the automatic v3 calibration (`./auto-calibration.ts`); absent: none. */
+  surveyReferences?: SurveyReferenceSource;
   /** Resolves the signed-in caller's user id, or null. Wraps `auth()` in the
    * real route; tests inject a fake so no NextAuth machinery runs here. */
   getUserId: () => Promise<string | null>;
@@ -40,7 +43,7 @@ export interface FitServiceDeps {
 /**
  * `POST /api/scans/{scanId}/fit`. Thin HTTP adapter over `loadOwnedFit`
  * (`./core.ts`), which owns scan-id validation, the ownership check,
- * scoring and persistence. This layer only reads the body-size cap, parses
+ * scoring. This layer only reads the body-size cap, parses
  * and validates `fitPreferencesSchema`, resolves the caller's identity, and
  * maps the core's result to 200 / 400 / 404 / 413 / 429 / 500 — every
  * response carrying `cache-control: no-store`.
@@ -106,7 +109,12 @@ export async function computeFitForScan(
       scanId,
       { userId, cookieSessionId },
       parsedPrefs.data,
-      { scanRepo: deps.scanRepo, fitRepo: deps.fitRepo, now: deps.now },
+      {
+        scanRepo: deps.scanRepo,
+        fitRepo: deps.fitRepo,
+        surveyReferences: deps.surveyReferences,
+        now: deps.now,
+      },
     );
   } catch {
     return json(500, { error: "Failed to compute fit results." });

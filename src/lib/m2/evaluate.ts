@@ -21,9 +21,9 @@
  * Everything the M2 gate might be judged by is reported and none is chosen:
  * the limits are candidates (src/lib/m2/thresholds.ts).
  */
-import {
-  MEASUREMENT_MODEL_VERSION,
-  type HandMeasurements,
+import type {
+  HandMeasurements,
+  MeasurementModelVersion,
 } from "../contracts/measurement";
 import type { Point2 } from "../../client/geometry/homography";
 import { recomputePlane } from "../learning/plane";
@@ -68,8 +68,9 @@ export type Selection = "calibration" | "held-out" | "s0";
 
 /**
  * A correction applied to the recomputed measurements. The baseline, named
- * after the contract's current `MEASUREMENT_MODEL_VERSION` (`landmark-raw-v2`
- * since 2026-10-04, `landmark-raw-v1` before), changes nothing. The frozen
+ * after the measurement model the learning kit recomputes with
+ * (`M2_BASELINE_MODEL`, `landmark-raw-v2` since 2026-10-04,
+ * `landmark-raw-v1` before), changes nothing. The frozen
  * `calibrated-v1` plugs in here later, so the same evaluator judges both.
  */
 export interface Calibration {
@@ -80,8 +81,17 @@ export interface Calibration {
   ) => HandMeasurements;
 }
 
+/**
+ * The model the M2 baseline is named after, pinned (landmark-raw-v3, V3.2
+ * candidate, design R7 WP4): the contract's version moved to
+ * `landmark-raw-v3`, but v3 differs only by the nominal focal prior, which the
+ * learning kit never uses (src/lib/learning/plane.ts passes no prior to
+ * `resolveFocalPx`). What M2 judges is still `landmark-raw-v2`.
+ */
+export const M2_BASELINE_MODEL: MeasurementModelVersion = "landmark-raw-v2";
+
 export const RAW_CALIBRATION: Calibration = {
-  name: MEASUREMENT_MODEL_VERSION,
+  name: M2_BASELINE_MODEL,
   apply: (measurements) => measurements,
 };
 

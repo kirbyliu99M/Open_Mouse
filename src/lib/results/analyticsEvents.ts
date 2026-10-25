@@ -12,8 +12,11 @@ import {
   type AnalyticsEventProps,
 } from "@/lib/contracts/analytics";
 import type { OfficialUrlKind } from "@/lib/contracts/commerce";
+import type { FitResponse } from "@/lib/contracts/fit";
+import { clampCount } from "@/client/analytics/props";
 import {
   FILTER_GROUPS,
+  filteredView,
   selectionOf,
   type FilteredCard,
   type FilteredView,
@@ -22,6 +25,21 @@ import {
 
 /** Where a filter change was made (the contract's `FILTER_SOURCES`). */
 export type FilterChangeSource = (typeof FILTER_SOURCES)[number];
+
+/**
+ * Where a change of the results page's filters came from. Since V3.2 the
+ * contract's sources include the shape toggle above the filter button
+ * (`"shape_toggle"`), so every change maps to a `filter_applied` source.
+ */
+export type ResultsFilterChange = FilterChangeSource;
+
+/** The `filter_applied` source of a change: the contract's source itself, or
+ * `null` for a value outside `FILTER_SOURCES` (none today; a guard only). */
+export function filterAppliedSource(
+  change: ResultsFilterChange,
+): FilterChangeSource | null {
+  return (FILTER_SOURCES as readonly string[]).includes(change) ? change : null;
+}
 
 /** The fields every results-page event carries. */
 export interface ResultsPageFields {
@@ -128,6 +146,30 @@ export function filtersChanged(prev: Filters, next: Filters): boolean {
     const b = selectionOf(next, group);
     return a.length !== b.length || a.some((v) => !b.includes(v));
   });
+}
+
+/**
+ * The `filter_applied` props for one change of the results page's filters, or
+ * `null` when nothing is to be sent: the selection did not change (a segment
+ * pressed again, an unchanged apply) or the change has no contract source.
+ * The page after a change is the main page, whose big header is always the
+ * filtered list's first place (a filter is only changed there).
+ */
+export function filterAppliedProps(
+  prev: Filters,
+  next: Filters,
+  change: ResultsFilterChange,
+  fit: FitResponse,
+): AnalyticsEventProps<"filter_applied"> | null {
+  const source = filterAppliedSource(change);
+  if (source === null || !filtersChanged(prev, next)) return null;
+  const after = filteredView(fit, next);
+  return {
+    ...resultsPageFields(1, after.active),
+    source,
+    ...filterSelectionProps(next),
+    count: clampCount(after.count),
+  };
 }
 
 /** True the first time `key` is seen in `seen`, and remembers it. */

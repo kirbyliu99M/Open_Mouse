@@ -15,10 +15,17 @@ import {
   resultFeedbackSubmitResponseSchema,
   type ResultFeedbackSubmission,
 } from "@/lib/contracts/result-feedback";
-import { resultFeedbackPath } from "@/lib/contracts/routes";
+import {
+  RESULT_FINGERPRINT_HEADER,
+  resultFeedbackPath,
+} from "@/lib/contracts/routes";
 import type { Locale } from "@/lib/contracts/locale";
 import { looksLikeContactDetails } from "@/lib/learning/session";
-import { browserStorage, type FlagStorage } from "./surveyReminder";
+import {
+  browserStorage,
+  type FlagStorage,
+  type ReminderStatus,
+} from "./surveyReminder";
 
 /**
  * The fallback timer (v2, Kirby 2026-10-15): the sheet used to appear after 20
@@ -79,6 +86,23 @@ export function dragClosesSheet(dyPx: number): boolean {
   return dyPx > RESULT_FEEDBACK_DRAG_CLOSE_PX;
 }
 
+/**
+ * V3.2 F11 (Kirby's phone test, 2026-10-21: "the questionnaire pops up too
+ * early, and again on every repeated scan"; the numbers are candidates):
+ *   - no sheet in the first 20 s of the tab being visible, even when the end of
+ *     the list is reached at once (before, reaching the end showed it at once);
+ *   - after one prompt on this device (shown, then closed or sent), no other
+ *     prompt for 30 days, whatever the scan, unless the notice version changes;
+ *   - never for a person whose questionnaire is answered (signed in: the
+ *     server's answers; signed out: this device's flag), and never while that
+ *     is not known (still asking, or the answer could not be read: "unknown"),
+ *     the same caution as the cool-down's unreadable storage.
+ */
+export const RESULT_FEEDBACK_MIN_DWELL_MS = 20_000;
+
+/** How long one prompt keeps the next one away on this device (candidate). */
+export const RESULT_FEEDBACK_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
+
 export interface ShowSheetInput {
   /** `GET` said this scan was rated; `null` while unknown or when the call failed. */
   answered: boolean | null;
@@ -91,20 +115,152 @@ export interface ShowSheetInput {
   /** The page is taller than the window, so scrolling is possible. */
   canScroll: boolean;
   isDemo: boolean;
+  /** The person opened the Details section of the first place (V3.2 F11). */
+  openedDetails: boolean;
+  /** This device was prompted within the cool-down (`promptCoolingDown`), V3.2 F11. */
+  coolingDown: boolean;
+  /**
+   * The questionnaire's status (`fetchReminderStatus`), V3.2 F11: only
+   * "unanswered" lets the sheet show; "answered", "unknown" (the session or the
+   * survey could not be read) and `null` (not back yet) keep it away.
+   */
+  questionnaire: ReminderStatus | null;
 }
 
 /**
  * Show the sheet when the status is known to be "not answered", it was not
- * closed on this device, it is not the demo, and either the end of the list
- * has been scrolled to, or the visible dwell time has passed AND the person
- * has scrolled (or the page cannot scroll, so there is nothing to scroll to).
+ * closed on this device, it is not the demo, this device is not cooling down
+ * after an earlier prompt, the questionnaire is known to be unanswered, and either
+ *   - the tab has been visible 20 s and the person has looked at the result
+ *     (scrolled to the end of the list, or opened the Details section), or
+ *   - the tab has been visible 45 s and the person has scrolled (or the page
+ *     cannot scroll, so there is nothing to scroll to).
  */
 export function shouldShowSheet(input: ShowSheetInput): boolean {
   if (input.isDemo || input.dismissedLocally) return false;
+  if (input.coolingDown || input.questionnaire !== "unanswered") return false;
   if (input.answered !== false) return false;
-  if (input.scrolledToEnd) return true;
+  const looked = input.scrolledToEnd || input.openedDetails;
+  if (looked && input.visibleElapsedMs >= RESULT_FEEDBACK_MIN_DWELL_MS)
+    return true;
   const engaged = input.hasScrolled || !input.canScroll;
   return engaged && input.visibleElapsedMs >= RESULT_FEEDBACK_DWELL_MS;
+}
+
+/** The device-wide memory of the last prompt (V3.2 F11). */
+export const FEEDBACK_PROMPT_KEY = "palmate.resultFeedback.lastPrompt";
+
+/**
+ * What this device remembers of the last prompt: when it was shown and under
+ * which notice version, `null` when there was none (or the value cannot be
+ * read as one: it is then overwritten by the next prompt), and "unreadable"
+ * when storage is missing or throws.
+ */
+export type LastPrompt = { at: number; notice: string } | null | "unreadable";
+
+/** Read the last prompt. Never throws. */
+export function readLastPrompt(
+  getStorage: () => FlagStorage | null = browserStorage,
+): LastPrompt {
+  let raw: string | null;
+  try {
+    const storage = getStorage();
+    if (storage === null) return "unreadable";
+    raw = storage.getItem(FEEDBACK_PROMPT_KEY);
+  } catch {
+    return "unreadable";
+  }
+  if (raw === null) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      typeof (parsed as { at?: unknown }).at === "number" &&
+      Number.isFinite((parsed as { at: number }).at) &&
+      typeof (parsed as { notice?: unknown }).notice === "string"
+    ) {
+      const { at, notice } = parsed as { at: number; notice: string };
+      return { at, notice };
+    }
+  } catch {
+    // Not JSON: as if there were none.
+  }
+  return null;
+}
+
+/** Remember that the sheet was shown now. Returns whether it was written; never throws. */
+export function markPromptShown(
+  nowMs: number,
+  getStorage: () => FlagStorage | null = browserStorage,
+): boolean {
+  try {
+    const storage = getStorage();
+    if (storage === null) return false;
+    storage.setItem(
+      FEEDBACK_PROMPT_KEY,
+      JSON.stringify({ at: nowMs, notice: RESULT_FEEDBACK_NOTICE_VERSION }),
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Is this device still cooling down after the last prompt? Storage that
+ * cannot be read counts as "prompted just now", so a private window or blocked
+ * site data never means a prompt on every scan. A new notice version ends the
+ * cool-down; a time in the future (a clock set back) counts as cooling down.
+ */
+export function promptCoolingDown(
+  last: LastPrompt,
+  nowMs: number,
+  notice: string = RESULT_FEEDBACK_NOTICE_VERSION,
+): boolean {
+  if (last === "unreadable") return true;
+  if (last === null) return false;
+  if (last.notice !== notice) return false;
+  return nowMs - last.at < RESULT_FEEDBACK_COOLDOWN_MS;
+}
+
+/**
+ * What the sheet knows about this device before it has read anything (V3.2
+ * F11): cooling down, so no clock runs and nothing is asked until the memory
+ * says otherwise. `ResultFeedbackSheet` starts from this.
+ */
+export const INITIAL_SHEET_GATE = {
+  localDone: false,
+  coolingDown: true,
+} as const;
+
+/**
+ * What the sheet does when it mounts for `scanId` (V3.2 F11): this scan was
+ * closed or sent on this device ("done"), this device was prompted within the
+ * cool-down ("cooling"), or it may ask the server ("ask"). Never throws.
+ */
+export function sheetGateOnMount(
+  scanId: string,
+  nowMs: number,
+  getStorage: () => FlagStorage | null = browserStorage,
+): "done" | "cooling" | "ask" {
+  if (readFeedbackDone(scanId, getStorage)) return "done";
+  if (promptCoolingDown(readLastPrompt(getStorage), nowMs)) return "cooling";
+  return "ask";
+}
+
+/**
+ * The sheet has just appeared for the first time on this page (V3.2 F11):
+ * remember the prompt for the device-wide cool-down, and say which
+ * `result_feedback_shown` event to send.
+ */
+export function recordFirstShow(
+  nowMs: number,
+  scrolledToEnd: boolean,
+  getStorage: () => FlagStorage | null = browserStorage,
+) {
+  markPromptShown(nowMs, getStorage);
+  return shownEvent(scrolledToEnd);
 }
 
 export type SheetPhase = "form" | "sending" | "thanks" | "already";
@@ -181,6 +337,8 @@ export function buildSubmission(input: {
 
 export type SendFailure =
   | "conflict"
+  /** 412 (V3.2 F1, candidate): the ranking changed; nothing was stored. */
+  | "stale"
   | "rate_limited"
   | "invalid"
   | "invalid_feedback"
@@ -202,6 +360,8 @@ export function failureFromStatus(
   switch (status) {
     case 409:
       return "conflict";
+    case 412:
+      return "stale";
     case 429:
       return "rate_limited";
     case 400:
@@ -249,16 +409,26 @@ export async function fetchAnswered(
   }
 }
 
-/** Send the body. Never throws. */
+/**
+ * Send the body. Never throws. `resultFingerprint` is the one of the ranking
+ * on screen (V3.2 F1, candidate); without it no header is sent and the server
+ * behaves as before.
+ */
 export async function sendFeedback(
   scanId: string,
   body: ResultFeedbackSubmission,
   fetchImpl: FetchImpl = defaultFetch,
+  resultFingerprint?: string,
 ): Promise<SendResult> {
   try {
     const res = await fetchImpl(resultFeedbackPath(scanId), {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(resultFingerprint
+          ? { [RESULT_FINGERPRINT_HEADER]: resultFingerprint }
+          : {}),
+      },
       body: JSON.stringify(body),
       credentials: "same-origin",
       cache: "no-store",
@@ -280,6 +450,121 @@ export async function sendFeedback(
   } catch {
     return { ok: false, reason: "network" };
   }
+}
+
+/**
+ * What the sheet does after a send. Pure, so the rules are tested:
+ *   - stored: remember it on this device, thank the person;
+ *   - 409 (rated already): remember it, say so;
+ *   - 412 (V3.2 F1, candidate: the ranking changed): nothing was stored; stay
+ *     on the form with the stars and the comment, say why (`resultChanged`),
+ *     fetch the new ranking, and wait for the person to send again; never send
+ *     by itself;
+ *   - anything else: stay on the form and say what went wrong.
+ */
+export function afterSend(result: SendResult): {
+  phase: SheetPhase;
+  failure: SendFailure | null;
+  markDone: boolean;
+  refetchFit: boolean;
+} {
+  if (result.ok)
+    return {
+      phase: "thanks",
+      failure: null,
+      markDone: true,
+      refetchFit: false,
+    };
+  if (result.reason === "conflict")
+    return {
+      phase: "already",
+      failure: null,
+      markDone: true,
+      refetchFit: false,
+    };
+  return {
+    phase: "form",
+    failure: result.reason,
+    markDone: false,
+    refetchFit: result.reason === "stale",
+  };
+}
+
+/** What `submitFeedback` touches: the sheet's state setters and the outside world. */
+/**
+ * The sheet's `send`: forwards the fingerprint of the ranking on screen to
+ * `sendFeedback`, which puts it in the `x-result-fingerprint` header (V3.2 F1,
+ * candidate). A factory so the forwarding is tested with a fake fetch.
+ */
+export function feedbackSender(
+  fetchImpl: FetchImpl = defaultFetch,
+): FeedbackSubmitIo["send"] {
+  return (scanId, body, resultFingerprint) =>
+    sendFeedback(scanId, body, fetchImpl, resultFingerprint);
+}
+
+export interface FeedbackSubmitIo {
+  send: (
+    scanId: string,
+    body: ResultFeedbackSubmission,
+    resultFingerprint: string | undefined,
+  ) => Promise<SendResult>;
+  markDone: (scanId: string) => void;
+  setFailure: (failure: SendFailure | null) => void;
+  setPhase: (phase: SheetPhase) => void;
+  /** `result_feedback_submitted`, only once the rating is stored. */
+  emitSubmitted?: (event: ReturnType<typeof submittedEvent>) => void;
+  /** The page refetches the fit (V3.2 F1, candidate: after a 412). */
+  onResultChanged?: () => void;
+}
+
+/**
+ * The sheet's submit button, wired (kept here so it is tested without a
+ * browser): build the body, send it with the fingerprint of the ranking on
+ * screen, then apply `afterSend`. A 412 calls `onResultChanged` once and
+ * leaves the sheet on the form; nothing sends again until the person presses
+ * the button again. Does nothing while a send is in flight.
+ */
+export async function submitFeedback(
+  input: {
+    scanId: string;
+    phase: SheetPhase;
+    stars: number | null;
+    comment: string;
+    locale: Locale;
+    resultFingerprint: string | undefined;
+  },
+  io: FeedbackSubmitIo,
+): Promise<void> {
+  if (input.phase === "sending") return;
+  const built = buildSubmission({
+    stars: input.stars,
+    comment: input.comment,
+    locale: input.locale,
+  });
+  if (!built.ok) {
+    io.setFailure(built.reason);
+    return;
+  }
+  io.setFailure(null);
+  io.setPhase("sending");
+  const result = await io.send(
+    input.scanId,
+    built.body,
+    input.resultFingerprint,
+  );
+  const next = afterSend(result);
+  if (next.markDone) io.markDone(input.scanId);
+  if (result.ok) {
+    io.emitSubmitted?.(
+      submittedEvent({ stars: built.body.stars, comment: built.body.comment }),
+    );
+  }
+  io.setFailure(next.failure);
+  io.setPhase(next.phase);
+  // 412: nothing was stored. Fetch the ranking that is now true and let the
+  // person look at it before sending again (never sent automatically).
+  if (next.refetchFit) io.onResultChanged?.();
 }
 
 export const feedbackStorageKey = (scanId: string): string =>
@@ -318,7 +603,18 @@ export function markFeedbackDone(
 // Analytics (the contract's `result_feedback_*` events). The page fields are
 // added by the results page's emitter; only the extra props are made here.
 
-/** `result_feedback_shown`: which came first, the end of the list or the dwell. */
+/**
+ * `result_feedback_shown`: "scrolled" when the end of the list had been
+ * reached when the sheet appeared, "dwell" otherwise.
+ *
+ * Since V3.2 F11 the sheet can also appear 20 s after Details was opened
+ * without the end of the list being reached; the contract
+ * (`src/lib/contracts/analytics.ts`) has only "scrolled" and "dwell", so that
+ * case is sent as "dwell" and cannot be told apart from the 45 s rule. And
+ * "scrolled" now means "the end was reached and the tab was visible 20 s",
+ * not "shown as the end was reached". Whether the contract gets a value of its
+ * own for Details is not decided (candidate; only Claude edits contracts).
+ */
 export function shownEvent(scrolledToEnd: boolean) {
   return {
     name: "result_feedback_shown" as const,

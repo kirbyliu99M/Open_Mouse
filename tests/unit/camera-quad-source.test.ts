@@ -35,6 +35,9 @@ describe("createMarkerBasedQuadSource", () => {
       partialCorners: [null, null, null, null],
       minSideCoverage: 0,
       edgeFitResidualPx: 0,
+      worstSideIndex: null,
+      paperRegionFound: false,
+      minCoverageSideIndex: null,
     });
   });
 
@@ -115,6 +118,10 @@ describe("createMarkerBasedQuadSource", () => {
       { x: 0, y: 100 },
     ]);
     expect(result.minSideCoverage).toBe(1);
+    // The shared detection shape is complete for the marker adapter too.
+    expect(result.paperRegionFound).toBe(true);
+    expect(result.worstSideIndex).toBeNull();
+    expect(result.minCoverageSideIndex).toBeNull();
   });
 
   it("ignores paperSize (temporary marker-based adapter has no notion of it)", () => {
@@ -146,6 +153,9 @@ describe("createPaperEdgeQuadSource", () => {
     ],
     minSideCoverage: 0.9,
     edgeFitResidualPx: 1.2,
+    worstSideIndex: 0,
+    paperRegionFound: true,
+    minCoverageSideIndex: 2,
   } as const;
 
   it("passes the detector's result straight through on success", () => {
@@ -175,6 +185,9 @@ describe("createPaperEdgeQuadSource", () => {
       partialCorners: [null, null, null, null],
       minSideCoverage: 0,
       edgeFitResidualPx: 0,
+      worstSideIndex: null,
+      paperRegionFound: false,
+      minCoverageSideIndex: null,
     });
   });
 

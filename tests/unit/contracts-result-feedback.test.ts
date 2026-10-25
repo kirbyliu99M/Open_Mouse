@@ -96,6 +96,14 @@ describe("resultFeedbackSnapshotSchema", () => {
     ).toBe(true);
   });
 
+  it("takes a null band (length out of the catalogue's range) but no other value", () => {
+    const out = shot.topMice.map((m) => ({ ...m, band: null }));
+    expect(snapshot({ ...shot, topMice: out })).toBe(true);
+    const bad = [{ slug: "a", band: "unknown" }];
+    expect(snapshot({ ...shot, topMice: bad })).toBe(false);
+    expect(snapshot({ ...shot, topMice: [{ slug: "a" }] })).toBe(false);
+  });
+
   it("keeps at most three places and refuses a millimetre field", () => {
     const four = [...shot.topMice, { slug: "d", band: "poor" }];
     expect(snapshot({ ...shot, topMice: four })).toBe(false);

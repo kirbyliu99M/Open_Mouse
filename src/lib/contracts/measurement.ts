@@ -107,8 +107,17 @@ export const MEASUREMENT_DEFINITIONS = {
  * per-landmark heights that scale with hand length (`landmark-heights-v2`,
  * docs/research/landmark-heights-v2.md); v1 used 21 fixed heights. The stored
  * version is what tells the two apart.
+ *
+ * `landmark-raw-v3` (V3.2 candidate, 未拍板; Kirby 2026-10-22): the same
+ * distances and heights as v2, but a photo with no EXIF focal length and no
+ * trustworthy homography estimate is still corrected for parallax, with a
+ * nominal focal length (design R7 `DESIGN-nominal-focal.md`: 18 mm
+ * equivalent on a live video frame's long edge since 2026-10-23, from Kirby's
+ * S25 measurements; 26 mm for a still photo with no EXIF). Before v3 such frames were not
+ * corrected at all. A v3 measurement says where its focal length came from
+ * (`focalSource` on the calibration evidence).
  */
-export const MEASUREMENT_MODEL_VERSION = "landmark-raw-v2";
+export const MEASUREMENT_MODEL_VERSION = "landmark-raw-v3";
 
 /**
  * Every measurement model the server accepts. Clients send the one they
@@ -121,7 +130,54 @@ export const MEASUREMENT_MODEL_VERSION = "landmark-raw-v2";
 export const MEASUREMENT_MODEL_VERSIONS = [
   "landmark-raw-v1",
   "landmark-raw-v2",
+  "landmark-raw-v3",
 ] as const;
+
+/**
+ * Where a parallax correction's focal length came from (landmark-raw-v3).
+ * `exif`: the photo's own EXIF; `homography`: estimated from the sheet and
+ * inside the plausible range around the nominal one; `nominal`: the nominal
+ * prior; `none`: no correction was made.
+ */
+export const FOCAL_LENGTH_SOURCES = [
+  "exif",
+  "homography",
+  "nominal",
+  "none",
+] as const;
+export type FocalLengthSource = (typeof FOCAL_LENGTH_SOURCES)[number];
+
+/**
+ * The engine's scale (V3.2 candidate, 未拍板; Kirby 2026-10-22, design R7).
+ * The fit engine, the hand type, the survey bins and the similar-hand cells
+ * were all tuned on frame scans with NO parallax correction. A scan that WAS
+ * corrected (`parallaxCorrected: true`, any focal source) is multiplied by
+ * these ratios before any of them reads it, so a corrected hand ranks like
+ * the same hand did before correction, while corrections stay consistent
+ * across distance, tilt and capture path. The person sees the same engine-
+ * scale numbers (Kirby, D1 = B). Simulated for a frame path at a paper fill
+ * of 0.65 (Kirby's measured average 0.653). 2026-10-23 (F17, Kirby D2): the
+ * live-frame prior moved from 26 mm to 18 mm equivalent after seven S25
+ * homography estimates all read 894-1153 px (0.62-0.80 of the 26 mm prior);
+ * the ratios were recomputed at 998 px. Kirby's measured ratios at the old
+ * prior (median kL 1.041, kP 1.056, kW 1.036, n = 8) are not comparable.
+ * One phone only; an iPhone is not checked (不確定).
+ * 2026-10-24 (Kirby, D5): replaced by the S25 ratios MEASURED at the 18 mm
+ * prior, from near-straight scans only (tilted scans read a smaller ratio
+ * because their uncorrected numbers carry a different bias; the corrected
+ * numbers agree across tilt, 177.4-186.1 mm over 7 scans). Measured kL sat
+ * about 1.2 % above the simulation at both priors (1.039 vs 1.024 at 26 mm,
+ * 1.047 vs 1.035 at 18 mm), so the simulation's hand-height model likely
+ * under-states the parallax a little (不確定, n = 3).
+ */
+export const FIT_SCALE_FROM_CORRECTED = {
+  handLength: 1.047,
+  palmLength: 1.067,
+  palmWidth: 1.044,
+  referenceFill: 0.65,
+  basis:
+    "S25 measured at the 18 mm frame prior, 2026-10-24: median uncorrected/corrected of 3 near-straight frame scans (tilt <= 4 deg, fill 0.41-0.67); R7 simulation gave 1.035/1.061/1.051",
+} as const;
 export type MeasurementModelVersion =
   (typeof MEASUREMENT_MODEL_VERSIONS)[number];
 
@@ -200,31 +256,74 @@ export const printedSheetEvidenceSchema = z.strictObject({
         "Sheet and card scales disagree by more than 1% — the printer probably scaled the page.",
     }),
   parallaxCorrected: z.boolean(),
+  /** landmark-raw-v3: see `FOCAL_LENGTH_SOURCES`. Absent before v3. */
+  focalSource: z.enum(FOCAL_LENGTH_SOURCES).optional(),
 });
 
-/** Plain paper: four corners from the paper's own edges. */
-export const paperEdgeEvidenceSchema = z.strictObject({
-  method: z.literal("paper-edge"),
-  paperSize: z.enum(Object.keys(PAPER_SIZES_MM) as [PaperSize, ...PaperSize[]]),
-  /** Mean distance of detected edge points from their fitted side, in mm. */
-  edgeFitResidualMm: z
-    .number()
-    .finite()
-    .min(0)
-    .max(PAPER_EDGE_LIMITS.maxEdgeFitResidualMm, {
-      message:
-        "The paper's edges don't fit a flat sheet — is it curled or folded?",
-    }),
-  /** Smallest fraction of any side's length that was seen, 0–1. */
-  minSideCoverage: z
-    .number()
-    .finite()
-    .max(1)
-    .min(PAPER_EDGE_LIMITS.minSideCoverage, {
-      message: "Too much of one paper edge is hidden to trust its corners.",
-    }),
-  parallaxCorrected: z.boolean(),
-});
+/** Where a paper-edge calibration's four corners came from (V3.2 candidate,
+ * 未拍板; Kirby 2026-10-21). `auto`: the detector's corners, unchanged.
+ * `adjusted`: the detector's corners, moved by the person. `manual`: placed by
+ * the person after detection failed. The homography and every millimetre
+ * formula are the same for all three; only the source differs. */
+export const PAPER_CORNER_SOURCES = ["auto", "adjusted", "manual"] as const;
+export type PaperCornerSource = (typeof PAPER_CORNER_SOURCES)[number];
+
+/**
+ * Plain paper: four corners from the paper's own edges.
+ *
+ * `cornersSource` absent means `auto` (every body sent before V3.2). For
+ * `auto`, `edgeFitResidualMm` and `minSideCoverage` are required as before:
+ * they describe the fitted edges the corners came from. For `adjusted` and
+ * `manual` they may be left out, because no fitted edge stands behind a
+ * corner the person placed, and a number there would claim a check that did
+ * not happen. When present they still obey the same limits.
+ */
+export const paperEdgeEvidenceSchema = z
+  .strictObject({
+    method: z.literal("paper-edge"),
+    paperSize: z.enum(
+      Object.keys(PAPER_SIZES_MM) as [PaperSize, ...PaperSize[]],
+    ),
+    /** V3.2 candidate: see `PAPER_CORNER_SOURCES`. Absent = `auto`. */
+    cornersSource: z.enum(PAPER_CORNER_SOURCES).optional(),
+    /** Mean distance of detected edge points from their fitted side, in mm. */
+    edgeFitResidualMm: z
+      .number()
+      .finite()
+      .min(0)
+      .max(PAPER_EDGE_LIMITS.maxEdgeFitResidualMm, {
+        message:
+          "The paper's edges don't fit a flat sheet — is it curled or folded?",
+      })
+      .optional(),
+    /** Smallest fraction of any side's length that was seen, 0–1. */
+    minSideCoverage: z
+      .number()
+      .finite()
+      .max(1)
+      .min(PAPER_EDGE_LIMITS.minSideCoverage, {
+        message: "Too much of one paper edge is hidden to trust its corners.",
+      })
+      .optional(),
+    parallaxCorrected: z.boolean(),
+    /** landmark-raw-v3: see `FOCAL_LENGTH_SOURCES`. Absent before v3. */
+    focalSource: z.enum(FOCAL_LENGTH_SOURCES).optional(),
+  })
+  .superRefine((e, ctx) => {
+    if ((e.cornersSource ?? "auto") !== "auto") return;
+    if (e.edgeFitResidualMm === undefined)
+      ctx.addIssue({
+        code: "custom",
+        path: ["edgeFitResidualMm"],
+        message: "Detected corners need their edge-fit residual.",
+      });
+    if (e.minSideCoverage === undefined)
+      ctx.addIssue({
+        code: "custom",
+        path: ["minSideCoverage"],
+        message: "Detected corners need their side coverage.",
+      });
+  });
 
 /**
  * No paper at all (Kirby, 2026-09-26): the user measures their own hand
@@ -312,9 +411,13 @@ export const MANUAL_ENTRY = {
   palmLengthRatio: 0.56,
   /**
    * A typed (ruler, skin-to-skin) hand width times this is the width on the
-   * scan's scale (landmarks 5 to 17), the scale fit v1's grip-width target
-   * (x 0.88) was made for. Candidate, from ONE pair: 65.7 mm scanned against
-   * 85 mm ruler (Kirby, 2026-10-17). Applied for scoring only.
+   * engine's scale (landmarks 5 to 17; since landmark-raw-v3 the engine
+   * scale of `FIT_SCALE_FROM_CORRECTED`, about 0.74 on the corrected landmark
+   * scale), so a typed width and a scanned width
+   * enter the fit on the same scale. It converts skin to landmarks only and
+   * does not depend on any engine's grip-width factor (v1 x 0.88, v3 x 1.00).
+   * Candidate, from ONE pair: 65.7 mm scanned against 85 mm ruler (Kirby,
+   * 2026-10-17). Applied for scoring only.
    */
   widthToLandmarkScale: 0.77,
 } as const;

@@ -9,6 +9,7 @@ import {
   surveyContributions,
   users,
 } from "../../db/schema";
+import { parallaxCorrectedOf } from "../../lib/fit/fit-scale";
 import type { AccountRepo, AccountScan } from "./repo";
 
 /** The real `AccountRepo`, over the Neon HTTP driver. */
@@ -23,6 +24,7 @@ export function createDrizzleAccountRepo(db = getDb()): AccountRepo {
           gripStyleStated: scans.gripStyleStated,
           palmThicknessStated: scans.palmThicknessStated,
           calibrationMethod: scanMeasurements.calibrationMethod,
+          calibrationEvidence: scanMeasurements.calibrationEvidence,
           handLengthMm: scanMeasurements.handLengthMm,
           palmLengthMm: scanMeasurements.palmLengthMm,
           palmWidthMm: scanMeasurements.palmWidthMm,
@@ -53,6 +55,7 @@ export function createDrizzleAccountRepo(db = getDb()): AccountRepo {
         gripStyleStated: r.gripStyleStated,
         palmThicknessStated: r.palmThicknessStated,
         calibrationMethod: r.calibrationMethod,
+        parallaxCorrected: parallaxCorrectedOf(r.calibrationEvidence),
         measurements: {
           handLengthMm: r.handLengthMm,
           palmLengthMm: r.palmLengthMm,

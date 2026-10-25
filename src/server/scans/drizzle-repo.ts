@@ -7,6 +7,7 @@ import {
   scanSessions,
   scans,
 } from "../../db/schema";
+import { parallaxCorrectedOf } from "../../lib/fit/fit-scale";
 import { RATE_LIMIT_ROW_RETENTION_MS } from "./rate-limit-config";
 import type {
   OwnedScan,
@@ -205,6 +206,7 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
           gripStyleStated: scans.gripStyleStated,
           palmThicknessStated: scans.palmThicknessStated,
           calibrationMethod: scanMeasurements.calibrationMethod,
+          calibrationEvidence: scanMeasurements.calibrationEvidence,
           handLengthMm: scanMeasurements.handLengthMm,
           palmLengthMm: scanMeasurements.palmLengthMm,
           palmWidthMm: scanMeasurements.palmWidthMm,
@@ -232,6 +234,7 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
         gripStyleStated: row.gripStyleStated,
         palmThicknessStated: row.palmThicknessStated,
         calibrationMethod: row.calibrationMethod,
+        parallaxCorrected: parallaxCorrectedOf(row.calibrationEvidence),
         measurements: {
           handLengthMm: row.handLengthMm,
           palmLengthMm: row.palmLengthMm,

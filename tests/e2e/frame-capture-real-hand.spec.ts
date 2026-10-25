@@ -3,6 +3,11 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { confirmAutoFrameIfShown } from "./fixtures/confirm-frame";
+import {
+  expectedRecordsAfterConfirm,
+  splitAttempts,
+} from "./fixtures/attempt-records";
 import {
   chromium,
   devices,
@@ -11,10 +16,7 @@ import {
   type Browser,
   type Page,
 } from "@playwright/test";
-import {
-  ATTEMPT_LOG_KEY,
-  type AttemptRecord,
-} from "../../src/client/camera/attemptLog";
+import { ATTEMPT_LOG_KEY } from "../../src/client/camera/attemptLog";
 
 /**
  * Measurement, not a test of the suite: does a FRAME OF THE VIDEO, cut to the
@@ -163,16 +165,21 @@ test("a frame of the video cut to the part on screen goes through the real pipel
       const page = await context.newPage();
       await page.goto("/scan/easy?debug=1");
       await page.getByRole("button", { name: "Got it" }).click();
+      // F15: a measured photo's frame is confirmed first, as it opened.
+      await confirmAutoFrameIfShown(page, 90_000);
       const sheet = page.getByRole("dialog", {
         name: /Hand measured|Retake needed/,
       });
       await expect(sheet).toBeVisible({ timeout: 90_000 });
+      // F15: the confirm above wrote a corner record next to the analysis
+      // record when the photo was measured, so the log is read by kind.
       await expect
-        .poll(async () => (await storedAttempts(page))?.length, {
-          timeout: 30_000,
-        })
+        .poll(
+          async () => splitAttempts(await storedAttempts(page)).analyses.length,
+          { timeout: 30_000 },
+        )
         .toBe(1);
-      const [attempt] = (await storedAttempts(page)) as AttemptRecord[];
+      const [attempt] = splitAttempts(await storedAttempts(page)).analyses;
       console.log(
         `FRAME HAND record: ${JSON.stringify(attempt)}\nvisible width of the stream: ${visibleWidth.toFixed(1)} of ${STREAM.width}`,
       );
@@ -195,9 +202,24 @@ test("a frame of the video cut to the part on screen goes through the real pipel
       expect(attempt.errors, JSON.stringify(attempt.errors)).toEqual([]);
       expect(attempt.result).toBe("ok");
       expect(attempt.hand.detected).toBe(true);
-      // A canvas frame has no EXIF focal length: the parallax correction is not
-      // run for a view straight above the sheet (and says so).
-      expect(attempt.parallaxCorrected).toBe(false);
+      // The measured photo's frame opened by itself and was confirmed as it
+      // opened: one corner record, every corner where the detector put it.
+      await expect
+        .poll(async () => (await storedAttempts(page))?.length, {
+          timeout: 30_000,
+        })
+        .toBe(expectedRecordsAfterConfirm(true));
+      const { cornerChecks } = splitAttempts(await storedAttempts(page));
+      expect(cornerChecks).toHaveLength(1);
+      const [check] = cornerChecks;
+      expect(check.cornerCheck!.magnifier).toBe(true);
+      expect(check.cornerCheck!.distancesPx).toEqual([0, 0, 0, 0]);
+      expect(check.cornerCheck!.imageLongEdgePx).toBeGreaterThan(0);
+      // A canvas frame has no EXIF focal length, and a view straight above the
+      // sheet cannot fix one: since landmark-raw-v3 (V3.2 candidate) the
+      // nominal prior corrects it (and says so).
+      expect(attempt.parallaxCorrected).toBe(true);
+      expect(attempt.focal.source).toBe("nominal");
       await expect(sheet).toHaveAccessibleName("Hand measured");
       const numbers = await sheet.innerText();
       console.log(`FRAME HAND measured sheet text:\n${numbers}`);

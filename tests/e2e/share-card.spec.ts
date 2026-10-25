@@ -1,13 +1,24 @@
 import { readFileSync } from "node:fs";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { decodePng } from "./fixtures/png";
 
 /**
  * The share-card button, mounted on the dev-only /scan/share-card-demo (404 in
- * production, like the other demo routes). The results page does not carry the
- * button yet.
+ * production, like the other demo routes). Since V3.2 F21 a press opens a
+ * preview dialog; its 分享 / 下載 buttons hand the card over.
  */
 const DEMO = "/scan/share-card-demo";
+
+/** The open preview, its card shown (the PNG is made when it opens). */
+async function openPreview(page: Page, entry: Locator) {
+  await entry.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(page.getByTestId("share-preview-image")).toBeVisible({
+    timeout: 15_000,
+  });
+  return dialog;
+}
 
 /** Chromium on Windows and Android can share files; make the browser say it cannot, so the download path runs. */
 async function withoutWebShare(page: Page) {
@@ -85,8 +96,11 @@ for (const query of [
       name: query.includes("zh") ? "製作我的分享圖" : "Make my share card",
     });
     await expect(button).toBeVisible();
+    await openPreview(page, button);
+    // Files cannot be shared here: only 下載.
+    await expect(page.getByTestId("share-preview-share")).toHaveCount(0);
     const download = page.waitForEvent("download");
-    await button.click();
+    await page.getByTestId("share-preview-download").click();
     const file = await download;
     expect(file.suggestedFilename()).toBe(
       "palmate-logitech-g-pro-x-superlight-2.png",
@@ -97,17 +111,22 @@ for (const query of [
       await file.saveAs(
         `${process.env.SHARE_CARD_OUT}/card${query.replace(/[^a-z0-9]/gi, "_")}.png`,
       );
-    // The button is usable again and no error is shown.
-    await expect(page.locator(".shareCard-error")).toHaveCount(0);
-    await expect(button).toHaveAttribute("aria-busy", "false");
+    // The preview stays open with a small 已下載 hint that goes away.
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByTestId("share-preview-saved")).toBeVisible();
+    await expect(page.getByTestId("share-preview-saved")).toHaveCount(0, {
+      timeout: 5_000,
+    });
+    await expect(page.locator(".sharePreview-actionError")).toHaveCount(0);
   });
 }
 
 test("the card loads back as an image of the same size", async ({ page }) => {
   await withoutWebShare(page);
   await page.goto(`${DEMO}?lang=zh`);
+  await openPreview(page, page.getByTestId("share-card-button").last());
   const download = page.waitForEvent("download");
-  await page.getByTestId("share-card-button").last().click();
+  await page.getByTestId("share-preview-download").click();
   const buffer = readFileSync(await (await download).path());
   const size = await page.evaluate(async (b64) => {
     const img = new Image();
@@ -127,9 +146,32 @@ test("works from the keyboard and shows a focus ring", async ({ page }) => {
     (el) => getComputedStyle(el).outlineStyle,
   );
   expect(outline).not.toBe("none");
+  await page.keyboard.press("Enter");
+  // The preview opens with focus on its close button.
+  const dialog = page.getByRole("dialog", { name: "分享圖預覽" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "關閉" })).toBeFocused();
+  await expect(page.getByTestId("share-preview-image")).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByTestId("share-preview-image")).toHaveAttribute(
+    "alt",
+    "分享圖預覽",
+  );
   const download = page.waitForEvent("download");
+  await page.getByTestId("share-preview-download").focus();
   await page.keyboard.press("Enter");
   expect((await download).suggestedFilename()).toMatch(/^palmate-.*\.png$/);
+  // Esc closes it and focus goes back to the entry.
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(link).toBeFocused();
+  // Reopened: the same card is shown at once (made only once).
+  await link.click();
+  await expect(page.getByTestId("share-preview-image")).toBeVisible();
+  await dialog.getByRole("button", { name: "關閉" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(link).toBeFocused();
 });
 
 test("shares the file when the browser can, and a cancelled share is not an error", async ({
@@ -156,7 +198,10 @@ test("shares the file when the browser can, and a cancelled share is not an erro
   await page.goto(`${DEMO}?lang=zh`);
   const primary = page.getByRole("button", { name: "製作我的分享圖" });
 
-  await primary.click();
+  await openPreview(page, primary);
+  const shareButton = page.getByTestId("share-preview-share");
+  await expect(shareButton).toBeVisible();
+  await shareButton.click();
   await expect
     .poll(() =>
       page.evaluate(
@@ -176,7 +221,8 @@ test("shares the file when the browser can, and a cancelled share is not an erro
   await page.evaluate(() => {
     (window as never as { __abort: boolean }).__abort = true;
   });
-  await primary.click();
+  // The preview is still open: share again, and cancel the sheet.
+  await shareButton.click();
   await expect
     .poll(() =>
       page.evaluate(
@@ -184,7 +230,8 @@ test("shares the file when the browser can, and a cancelled share is not an erro
       ),
     )
     .toBe(2);
-  await expect(primary).toHaveAttribute("aria-busy", "false");
-  await expect(page.locator(".shareCard-error")).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByTestId("share-preview-saved")).toHaveCount(0);
+  await expect(page.locator(".sharePreview-actionError")).toHaveCount(0);
   expect(downloads).toBe(0);
 });

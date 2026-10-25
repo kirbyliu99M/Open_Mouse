@@ -6,7 +6,6 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { createDrizzleFitRepo } from "../../src/server/fit/drizzle-repo";
-import type { FitResultRow } from "../../src/server/fit/rows";
 import { fakeDrizzleChain } from "./fixtures/fake-drizzle";
 
 type FakeDb = Parameters<typeof createDrizzleFitRepo>[0];
@@ -50,74 +49,11 @@ describe("createDrizzleFitRepo().loadCatalogue", () => {
   });
 });
 
-/** The fake chain plus the two calls `saveFitResults` makes beyond it. */
-function withBatch(chain: ReturnType<typeof fakeDrizzleChain>) {
-  return Object.assign(chain, {
-    delete: vi.fn(() => chain),
-    batch: vi.fn(async () => []),
-  });
-}
-
-describe("createDrizzleFitRepo().saveFitResults", () => {
-  const row: FitResultRow = {
-    scanId: "scan-1",
-    mouseId: "mouse-uuid-1",
-    engineVersion: "fit-v0-provisional",
-    rank: 1,
-    totalScore: 82,
-    lengthScore: 80,
-    gripWidthScore: 75,
-    heightHumpScore: 90,
-    frontFlareScore: 80,
-    thumbScore: 100,
-    weightScore: 70,
-    reasons: {} as FitResultRow["reasons"],
-  };
-
-  it("upserts on the (scan_id, mouse_id, engine_version) key — repeating the call never throws", async () => {
-    const chain = withBatch(fakeDrizzleChain([]));
-    const repo = createDrizzleFitRepo(chain as unknown as FakeDb);
-
-    await repo.saveFitResults([row]);
-    await repo.saveFitResults([row]);
-
-    expect(chain.insert).toHaveBeenCalledTimes(2);
-    expect(chain.onConflictDoUpdate).toHaveBeenCalledTimes(2);
-    const [call] = vi.mocked(chain.onConflictDoUpdate).mock.calls;
-    const arg = call![0] as { target: unknown[]; set: Record<string, unknown> };
-    expect(arg.target).toHaveLength(3);
-    expect(Object.keys(arg.set).sort()).toEqual(
-      [
-        "rank",
-        "totalScore",
-        "lengthScore",
-        "gripWidthScore",
-        "heightHumpScore",
-        "frontFlareScore",
-        "thumbScore",
-        "weightScore",
-        "reasons",
-      ].sort(),
+describe("createDrizzleFitRepo", () => {
+  it("only reads: the repo has no write method (fit_results is no longer written)", () => {
+    const repo = createDrizzleFitRepo(
+      fakeDrizzleChain([]) as unknown as FakeDb,
     );
-  });
-
-  it("refuses rows that mix scans or engine versions", async () => {
-    const chain = withBatch(fakeDrizzleChain([]));
-    const repo = createDrizzleFitRepo(chain as unknown as FakeDb);
-
-    await expect(
-      repo.saveFitResults([row, { ...row, scanId: "scan-2" }]),
-    ).rejects.toThrow(/share one scan/);
-    expect(chain.batch).not.toHaveBeenCalled();
-  });
-
-  it("is a no-op for an empty row list — never calls insert", async () => {
-    const chain = withBatch(fakeDrizzleChain([]));
-    const repo = createDrizzleFitRepo(chain as unknown as FakeDb);
-
-    await repo.saveFitResults([]);
-
-    expect(chain.insert).not.toHaveBeenCalled();
-    expect(chain.delete).not.toHaveBeenCalled();
+    expect(Object.keys(repo)).toEqual(["loadCatalogue"]);
   });
 });

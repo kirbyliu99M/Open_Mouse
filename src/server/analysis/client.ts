@@ -12,6 +12,8 @@ export interface TextModelArgs {
   /** Structured-output schema (a `@google/genai` `Schema`-shaped object). */
   schema: object;
   maxOutputTokens: number;
+  /** Aborts the call (the request's deadline). A client that honours it rejects. */
+  signal?: AbortSignal;
 }
 
 /** Everything `analyse.ts` needs from a text model. One call per attempt. */

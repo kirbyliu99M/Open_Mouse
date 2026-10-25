@@ -8,6 +8,8 @@
  * still say Open_Mouse; renaming them is a separate task.
  */
 export const SITE_NAME = "Palmate";
-export const SITE_URL = "https://open-mouse.vercel.app";
+/** Public address since 2026-10-21 (Kirby): the custom domain. The old
+ * open-mouse.vercel.app still serves the same deployment. */
+export const SITE_URL = "https://palmate.kirby-fivesenses.com";
 /** The repository is public. */
 export const GITHUB_URL = "https://github.com/kirbyliu99M/Open_Mouse";

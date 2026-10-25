@@ -1,7 +1,8 @@
-import { useRef } from "react";
+import { useRef, useState, type MouseEvent } from "react";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { manualEntryCopy } from "@/lib/copy/manualEntry";
+import { scanCommonCopy } from "@/lib/copy/scan-common";
 import { formatCentimetres } from "@/lib/scan/manualEntry";
 import { en as enBands, zhTW as zhBands } from "@/lib/copy/fit-bands";
 import { bandOf } from "@/lib/fit/bands";
@@ -13,6 +14,15 @@ import {
   type Filters,
 } from "@/lib/results/filters";
 import { handTypeLabel } from "@/lib/results/handTypeLabel";
+import {
+  fewSegmentNote,
+  segmentDirection,
+  segmentOf,
+  segmentOnly,
+  withSegment,
+  type ShapeSegment,
+} from "@/lib/results/shapeToggle";
+import { usePrefersReducedMotion } from "@/client/camera/useReducedMotion";
 import { pathForEntry } from "@/lib/results/rankRoutes";
 import type { Locale } from "@/lib/contracts/locale";
 import { retailerOf } from "@/lib/contracts/analytics";
@@ -23,14 +33,16 @@ import {
   linkPositionOf,
   officialKindOf,
   resultsPageFields,
-  type FilterChangeSource,
   type ResultsAnalytics,
+  type ResultsFilterChange,
 } from "@/lib/results/analyticsEvents";
 import type { AnalysisState } from "./analysisState";
 import { FilteredAnalysisLine } from "./FilteredAnalysisLine";
 import { FilterSummary } from "./filter/FilterSummary";
 import { FilterNoMatch } from "./filter/FilterNoMatch";
 import { ResultsFilterLayout } from "./filter/ResultsFilterLayout";
+import { ShapeToggle } from "./filter/ShapeToggle";
+import { useSegmentSwap } from "./filter/useSegmentSwap";
 import { OtherMice } from "./OtherMice";
 import { OtherPicks } from "./OtherPicks";
 import { MousePhoto } from "./MousePhoto";
@@ -50,6 +62,22 @@ import "./results.css";
 import { POOR_FIT_THRESHOLD } from "./fitNotice";
 import type { StoredManualEntry } from "./userLengthDisclosure";
 
+/**
+ * V3.2 F11: how the real results pages move between each other and back out
+ * (`src/lib/results/resultsHistory.ts`). Each handler may take a link's click
+ * over (`preventDefault`); without them the links behave as plain links.
+ */
+export interface ResultsNavigation {
+  /** A card or the 「back to list」 link: `toMain` when it opens the main page. */
+  onPick: (
+    event: MouseEvent<HTMLAnchorElement>,
+    href: string,
+    toMain: boolean,
+  ) => void;
+  /** The top bar's 「‹ 重新掃描」. */
+  onBack: (event: MouseEvent<HTMLAnchorElement>) => void;
+}
+
 const BAND_COPY = { "zh-TW": zhBands, en: enBands } as const;
 
 /**
@@ -67,6 +95,15 @@ const BAND_COPY = { "zh-TW": zhBands, en: enBands } as const;
  * written analysis and the share card stay on the overall #1 (`response` is
  * never filtered). Without `onFiltersChange` (the demo) nothing changes.
  *
+ * Shape toggle (V3.2 U1, candidate): with the filter, 「綜合｜左右對稱｜人體工學」
+ * sits above the filter button. It sets the filter's 滑鼠握感 group and
+ * nothing else (`withSegment`), so the panel and the toggle always agree and
+ * the page reads the same `filteredView`: renumbered cards, the place line,
+ * `FilteredAnalysisLine` and the share button's filter rule, `FilterNoMatch`
+ * when nothing is left. A shape with only a few mice lists exactly those,
+ * with a note that they are all there. The cards change over with
+ * `useSegmentSwap`.
+ *
  * Order: top bar, hand type (when the response has one), photo, rank and
  * score (the official link sits on the fit-band chip's row), why, purchase
  * links (when there are any), details (closed), other picks, the similar-hand
@@ -81,14 +118,18 @@ export function ResultsView({
   language,
   analysisState = { status: "idle" },
   onRetryAnalysis,
+  onResultChanged,
   enteredLengthMm = null,
   enteredManual = null,
+  paperAdjusted = false,
+  paperCurled = false,
   showViewer = false,
   scanId,
   onSelectRank,
   analytics,
   filters = emptyFilters(),
   onFiltersChange,
+  navigation,
 }: {
   response: FitResponse;
   /**
@@ -100,6 +141,11 @@ export function ResultsView({
   language: Locale;
   analysisState?: AnalysisState;
   onRetryAnalysis?: () => void;
+  /**
+   * V3.2 F1 (candidate): the feedback sheet heard that the ranking changed on
+   * the server (412); the page fetches the fit again. Real scans only.
+   */
+  onResultChanged?: () => void;
   /** The hand length the user typed in, when the scan used no paper. */
   enteredLengthMm?: number | null;
   /**
@@ -109,6 +155,17 @@ export function ResultsView({
    * never stack.
    */
   enteredManual?: StoredManualEntry | null;
+  /**
+   * V3.2 F2 (candidate): the scan's paper frame was placed or moved by hand.
+   * One line in the cautions about how the scan was made.
+   */
+  paperAdjusted?: boolean;
+  /**
+   * V3.2 F13 (candidate): that hand-placed frame was confirmed after the
+   * sheet was found curled (`PAPER_CURLED`). One more line: the paper may
+   * not have been flat. Read from this browser only.
+   */
+  paperCurled?: boolean;
   /** Mount the 3D size illustration (real scans only). */
   showViewer?: boolean;
   /** A real scan: the other picks link to its routes. Absent in the demo. */
@@ -120,9 +177,41 @@ export function ResultsView({
   /** The applied filters. */
   filters?: Filters;
   /** Passed only by the real results page; without it there is no filter UI. */
-  onFiltersChange?: (next: Filters, source: FilterChangeSource) => void;
+  onFiltersChange?: (next: Filters, source: ResultsFilterChange) => void;
+  /** The real results pages only (V3.2 F11). */
+  navigation?: ResultsNavigation;
 }) {
   const view = filteredView(response, filters);
+  const reducedMotion = usePrefersReducedMotion();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const swap = useSegmentSwap(rootRef, reducedMotion);
+  // The segment just pressed, until the change it starts reaches `filters`
+  // (the cards fade out first): the toggle shows it at once.
+  const [pressed, setPressed] = useState<{
+    segment: ShapeSegment;
+    on: Filters;
+  } | null>(null);
+  const [detailsOpened, setDetailsOpened] = useState(false);
+  const shownSegment =
+    pressed && pressed.on === filters ? pressed.segment : segmentOf(filters);
+  const selectSegment = (segment: ShapeSegment, refocus = false) => {
+    if (!onFiltersChange) return;
+    const next = withSegment(filters, segment);
+    setPressed({ segment, on: filters });
+    swap(segmentDirection(shownSegment, segment), () =>
+      onFiltersChange(next, "shape_toggle"),
+    );
+    // The note's button goes away with the change: focus moves to the
+    // segment that is now checked.
+    if (refocus)
+      requestAnimationFrame(() =>
+        rootRef.current
+          ?.querySelector<HTMLElement>(
+            '.results-shapeToggle [role="radio"][aria-checked="true"]',
+          )
+          ?.focus(),
+      );
+  };
   const card = headerCard(view, rank);
   const entry = card?.entry ?? null;
   // The official link and the purchase links of the one mouse in the big
@@ -134,7 +223,12 @@ export function ResultsView({
   const search = serializeFilters(filters);
 
   const hand = handTypeLabel(response.handType, language);
-  const band = entry ? bandOf(entry.total) : null;
+  // The hand is longer (or shorter) than every ranked mouse: `total` is then
+  // the value the engine sorted by against the catalogue's edge, not a
+  // distance to this hand (contract, `fitCoverageSchema`). The order stays;
+  // no number and no band is drawn anywhere on the page.
+  const scoresHidden = response.coverage?.lengthOutOfRange === true;
+  const band = entry && !scoresHidden ? bandOf(entry.total) : null;
   const picks = card ? viewOtherPicks(view, card.displayRank) : [];
   // The page about the first place of the list the person sees.
   const isMain = card?.displayRank === 1;
@@ -153,6 +247,10 @@ export function ResultsView({
   // when the overall #1 still leads it is exactly the button of an unfiltered
   // page (Kirby, 2026-10-11).
   const shareOverall = filtering && (view.count === 0 || view.swapped);
+  // The place line names the shape when it is the only filter (「人體工學第 1 名」).
+  const onlyShape = segmentOnly(filters);
+  const few =
+    isMain && onFiltersChange ? fewSegmentNote(filters, view.count) : null;
 
   // Analytics (real pages only): every event carries the page fields of the
   // mouse in the big header, built here once. The refs hold what is sent once
@@ -178,7 +276,17 @@ export function ResultsView({
 
   const content = (
     <>
-      {isMain && entry && entry.total < POOR_FIT_THRESHOLD && (
+      {/* Out of the catalogue's range the notice is about coverage and shows
+          on every page of the list; it never depends on `total`. */}
+      {scoresHidden && entry && (
+        <p
+          className="results-coverageNotice"
+          data-direction={response.coverage?.direction ?? "partial"}
+        >
+          {copy.coverageNotice[response.coverage?.direction ?? "partial"]}
+        </p>
+      )}
+      {isMain && entry && !scoresHidden && entry.total < POOR_FIT_THRESHOLD && (
         <p className="results-fitNotice">{copy.fitNotice}</p>
       )}
 
@@ -231,7 +339,12 @@ export function ResultsView({
                     <>
                       <p className="results-score-rank results-score-places">
                         <span className="results-badge">
-                          {copy.filter.filteredRank(card.displayRank)}
+                          {onlyShape
+                            ? copy.shapeToggle.segmentRank(
+                                card.displayRank,
+                                copy.shapeToggle.segment[onlyShape],
+                              )
+                            : copy.filter.filteredRank(card.displayRank)}
                         </span>
                         {showOverall && (
                           <span className="results-score-overall">
@@ -254,10 +367,14 @@ export function ResultsView({
                     <p className="results-oneLeft">{copy.filter.oneLeft}</p>
                   )}
                 </div>
-                <p className="results-score-total results-tabularNum">
-                  <span className="results-score-value">{entry.total}</span>
-                  <span className="results-score-label">{copy.scoreLabel}</span>
-                </p>
+                {!scoresHidden && (
+                  <p className="results-score-total results-tabularNum">
+                    <span className="results-score-value">{entry.total}</span>
+                    <span className="results-score-label">
+                      {copy.scoreLabel}
+                    </span>
+                  </p>
+                )}
               </div>
 
               {/* A full-width row under the score: the fit-band chip on the left,
@@ -302,6 +419,17 @@ export function ResultsView({
               <WhyList entry={entry} language={language} />
 
               {/* Cautions about how the scan was made come before any link to a shop. */}
+              {/* V3.2 F15 (candidate): moved here from the scan's result
+                  sheet, so the sheet shows only its numbers. Not for numbers
+                  the person typed in (nothing was measured). */}
+              {enteredManual === null && (
+                <p
+                  className="results-measureNote"
+                  data-testid="results-unverified-note"
+                >
+                  {scanCommonCopy(language).unverifiedNote}
+                </p>
+              )}
               {enteredLengthMm !== null && (
                 <p className="results-handNotice">
                   {copy.enteredLengthNotice(enteredLengthMm)}
@@ -315,11 +443,34 @@ export function ResultsView({
                   )}
                 </p>
               )}
+              {paperAdjusted && (
+                <p
+                  className="results-handNotice"
+                  data-testid="results-paper-adjusted"
+                >
+                  {copy.paperAdjustedNotice}
+                </p>
+              )}
+              {paperCurled && (
+                <p
+                  className="results-handNotice"
+                  data-testid="results-paper-curled"
+                >
+                  {copy.paperCurledNotice}
+                </p>
+              )}
               {/* The hand comes from the fit response (#62), not from browser
                   storage, so the note follows a results link to any device. */}
               {response.hand === "left" && (
                 <p className="results-handNotice">{copy.leftHandNotice}</p>
               )}
+              {/* Only when the survey ratings really moved a target. */}
+              {response.calibration !== undefined &&
+                Object.values(response.calibration.dims).some(
+                  (dim) => dim.shiftMm !== 0,
+                ) && (
+                  <p className="results-handNotice">{copy.calibrationNotice}</p>
+                )}
 
               {/* Wide screens: the primary share button sits beside the purchase
                   links (design lPz7x). Phones show it under Other mice instead.
@@ -395,7 +546,12 @@ export function ResultsView({
                 }
               : undefined
           }
-          onOpened={analytics ? () => emit("details_opened", {}) : undefined}
+          onOpened={() => {
+            // V3.2 F11: opening Details counts as having looked at the result
+            // (the feedback sheet's timing rule).
+            setDetailsOpened(true);
+            if (analytics) emit("details_opened", {});
+          }}
         />
       )}
 
@@ -403,12 +559,23 @@ export function ResultsView({
         cards={picks}
         language={language}
         filtering={filtering}
+        showScores={!scoresHidden}
         hrefFor={
           scanId
             ? (c) => pathForEntry(scanId, c.entry, search, c.displayRank)
             : undefined
         }
         onSelect={onSelectRank}
+        onLinkClick={
+          scanId && navigation
+            ? (c, event) =>
+                navigation.onPick(
+                  event,
+                  pathForEntry(scanId, c.entry, search, c.displayRank),
+                  c.displayRank === 1,
+                )
+            : undefined
+        }
         onPick={
           analytics && scanId
             ? (c) =>
@@ -419,6 +586,24 @@ export function ResultsView({
             : undefined
         }
       />
+
+      {few && (
+        <section className="results-fewNote">
+          <p className="results-fewNote-text">
+            {copy.shapeToggle.fewNote(
+              few.count,
+              copy.shapeToggle.segment[few.shape],
+            )}
+          </p>
+          <button
+            type="button"
+            className="results-textLink"
+            onClick={() => selectSegment("overall", true)}
+          >
+            {copy.shapeToggle.seeOverall}
+          </button>
+        </section>
+      )}
 
       {/* How people with a similar hand size rated the mice: about the
           person, not about one mouse, so only the main page of a real scan
@@ -441,6 +626,7 @@ export function ResultsView({
         hand={response.hand}
         language={language}
         filtering={filtering}
+        showScores={!scoresHidden}
         onOpened={analytics ? () => emit("other_mice_opened", {}) : undefined}
       />
 
@@ -461,21 +647,25 @@ export function ResultsView({
       </div>
 
       {/* The feedback sheet: the main page of a real scan only (the demo has
-          no scan id). It waits for the end of the list, or 45 s of the tab
-          being visible after a real scroll (see resultFeedback.ts). */}
+          no scan id). It waits 20 s of the tab being visible and the end of
+          the list or Details, or 45 s after a real scroll, and comes at most
+          once per device in 30 days (see resultFeedback.ts, V3.2 F11). */}
       {isMain && scanId && (
         <ResultFeedbackSheet
           key={scanId}
           scanId={scanId}
           language={language}
           emit={analytics ? emit : undefined}
+          resultFingerprint={response.resultFingerprint}
+          onResultChanged={onResultChanged}
+          openedDetails={detailsOpened}
         />
       )}
     </>
   );
 
   return (
-    <div className="results-view" data-rank={card?.displayRank}>
+    <div className="results-view" data-rank={card?.displayRank} ref={rootRef}>
       <PrintOpenDetails />
       {/* Decorative haze behind the hero: see .results-glow in results.css. */}
       <div className="results-glow" aria-hidden="true" />
@@ -489,6 +679,7 @@ export function ResultsView({
             : undefined
         }
         {...shareHandlers("top", false)}
+        onBack={navigation?.onBack}
       />
       {/* A detail page has no filter controls: it says which filter it is
           under and how to get back to the list. */}
@@ -498,6 +689,11 @@ export function ResultsView({
           language={language}
           scanId={scanId}
           count={view.count}
+          onBackToList={
+            navigation
+              ? (event, href) => navigation.onPick(event, href, true)
+              : undefined
+          }
         />
       )}
       {onFiltersChange ? (
@@ -509,6 +705,15 @@ export function ResultsView({
           onChange={onFiltersChange}
           onSheetOpened={
             analytics ? () => emit("filter_sheet_opened", {}) : undefined
+          }
+          besideToggle
+          lead={
+            <ShapeToggle
+              language={language}
+              selected={shownSegment}
+              reducedMotion={reducedMotion}
+              onSelect={(segment) => selectSegment(segment)}
+            />
           }
         >
           {content}

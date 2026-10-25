@@ -18,6 +18,7 @@ import {
 } from "../../src/lib/contracts/measurement";
 import type { SheetQuadDetection } from "../../src/client/paper/detect";
 import { generateSyntheticPaper } from "./helpers/synthetic-paper";
+import { screenSideOfPaperSide } from "../../src/client/camera/paperGate";
 
 function detectFromSynthetic(
   overrides: Parameters<typeof generateSyntheticPaper>[0],
@@ -178,5 +179,129 @@ describe("evaluatePaperEdgeCalibration", () => {
     const uncorrected = evaluatePaperEdgeCalibration(quad, "a4", false);
     expect(corrected.calibration?.parallaxCorrected).toBe(true);
     expect(uncorrected.calibration?.parallaxCorrected).toBe(false);
+  });
+});
+
+describe("the paper gate's thresholds (current limits, unchanged by S1)", () => {
+  it("coverage: exactly 0.4 passes, just below fails", () => {
+    expect(
+      evaluatePaperEdgeCalibration(
+        fakeQuad({ minSideCoverage: 0.4 }),
+        "a4",
+        false,
+      ).ok,
+    ).toBe(true);
+    expect(
+      evaluatePaperEdgeCalibration(
+        fakeQuad({ minSideCoverage: 0.4 - 1e-9 }),
+        "a4",
+        false,
+      ).errors.map((e) => e.code),
+    ).toEqual(["PAPER_EDGE_HIDDEN"]);
+  });
+
+  it("residual: just under and just over 1.5 mm, both sides of the gate", () => {
+    const perPx = computePaperEdgeGeometry(
+      fakeQuad({ edgeFitResidualPx: 1 }),
+      "a4",
+    ).edgeFitResidualMm;
+    const at = (mm: number) =>
+      evaluatePaperEdgeCalibration(
+        fakeQuad({ edgeFitResidualPx: mm / perPx }),
+        "a4",
+        false,
+      );
+    expect(at(1.5 - 1e-6).ok).toBe(true);
+    expect(at(1.5 + 1e-6).errors.map((e) => e.code)).toEqual(["PAPER_CURLED"]);
+  });
+
+  it("the verdict does not depend on parallaxCorrected (it is the one argument the gates never read)", () => {
+    for (const quad of [
+      fakeQuad(),
+      fakeQuad({ minSideCoverage: 0.1 }),
+      fakeQuad({ edgeFitResidualPx: 50 }),
+    ]) {
+      const a = evaluatePaperEdgeCalibration(quad, "a4", true);
+      const b = evaluatePaperEdgeCalibration(quad, "a4", false);
+      expect(a.ok).toBe(b.ok);
+      expect(a.errors).toEqual(b.errors);
+    }
+  });
+});
+
+describe("detectPaperQuad: minCoverageSideIndex (diagnostic only)", () => {
+  it("points at the covered bottom side when a hand-coloured blob crosses it, and names it 'bottom' on screen", () => {
+    for (const seed of [1, 3, 6, 9]) {
+      const quad = detectFromSynthetic({
+        width: 640,
+        height: 480,
+        seed,
+        occluder: true,
+      });
+      expect(quad.minSideCoverage, `seed ${seed}`).toBeLessThan(1);
+      expect(quad.minCoverageSideIndex, `seed ${seed}`).toBe(2);
+      expect(screenSideOfPaperSide(quad.corners!, 2)).toBe("bottom");
+    }
+  });
+
+  it("is null when no side is hidden anywhere", () => {
+    const quad = detectFromSynthetic({
+      width: 640,
+      height: 480,
+      seed: 1,
+      occluder: false,
+    });
+    expect(quad.minSideCoverage).toBe(1);
+    expect(quad.minCoverageSideIndex).toBeNull();
+  });
+
+  it("changes nothing the gates read: the same detection's coverage, residual and corners", () => {
+    const withBlob = detectFromSynthetic({
+      width: 640,
+      height: 480,
+      seed: 3,
+      occluder: true,
+    });
+    const { minCoverageSideIndex, sideCoverages, ...rest } = withBlob;
+    void minCoverageSideIndex;
+    void sideCoverages;
+    // The photo chain on the diagnostic-free copy gives the same verdict.
+    expect(evaluatePaperEdgeCalibration(withBlob, "a4", false)).toEqual(
+      evaluatePaperEdgeCalibration(rest, "a4", false),
+    );
+  });
+});
+
+describe("detectPaperQuad: sideCoverages (diagnostic only, scan S3)", () => {
+  it("is the four per-side coverages, whose smallest is minSideCoverage and whose lowest is the side minCoverageSideIndex names", () => {
+    for (const seed of [1, 3, 6, 9]) {
+      const quad = detectFromSynthetic({
+        width: 640,
+        height: 480,
+        seed,
+        occluder: true,
+      });
+      const sides = quad.sideCoverages!;
+      expect(sides, `seed ${seed}`).toHaveLength(4);
+      for (const v of sides) {
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThanOrEqual(1);
+      }
+      expect(Math.min(...sides), `seed ${seed}`).toBe(quad.minSideCoverage);
+      expect(sides.indexOf(Math.min(...sides)), `seed ${seed}`).toBe(
+        quad.minCoverageSideIndex,
+      );
+      expect(sides[2]).toBeLessThan(1);
+    }
+  });
+
+  it("is all ones when nothing is hidden", () => {
+    const quad = detectFromSynthetic({
+      width: 640,
+      height: 480,
+      seed: 1,
+      occluder: false,
+    });
+    expect(quad.sideCoverages).toEqual([1, 1, 1, 1]);
   });
 });

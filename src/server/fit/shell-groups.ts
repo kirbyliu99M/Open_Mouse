@@ -3,6 +3,31 @@ import { shellFamily } from "./shell-family";
 import type { CatalogueMouse } from "./types";
 
 /**
+ * The same-shell key of a catalogue row: equal keys mean the same shell (the
+ * rule in the comment on `groupShells`). Exported so other code that must
+ * treat the models of one shell as one (the v3 calibration) shares this one
+ * definition instead of inventing its own.
+ */
+export function shellKey(row: CatalogueMouse): string {
+  // JSON.stringify keeps null, undefined (as null via ?? ) and booleans
+  // apart; numbers and strings are compared exactly, never rounded.
+  return JSON.stringify([
+    row.brand,
+    row.lengthMm,
+    row.widthMm,
+    row.heightMm,
+    row.shape ?? null,
+    row.handCompatibility ?? null,
+    row.humpPlacement ?? null,
+    row.frontFlare ?? null,
+    row.sideCurvature ?? null,
+    row.thumbRest ?? null,
+    row.ringFingerRest ?? null,
+    shellFamily(row.model),
+  ]);
+}
+
+/**
  * Same-shell grouping of ranked fit results (SHELL-1). The spec is the
  * comment on `variants` in `src/lib/contracts/fit.ts`; this follows it.
  *
@@ -34,22 +59,7 @@ export function groupShells(
         `No catalogue row found for ranked mouse slug "${entry.mouse.slug}".`,
       );
     }
-    // JSON.stringify keeps null, undefined (as null via ?? ) and booleans
-    // apart; numbers and strings are compared exactly, never rounded.
-    return JSON.stringify([
-      row.brand,
-      row.lengthMm,
-      row.widthMm,
-      row.heightMm,
-      row.shape ?? null,
-      row.handCompatibility ?? null,
-      row.humpPlacement ?? null,
-      row.frontFlare ?? null,
-      row.sideCurvature ?? null,
-      row.thumbRest ?? null,
-      row.ringFingerRest ?? null,
-      shellFamily(row.model),
-    ]);
+    return shellKey(row);
   };
 
   const inRankOrder = [...ranked].sort((a, b) => a.rank - b.rank);

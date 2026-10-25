@@ -5,10 +5,12 @@ import {
 import {
   GRIP_STYLES,
   SUBSCORES,
+  type ExclusionReason,
   type FitEntry,
   type FitPreferences,
   type FitResponse,
   type GripStyle,
+  type HandType,
   type Subscore,
 } from "../../lib/contracts/fit";
 import type { HandMeasurements } from "../../lib/contracts/measurement";
@@ -37,7 +39,7 @@ export { ENGINE_VERSION_V1 } from "./coefficients";
 /** Two unrounded totals closer than this are a tie (float noise, not a difference). */
 const TIE_EPSILON = 1e-9;
 
-type Subscores = Record<Subscore, SubscoreResult>;
+export type Subscores = Record<Subscore, SubscoreResult>;
 
 /** What the v1 ranking order reads from one scored mouse. */
 export interface RankKey {
@@ -69,10 +71,11 @@ function subscoresFor(
   targets: FitTargets,
   grip: GripStyle,
   prefs: FitPreferences,
+  gripWidthFactor?: number,
 ): Subscores {
   return {
     length: scoreLengthV1(mouse, targets.lengthMm, grip),
-    gripWidth: scoreGripWidthV1(mouse, targets.gripWidthMm),
+    gripWidth: scoreGripWidthV1(mouse, targets.gripWidthMm, gripWidthFactor),
     heightHump: scoreHeightHumpV1(mouse, targets.heightMm, grip),
     frontFlare: scoreFrontFlare(mouse, grip),
     thumb: scoreThumb(mouse, grip),
@@ -102,7 +105,7 @@ function totalFor(subscores: Subscores, priors: Priors, grip: GripStyle) {
 }
 
 /** The contract wants whole-number sub-scores; the engine keeps them unrounded inside. */
-function displayed(subscores: Subscores): FitEntry["subscores"] {
+export function displayed(subscores: Subscores): FitEntry["subscores"] {
   const out = {} as FitEntry["subscores"];
   for (const key of SUBSCORES) {
     const s = subscores[key];
@@ -124,6 +127,12 @@ export interface GripContext {
   /** The grips with weight above zero. */
   gripsInPlay: readonly GripStyle[];
   targetsByGrip: Record<GripStyle, FitTargets>;
+  /**
+   * The palm-width factor the targets were made with, which the grip-width
+   * error spread follows (A1-06). Absent means v1/v2's `GRIP_WIDTH_FACTOR`;
+   * v3 sets `GRIP_WIDTH_FACTOR_V3`.
+   */
+  gripWidthFactor?: number;
 }
 
 export interface MouseScoreV1 {
@@ -153,7 +162,13 @@ export function scoreMouseV1(
   let usedSubscores: Subscores | null = null;
   let usedConfidence = 0;
   for (const g of grips.gripsInPlay) {
-    const subs = subscoresFor(mouse, grips.targetsByGrip[g], g, prefs);
+    const subs = subscoresFor(
+      mouse,
+      grips.targetsByGrip[g],
+      g,
+      prefs,
+      grips.gripWidthFactor,
+    );
     const t = totalFor(subs, priors, g);
     totalRaw += grips.weights[g] * t.total;
     if (g === grips.used) {
@@ -171,6 +186,133 @@ export function scoreMouseV1(
     confidence: usedConfidence,
     lengthAbsDelta: Math.abs(shown.length.reason.params.deltaMm ?? 0),
   };
+}
+
+// ── Building blocks of the v1 response ─────────────────────────────────────
+// Exported so the v2 candidate (score-v2-candidate.ts) assembles its response
+// from the same code instead of a copy. Moved out of `scoreFitV1` unchanged
+// (2026-10-18); `scoreFitV1` is still their only v1 caller.
+
+/** The grip the person stated, the one predicted from r, and the one used. */
+export interface GripChoice {
+  /** r = palmLength / handLength. */
+  r: number;
+  stated: GripStyle | null;
+  /** The arg-max of v1's soft weights. */
+  predicted: GripStyle;
+  /** `stated` when given, else `predicted`. */
+  used: GripStyle;
+}
+
+/** v1's grip choice: `predicted` is the arg-max of the soft weights, `used` is `stated ?? predicted`. */
+export function gripChoiceV1(
+  measurements: HandMeasurements,
+  prefs: FitPreferences,
+): GripChoice {
+  const r = measurements.palmLengthMm / measurements.handLengthMm;
+  const predicted = argmaxGrip(gripWeights(r));
+  const stated = prefs.gripStyle ?? null;
+  return { r, stated, predicted, used: stated ?? predicted };
+}
+
+/** One rankable mouse and its v1 score, before it has a rank. */
+export interface ScoredMouseV1 {
+  mouse: CatalogueMouse;
+  score: MouseScoreV1;
+}
+
+/**
+ * v1 §6: unrounded total desc, then confidence desc, then |length Δ| asc,
+ * then model name asc. `Array.prototype.sort` is stable, so equal keys keep
+ * catalogue order.
+ */
+export function compareScoredV1(a: ScoredMouseV1, b: ScoredMouseV1): number {
+  return compareRankKeys(
+    {
+      totalRaw: a.score.totalRaw,
+      confidence: a.score.confidence,
+      lengthAbsDelta: a.score.lengthAbsDelta,
+      model: a.mouse.model,
+    },
+    {
+      totalRaw: b.score.totalRaw,
+      confidence: b.score.confidence,
+      lengthAbsDelta: b.score.lengthAbsDelta,
+      model: b.mouse.model,
+    },
+  );
+}
+
+/**
+ * A ranked entry as the contract wants it. `shown` are the sub-scores the
+ * entry displays; by default the ones its score was computed with.
+ */
+export function toFitEntryV1(
+  mouse: CatalogueMouse,
+  score: MouseScoreV1,
+  rank: number,
+  shown: Subscores = score.subscores,
+): FitEntry {
+  return {
+    mouse: {
+      slug: mouse.slug,
+      brand: mouse.brand,
+      model: mouse.model,
+      lengthMm: mouse.lengthMm,
+      widthMm: mouse.widthMm,
+      heightMm: mouse.heightMm,
+      weightG: mouse.weightG,
+      size: mouse.size,
+    },
+    total: score.total,
+    confidence: score.confidence,
+    subscores: displayed(shown),
+    rank,
+  };
+}
+
+/** An excluded mouse, with the total of a `wrong_hand` one scored against `grips`. */
+export function excludedEntryV1(
+  mouse: CatalogueMouse,
+  reason: ExclusionReason,
+  grips: GripContext,
+  priors: Priors,
+  prefs: FitPreferences,
+): FitResponse["excluded"][number] {
+  return {
+    slug: mouse.slug,
+    brand: mouse.brand,
+    model: mouse.model,
+    reason,
+    // Kirby, 2026-10-09: a mouse made for the other hand still shows the
+    // score it would get, unless the device is vertical or a trackball:
+    // the length/width model does not apply to those (totalApplies).
+    ...(reason === "wrong_hand" && totalApplies(mouse)
+      ? { total: scoreMouseV1(mouse, grips, priors, prefs).total }
+      : {}),
+  };
+}
+
+/**
+ * The `handType` key of the response, or nothing for an empty catalogue. The
+ * hand-type label is display only and must not move with the thickness
+ * answer, so it reads the targets without the shift; the statistics come from
+ * the whole catalogue passed in, not only the ranked part.
+ */
+export function handTypeFieldV1(
+  measurements: HandMeasurements,
+  used: GripStyle,
+  catalogue: readonly CatalogueMouse[],
+): { handType?: HandType } {
+  const handTypeTargets = computeTargets(
+    measurements.handLengthMm,
+    measurements.palmWidthMm,
+    used,
+  );
+  const handTypeStats = handTypeStatsFromCatalogue(catalogue);
+  return handTypeStats
+    ? { handType: classifyHandType(handTypeTargets, used, handTypeStats) }
+    : {};
 }
 
 /**
@@ -196,10 +338,7 @@ export function scoreFitV1(
   priors: Priors,
   options: ExclusionOptions = {},
 ): Omit<FitResponse, "scanId"> {
-  const r = measurements.palmLengthMm / measurements.handLengthMm;
-  const predicted = argmaxGrip(gripWeights(r));
-  const stated = prefs.gripStyle ?? null;
-  const used = stated ?? predicted;
+  const { r, stated, predicted, used } = gripChoiceV1(measurements, prefs);
   const weights = gripWeights(r, stated);
   const gripsInPlay = GRIP_STYLES.filter((g) => weights[g] > 0);
 
@@ -210,13 +349,6 @@ export function scoreFitV1(
     prefs.palmThickness,
   );
   const targets = targetsByGrip[used];
-  // The hand-type label is display only and must not move with the thickness
-  // answer, so it reads the targets without the shift.
-  const handTypeTargets = computeTargets(
-    measurements.handLengthMm,
-    measurements.palmWidthMm,
-    used,
-  );
   const grips: GripContext = {
     used,
     weights,
@@ -225,68 +357,22 @@ export function scoreFitV1(
   };
 
   const excluded: FitResponse["excluded"] = [];
-  const scored: {
-    entry: Omit<FitEntry, "rank">;
-    totalRaw: number;
-    lengthAbsDelta: number;
-  }[] = [];
+  const scored: ScoredMouseV1[] = [];
 
   for (const mouse of catalogue) {
     const reason = excludeReasonV1(mouse, hand, prefs, options);
     if (reason) {
-      excluded.push({
-        slug: mouse.slug,
-        brand: mouse.brand,
-        model: mouse.model,
-        reason,
-        // Kirby, 2026-10-09: a mouse made for the other hand still shows the
-        // score it would get, unless the device is vertical or a trackball:
-        // the length/width model does not apply to those (totalApplies).
-        ...(reason === "wrong_hand" && totalApplies(mouse)
-          ? { total: scoreMouseV1(mouse, grips, priors, prefs).total }
-          : {}),
-      });
+      excluded.push(excludedEntryV1(mouse, reason, grips, priors, prefs));
       continue;
     }
-
-    const m = scoreMouseV1(mouse, grips, priors, prefs);
-
-    scored.push({
-      entry: {
-        mouse: {
-          slug: mouse.slug,
-          brand: mouse.brand,
-          model: mouse.model,
-          lengthMm: mouse.lengthMm,
-          widthMm: mouse.widthMm,
-          heightMm: mouse.heightMm,
-          weightG: mouse.weightG,
-          size: mouse.size,
-        },
-        total: m.total,
-        confidence: m.confidence,
-        subscores: displayed(m.subscores),
-      },
-      totalRaw: m.totalRaw,
-      lengthAbsDelta: m.lengthAbsDelta,
-    });
+    scored.push({ mouse, score: scoreMouseV1(mouse, grips, priors, prefs) });
   }
 
-  // v1 §6: unrounded total desc, then confidence desc, then |length Δ| asc,
-  // then model name asc.
-  scored.sort((a, b) =>
-    compareRankKeys(
-      { ...a, confidence: a.entry.confidence, model: a.entry.mouse.model },
-      { ...b, confidence: b.entry.confidence, model: b.entry.mouse.model },
-    ),
+  scored.sort(compareScoredV1);
+
+  const results: FitEntry[] = scored.map(({ mouse, score }, i) =>
+    toFitEntryV1(mouse, score, i + 1),
   );
-
-  const results: FitEntry[] = scored.map(({ entry }, i) => ({
-    ...entry,
-    rank: i + 1,
-  }));
-
-  const handTypeStats = handTypeStatsFromCatalogue(catalogue);
 
   return {
     engineVersion: ENGINE_VERSION_V1,
@@ -298,9 +384,7 @@ export function scoreFitV1(
       // The contract documents `weights` as the blend used when no grip was stated.
       ...(stated === null ? { weights } : {}),
     },
-    ...(handTypeStats
-      ? { handType: classifyHandType(handTypeTargets, used, handTypeStats) }
-      : {}),
+    ...handTypeFieldV1(measurements, used, catalogue),
     targets,
     excluded,
     results,

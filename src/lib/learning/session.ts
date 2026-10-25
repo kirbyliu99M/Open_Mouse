@@ -92,14 +92,70 @@ const calendarDate = z
  * Free text that must not identify a person. A schema cannot catch a name or
  * a health remark, so the rule stands on its own (no names, no contact
  * details, nothing about anyone's health); this only refuses what is
- * mechanically recognisable: an email address or a phone-like run of digits.
+ * mechanically recognisable: an email address, an @handle, a messenger ID
+ * (Line and friends) or a phone-like run of digits.
+ *
+ * Mouse names and specs must pass: `G502 X Plus`, `MX Master 3S`, `800 DPI`,
+ * `1000 Hz`, `63 g`, `120 x 63 x 40 mm`, `19 cm`, a bare year.
  */
+
+/** A spec unit right after a run of numbers (`400 800 1600 DPI`). */
+const SPEC_UNIT_AFTER =
+  /^\s*(?:dpi|cpi|hz|khz|mm|cm|kg|g|lux|px|ms|%)(?![a-z])/i;
+/** A spec unit right before one (`DPI: 400 800 1600`). */
+const SPEC_UNIT_BEFORE =
+  /(?:^|[^a-z])(?:dpi|cpi|hz|khz|mm|cm|kg|g|lux|px|ms)[\s:=]*$/i;
+
+/** A calendar date (2026-10-02, 2026.10.02): digits, but not a phone number. */
+const DATE_RUN = /\d{4}[-./]\d{1,2}[-./]\d{1,2}/g;
+
+/**
+ * A phone number with no leading 0 or "+" (`415-555-1234`, `886 912 345 678`):
+ * nine to thirteen digits in groups of at most four, at least one group of two
+ * or more digits, not sitting next to a spec unit.
+ */
+function hasBarePhoneRun(text: string): boolean {
+  for (const m of text.matchAll(/\(?\d[\d\s().-]*\d/g)) {
+    const run = m[0];
+    const groups = run.split(/[\s().-]+/).filter((g) => g !== "");
+    const digits = groups.join("").length;
+    if (digits < 9 || digits > 13) continue;
+    if (groups.some((g) => g.length > 4)) continue;
+    if (!groups.some((g) => g.length >= 2)) continue;
+    const at = m.index ?? 0;
+    if (SPEC_UNIT_AFTER.test(text.slice(at + run.length))) continue;
+    if (SPEC_UNIT_BEFORE.test(text.slice(0, at))) continue;
+    return true;
+  }
+  return false;
+}
+
 export function looksLikeContactDetails(text: string): boolean {
-  if (/[^\s@]+@[^\s@]+\.[^\s@]+/.test(text)) return true;
-  // A phone number here starts with "+" or a 0 (Taiwan numbers: 09…, 02…,
-  // +886…), optionally in brackets, and runs to at least nine digits. Dates
+  // Full-width digits, "＠" and "：" fold to their ASCII forms.
+  const t = text.normalize("NFKC");
+  if (/[^\s@]+@[^\s@]+\.[^\s@]+/.test(t)) return true;
+  // An @handle: "@" at the start of a word, then a name of three or more.
+  if (/(?:^|[\s(,;])@[A-Za-z0-9_.]{3,}/.test(t)) return true;
+  // "加我 line", "line id", "line: abc123", "Line ID abc_123", "wechat: x".
+  if (
+    /加\s*(?:我|入|好友)?\s*(?:line|wechat|telegram|whatsapp|instagram|ig|微信|賴)/i.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  if (/(?:^|[^a-z])line\s*id(?![a-z])/i.test(t)) return true;
+  const handle =
+    /(?:^|[^a-z])(?:line|wechat|telegram|whatsapp|instagram|ig|微信|賴)\s*[:=]\s*(@?[A-Za-z0-9._-]{3,})/i.exec(
+      t,
+    );
+  // "line: abc123" is a handle; "line: smooth" is a sentence.
+  if (handle && /[\d_@.]/.test(handle[1].replace(/[._-]+$/, ""))) return true;
+  // A phone number starting with "+" or a 0 (Taiwan numbers: 09…, 02…,
+  // +886…), optionally in brackets, runs to at least nine digits. Dates
   // (2026-10-02), ranges (3000-5000 lux) and counts do not start that way.
-  return /(?:^|[^\d])(?:\+|\(?0)\d?\)?(?:[\s().-]*\d){8,}/.test(text);
+  if (/(?:^|[^\d])(?:\+|\(?0)\d?\)?(?:[\s().-]*\d){8,}/.test(t)) return true;
+  return hasBarePhoneRun(t.replace(DATE_RUN, " "));
 }
 const freeText = z.string().refine((s) => !looksLikeContactDetails(s), {
   message: "free text must not hold an email address or a phone number",

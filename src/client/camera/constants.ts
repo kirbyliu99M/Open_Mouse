@@ -89,6 +89,36 @@ export const CAMERA_CONSTANTS = {
      */
     maxConsecutiveFailures: 3,
   },
+  /**
+   * V3.2 F14 (Kirby's phone test of preview 5, 2026-10-22; every number a
+   * candidate, 未拍板): the photo is taken without the sheet when the
+   * detector cannot find it (a light table) but a hand is held still
+   * (`noSheetCapture.ts`). Its analysis then opens the frame adjustment.
+   */
+  noSheetCapture: {
+    /** How long a steady hand with no sheet found is waited for before the photo is taken. */
+    waitMs: 4000,
+    /**
+     * Live samples in a row without a steady hand that empty the wait. The
+     * hand is read only every `handSampleIntervalMs` (4 live samples at
+     * 8 Hz). One reading that missed the hand costs 4 samples (the next one
+     * is compared with the last that found it, `recordHandReading`); one that
+     * saw the hand jump and come back costs 8 (it spoils the comparison on
+     * both sides). Either only pauses the wait; two readings in a row that
+     * missed the hand (12 samples) empty it.
+     */
+    maxConsecutiveMisses: 9,
+    /** The live loop reads the hand at most this often, and only while no sheet is found. */
+    handSampleIntervalMs: 500,
+    /** A hand reading older than this counts as no hand. */
+    handStaleMs: 1200,
+    /**
+     * A landmark that moved more than this share of the live picture's
+     * diagonal between two readings (`handSampleIntervalMs` apart) is not
+     * held still (the paper ring allows 0.015 per 125 ms sample).
+     */
+    maxHandMovementFraction: 0.03,
+  },
   /** Still used by the printed-sheet flow (CameraCapture). The easy scan uses `cueDebounce`. */
   cueThrottleMs: 1500,
   /** The easy scan's cue line (scan v2, candidates). */
@@ -97,6 +127,20 @@ export const CAMERA_CONSTANTS = {
     leavePerfectSamples: 2,
     /** The cue text changes no more often than this, except into "perfect". */
     minTextChangeMs: 500,
+    /**
+     * Consecutive samples with the SAME paper-gate cue (same reason, same
+     * side name) before that cue is put on screen (candidate, 未拍板).
+     */
+    confirmSamples: 2,
+    /**
+     * V3.2 F16 (candidate, 未拍板): consecutive samples with the SAME ordinary
+     * cue (not a paper-gate one, not "perfect") before it replaces another
+     * ordinary cue on screen. Two cues that alternate sample by sample (two
+     * conflicting side lines: "tilted" one sample, "too far" the next) used
+     * to swap the text every 500 ms; now the text stays. Leaving "perfect"
+     * keeps its own rule (`leavePerfectSamples`, any non-perfect codes).
+     */
+    switchConfirmSamples: 2,
   },
   /** The easy scan's corner dots (scan v2, candidates). */
   corners: {
@@ -106,6 +150,22 @@ export const CAMERA_CONSTANTS = {
     returnToGuideAfterMs: 1000,
     /** A corner found again within this long of being lost does not pop in again. */
     repopAfterLostMs: 500,
+  },
+  /**
+   * The live outline's hysteresis (V3.2 F16, candidates 未拍板;
+   * `outlineHysteresis.ts`). Display only: no gate, cue code or ring reads it.
+   */
+  outlineHysteresis: {
+    /**
+     * A sample whose furthest corner is more than this share of the picture's
+     * diagonal from the outline on screen is a jump (twice the 0.015 a corner
+     * may move between samples and still count as held still).
+     */
+    jumpFraction: 0.03,
+    /** Jumps in a row before the outline follows one (at 8 samples a second, one sample late). */
+    switchSamples: 2,
+    /** Samples in a row a corner on screen must be missing before its dot goes hollow. */
+    lostSamples: 3,
   },
   /**
    * The preview stream's shape (scan v2 field-of-view fix, candidates). The
@@ -163,6 +223,59 @@ export const CAMERA_CONSTANTS = {
     /** After a tap's single-shot focus, continuous focus is asked for again. */
     tapRefocusMs: 1200,
   },
+} as const;
+
+/**
+ * V3.2 F16 (candidate, 未拍板): the parallax correction's safety check
+ * (`src/client/geometry/parallaxGuard.ts`). A ratio is the UNCORRECTED length
+ * over the corrected one. A correction is refused only when a ratio is
+ * outside the first three limits AND its focal length is not backed by the
+ * photo (`focalAgreement`). The ratios alone are not enough: for a camera
+ * close to overhead a right correction reads a little above 1, but tilted far
+ * it does not (模擬, tests/unit/parallax-guard.test.ts, 1080x1920, the
+ * camera's true focal length, 450 mm: towards the wrist 0.988 at 30 degrees,
+ * 0.980 at 35, 0.971 at 40; towards the fingertips 1.105 at 40).
+ *
+ * - `minLengthRatio` 0.99 (hand length, palm length): Kirby's eight measured
+ *   scans (實測, 2026-10-23) put the ratio at 1.018-1.056; R7's simulation
+ *   (模擬, review/R7/c.out.txt) at 1.018-1.080. The 1 % is room for noise.
+ * - `minWidthRatio` 0.985 (palm width): the lowest measured width ratio is
+ *   0.990 (實測, given to three decimals), so the width floor sits half a
+ *   percent below it rather than on it.
+ * - `maxRatio` 1.10 (all three): the largest simulated ratio in R7 is 1.080
+ *   (palm length, a 3000x4000 photo with the sheet filling 0.8 of it, a
+ *   210 mm hand); the largest measured one 1.058. Corners placed 60 px inside
+ *   the sheet's on one edge read 1.107-1.114 on the palm width in the F16
+ *   simulation (模擬), and no focal estimate can be worked out from them.
+ * - `focalAgreement` 0.85-1.4 (the sheet homography's own focal estimate over
+ *   the focal length used; EXIF is always backed). In the F16 simulation
+ *   (模擬, 1080x1920, 350 and 450 mm, tilted 0-40 degrees towards the wrist,
+ *   the fingertips or the side, no EXIF so the nominal focal length is used,
+ *   the true one 0.62-1.3 times it), over the scans the ratios alone refuse:
+ *   an estimate 0.8 times the one used gave a corrected hand 5 to 13 mm too
+ *   long against an uncorrected one within 5.4 mm (refusing is right); 0.9
+ *   times, +3 to +6 mm against -1 to -5 mm (about the same either way);
+ *   1.1-1.3 times, -6 to +7.4 mm against +7.6 to +20 mm (using it is right,
+ *   or no worse). The 0.85 sits between 0.8 and 0.9 and is not tuned
+ *   further (不確定 where exactly the crossover is); the 1.4 is the prior
+ *   range's top (`FOCAL_PRIOR_RANGE`), not simulated beyond 1.3. Kirby's
+ *   failing scan: 894 / 1442 = 0.62, not backed (under the 26 mm prior;
+ *   with F17's 998 px prior the same estimate, 0.90 of it, is inside the
+ *   prior range and is used itself, so the guard is not reached, 模擬 in
+ *   tests/unit/parallax-guard.test.ts). The estimate is used
+ *   whether or not focal-from-homography.ts flags it `reliable`: a camera
+ *   tilted straight back gives it from one formula only and is flagged
+ *   unreliable, yet in the simulation its value is right.
+ *
+ * Kirby's failing scan (實測) was 0.904 / 0.931 / 1.094: refused on the hand
+ * length. None of these is a gate on the photo: a refused correction only
+ * means the scan is measured as if uncorrected.
+ */
+export const PARALLAX_GUARD = {
+  minLengthRatio: 0.99,
+  minWidthRatio: 0.985,
+  maxRatio: 1.1,
+  focalAgreement: { min: 0.85, max: 1.4 },
 } as const;
 
 export type CaptureSource = "frame" | "takePhoto";

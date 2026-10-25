@@ -318,6 +318,46 @@ export function applyMeasuredTransform(
 }
 
 /**
+ * Still pixels per overlay pixel, one ratio per axis. The pipeline analyses a
+ * scaled-down copy whose width and height are rounded separately
+ * (`computeDownscaleSize`), so the two ratios differ slightly (4001x3000 down to
+ * 3000x2249: 1.33367 and 1.33393). Using the width ratio for both axes put a
+ * point near the bottom 0.58 still px off. With nothing to compare against the
+ * ratios are 1; a missing analysed height falls back to the width ratio.
+ */
+export function computeOverlayToStill(
+  still: Size | null,
+  overlay: { readonly imageWidth: number; readonly imageHeight: number } | null,
+): { readonly x: number; readonly y: number } {
+  const x =
+    overlay && overlay.imageWidth > 0 && still
+      ? still.width / overlay.imageWidth
+      : 1;
+  const y =
+    overlay && overlay.imageHeight > 0 && still
+      ? still.height / overlay.imageHeight
+      : x;
+  return { x, y };
+}
+
+/**
+ * The part of the overlay that is on screen (the frozen photo's crop, which is
+ * in still pixels), in overlay units: each axis is divided by its own ratio.
+ */
+export function overlayVisibleRect(
+  crop: Rect,
+  overlayToStill: number,
+  overlayToStillY: number = overlayToStill,
+): Rect {
+  return {
+    x: crop.x / overlayToStill,
+    y: crop.y / overlayToStillY,
+    width: crop.width / overlayToStill,
+    height: crop.height / overlayToStillY,
+  };
+}
+
+/**
  * What must stay clear of the bottom sheet once a photo has been measured
  * (or has failed): the paper's corners and the hand's landmarks, with room
  * around them for the dimension lines and their labels, in untransformed
@@ -328,6 +368,11 @@ export function computeResultFocusRect(input: {
   readonly layout: FrozenPhotoLayout;
   /** Still pixels per overlay pixel (the pipeline may have scaled the photo down). */
   readonly overlayToStill: number;
+  /**
+   * The same ratio on the vertical axis. The scale-down rounds width and height
+   * separately, so it differs a little from `overlayToStill`; defaults to it.
+   */
+  readonly overlayToStillY?: number;
   readonly overlay: {
     readonly landmarksPx: readonly Point[] | null;
     readonly paperCorners?: readonly Point[] | null;
@@ -336,13 +381,14 @@ export function computeResultFocusRect(input: {
   readonly labelAllowancePx: number;
 }): Rect {
   const { stage, layout, overlayToStill, overlay } = input;
+  const overlayToStillY = input.overlayToStillY ?? overlayToStill;
   const overlayPoints = [
     ...(overlay?.paperCorners ?? []),
     ...(overlay?.landmarksPx ?? []),
   ];
   const stagePoints = overlayPoints.map((p) =>
     photoPointToStage(
-      { x: p.x * overlayToStill, y: p.y * overlayToStill },
+      { x: p.x * overlayToStill, y: p.y * overlayToStillY },
       layout,
     ),
   );

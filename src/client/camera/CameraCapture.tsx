@@ -67,6 +67,8 @@ import {
 import {
   createMarkerBasedQuadSource,
   createPaperEdgeQuadSource,
+  NO_QUAD_DETECTION,
+  type SheetQuadDetection,
   type SheetQuadSource,
 } from "./quad-source";
 import "./camera.css";
@@ -569,21 +571,14 @@ export default function CameraCapture({
       ctx.drawImage(video, 0, 0, width, height);
       const imageData = ctx.getImageData(0, 0, width, height);
 
-      let detection;
+      let detection: SheetQuadDetection;
       try {
         detection = quadSourceRef.current(imageData, paperSize);
       } catch {
         // Defence in depth: quad-source.ts's own wrappers already catch a
         // detector throw, but this loop runs up to 8×/s for as long as the
         // camera is open and must never be the thing that crashes it.
-        detection = {
-          corners: null,
-          cornersSeen: 0 as const,
-          cornersFound: [false, false, false, false] as const,
-          partialCorners: [null, null, null, null] as const,
-          minSideCoverage: 0,
-          edgeFitResidualPx: 0,
-        };
+        detection = NO_QUAD_DETECTION;
       }
       const sampleQuad: Quad | null = detection.corners
         ? {

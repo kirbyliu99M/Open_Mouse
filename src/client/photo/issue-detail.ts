@@ -1,4 +1,5 @@
 import type { HandFix, HandSurface } from "../../lib/copy/scan-issues";
+import type { PaperDetectionStage } from "../paper/detectionStage";
 
 /**
  * What an issue's English `message` says that its `code` does not, as data, so
@@ -17,7 +18,9 @@ export type IssueDetail =
   /** No hand found: on the printed sheet, on a blank paper, or neither (a typed hand length). */
   | { readonly kind: "handNotDetected"; readonly on: HandSurface }
   /** The palm does not fit the hand length the person typed. */
-  | { readonly kind: "typedLength"; readonly typedMm: number };
+  | { readonly kind: "typedLength"; readonly typedMm: number }
+  /** No sheet found: the step the paper detector stopped at (scan S2, candidate). */
+  | { readonly kind: "paperStage"; readonly stage: PaperDetectionStage };
 
 /** The fix text the easy scan passes to `checkHandedness` (a button on its sheet). */
 export const HAND_BUTTON_FIX_INSTRUCTION = "tap the hand button below";

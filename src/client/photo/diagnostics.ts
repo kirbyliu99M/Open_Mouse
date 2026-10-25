@@ -6,8 +6,69 @@
  * error code alone does not say why (a sheet that fills 65 % of the photo and a
  * sheet that fills 90 % can both read "PAPER_CURLED").
  */
+import type { EdgeFitRecord, PaperChoiceRecord } from "../paper/detect";
 import { computeQuadSkew } from "../camera/quad";
+import { screenSideOfPaperSide, type PaperSide } from "../camera/paperGate";
+import { lowestCoverageSide } from "../paper/detect";
+import type { PaperDetectionStage } from "../paper/detectionStage";
 import type { FrameSize, PixelRect } from "../camera/visibleView";
+import type { HandFlatness } from "./handFlatness";
+import type { AnalysisThread } from "./offMainAnalysis";
+import type { PaperCornerSource } from "../../lib/contracts/measurement";
+import type {
+  ParallaxGuardField,
+  ParallaxGuardRatios,
+  ParallaxGuardReason,
+} from "../geometry/parallaxGuard";
+
+/**
+ * V3.2 F17 (candidate): the detector was run a second time with the hand's
+ * palm (palmChoice.ts), because the first sheet was not found or did not
+ * hold the palm. `used`: whether its answer replaced the first one (only
+ * when it chose another region, reason `palm`).
+ */
+export interface PaperChoiceDiagnostics extends PaperChoiceRecord {
+  readonly used: boolean;
+}
+
+/**
+ * V3.2 F19 (candidate): the detector's second call (secondLook.ts): whether
+ * it carried the palm (F17) and the hand's landmarks (F19), whether its
+ * answer was taken, and how long it took (ms, measured in the browser).
+ */
+export interface PaperSecondLookDiagnostics {
+  readonly palm: boolean;
+  readonly handMask: boolean;
+  readonly used: boolean;
+  readonly ms: number;
+  /**
+   * F19 review (2026-10-25): what the second call found when it carried the
+   * hand and its answer was NOT taken (the result's `edgeFit` is then the
+   * first call's, without a mask), so the log still shows the masked fit:
+   * corners seen, per-side residuals (px), points left out, pieces joined.
+   * Absent otherwise. Local attempt log only.
+   */
+  readonly notUsed?: PaperSecondLookNotUsed;
+}
+
+/** F19: the masked second answer that was not taken (`PaperSecondLookDiagnostics.notUsed`). */
+export interface PaperSecondLookNotUsed {
+  readonly cornersSeen: number;
+  readonly sideResidualsPx: EdgeFitRecord["sideResidualsPx"] | null;
+  readonly excludedPoints: number | null;
+  readonly piecesJoined: number | null;
+}
+
+/**
+ * V3.2 F19 (candidate): how the sides of the sheet in the result were fitted
+ * (`EdgeFitRecord`: per-side residuals in px, points left out under the hand,
+ * whether a hand mask was used, pieces joined), `null` without a found
+ * sheet; and the second call, `null` when there was none.
+ */
+export interface PaperEdgeFitDiagnostics {
+  readonly edgeFit: EdgeFitRecord | null;
+  readonly secondLook: PaperSecondLookDiagnostics | null;
+}
 
 export interface PaperDiagnostics {
   /** Corners whose two sides were both fitted, 0-4. */
@@ -43,14 +104,41 @@ export interface PaperDiagnostics {
    * candidate); no gate looks at it.
    */
   readonly observedAspect: number | null;
-  /** The smallest fraction of any side that was seen, 0-1. */
-  readonly minSideCoverage: number;
+  /** The smallest fraction of any side that was seen, 0-1; `null` for a frame the person placed (no side was fitted). */
+  readonly minSideCoverage: number | null;
+  /**
+   * The four per-side coverages, 0-1, in the detector's side order (0 = the
+   * short side from the top-left to the top-right corner, then clockwise);
+   * `null` where the detector did not measure them. Paper geometry only (scan
+   * S3, 2026-10-19): it says which edge the 0.225-0.35 minimum was on.
+   */
+  readonly sideCoverages: readonly [number, number, number, number] | null;
+  /**
+   * The side with the lowest coverage, as the person sees it on the screen;
+   * `null` without four corners, on a tie for the lowest, with every side
+   * fully seen, or where the quad is turned too far for a plain name.
+   */
+  readonly worstSide: PaperSide | null;
   /**
    * The paper gates that failed, by code. Listed even where the result goes on
    * to report another error first: a photo with no hand reports only that, and
    * this still says whether the sheet would have passed.
    */
   readonly gateFailures: readonly string[];
+  /**
+   * Where the paper detector stopped when it found no sheet (scan S2,
+   * 2026-10-21, candidate): one of `PAPER_DETECTION_STAGES`; `null` when a
+   * sheet was found, and absent where nothing set it (hand-built diagnostics
+   * in tests). A step of the algorithm, not a proven cause.
+   */
+  readonly failureStage?: PaperDetectionStage | null;
+  /**
+   * V3.2 F2 (candidate): where the corners came from, as the submission's
+   * `cornersSource` says. Absent for the detector's own corners (every run
+   * before V3.2 and every detected run since); `adjusted` or `manual` for a
+   * frame the person placed, whose edge numbers are then `null`.
+   */
+  readonly cornersSource?: PaperCornerSource;
 }
 
 export interface HandDiagnostics {
@@ -58,6 +146,15 @@ export interface HandDiagnostics {
   readonly detected: boolean | null;
   readonly confidence: number | null;
   readonly handedness: "left" | "right" | null;
+  /**
+   * SHADOW MODE (2026-10-19, 未拍板 candidate): how flat the four fingers look
+   * (`assessHandFlatness`), a grade and two ratios of distances in the same
+   * picture. Worked out from the landmarks the one detection already returned;
+   * no gate, measurement or submission reads it. `null` when no hand was
+   * detected. Stays on the device (the attempt log); only the grade leaves, as
+   * the `handPose` bucket of the scan events.
+   */
+  readonly flatness: HandFlatness | null;
 }
 
 /** What the person saw, and how it was carried over to the photo (visibleView.ts). */
@@ -110,20 +207,83 @@ export interface PipelineDiagnostics {
   /** Where the parallax correction's focal length came from, and its value; `null` where the pipeline stopped before that. */
   readonly focal: FocalDiagnostics | null;
   /**
-   * SHADOW MODE (2026-10-16, candidate): what a nominal focal length would have
-   * changed, worked out beside the real measurement and used by nothing in it;
+   * SHADOW MODE (2026-10-16, candidate; turned round in landmark-raw-v3: the
+   * uncorrected numbers beside the reported ones): worked out beside the real
+   * measurement and used by nothing in it;
    * `null` where the run did not end in a measurement. Stays on the device (the
    * attempt log, and the `priorEffect` bucket of `scan_quality`).
    */
   readonly shadowPrior: ShadowPriorDiagnostics | null;
+  /**
+   * V3.2 F16 (candidate): a parallax correction the safety check did not use
+   * (`parallaxGuard.ts`), with why; `null` when no correction was refused;
+   * absent in hand-built diagnostics (tests). Local attempt log only: it
+   * changes no number beyond the refusal itself and is not sent to analytics.
+   */
+  readonly parallaxGuard?: ParallaxGuardDiagnostics | null;
+  /**
+   * V3.2 F17 (candidate): the detector's second look with the hand's palm
+   * (palmChoice.ts), present only where there was one: which region it took,
+   * why, and whether its answer replaced the first. Local attempt log only;
+   * not sent to analytics.
+   */
+  readonly paperChoice?: PaperChoiceDiagnostics;
+  /**
+   * V3.2 F19 (candidate): per-side residuals, points left out under the hand
+   * and the second call, present where there is a found sheet or a second
+   * call. Local attempt log only; not sent to analytics.
+   */
+  readonly paperEdgeFit?: PaperEdgeFitDiagnostics;
+  /**
+   * V3.2 F8 (candidate): where the sheet detector and the sharpness ran,
+   * `worker` (a Web Worker, off the main thread) or `fallback` (the main
+   * thread, because the worker was missing or failed; `fallback` as soon as
+   * any one step fell back); `null` where neither ran; absent in hand-built
+   * diagnostics (tests). Local attempt log
+   * only: it changes no number and is not sent to analytics.
+   */
+  readonly analysisThread?: AnalysisThread | null;
 }
 
 export interface ShadowPriorDiagnostics {
   /**
-   * The hand length with the nominal focal prior minus the one reported, in mm;
+   * Since landmark-raw-v3 (candidate): the UNCORRECTED hand length minus the
+   * one reported, in mm (before v3 it was the nominal prior's minus the
+   * reported one; the contract's `PRIOR_EFFECT_BUCKETS` says the same).
    * `null` when the shadow could not be worked out (it never fails the scan).
    */
   readonly handLengthDeltaMm: number | null;
+  /**
+   * landmark-raw-v3 (candidate), local attempt log only, never analytics: the
+   * same landmarks with no parallax correction, mm, for Kirby's S25 check of
+   * the engine-scale ratios (design R7 §5.3). Absent before v3; `null` when
+   * they could not be worked out.
+   */
+  readonly uncorrected?: {
+    readonly handLengthMm: number;
+    readonly palmLengthMm: number;
+    readonly palmWidthMm: number;
+  } | null;
+  /**
+   * landmark-raw-v3 (candidate), local attempt log only: the three lengths
+   * the scan reported, mm, beside `uncorrected` (the measured engine-scale
+   * ratios are uncorrected over reported). Absent before v3.
+   */
+  readonly reported?: {
+    readonly handLengthMm: number;
+    readonly palmLengthMm: number;
+    readonly palmWidthMm: number;
+  } | null;
+  /**
+   * landmark-raw-v3 (candidate), local attempt log only: the homography's own
+   * focal estimate, px, and whether it was judged reliable, whether or not the
+   * correction used it (design R7 §5.3 b). Absent before v3; `null` when no
+   * estimate could be made.
+   */
+  readonly homographyFocal?: {
+    readonly px: number;
+    readonly reliable: boolean;
+  } | null;
 }
 
 export interface MeasuredDiagnostics {
@@ -131,8 +291,23 @@ export interface MeasuredDiagnostics {
   readonly palmWidthMm: number | null;
 }
 
+/** A parallax correction that was worked out and then not used (V3.2 F16, candidate). */
+export interface ParallaxGuardDiagnostics {
+  readonly refused: true;
+  readonly reason: ParallaxGuardReason;
+  /** The first length that failed the check. */
+  readonly field: ParallaxGuardField;
+  /** Uncorrected over corrected, unrounded. */
+  readonly ratios: ParallaxGuardRatios;
+  /** The focal length the refused correction used. */
+  readonly refusedFocal: {
+    readonly source: "exif" | "homography" | "nominal";
+    readonly px: number;
+  };
+}
+
 export interface FocalDiagnostics {
-  readonly source: "exif" | "homography" | "none";
+  readonly source: "exif" | "homography" | "nominal" | "none";
   /** In px; `null` when `source` is "none" (no correction was possible). */
   readonly px: number | null;
 }
@@ -157,6 +332,22 @@ export function paperMaxAngleDeviationDeg(
     bottomLeft,
   });
   return Number.isFinite(maxAngleDeviationDeg) ? maxAngleDeviationDeg : null;
+}
+
+/**
+ * The on-screen name of the side with the lowest coverage, from the detector's
+ * four corners (TL, TR, BR, BL) and its four per-side coverages; `null` when
+ * either is missing, when two or more sides tie for the lowest, when all are
+ * fully seen, or when the quad is turned too far for a plain name.
+ */
+export function paperWorstSide(
+  corners: readonly [Pt, Pt, Pt, Pt] | null,
+  sideCoverages: readonly number[] | null | undefined,
+): PaperSide | null {
+  if (!corners || !sideCoverages || sideCoverages.length !== 4) return null;
+  const index = lowestCoverageSide(sideCoverages);
+  if (index === null) return null;
+  return screenSideOfPaperSide(corners, index);
 }
 
 /**

@@ -29,6 +29,13 @@ export interface AccountScan {
    * browser, so a scan typed in by hand needs it to be restored there.
    */
   calibrationMethod: CalibrationMethod | null;
+  /**
+   * landmark-raw-v3 (V3.2 candidate): `calibration_evidence.parallaxCorrected`,
+   * `null` or absent when the evidence has none. The page shows a corrected
+   * scan's lengths on the engine's scale (`shownAccountMeasurements`, D1 = B);
+   * `measurements` itself stays as stored.
+   */
+  parallaxCorrected?: boolean | null;
   measurements: AccountScanMeasurements;
 }
 

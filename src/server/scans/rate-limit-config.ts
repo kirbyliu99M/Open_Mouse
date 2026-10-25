@@ -1,8 +1,7 @@
 /**
  * Per-IP fixed-window limits for the two write-ish scan routes that had none
  * (M2 hardening finding): `POST /api/scans` (a submission creates a session
- * and a scan row) and `POST /api/scans/{scanId}/fit` (recomputes and persists
- * `fit_results`). Named constants, one file, same pattern as
+ * and a scan row) and `POST /api/scans/{scanId}/fit` (recomputes the fit). Named constants, one file, same pattern as
  * `../analysis/rate-limit-config.ts`.
  *
  * Both reuse the DB-backed fixed-window limiter (`../analysis/drizzle-rate-limiter.ts`)

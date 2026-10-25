@@ -15,6 +15,7 @@ import {
   buildOfficialUrlIndex,
   comparePageConnectivity,
   deriveFormFactor,
+  descriptorsByOwner,
   isKnownConnectivity,
   LOGITECH_ALIASES,
   lookupOfficialUrl,
@@ -360,7 +361,7 @@ describe("OFFICIAL_CONNECTIVITY", () => {
     (e) => e.dataSource === "first_party",
   );
 
-  it("pins the seven values read from the brand pages", () => {
+  it("pins the ten values read from the brand pages", () => {
     expect(OFFICIAL_CONNECTIVITY).toEqual({
       "https://hyperx.com/products/hyperx-pulsefire-haste-3-wired-gaming-mouse":
         "Wired",
@@ -372,6 +373,9 @@ describe("OFFICIAL_CONNECTIVITY", () => {
       "https://www.wlmouse.com/en-wl/products/bxv2-mini-black-gold": "Wireless",
       "https://dareu.com/products/dareu-ultra-07-tri-mode-modular-gaming-mouse":
         "Wireless",
+      "https://www.logitech.com/en-us/shop/p/mx-master-4": "Wireless",
+      "https://www.logitech.com/en-us/shop/p/mx-master-3s": "Wireless",
+      "https://www.logitech.com/en-us/shop/p/mx-anywhere-3s": "Wireless",
     });
   });
 
@@ -380,7 +384,7 @@ describe("OFFICIAL_CONNECTIVITY", () => {
     for (const url of Object.keys(OFFICIAL_CONNECTIVITY)) {
       expect(urls.has(url), url).toBe(true);
     }
-    expect(official).toHaveLength(8);
+    expect(official).toHaveLength(11);
   });
 
   it("leaves exactly the one unreadable official page (Razer Boomslang) null", () => {
@@ -431,6 +435,44 @@ describe("mapCandidate", () => {
       RETRIEVED,
     );
     expect(e.descriptorsInferred).toBe(true);
+    expect(e.descriptorsByOwner).toBe(false);
+  });
+
+  it("flags a row whose descriptorBasis is the owner's description as the owner's", () => {
+    const e = mapCandidate(
+      record({
+        descriptorBasis:
+          "Kirby 2026-10-20 owner description (MX shape not stated on the product page); inferred",
+      }),
+      RETRIEVED,
+    );
+    expect(e.descriptorsByOwner).toBe(true);
+    expect(e.descriptorsInferred).toBe(true);
+    expect(
+      mapCandidate(record({ descriptorBasis: "" }), RETRIEVED)
+        .descriptorsByOwner,
+    ).toBe(false);
+  });
+
+  it("descriptorsByOwner reads the word owner only, any case, not a part of a word", () => {
+    expect(descriptorsByOwner("Kirby owner description")).toBe(true);
+    expect(descriptorsByOwner("OWNER")).toBe(true);
+    // The word decides, not the name: the 2026-10-09 Kirby descriptions
+    // (Boomslang 20th Anniversary Edition, ULTRA 07) say "owner" in their
+    // source CSV since V3.2 F13 (candidate). Not /Kirby/: "Kirby chose
+    // predecessor rule" marks a public-compilation row.
+    expect(descriptorsByOwner("Kirby 2026-10-09 owner description")).toBe(true);
+    expect(descriptorsByOwner("Kirby 2026-10-09 description")).toBe(false);
+    expect(
+      descriptorsByOwner(
+        "public compilation predecessor (Kirby chose predecessor rule 2026-10-09); inferred",
+      ),
+    ).toBe(false);
+    expect(descriptorsByOwner("public compilation predecessor; inferred")).toBe(
+      false,
+    );
+    expect(descriptorsByOwner("co-owners")).toBe(false);
+    expect(descriptorsByOwner("")).toBe(false);
   });
 
   it("names the row when a value does not map", () => {

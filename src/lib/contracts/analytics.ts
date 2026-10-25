@@ -9,7 +9,10 @@
  *     no handedness, no measurement version;
  *     (The one place a millimetre difference appears is
  *     `scan_quality.priorEffect`: how two ways of correcting the same photo
- *     differ, in four wide steps, never a length. See its comment.)
+ *     differ, in four wide steps, never a length. See its comment.
+ *     The one place the hand's POSTURE appears is `handPose`: whether the
+ *     fingers in the photo look laid flat, in three coarse steps, never a
+ *     size or a proportion of the hand. See `HAND_POSE_BUCKETS`.)
  *   - an identifier that leads back to a scan or a person: no scan ID, no
  *     session ID, no learning-kit token, no user ID or email. Mouse slugs are
  *     catalogue identifiers and are allowed;
@@ -51,7 +54,8 @@ export const SUBMIT_FAILURE_KINDS = [
  * length that reads about 6 mm long (a simulation, 2026-10-16; the real share
  * of `none` is what `scan_quality` is for).
  */
-export const FOCAL_SOURCES = ["exif", "homography", "none"] as const;
+/** `nominal` (landmark-raw-v3, V3.2 candidate): the nominal focal prior. */
+export const FOCAL_SOURCES = ["exif", "homography", "nominal", "none"] as const;
 
 /**
  * The scan-quality buckets. They describe the PHOTO'S CONDITIONS, never the
@@ -128,7 +132,8 @@ export const PAPER_ASPECT_BUCKETS = [
 /**
  * SHADOW MODE (2026-10-16, candidate): the client works out what the hand
  * length WOULD have been if the parallax correction had used a nominal focal
- * length (a 26 mm-equivalent main camera) instead of its own estimate or no
+ * length (a 26 mm-equivalent main camera; since 2026-10-23 the live-frame
+ * prior that corrects is 18 mm, F17) instead of its own estimate or no
  * correction, and reports only how that differs from the number the person
  * was shown, in four coarse steps. The number the person sees is not changed
  * by it. `lower_5_plus` is the case the simulation predicts for a frame with
@@ -136,6 +141,9 @@ export const PAPER_ASPECT_BUCKETS = [
  * agree. A difference between two ways of correcting the same photo, not a
  * length: it moves by about 3 % of the hand length at most, and the steps are
  * wide enough that the hand length cannot be read back from it.
+ * Since landmark-raw-v3 (V3.2 candidate) the nominal prior IS the reported
+ * correction when nothing better exists, so the shadow compares the other
+ * way round: the uncorrected value minus the reported one, in the same steps.
  * `unavailable`: the shadow could not be worked out (no convergence, a
  * degenerate pose, a value that is not a number). It is its own step so that
  * such a scan still reports everything else, and so that the share of
@@ -147,6 +155,58 @@ export const PRIOR_EFFECT_BUCKETS = [
   "within_2",
   "higher_2_plus",
   "unavailable",
+] as const;
+
+/**
+ * How much of the sheet's worst-seen side was visible (2026-10-19, candidate):
+ * the smallest per-side edge coverage of the sheet, 0 to 1. The photo gate
+ * refuses a side under 0.4, so a measured photo reads at least that. It
+ * describes the SHEET, not the hand: how close the hand, a sleeve or a shadow
+ * came to covering an edge, which is the most common reason a photo is sent
+ * back (R1, 2026-10-19).
+ */
+export const PAPER_COVERAGE_BUCKETS = [
+  "under_0_6",
+  "from_0_6_to_0_8",
+  "from_0_8",
+] as const;
+
+/**
+ * SHADOW MODE (2026-10-19, candidate, Kirby: anonymous summaries are fine, the
+ * photo is what must never be kept): whether the fingers in the photo look laid
+ * flat, worked out from the 2D landmarks of the four fingers (thumb excluded)
+ * by `assessHandFlatness`, and reported in three coarse steps. Nothing is
+ * refused because of it yet; it is how the real spread is found before any
+ * threshold blocks a photo. The thresholds behind the steps are simulation
+ * candidates (R3, 2026-10-19) and move in a PR that touches this file and the
+ * client's mapping. A posture, never a size or a proportion: a hand length,
+ * a width or their ratio cannot be read back from it.
+ *
+ * - `flat_like`: inside the candidate flat range.
+ * - `borderline`: in the "would only remind" band.
+ * - `extreme`: in the "would refuse" band.
+ * - `unknown`: not computable (not 21 points, a non-finite value).
+ */
+export const HAND_POSE_BUCKETS = [
+  "flat_like",
+  "borderline",
+  "extreme",
+  "unknown",
+] as const;
+
+/**
+ * How long the live preview had a sheet in view before this photo was taken
+ * (2026-10-19, candidate): from the first live sample that found the sheet to
+ * the capture, in seconds. A long wait means the preview was stuck on a gate,
+ * which no other event shows. `unknown`: the sheet was never found live (an
+ * upload, a manual shot without a detected sheet).
+ */
+export const LIVE_WAIT_BUCKETS = [
+  "under_3_s",
+  "from_3_to_10_s",
+  "from_10_to_30_s",
+  "from_30_s",
+  "unknown",
 ] as const;
 
 /** The results page's non-ready states plus `ready`. */
@@ -187,13 +247,27 @@ const mouseSlug = z
 const attempt = z.int().min(1).max(ANALYTICS_COUNT_CAP);
 const rank = z.int().min(1).max(100);
 
+/** V3.2 candidate (S2): the step at which paper detection stopped when no
+ * sheet was found. A step of the algorithm, never a claimed physical cause.
+ * The client's detector reports the same values. */
+export const PAPER_DETECTION_STAGES = [
+  "no_bright_region",
+  "region_split",
+  "aspect_mismatch",
+  "too_small",
+  "exception",
+  "unknown",
+] as const;
+
 /** Where a filter change was made: the wide sidebar, the narrow sheet, a chip
- * (removing one option, or 全部清除), or the no-match block's buttons. */
+ * (removing one option, or 全部清除), the no-match block's buttons, or (V3.2
+ * candidate) the results page's 綜合／左右對稱／人體工學 shape toggle. */
 export const FILTER_SOURCES = [
   "sidebar",
   "sheet",
   "chips",
   "no_match",
+  "shape_toggle",
 ] as const;
 
 /** The three share buttons: the top bar's link, the one beside the purchase
@@ -308,6 +382,8 @@ export const analyticsEventSchemas = {
     flow: z.enum(SCAN_FLOWS),
     method: z.enum(CAPTURE_METHODS),
     attempt,
+    /** 2026-10-19, candidate: see `LIVE_WAIT_BUCKETS`. Optional until the client sends it. */
+    liveWait: z.enum(LIVE_WAIT_BUCKETS).optional(),
   }),
 
   /** The pipeline refused the photo. `codes` are its issue codes, at most 8,
@@ -322,13 +398,23 @@ export const analyticsEventSchemas = {
     /** How straight on the shot was, when the sheet's four corners were found
      * (2026-10-16, candidate); absent otherwise. */
     paperSkew: z.enum(PAPER_SKEW_BUCKETS).optional(),
+    /** 2026-10-19, candidate: see `PAPER_COVERAGE_BUCKETS`; absent without four corners. */
+    paperCoverage: z.enum(PAPER_COVERAGE_BUCKETS).optional(),
+    /** 2026-10-19, candidate, shadow mode: see `HAND_POSE_BUCKETS`; absent without a hand. */
+    handPose: z.enum(HAND_POSE_BUCKETS).optional(),
+    /** V3.2 candidate: where paper detection stopped (see
+     * `PAPER_DETECTION_STAGES`); only with PAPER_NOT_FOUND, absent otherwise. */
+    paperStage: z.enum(PAPER_DETECTION_STAGES).optional(),
   }),
 
   /** The pipeline produced measurements (the numbers themselves stay out). */
   scan_measured: z.strictObject({
     flow: z.enum(SCAN_FLOWS),
     attempt,
-    paper: z.enum(["detected", "manual", "none"]),
+    /** `adjusted` (V3.2 candidate): plain-paper corners the person moved or
+     * placed by hand (`cornersSource` adjusted or manual). `manual` stays the
+     * printed sheet's hand-placed card corners. */
+    paper: z.enum(["detected", "adjusted", "manual", "none"]),
   }),
 
   /** The conditions of a photo that was measured (2026-10-16, candidate), sent
@@ -352,6 +438,10 @@ export const analyticsEventSchemas = {
     paperAspect: z.enum(PAPER_ASPECT_BUCKETS),
     /** What a nominal focal length would have changed, shadow mode only. */
     priorEffect: z.enum(PRIOR_EFFECT_BUCKETS),
+    /** 2026-10-19, candidate: see `PAPER_COVERAGE_BUCKETS`. Optional until the client sends it. */
+    paperCoverage: z.enum(PAPER_COVERAGE_BUCKETS).optional(),
+    /** 2026-10-19, candidate, shadow mode: see `HAND_POSE_BUCKETS`. Optional until the client sends it. */
+    handPose: z.enum(HAND_POSE_BUCKETS).optional(),
   }),
 
   /** The submission was stored (201). */
@@ -383,14 +473,16 @@ export const analyticsEventSchemas = {
 
   /** A results page settled once (not again on a re-render). A detail page
    * (place 2 to 5) counts too. `poorFit`: the mouse in the header scores
-   * under the poor-fit notice's threshold. */
+   * under the poor-fit notice's threshold. 2026-10-20 (fit-v3.0 candidate):
+   * when the fit response's length is out of the catalogue's range the total
+   * is a ranking value, not a fit, so `poorFit` is left out. */
   results_page_viewed: z.union([
     z.strictObject({
       state: z.literal("ready"),
       ...resultsPage,
       mouse: mouseSlug,
       overallRank: rank,
-      poorFit: z.boolean(),
+      poorFit: z.boolean().optional(),
     }),
     z.strictObject({
       state: z.enum(RESULTS_STATES).exclude(["ready"]),
@@ -492,7 +584,11 @@ export const analyticsEventSchemas = {
   rescan_clicked: z.strictObject({ ...resultsPage }),
 
   /** The result-feedback sheet appeared (result-feedback.ts, candidate):
-   * `trigger` says which came first, the end of the ranking or the dwell. */
+   * `trigger` says which came first, the end of the ranking or the dwell.
+   * V3.2 (candidate, 2026-10-22): the sheet waits 20 s on screen and then
+   * needs the end of the ranking or an opened Details of the first place;
+   * `scrolled` means the end of the ranking was reached, and every other way
+   * the sheet appears (Details opened, or the longer dwell) is `dwell`. */
   result_feedback_shown: z.strictObject({
     ...resultsPage,
     trigger: z.enum(["scrolled", "dwell"]),

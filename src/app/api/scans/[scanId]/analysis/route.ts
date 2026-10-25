@@ -10,6 +10,7 @@ import {
 } from "../../../../../server/analysis/rate-limit-config";
 import { computeAnalysisForScan } from "../../../../../server/analysis/service";
 import { createDrizzleFitRepo } from "../../../../../server/fit/drizzle-repo";
+import { createDrizzleSurveyReferenceSource } from "../../../../../server/fit/survey-reference-source";
 import { createDrizzleScanRepo } from "../../../../../server/scans/drizzle-repo";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
 /**
  * One Gemini call plus `./analyse.ts`'s single built-in retry
  * (MAX_ATTEMPTS = 2), plus a handful of small DB round trips (rate-limiter
- * upsert, cache get/set, catalogue load, `fit_results` upsert) that each
+ * upsert, cache get/set, catalogue load) that each
  * run in well under a second on Neon's HTTP driver. Vercel Hobby's
  * serverless function ceiling is 60 seconds; 30 comfortably covers two
  * sequential `gemini-3.8-flash` calls even under elevated latency while
@@ -39,6 +40,7 @@ export async function POST(
   return computeAnalysisForScan(request, scanId, {
     scanRepo: createDrizzleScanRepo(),
     fitRepo: createDrizzleFitRepo(),
+    surveyReferences: createDrizzleSurveyReferenceSource(),
     client: createAnalysisModel(process.env),
     cache: createDrizzleAnalysisCache(),
     limiter: createDrizzleRateLimiter({

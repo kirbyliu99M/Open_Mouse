@@ -1,8 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ResultsView } from "@/components/results/ResultsView";
+import {
+  ResultsView,
+  type ResultsNavigation,
+} from "@/components/results/ResultsView";
 import {
   brandOrder,
   filteredView,
@@ -12,17 +22,28 @@ import {
   serializeFilters,
   type Filters,
 } from "@/lib/results/filters";
-import { clampCount } from "@/client/analytics/props";
-import { POOR_FIT_THRESHOLD } from "@/components/results/fitNotice";
+import { poorFitField } from "@/components/results/fitNotice";
 import {
-  filterSelectionProps,
-  filtersChanged,
+  filterAppliedProps,
   headerCard,
   resultsPageFields,
-  type FilterChangeSource,
+  type ResultsFilterChange,
 } from "@/lib/results/analyticsEvents";
 import { RESULTS_VIEWER_ENABLED } from "@/lib/results/features";
 import { mainResultsPath } from "@/lib/results/rankRoutes";
+import {
+  currentStamp,
+  customHistoryState,
+  notePendingArrival,
+  pendingForPick,
+  pickNavigation,
+  readCurrentStamp,
+  stampOnArrival,
+  type ResultsStamp,
+  takeArrivalMemory,
+  topBarBack,
+  writeCurrentStamp,
+} from "@/lib/results/resultsHistory";
 import { useResultsScan } from "./ResultsScanProvider";
 
 /**
@@ -38,7 +59,25 @@ import { useResultsScan } from "./ResultsScanProvider";
  * out and a slug that is not ranked send the person back to the main page,
  * filter kept. The detail page has no filter of its own: it reads the
  * parameters it was opened with.
+ *
+ * History (V3.2 F11, candidate; the rule is in resultsHistory.ts): nothing on
+ * a page adds an entry; only a card from the main page opens a detail page in
+ * a new entry, and the top bar's back goes back past the results when the scan
+ * page is right behind them.
  */
+
+/** A click that opens a new tab or window is the browser's, not the page's. */
+function plainClick(event: MouseEvent<HTMLAnchorElement>): boolean {
+  return (
+    event.button === 0 &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.shiftKey &&
+    !event.altKey &&
+    !event.defaultPrevented
+  );
+}
+
 export function ResultsRankClient({ slug }: { slug?: string }) {
   const scan = useResultsScan();
   const router = useRouter();
@@ -65,24 +104,18 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
   filtersRef.current = filters;
 
   const onFiltersChange = useCallback(
-    (next: Filters, source: FilterChangeSource) => {
-      const changed = filtersChanged(filtersRef.current, next);
+    (next: Filters, change: ResultsFilterChange) => {
+      const props = filterAppliedProps(filtersRef.current, next, change, fit);
       filtersRef.current = next;
       setFilters(next);
-      if (changed) {
-        // The page after the change: a filter is only changed on the main
-        // page, whose big header is always the list's first place.
-        const after = filteredView(fit, next);
-        analytics.send("filter_applied", {
-          ...resultsPageFields(1, after.active),
-          source,
-          ...filterSelectionProps(next),
-          count: clampCount(after.count),
-        });
-      }
+      // Every change, the shape toggle's included (source `shape_toggle`,
+      // V3.2), is sent as `filter_applied` with the existing fields; no
+      // change (a segment pressed again) sends nothing.
+      if (props !== null) analytics.send("filter_applied", props);
       const query = mergeFilterParams(window.location.search, next);
+      // The entry's own stamp (V3.2 F11) is kept; Next.js adds its keys back.
       window.history.replaceState(
-        null,
+        customHistoryState(window.history.state),
         "",
         `${pathname}${query === "" ? "" : `?${query}`}${window.location.hash}`,
       );
@@ -115,7 +148,7 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
       ...resultsPageFields(card.displayRank, view.active),
       mouse: card.entry.mouse.slug,
       overallRank: card.overallRank,
-      poorFit: card.entry.total < POOR_FIT_THRESHOLD,
+      ...poorFitField(response, card.entry.total),
     });
     // Later filter changes on the page are `filter_applied`, not a new view.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -124,6 +157,57 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
   useEffect(() => {
     if (redirect) router.replace(mainResultsPath(scanId, search));
   }, [redirect, router, scanId, search]);
+
+  // V3.2 F11: stamp this page's history entry once it is shown (kept on back,
+  // forward, a reload and a filter change). The page keeps its own copy:
+  // `router.refresh()` (the language switch) wipes the entry's state, and
+  // `currentStamp` puts the copy back.
+  const ownStampRef = useRef<ResultsStamp | null>(null);
+  useEffect(() => {
+    if (redirect) return;
+    if (window.location.pathname !== pathname) return;
+    const memory = takeArrivalMemory();
+    const stamp = stampOnArrival({
+      scanId,
+      path: pathname,
+      isMain,
+      existing: readCurrentStamp(),
+      pending: memory.pending,
+      scanHandoff: memory.scanHandoff,
+    });
+    ownStampRef.current = stamp;
+    writeCurrentStamp(stamp);
+  }, [redirect, pathname, scanId, isMain]);
+
+  // After any render (a refresh re-renders the page): put the stamp back if
+  // the entry lost it. The clicks below check again, since a refresh need not
+  // re-render this component.
+  useEffect(() => {
+    if (!redirect) currentStamp(ownStampRef.current);
+  });
+
+  const navigation = useMemo<ResultsNavigation>(
+    () => ({
+      onPick: (event, href, toMain) => {
+        if (!plainClick(event)) return;
+        const stamp = currentStamp(ownStampRef.current);
+        const nav = pickNavigation({ fromMain: isMain, toMain, stamp });
+        notePendingArrival(pendingForPick(nav, { scanId, toMain, stamp }));
+        if (nav.kind === "push") return; // the link itself
+        event.preventDefault();
+        if (nav.kind === "back") router.back();
+        else router.replace(href);
+      },
+      onBack: (event) => {
+        if (!plainClick(event)) return;
+        const back = topBarBack(currentStamp(ownStampRef.current), scanId);
+        if (back.kind === "link") return;
+        event.preventDefault();
+        window.history.go(-back.steps);
+      },
+    }),
+    [isMain, scanId, router],
+  );
 
   const { requestAnalysis } = scan;
   // The rule (main page only, once per scan) is `shouldRequestAnalysis`.
@@ -142,14 +226,18 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
       scanId={scanId}
       enteredLengthMm={scan.enteredLength}
       enteredManual={scan.enteredManual}
+      paperAdjusted={scan.paperAdjusted}
+      paperCurled={scan.paperCurled}
       showViewer={RESULTS_VIEWER_ENABLED}
       analysisState={scan.analysisState}
       onRetryAnalysis={scan.retryAnalysis}
+      onResultChanged={scan.refreshFit}
       analytics={analytics}
       filters={filters}
       // The detail page reads the filter it was opened with and has no filter
       // controls of its own.
       onFiltersChange={isMain ? onFiltersChange : undefined}
+      navigation={navigation}
     />
   );
 }

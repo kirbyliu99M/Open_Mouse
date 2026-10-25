@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { isSameOriginCodeChunk } from "./fixtures/code-load";
 import { contrast } from "./fixtures/contrast";
 import { checkHandDetected } from "../../src/client/photo/gates";
 
@@ -241,6 +242,9 @@ test.describe("/scan/easy — live camera (real paper-edge detector)", () => {
       const url = req.url();
       if (url.startsWith("blob:")) return;
       if (/\/__nextjs_|__next_hmr|webpack-hmr/.test(url)) return;
+      // The paper-detection worker's script is code coming in, not the photo
+      // going out; any other request still counts.
+      if (isSameOriginCodeChunk(req, new URL(page.url()).origin)) return;
       requestedUrls.push(url);
     });
 

@@ -5,6 +5,7 @@ import {
 } from "../../lib/contracts/result-feedback";
 import { scanSubmitResponseSchema } from "../../lib/contracts/routes";
 import { UNKNOWN_IP_KEY, resolveClientIp } from "../analysis/ip";
+import type { SurveyReferenceSource } from "../fit/auto-calibration";
 import type { FitRepo } from "../fit/repo";
 import { log } from "../log";
 import { BodyTooLargeError, readLimitedBody } from "../scans/body-limit";
@@ -14,7 +15,8 @@ import type { ScanRepo } from "../scans/repo";
 import { flattenIssues } from "../scans/submit";
 import { startOfUtcDay } from "../survey/profile";
 import type { ResultFeedbackRepo } from "./repo";
-import { buildSnapshot } from "./snapshot";
+import { buildSnapshotAndFingerprint } from "./snapshot";
+import { STALE_RESULT_ERROR, fingerprintMismatch } from "../fit/fingerprint";
 
 /**
  * Body cap for `POST /api/scans/{id}/feedback` (a candidate, 未拍板). The
@@ -43,6 +45,11 @@ export interface ResultFeedbackDeps {
   /** The catalogue as the fit route loads it, for the snapshot's engine run. */
   fitRepo: Pick<FitRepo, "loadCatalogue">;
   feedbackRepo: ResultFeedbackRepo;
+  /**
+   * Where a signed-in person's survey ratings come from, so the snapshot gets
+   * the same automatic calibration the fit response has. Absent: none.
+   */
+  surveyReferences?: SurveyReferenceSource;
   /**
    * Per-IP limit. Required, not defaulted: a route that forgets it must fail
    * to compile rather than ship unlimited.
@@ -84,7 +91,9 @@ const isScanId = (scanId: string): boolean =>
  * `POST /api/scans/{scanId}/feedback`. Order (routes.ts): per-IP rate limit
  * (429) -> body size (413) -> malformed id or ownership (404, one body for
  * every cause, the repo never asked for a malformed id) -> body not JSON or
- * fails the schema (400) -> the write, which refuses a scan already rated
+ * fails the schema (400) -> an `x-result-fingerprint` header that differs
+ * from the recomputed ranking's (412, V3.2 F1; nothing written) -> the write,
+ * which refuses a scan already rated
  * (409) inside the same atomic request as the insert -> 201.
  *
  * The snapshot is computed here, from the scan, never from the body. Nothing
@@ -135,7 +144,19 @@ export async function handleResultFeedbackSubmission(
     }
     const body = parsed.data;
 
-    const snapshot = buildSnapshot(scan, await deps.fitRepo.loadCatalogue());
+    const { snapshot, resultFingerprint } = await buildSnapshotAndFingerprint(
+      scan,
+      await deps.fitRepo.loadCatalogue(),
+      { userId, source: deps.surveyReferences },
+    );
+    // V3.2 F1 (candidate): the rating was given while the page showed another
+    // ranking than the one that would be stored with it. Nothing is written;
+    // the page fetches the fit again and the person rates the new one. No
+    // header: unchanged.
+    if (fingerprintMismatch(request.headers, resultFingerprint)) {
+      log.info("result_feedback.stale", { route: RESULT_FEEDBACK_LOG_ROUTE });
+      return json(412, { error: STALE_RESULT_ERROR });
+    }
 
     const outcome = await deps.feedbackRepo.recordFeedback({
       scanId,

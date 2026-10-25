@@ -20,6 +20,7 @@ import type {
   SizeOption,
   WeightOption,
 } from "../results/filters";
+import type { ShapeSegment } from "../results/shapeToggle";
 import type { Locale } from "../../lib/contracts/locale";
 
 export interface ResultsPageCopy {
@@ -66,7 +67,35 @@ export interface ResultsPageCopy {
   scoresHeading: string;
   sizeNotice: string;
   fitNotice: string;
+  /**
+   * Shown instead of every score while the hand is outside the catalogue's
+   * length range (`coverage.lengthOutOfRange`). `above` / `below` follow
+   * `coverage.direction`; `partial` is for `direction` null (only some grips
+   * are clamped). Candidate (未拍板): the first two are the 2026-10-18 draft
+   * with "overall score" in place of "fit score", because the six sub-scores
+   * stay on the page; the third is new. No health claim anywhere.
+   */
+  coverageNotice: { above: string; below: string; partial: string };
   enteredLengthNotice: (mm: number) => string;
+  /**
+   * V3.2 F2 (candidate, 未拍板): the scan's paper frame was placed or moved by
+   * hand. Says only that; no claim about accuracy either way.
+   */
+  paperAdjustedNotice: string;
+  /**
+   * V3.2 F13 (candidate, 未拍板): the hand-placed frame followed a result that
+   * found the sheet curled (`PAPER_CURLED`). Says the paper may not have been
+   * flat and the numbers are for reference; no health claim.
+   */
+  paperCurledNotice: string;
+  /**
+   * One line shown when the target sizes were nudged by the survey ratings of
+   * a signed-in person (fit-v3 automatic calibration: at least two usable
+   * ratings, a non-zero shift). Candidate (未拍板, Kirby 2026-10-20: draft, to
+   * be read before it ships). Says only where the nudge came from; no health
+   * claim, no promise of accuracy, no number.
+   */
+  calibrationNotice: string;
   leftHandNotice: string;
   othersHeading: string;
   othersCaption: string;
@@ -101,6 +130,11 @@ export interface ResultsPageCopy {
   excludedSeparator: string;
   /** The results-page filter (FILTER-1). Every string is a candidate. */
   filter: FilterCopy;
+  /**
+   * The shape toggle above the filter button (V3.2 U1). Every string is a
+   * candidate (未拍板, Claude's draft from the 2026-10-21 design).
+   */
+  shapeToggle: ShapeToggleCopy;
   /** Click the big photo to enlarge it (candidate, 2026-10-11). */
   photoZoom: {
     /** Accessible name of the photo button, with the mouse named. */
@@ -171,6 +205,19 @@ export interface FilterCopy {
   shareNote: string;
 }
 
+/** Words of the 「綜合｜左右對稱｜人體工學」 toggle (V3.2 U1, candidate / 未拍板). */
+export interface ShapeToggleCopy {
+  /** The toggle's accessible name. */
+  label: string;
+  segment: Record<ShapeSegment, string>;
+  /** The large card's place when the shape is the only filter: 「人體工學第 1 名」. */
+  segmentRank: (n: number, segment: string) => string;
+  /** Under a shape that has only a few mice, all of them on the page. */
+  fewNote: (n: number, segment: string) => string;
+  /** The note's way back to 「綜合」. */
+  seeOverall: string;
+}
+
 const NBSP = " ";
 
 export const zhTW: ResultsPageCopy = {
@@ -212,8 +259,19 @@ export const zhTW: ResultsPageCopy = {
   scoresHeading: "六項分數",
   sizeNotice: "這支滑鼠有幾項形狀分數還沒評過，所以合手度分數目前主要看尺寸。",
   fitNotice: "這幾支都不太適合你的手，下面是最接近的一支。",
+  coverageNotice: {
+    above:
+      "你需要的滑鼠長度超過目錄裡最長的款式，下面是最接近的幾支，所以不顯示合手度分數。",
+    below:
+      "你需要的滑鼠長度比目錄裡最短的款式還短，下面是最接近的幾支，所以不顯示合手度分數。",
+    partial:
+      "有些握法需要的長度超出目錄範圍，所以不顯示合手度分數；排名仍可參考。",
+  },
   enteredLengthNotice: (mm) =>
     `依你輸入的手長（${mm}${NBSP}mm）估算，掃描時沒有使用紙張。`,
+  paperAdjustedNotice: "紙張邊框是手動調整的。",
+  paperCurledNotice: "紙張可能沒有完全平貼，數字僅供參考。",
+  calibrationNotice: "已參考你在問卷評過的滑鼠，微調了理想尺寸。",
   leftHandNotice: "左手的合手度還沒評過，購買前請先確認每支滑鼠的形狀。",
   othersHeading: "其他推薦",
   othersCaption: "點選任一款，會看到同樣版面的結果頁。",
@@ -286,6 +344,18 @@ export const zhTW: ResultsPageCopy = {
     shareOverall: "分享總排名第 1 名",
     shareNote: "篩選中，分享圖仍放總排名第 1 名",
   },
+  shapeToggle: {
+    label: "滑鼠形狀",
+    segment: {
+      overall: "綜合",
+      symmetrical: "左右對稱",
+      ergonomic: "人體工學",
+    },
+    segmentRank: (n, segment) => `${segment}第 ${n} 名`,
+    fewNote: (n, segment) =>
+      `目前符合的${segment}款只有 ${n} 款，全部列在這裡。`,
+    seeOverall: "看綜合排序",
+  },
   photoZoom: {
     enlarge: (name) => `放大照片：${name}`,
     close: "關閉",
@@ -344,8 +414,21 @@ export const en: ResultsPageCopy = {
   sizeNotice:
     "Some shape scores aren't rated yet for this mouse, so the fit score currently leans on its size.",
   fitNotice: "None of these fits your hand well. The closest is below.",
+  coverageNotice: {
+    above:
+      "The length you need is longer than any mouse in the catalogue. These are the closest, so no fit score is shown.",
+    below:
+      "The length you need is shorter than any mouse in the catalogue. These are the closest, so no fit score is shown.",
+    partial:
+      "For some grips, the length you need is outside the catalogue, so no fit score is shown. The order still holds.",
+  },
   enteredLengthNotice: (mm) =>
     `Based on the hand length you entered (${mm}${NBSP}mm). Measured without paper.`,
+  paperAdjustedNotice: "The paper's frame was adjusted by hand.",
+  paperCurledNotice:
+    "The paper may not have been lying flat, so treat the numbers as a guide.",
+  calibrationNotice:
+    "Your ideal sizes were adjusted using the mice you rated in the survey.",
   leftHandNotice:
     "Left-hand fit isn't rated yet — check each mouse's shape before you buy.",
   othersHeading: "Other picks",
@@ -430,6 +513,18 @@ export const en: ResultsPageCopy = {
     analysisHide: "Hide analysis",
     shareOverall: "Share the overall #1",
     shareNote: "While filtering, the share image still shows the overall #1",
+  },
+  shapeToggle: {
+    label: "Mouse shape",
+    segment: {
+      overall: "Overall",
+      symmetrical: "Symmetrical",
+      ergonomic: "Ergonomic",
+    },
+    segmentRank: (n, segment) => `#${n} ${segment.toLowerCase()}`,
+    fewNote: (n, segment) =>
+      `Only ${n} ${segment.toLowerCase()} mice match right now. They are all listed here.`,
+    seeOverall: "See the overall ranking",
   },
   photoZoom: {
     enlarge: (name) => `Enlarge photo: ${name}`,

@@ -15,7 +15,6 @@ import { useParams } from "next/navigation";
 import type { FitResponse } from "@/lib/contracts/fit";
 import type { AnalysisState } from "@/components/results/analysisState";
 import {
-  fetchAnalysisResult,
   fetchFitResult,
   type FitOutcome,
   type FitPreferencesInput,
@@ -26,20 +25,31 @@ import {
   shouldRequestAnalysis,
 } from "@/lib/results/requests";
 import {
-  parseStoredManualEntry,
-  parseStoredUserLength,
-  resultLengthKey,
-  resultManualEntryKey,
+  readScanDisclosures,
   type StoredManualEntry,
 } from "@/components/results/userLengthDisclosure";
 import { prefetchMouseLinks } from "@/components/results/mouseLinksStore";
+import {
+  shownRankingClient,
+  refreshThenReanalyse,
+  type ShownRankingRefs,
+} from "@/components/results/shownRanking";
 import { sweepLegacyHandKeys } from "@/components/results/handDisclosure";
+import { rankingUpdatedNoticeDue } from "@/components/results/rankingUpdatedNotice";
+import { ResultsUpdatedNotice } from "@/components/results/ResultsUpdatedNotice";
 import { track } from "@/client/analytics/track";
 import type { ResultsAnalytics } from "@/lib/results/analyticsEvents";
 import { TopBar } from "@/components/nav/TopBar";
 import { DeleteScanAction } from "@/components/results/DeleteScanAction";
 import { useLocale } from "@/client/i18n/LocaleProvider";
 import { resultsScreensCopy } from "@/lib/copy/results-screens";
+import { loadingCopy } from "@/lib/copy/loading";
+import { ParticleLoader } from "@/components/loading/ParticleLoader";
+import {
+  LOADING_TIMING,
+  fitReveal,
+  type LoaderInput,
+} from "@/lib/particles/loading";
 import type { Locale } from "@/lib/contracts/locale";
 import type { RESCAN_STATES } from "@/lib/contracts/analytics";
 import "@/components/results/results.css";
@@ -80,6 +90,10 @@ export interface ResultsScan {
   enteredLength: number | null;
   /** The hand length and width the user typed instead of scanning (manual entry), when that is how the scan was made. */
   enteredManual: StoredManualEntry | null;
+  /** V3.2 F2 (candidate): the paper frame was placed or moved by hand (read from this browser). */
+  paperAdjusted: boolean;
+  /** V3.2 F13 (candidate): that frame followed a `PAPER_CURLED` result (read from this browser). */
+  paperCurled: boolean;
   analysisState: AnalysisState;
   /**
    * Ask for the written analysis. Only the main page (rank 1) gets a request
@@ -88,6 +102,11 @@ export interface ResultsScan {
    */
   requestAnalysis: (isMainPage: boolean) => void;
   retryAnalysis: () => void;
+  /**
+   * V3.2 F1 (candidate): fetch the fit again and put the new ranking on screen
+   * in place (no loader), after the server said the one shown is stale (412).
+   */
+  refreshFit: () => void;
   /** The sender the results pages use for their events (`track`). */
   analytics: ResultsAnalytics;
 }
@@ -120,6 +139,14 @@ export function useResultsScan(): ResultsScan {
  *  - 429 on the analysis alone -> handled inside `AnalysisSlot`; the
  *    ranking above stays visible and unaffected
  *
+ * While the fit loads, the page shows the particle loader (V3.2 U1,
+ * candidate) only when it is really waiting (F7, Kirby's phone test
+ * 2026-10-21, `fitReveal`): an answer within `FIT_SHOW_AFTER_MS` (300 ms) is
+ * shown at once (the page fades in) with no loader; a later one is shown by
+ * the loader that appeared at 300 ms, with no minimum time: a result fills
+ * the ring and fades, a failure stops the ring, dimmed, above the error and
+ * its retry. The same on every way in: after a scan, a direct open, a reload.
+ *
  * `anonymous` (issue #42) is decided server-side by `layout.tsx` (it calls
  * `auth()`), never guessed client-side: it gates the "Delete this scan now"
  * action, which a signed-in caller never sees at all — they manage scans on
@@ -143,8 +170,27 @@ export function ResultsScanProvider({
   const [enteredManual, setEnteredManual] = useState<StoredManualEntry | null>(
     null,
   );
+  const [paperAdjusted, setPaperAdjusted] = useState(false);
+  const [paperCurled, setPaperCurled] = useState(false);
+  // V3.2 F13 (candidate): 0 = no "results updated" line; each in-place
+  // refresh that changed the ranking bumps it (a new line, a fresh timer).
+  const [updatedNotice, setUpdatedNotice] = useState(0);
   const language = useLocale();
   const copy = resultsScreensCopy(language);
+  const loaderWords = loadingCopy(language).fit;
+  // The loader of the current fit request: when it appeared and, once it is
+  // here, when the answer came and whether it was a result.
+  // Whether the loader is on screen yet: only once the fit has taken
+  // `FIT_SHOW_AFTER_MS` (`fitReveal`).
+  const [loaderVisible, setLoaderVisible] = useState(false);
+  const [loader, setLoader] = useState<LoaderInput>(() => ({
+    // Replaced by the fit effect's own start; this only covers the frames
+    // before it runs.
+    startedAt: typeof performance === "undefined" ? 0 : performance.now(),
+    minMs: LOADING_TIMING.MIN_DISPLAY_FIT_MS,
+    steps: null,
+    arrival: null,
+  }));
   // The locale the next analysis request is made in (the server answers in the
   // visitor's cookie locale, so a request is "in" the locale current when sent).
   const languageRef = useRef(language);
@@ -154,20 +200,19 @@ export function ResultsScanProvider({
 
   useEffect(() => {
     try {
-      setEnteredLength(
-        parseStoredUserLength(localStorage.getItem(resultLengthKey(scanId))),
-      );
+      const notes = readScanDisclosures(localStorage, scanId);
+      setEnteredLength(notes.enteredLength);
       // The hand is read from the fit response now. Builds before that
       // stored it here; drop every leftover, not just this scan's.
       sweepLegacyHandKeys(localStorage);
-      setEnteredManual(
-        parseStoredManualEntry(
-          localStorage.getItem(resultManualEntryKey(scanId)),
-        ),
-      );
+      setEnteredManual(notes.enteredManual);
+      setPaperAdjusted(notes.paperAdjusted);
+      setPaperCurled(notes.paperCurled);
     } catch {
       setEnteredLength(null);
       setEnteredManual(null);
+      setPaperAdjusted(false);
+      setPaperCurled(false);
     }
   }, [scanId]);
 
@@ -177,14 +222,57 @@ export function ResultsScanProvider({
   const analysisRunRef = useRef(0);
   // Whether the analysis was asked for already, for this fit.
   const analysisStartedRef = useRef(false);
+  // The fit on screen, read by requests that must say which ranking they are
+  // about (V3.2 F1: the `x-result-fingerprint` header).
+  const shownFitRef = useRef<FitResponse | null>(null);
+  shownFitRef.current = pageState.kind === "ready" ? pageState.response : null;
+  // Bumped by the fit effect's cleanup: an in-place refresh started for an
+  // earlier scan or attempt must not put its answer on screen.
+  const fitGenerationRef = useRef(0);
+  // One in-place refresh at a time (analysis and feedback may both hear 412).
+  const refreshInflightRef = useRef<Promise<FitResponse | null> | null>(null);
+
+  /**
+   * V3.2 F1 (candidate): the server says the ranking on screen is stale. Fetch
+   * the fit again and, when it comes, show it in place (the page stays; no
+   * loader). Resolves to the new fit, or null when it could not be fetched
+   * (the old ranking stays on screen). `analyse` sends the fingerprint of the
+   * fit on screen; both are tested with a fake fetch (`shownRankingClient`).
+   */
+  const rankingClient = useMemo(() => {
+    const refs: ShownRankingRefs = {
+      shown: shownFitRef,
+      generation: fitGenerationRef,
+      inflight: refreshInflightRef,
+    };
+    // The new ranking replaces the old in place; when it really changed, a
+    // short "results updated" line says so (V3.2 F13, candidate).
+    const show = (response: FitResponse, previous: FitResponse | null) => {
+      setPageState({ kind: "ready", response });
+      if (rankingUpdatedNoticeDue(previous, response))
+        setUpdatedNotice((n) => n + 1);
+    };
+    return shownRankingClient({
+      scanId,
+      preferences: PREFERENCES,
+      fetchImpl: fetch,
+      refs,
+      show,
+    });
+  }, [scanId]);
+  const refreshFitNow = rankingClient.refreshNow;
 
   const runAnalysis = useCallback(async () => {
     analysisStartedRef.current = true;
     analysisLanguageRef.current = languageRef.current;
     const run = ++analysisRunRef.current;
     setAnalysisState({ status: "loading" });
-    const outcome = await fetchAnalysisResult(scanId, PREFERENCES);
-    if (run !== analysisRunRef.current) return;
+    // Sent with the fingerprint of the ranking on screen; a 412 refetches the
+    // fit once and asks again (V3.2 F1, `analyseShownRanking`).
+    const outcome = await rankingClient.analyse(
+      () => run === analysisRunRef.current,
+    );
+    if (outcome === null || run !== analysisRunRef.current) return;
     if (outcome.status === "ready") {
       track("analysis_shown", {
         outcome: outcome.response.source === "fallback" ? "fallback" : "model",
@@ -194,10 +282,21 @@ export function ResultsScanProvider({
       track("analysis_shown", { outcome: "error" });
       setAnalysisState({ status: "rateLimited" });
     } else {
+      // networkError, serverError, and a 412 that a refetch did not resolve.
       track("analysis_shown", { outcome: "error" });
       setAnalysisState({ status: "error" });
     }
-  }, [scanId]);
+  }, [rankingClient]);
+
+  // The feedback sheet heard 412: show the new ranking, and when the written
+  // analysis was already asked for, ask again so it is about that ranking.
+  const refreshFit = useCallback(() => {
+    void refreshThenReanalyse({
+      refreshNow: refreshFitNow,
+      analysisStarted: () => analysisStartedRef.current,
+      reanalyse: () => void runAnalysis(),
+    });
+  }, [refreshFitNow, runAnalysis]);
 
   // The written analysis follows the language switch: once it was asked for,
   // a new locale asks again (the server keeps one per locale, so going back is
@@ -233,12 +332,27 @@ export function ResultsScanProvider({
 
   useEffect(() => {
     let cancelled = false;
+    let reveal: ReturnType<typeof setTimeout> | undefined;
+    const requestedAt = performance.now();
+    // The loader's own start: when it appears, if the answer is not here yet.
+    const shownAt = requestedAt + LOADING_TIMING.FIT_SHOW_AFTER_MS;
+    setLoaderVisible(false);
+    setLoader({
+      startedAt: shownAt,
+      minMs: LOADING_TIMING.MIN_DISPLAY_FIT_MS,
+      steps: null,
+      arrival: null,
+    });
+    const show = setTimeout(() => {
+      if (!cancelled) setLoaderVisible(true);
+    }, LOADING_TIMING.FIT_SHOW_AFTER_MS);
     // Ask for the links of the mouse the page will show now, so they are
     // usually in the cache by the first paint: the detail page's mouse at once
     // (in parallel with the fit), the overall #1 as soon as the fit is here.
     if (routeSlugRef.current) prefetchMouseLinks(routeSlugRef.current);
     setPageState({ kind: "loading" });
     setAnalysisState({ status: "idle" });
+    setUpdatedNotice(0);
     analysisStartedRef.current = false;
 
     void (async () => {
@@ -247,21 +361,49 @@ export function ResultsScanProvider({
         () => fetchFitResult(scanId, PREFERENCES),
       );
       if (cancelled) return;
-      if (outcome.status === "ready") {
+      const arrivedAt = performance.now();
+      const ok = outcome.status === "ready";
+      if (ok) {
         const top = outcome.response.results[0];
         if (top && !routeSlugRef.current) prefetchMouseLinks(top.mouse.slug);
-        // The ready `results_page_viewed` is sent by the page that renders
-        // (`ResultsRankClient`): its fields need the header card.
-        setPageState({ kind: "ready", response: outcome.response });
-      } else {
-        track("results_page_viewed", { state: outcome.status });
-        setPageState({ kind: outcome.status });
       }
+      clearTimeout(show);
+      // A quick answer is shown at once and no loader is drawn; a later one
+      // goes through the loader that appeared at 300 ms (a result fills and
+      // fades, a failure stops the ring), with no minimum time.
+      const { loaderShownAt, revealAt } = fitReveal(requestedAt, arrivedAt, ok);
+      if (loaderShownAt !== null) {
+        setLoaderVisible(true);
+        setLoader({
+          startedAt: loaderShownAt,
+          minMs: LOADING_TIMING.MIN_DISPLAY_FIT_MS,
+          steps: null,
+          arrival: { at: arrivedAt, ok },
+        });
+      }
+      reveal = setTimeout(
+        () => {
+          if (cancelled) return;
+          if (outcome.status === "ready") {
+            // The ready `results_page_viewed` is sent by the page that renders
+            // (`ResultsRankClient`): its fields need the header card.
+            setPageState({ kind: "ready", response: outcome.response });
+          } else {
+            track("results_page_viewed", { state: outcome.status });
+            setPageState({ kind: outcome.status });
+          }
+        },
+        Math.max(0, revealAt - performance.now()),
+      );
     })();
 
     return () => {
       cancelled = true;
+      clearTimeout(show);
+      if (reveal !== undefined) clearTimeout(reveal);
       analysisRunRef.current += 1;
+      fitGenerationRef.current += 1;
+      refreshInflightRef.current = null;
     };
     // `attempt` is part of the request's identity and retriggers this effect
   }, [scanId, attempt]);
@@ -292,9 +434,12 @@ export function ResultsScanProvider({
             language,
             enteredLength,
             enteredManual,
+            paperAdjusted,
+            paperCurled,
             analysisState,
             requestAnalysis,
             retryAnalysis,
+            refreshFit,
             analytics,
           }
         : null,
@@ -304,12 +449,27 @@ export function ResultsScanProvider({
       language,
       enteredLength,
       enteredManual,
+      paperAdjusted,
+      paperCurled,
       analysisState,
       requestAnalysis,
       retryAnalysis,
+      refreshFit,
       analytics,
     ],
   );
+
+  // A failed fit: the loader's ring stays where it stopped, dimmed, above the
+  // error (only after a real request that waited long enough to show it; a
+  // quick failure and a scan deleted here have none).
+  const failedLoader =
+    loaderVisible && loader.arrival && !loader.arrival.ok ? (
+      <ParticleLoader
+        className="results-page-failedLoader"
+        input={loader}
+        status={loaderWords}
+      />
+    ) : null;
 
   if (pageState.kind === "loading") {
     return (
@@ -320,9 +480,17 @@ export function ResultsScanProvider({
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
         />
-        <p className="results-page-status" role="status">
-          {copy.loading}
-        </p>
+        {/* Nothing until the fit has taken 300 ms (F7): a quick answer is
+            shown at once, without a loader flashing up first. */}
+        {loaderVisible ? (
+          <ParticleLoader
+            className="results-page-status"
+            input={loader}
+            status={loaderWords}
+          />
+        ) : (
+          <div className="results-page-pending" aria-busy="true" />
+        )}
       </main>
     );
   }
@@ -336,6 +504,7 @@ export function ResultsScanProvider({
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
         />
+        {failedLoader}
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">{copy.eyebrow}</p>
           <h1>{copy.notFound.title}</h1>
@@ -366,6 +535,7 @@ export function ResultsScanProvider({
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
         />
+        {failedLoader}
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">{copy.eyebrow}</p>
           <h1>{copy.rateLimited.title}</h1>
@@ -387,6 +557,7 @@ export function ResultsScanProvider({
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
         />
+        {failedLoader}
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">{copy.eyebrow}</p>
           <h1>{copy.networkError.title}</h1>
@@ -408,6 +579,7 @@ export function ResultsScanProvider({
           backLabel={copy.scanAgain}
           stepLabel={copy.stepLabel}
         />
+        {failedLoader}
         <div className="results-page-error" role="alert">
           <p className="results-eyebrow">{copy.eyebrow}</p>
           <h1>{copy.serverError.title}</h1>
@@ -447,7 +619,14 @@ export function ResultsScanProvider({
 
   return (
     <ResultsScanContext.Provider value={scan}>
-      <main className="resultsMain">
+      <main className="resultsMain results-entered">
+        {updatedNotice > 0 && (
+          <ResultsUpdatedNotice
+            key={updatedNotice}
+            language={language}
+            onGone={() => setUpdatedNotice(0)}
+          />
+        )}
         {children}
         {anonymous && (
           <DeleteScanAction

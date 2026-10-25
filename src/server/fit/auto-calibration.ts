@@ -1,0 +1,206 @@
+import type {
+  FitFeel,
+  FitPreferences,
+  FitReference,
+  GripStyle,
+} from "../../lib/contracts/fit";
+import type { PainPoint } from "../../lib/contracts/survey";
+import {
+  adoptedReferenceCount,
+  adoptedReferences,
+} from "./calibration-v3-candidate";
+import type { EngineId } from "./coefficients";
+import { shellKey } from "./shell-groups";
+import type { CatalogueMouse } from "./types";
+
+/**
+ * Calibration from the survey (Kirby, 2026-10-20; every number and rule here is
+ * a candidate, 未拍板). A signed-in person who rated catalogue mice in the
+ * survey gets those ratings turned into the same `FitReference`s a request
+ * could carry, so the v3 engine calibrates their own result with its existing
+ * rules. There is no input screen for it.
+ *
+ * Privacy: the references live for one request. Nothing here writes them to a
+ * table, a log or analytics, and nothing logs a slug or a satisfaction.
+ */
+
+/**
+ * The fewest voices that switch the calibration on. With one mouse the
+ * population simulation showed the offset often made an accurate result worse,
+ * so a single rating does nothing. Counted on what the engine would really use
+ * (`adoptedReferenceCount`), not on how many ratings the person gave.
+ * Candidate, 未拍板.
+ */
+export const MIN_AUTO_CALIBRATION_REFERENCES = 2;
+
+/** `fitCalibrationSchema.referencesUsed` and `fitPreferencesSchema.references` both stop at 8. */
+const MAX_AUTO_CALIBRATION_REFERENCES = 8;
+
+/** A rating of at least this many stars says the mouse fit; below it we cannot tell too big from too small. */
+const FIT_SATISFACTION_MIN = 4;
+
+/**
+ * What the survey keeps about one rating of a catalogue mouse, as far as
+ * calibration reads it: the mouse's slug, the stars, what bothered the person,
+ * and the grip stored with the contribution the rating belongs to (kept for
+ * the source's sake; calibration does not read it, see
+ * `surveyRatingsToReferences`).
+ */
+export interface SurveyRatingForCalibration {
+  slug: string;
+  satisfaction: number;
+  painPoints: readonly PainPoint[];
+  gripStyle: GripStyle | null;
+}
+
+/**
+ * The DB seam for the survey's side of calibration. A signed-in person's
+ * ratings of catalogue mice, newest contribution first (a mouse the person
+ * rated again appears once, with the latest answer).
+ */
+export interface SurveyReferenceSource {
+  loadRatings(userId: string): Promise<SurveyRatingForCalibration[]>;
+}
+
+/**
+ * Survey ratings to references. Pure.
+ *
+ * - satisfaction 4 or 5: the mouse fit. Each of length, width and height is
+ *   "just right" (0), except a dimension the person named in `painPoints`,
+ *   which becomes null (it bothered them, in an unknown direction, so it says
+ *   nothing). `weight`, `thumb`, `buttons` and `other` do not touch the three
+ *   dimensions.
+ * - satisfaction 3 or less: not used, since it is not known whether the mouse
+ *   felt too large or too small.
+ * - `grips` is always empty (A1-05): the engine then judges the mouse in the
+ *   grip it really uses for this hand in this calculation. The grip the survey
+ *   stored may be a prediction the old engine made for a skipped question, not
+ *   something the person said, so it is never read as a fact here.
+ * - `specialUse` is false: the survey has no such question.
+ *
+ * A slug rated twice keeps its first entry (the caller passes newest first).
+ */
+export function surveyRatingsToReferences(
+  ratings: readonly SurveyRatingForCalibration[],
+): FitReference[] {
+  const seen = new Set<string>();
+  const out: FitReference[] = [];
+  for (const rating of ratings) {
+    if (seen.has(rating.slug)) continue;
+    seen.add(rating.slug);
+    if (rating.satisfaction < FIT_SATISFACTION_MIN) continue;
+    const feel = (dimension: PainPoint): FitFeel =>
+      rating.painPoints.includes(dimension) ? null : 0;
+    out.push({
+      slug: rating.slug,
+      grips: [],
+      feel: {
+        length: feel("length"),
+        width: feel("width"),
+        height: feel("height"),
+      },
+      specialUse: false,
+    });
+  }
+  return out;
+}
+
+/**
+ * One reference per shell (`shellKey`), in the order the shells first appear:
+ * models of one shell are one voice, so the cap of 8 must count shells, not
+ * rows (A1-07: eight versions of one shell used to fill the cap and shut out
+ * every other shell). A later model of the same shell fills in a dimension the
+ * first left unanswered (`null`), so nothing the person said is lost; the
+ * first answer wins where both answered. Survey references never carry grips
+ * (see `surveyRatingsToReferences`), so there is nothing to merge there.
+ */
+function onePerShell(
+  references: readonly FitReference[],
+  catalogue: readonly CatalogueMouse[],
+): FitReference[] {
+  const bySlug = new Map<string, CatalogueMouse>();
+  for (const mouse of catalogue) {
+    if (mouse.listed !== false && !bySlug.has(mouse.slug)) {
+      bySlug.set(mouse.slug, mouse);
+    }
+  }
+  const byShell = new Map<string, FitReference>();
+  for (const reference of references) {
+    const mouse = bySlug.get(reference.slug);
+    if (mouse === undefined) continue;
+    const key = shellKey(mouse);
+    const first = byShell.get(key);
+    byShell.set(
+      key,
+      first === undefined
+        ? reference
+        : {
+            ...first,
+            feel: {
+              length: first.feel.length ?? reference.feel.length,
+              width: first.feel.width ?? reference.feel.width,
+              height: first.feel.height ?? reference.feel.height,
+            },
+          },
+    );
+  }
+  return [...byShell.values()];
+}
+
+/**
+ * The references to calibrate with, or an empty list when the survey does not
+ * give enough: those the engine would really use (listed, not special-use,
+ * length/width model applies, answered at least one dimension), one per shell,
+ * at most 8, and only when they make `MIN_AUTO_CALIBRATION_REFERENCES` voices.
+ * The shells are taken first and the cap applied after (A1-07). Pure.
+ */
+export function autoCalibrationReferences(
+  ratings: readonly SurveyRatingForCalibration[],
+  catalogue: readonly CatalogueMouse[],
+): FitReference[] {
+  const adopted = onePerShell(
+    adoptedReferences(surveyRatingsToReferences(ratings), catalogue),
+    catalogue,
+  ).slice(0, MAX_AUTO_CALIBRATION_REFERENCES);
+  return adoptedReferenceCount(adopted, catalogue) >=
+    MIN_AUTO_CALIBRATION_REFERENCES
+    ? adopted
+    : [];
+}
+
+/**
+ * What `loadOwnedFit` asks: the references that go into this request's
+ * preferences, or `undefined` for "leave the preferences as they are".
+ *
+ * The survey is read only when all of these hold, and not otherwise (no query
+ * at all): the engine in use is v3 (no other engine reads references), the
+ * caller is signed in, the request carries no `references` of its own (an
+ * explicit list, even an empty one, is the request's choice and wins), and a
+ * source is wired.
+ */
+export async function surveyReferencesFor(args: {
+  engine: EngineId;
+  userId: string | null;
+  prefs: FitPreferences;
+  catalogue: readonly CatalogueMouse[];
+  source: SurveyReferenceSource | undefined;
+}): Promise<FitReference[] | undefined> {
+  const { engine, userId, prefs, catalogue, source } = args;
+  if (engine !== "v3" || userId === null || source === undefined) {
+    return undefined;
+  }
+  // `references: []` is NOT "no references": it is the request saying "calibrate
+  // with nothing" (a caller's own choice, e.g. a test or a person who wants the
+  // plain result), so it keeps the survey unread, the same as a non-empty list.
+  // Only an absent field means "not given". Nothing in the product sends `[]`
+  // today: the results page posts `{}` (ResultsScanProvider's PREFERENCES), and
+  // no client code names `references` at all (grep, 2026-10-20). Keep it so; a
+  // client that defaults the field to `[]` would switch the calibration off for
+  // everyone it serves.
+  if (prefs.references !== undefined) return undefined;
+  const references = autoCalibrationReferences(
+    await source.loadRatings(userId),
+    catalogue,
+  );
+  return references.length > 0 ? references : undefined;
+}

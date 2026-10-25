@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { MouseEvent } from "react";
 import type { FilteredCard } from "@/lib/results/filters";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import type { Locale } from "@/lib/contracts/locale";
@@ -15,19 +16,35 @@ export function OtherPicks({
   cards,
   language,
   filtering = false,
+  showScores = true,
   hrefFor,
   onSelect,
   onPick,
+  onLinkClick,
 }: {
   cards: FilteredCard[];
   language: Locale;
   /** The list is filtered: the heading says so and each card shows its overall rank when it differs. */
   filtering?: boolean;
+  /**
+   * False while the hand is outside the catalogue's length range: the cards
+   * keep their order but carry no score (the contract's hard rule).
+   */
+  showScores?: boolean;
   hrefFor?: (card: FilteredCard) => string;
   /** Called with the card's place in the list (the filtered one). */
   onSelect?: (displayRank: number) => void;
   /** Called when a card is clicked (analytics only; navigation is unchanged). */
   onPick?: (card: FilteredCard) => void;
+  /**
+   * Called on a link card's click after `onPick` (V3.2 F11): it may take the
+   * navigation over (`preventDefault`) to replace or go back in history
+   * instead of adding an entry (`src/lib/results/resultsHistory.ts`).
+   */
+  onLinkClick?: (
+    card: FilteredCard,
+    event: MouseEvent<HTMLAnchorElement>,
+  ) => void;
 }) {
   if (cards.length === 0) return null;
   const copy = RESULTS_PAGE_COPY[language];
@@ -56,16 +73,23 @@ export function OtherPicks({
               <span className="results-card-brand">{entry.mouse.brand}</span>
               <span className="results-card-model">{entry.mouse.model}</span>
               <VariantsLine variants={card.variants} language={language} />
-              <span className="results-card-score results-tabularNum">
-                <strong>{entry.total}</strong>
-                <span> {copy.outOf}</span>
-                {filtering && card.overallRank !== card.displayRank && (
-                  <span className="results-card-overall">
-                    {" "}
-                    {copy.filter.overallRank(card.overallRank)}
-                  </span>
-                )}
-              </span>
+              {(showScores ||
+                (filtering && card.overallRank !== card.displayRank)) && (
+                <span className="results-card-score results-tabularNum">
+                  {showScores && (
+                    <>
+                      <strong>{entry.total}</strong>
+                      <span> {copy.outOf}</span>
+                    </>
+                  )}
+                  {filtering && card.overallRank !== card.displayRank && (
+                    <span className="results-card-overall">
+                      {" "}
+                      {copy.filter.overallRank(card.overallRank)}
+                    </span>
+                  )}
+                </span>
+              )}
             </>
           );
           return (
@@ -75,7 +99,14 @@ export function OtherPicks({
                   href={hrefFor(card)}
                   className="results-card"
                   data-rank={card.displayRank}
-                  onClick={onPick ? () => onPick(card) : undefined}
+                  onClick={
+                    onPick || onLinkClick
+                      ? (event) => {
+                          onPick?.(card);
+                          onLinkClick?.(card, event);
+                        }
+                      : undefined
+                  }
                 >
                   {inner}
                 </Link>

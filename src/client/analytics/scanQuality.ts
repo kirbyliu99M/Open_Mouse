@@ -10,6 +10,12 @@
  * `null`: the caller sends nothing rather than a guessed bucket. The cut-offs
  * are the contract's candidates (src/lib/contracts/analytics.ts).
  *
+ * `paperCoverage`, `handPose` and `liveWait` (2026-10-19, candidate, shadow
+ * mode) are likewise grades only: the sheet's least-seen side in three steps,
+ * whether the fingers look laid flat in three (`assessHandFlatness`, never the
+ * ratios behind it), and how long the live preview held the sheet before the
+ * shot in four. Nothing is refused on any of them.
+ *
  * `priorEffect` is the one bucket of a difference between two ways of
  * correcting the photo (shadow mode, src/client/geometry/nominalFocalShadow.ts):
  * the millimetre delta stays on the device, in the diagnostics, and only its
@@ -18,7 +24,9 @@
 import type { AnalyticsEventProps, ScanFlow } from "@/lib/contracts/analytics";
 import type { AttemptMethod } from "../camera/attemptLog";
 import { GATE_THRESHOLDS } from "../photo/gates";
+import { isPaperDetectionStage } from "../paper/detectionStage";
 import type { PipelineDiagnostics } from "../photo/diagnostics";
+import { issueCodes } from "./props";
 
 type ScanQualityProps = AnalyticsEventProps<"scan_quality">;
 
@@ -56,6 +64,19 @@ export const PAPER_ASPECT_A4 = 210 / 297;
 export const PAPER_ASPECT_LETTER = 215.9 / 279.4;
 export const PAPER_ASPECT_MID_FROM = 0.02;
 export const PAPER_ASPECT_HIGH_FROM = 0.04;
+
+/**
+ * Paper coverage (2026-10-19, candidate): the smallest per-side share of the
+ * sheet's edges that was seen. The photo gate already refuses under 0.4
+ * (`minSideCoverage`); these are the two steps above it.
+ */
+export const PAPER_COVERAGE_MID_FROM = 0.6;
+export const PAPER_COVERAGE_HIGH_FROM = 0.8;
+
+/** Live wait (2026-10-19, candidate): seconds from the preview first finding the sheet to the shutter. */
+export const LIVE_WAIT_MID_FROM_S = 3;
+export const LIVE_WAIT_HIGH_FROM_S = 10;
+export const LIVE_WAIT_TOP_FROM_S = 30;
 
 /**
  * Prior effect (shadow mode): the hand length with a nominal focal length
@@ -151,8 +172,66 @@ export function paperAspectBucket(
 }
 
 /**
- * How far the nominal-focal shadow hand length is from the shown one, in four
- * wide steps. `deltaMm` is shadow minus shown: at or below -5 is
+ * How much of the sheet's worst-seen side was visible: under 0.6, 0.6 to under
+ * 0.8, 0.8 and over. A share outside 0 to 1, or not a finite number, is `null`.
+ */
+export function paperCoverageBucket(
+  minSideCoverage: number | null | undefined,
+): ScanQualityProps["paperCoverage"] | null {
+  if (
+    typeof minSideCoverage !== "number" ||
+    !Number.isFinite(minSideCoverage) ||
+    minSideCoverage < 0 ||
+    minSideCoverage > 1
+  ) {
+    return null;
+  }
+  if (minSideCoverage < PAPER_COVERAGE_MID_FROM) return "under_0_6";
+  if (minSideCoverage < PAPER_COVERAGE_HIGH_FROM) return "from_0_6_to_0_8";
+  return "from_0_8";
+}
+
+/**
+ * The grade of the fingers' flatness from the diagnostics' hand reading, or
+ * `null` where there is none (no hand was detected, or the run stopped before
+ * it). Only the grade is passed on; the two ratios behind it never are.
+ */
+export function handPoseBucket(
+  hand: PipelineDiagnostics["hand"] | null | undefined,
+): ScanQualityProps["handPose"] | null {
+  return hand?.flatness?.pose ?? null;
+}
+
+/**
+ * How long the live preview held the sheet before the shot, from milliseconds:
+ * under 3 s, 3 to under 10, 10 to under 30, 30 and over. Not a finite
+ * non-negative number (an upload, a typed length, a sheet never found live) is
+ * `unknown`, a step of its own.
+ */
+export function liveWaitBucket(
+  liveWaitMs: number | null | undefined,
+): NonNullable<AnalyticsEventProps<"scan_capture_attempted">["liveWait"]> {
+  if (
+    typeof liveWaitMs !== "number" ||
+    !Number.isFinite(liveWaitMs) ||
+    liveWaitMs < 0
+  ) {
+    return "unknown";
+  }
+  const seconds = liveWaitMs / 1000;
+  if (seconds < LIVE_WAIT_MID_FROM_S) return "under_3_s";
+  if (seconds < LIVE_WAIT_HIGH_FROM_S) return "from_3_to_10_s";
+  if (seconds < LIVE_WAIT_TOP_FROM_S) return "from_10_to_30_s";
+  return "from_30_s";
+}
+
+/**
+ * How far the shadow hand length is from the shown one, in four wide steps.
+ * Since landmark-raw-v3 the shadow is the uncorrected hand length (no
+ * parallax correction) and the shown one is the reported, corrected value;
+ * before it the shadow was the nominal-focal value. The event carries no
+ * field that tells the two apart (open contract question for Claude).
+ * `deltaMm` is shadow minus shown: at or below -5 is
  * `lower_5_plus`, above -5 up to -2 `lower_2_to_5`, between -2 and 2 (neither
  * included) `within_2`, 2 and over `higher_2_plus`. Not a finite number is
  * `null`: the shadow could not be worked out.
@@ -168,14 +247,113 @@ export function priorEffectBucket(
 }
 
 /**
+ * Whether the sheet's corners in these diagnostics came from the detector.
+ * A frame a person placed (V3.2 F2, `cornersSource` `adjusted` or `manual`)
+ * is not the detector's: its angle and coverage say nothing about how the
+ * detector sees paper, and `scan_rejected` has no field that could tell the
+ * two apart, so the paper shadow grades are left out for it.
+ */
+function detectorCorners(
+  diagnostics: PipelineDiagnostics | null | undefined,
+): boolean {
+  const source = diagnostics?.paper?.cornersSource;
+  return source === undefined || source === "auto";
+}
+
+/**
  * The `paperSkew` a rejected scan may carry: present only when the pipeline
- * found the sheet's four corners (its diagnostics hold the angle). `undefined`
- * otherwise, and the caller leaves the property out.
+ * found the sheet's four corners itself (its diagnostics hold the angle).
+ * `undefined` otherwise, or for a frame a person placed, and the caller
+ * leaves the property out.
  */
 export function rejectedPaperSkew(
   diagnostics: PipelineDiagnostics | null | undefined,
 ): ScanQualityProps["paperSkew"] | undefined {
+  if (!detectorCorners(diagnostics)) return undefined;
   return paperSkewBucket(diagnostics?.paper?.maxAngleDeviationDeg) ?? undefined;
+}
+
+/**
+ * The `paperCoverage` a rejected scan may carry: present only when the
+ * pipeline found the sheet's four corners itself (the contract's rule),
+ * `undefined` otherwise, or for a frame a person placed.
+ */
+export function rejectedPaperCoverage(
+  diagnostics: PipelineDiagnostics | null | undefined,
+): ScanQualityProps["paperCoverage"] | undefined {
+  const paper = diagnostics?.paper;
+  if (!paper || paper.widthFraction === null || !detectorCorners(diagnostics))
+    return undefined;
+  return paperCoverageBucket(paper.minSideCoverage) ?? undefined;
+}
+
+/**
+ * The `handPose` a rejected scan may carry: present only when a hand was
+ * detected and its flatness read, `undefined` otherwise.
+ */
+export function rejectedHandPose(
+  diagnostics: PipelineDiagnostics | null | undefined,
+): ScanQualityProps["handPose"] | undefined {
+  return handPoseBucket(diagnostics?.hand) ?? undefined;
+}
+
+/**
+ * The shadow buckets a `scan_rejected` event may carry, as the properties to
+ * spread into it: each only where it can be worked out, so an event never holds
+ * a guessed grade.
+ */
+export function rejectedShadowProps(
+  diagnostics: PipelineDiagnostics | null | undefined,
+): Pick<
+  AnalyticsEventProps<"scan_rejected">,
+  "paperSkew" | "paperCoverage" | "handPose"
+> {
+  const paperSkew = rejectedPaperSkew(diagnostics);
+  const paperCoverage = rejectedPaperCoverage(diagnostics);
+  const handPose = rejectedHandPose(diagnostics);
+  return {
+    ...(paperSkew ? { paperSkew } : {}),
+    ...(paperCoverage ? { paperCoverage } : {}),
+    ...(handPose ? { handPose } : {}),
+  };
+}
+
+/**
+ * The `paperStage` a rejected scan may carry (V3.2 F6, candidate): where the
+ * paper detector stopped (`diagnostics.paper.failureStage`), only when the
+ * refusal is `PAPER_NOT_FOUND` (the contract's rule). `undefined` otherwise,
+ * and the caller leaves the property out. A step of the algorithm, not a cause.
+ */
+export function rejectedPaperStage(
+  errors: readonly { readonly code: string }[],
+  diagnostics: PipelineDiagnostics | null | undefined,
+): AnalyticsEventProps<"scan_rejected">["paperStage"] {
+  if (!errors.some((e) => e.code === "PAPER_NOT_FOUND")) return undefined;
+  const stage = diagnostics?.paper?.failureStage;
+  return isPaperDetectionStage(stage) ? stage : undefined;
+}
+
+/**
+ * The whole `scan_rejected` payload for a photo the pipeline refused: the flow,
+ * the attempt, the issue codes, the shadow grades (`rejectedShadowProps`) and,
+ * for PAPER_NOT_FOUND, the detector's stage (`rejectedPaperStage`).
+ * Both call sites (the easy scan and the printed-sheet page) build the event
+ * here, so a grade cannot be dropped from one of them without a test failing.
+ */
+export function buildScanRejected(input: {
+  readonly flow: ScanFlow;
+  readonly attempt: number;
+  readonly errors: readonly { readonly code: string }[];
+  readonly diagnostics: PipelineDiagnostics | null | undefined;
+}): AnalyticsEventProps<"scan_rejected"> {
+  const paperStage = rejectedPaperStage(input.errors, input.diagnostics);
+  return {
+    flow: input.flow,
+    attempt: input.attempt,
+    codes: issueCodes(input.errors.map((e) => e.code)),
+    ...rejectedShadowProps(input.diagnostics),
+    ...(paperStage ? { paperStage } : {}),
+  };
 }
 
 export interface ScanQualityInput {
@@ -213,6 +391,9 @@ export function buildScanQuality(
   if (!sharpness || !resolution || !edgeFit || !paperSkew || !paperAspect) {
     return null;
   }
+  // Shadow buckets: left out, not guessed, where they cannot be worked out.
+  const paperCoverage = paperCoverageBucket(diagnostics.paper?.minSideCoverage);
+  const handPose = handPoseBucket(diagnostics.hand);
   return {
     flow,
     attempt,
@@ -225,5 +406,7 @@ export function buildScanQuality(
     paperSkew,
     paperAspect,
     priorEffect,
+    ...(paperCoverage ? { paperCoverage } : {}),
+    ...(handPose ? { handPose } : {}),
   };
 }

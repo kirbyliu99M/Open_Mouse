@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   paperObservedAspect,
   paperSizeFractions,
+  paperWorstSide,
 } from "../../src/client/photo/diagnostics";
 import { computeQuadWidthFraction } from "../../src/client/camera/quad";
 
@@ -112,5 +113,51 @@ describe("paperObservedAspect", () => {
     expect(paperObservedAspect(rect(0, 0, 0, 0))).toBeNull();
     expect(paperObservedAspect(rect(0, 0, 10, 0))).toBeNull();
     expect(paperObservedAspect(rect(0, 0, Number.NaN, 10))).toBeNull();
+  });
+});
+
+describe("paperWorstSide (the hidden edge, named as the person sees it)", () => {
+  // The detector's side order: 0 = TL to TR, 1 = TR to BR, 2 = BR to BL, 3 = BL to TL.
+  const corners = rect(100, 100, 600, 848);
+  it.each([
+    [[0.225, 1, 1, 1], "top"],
+    [[1, 0.3, 1, 1], "right"],
+    [[1, 1, 0.35, 1], "bottom"],
+    [[1, 1, 1, 0.28], "left"],
+    [[0.9, 0.6, 0.95, 0.99], "right"],
+  ] as const)("%j -> %s", (coverages, name) => {
+    expect(paperWorstSide(corners, coverages)).toBe(name);
+  });
+
+  it("is null on a tie for the lowest, with nothing hidden, or with no corners or no coverages", () => {
+    expect(paperWorstSide(corners, [0.3, 0.3, 1, 1])).toBeNull();
+    expect(paperWorstSide(corners, [1, 1, 1, 1])).toBeNull();
+    expect(paperWorstSide(null, [0.3, 1, 1, 1])).toBeNull();
+    expect(paperWorstSide(corners, null)).toBeNull();
+    expect(paperWorstSide(corners, undefined)).toBeNull();
+    expect(paperWorstSide(corners, [0.3, 1, 1])).toBeNull();
+    expect(paperWorstSide(corners, [0.3, 1, 1, 1, 1])).toBeNull();
+  });
+
+  it("a sheet turned to the left in the picture still names the side on the screen", () => {
+    // The sheet's own "top" side (TL to TR) now runs down the left of the frame.
+    const turned = [
+      { x: 100, y: 700 },
+      { x: 100, y: 100 },
+      { x: 948, y: 100 },
+      { x: 948, y: 700 },
+    ] as const;
+    expect(paperWorstSide(turned, [0.3, 1, 1, 1])).toBe("left");
+    expect(paperWorstSide(turned, [1, 0.3, 1, 1])).toBe("top");
+  });
+
+  it("a sheet seen corner-up has no plain name", () => {
+    const diamond = [
+      { x: 500, y: 100 },
+      { x: 900, y: 500 },
+      { x: 500, y: 900 },
+      { x: 100, y: 500 },
+    ] as const;
+    expect(paperWorstSide(diamond, [0.3, 1, 1, 1])).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fitPreferencesSchema } from "../../src/lib/contracts/fit";
 import { DEFAULT_ENGINE } from "../../src/server/fit/coefficients";
 import { loadOwnedFit } from "../../src/server/fit/core";
@@ -44,6 +44,15 @@ const hidden: CatalogueMouse = {
 };
 
 describe("loadOwnedFit under fit-v1 with an unlisted row", () => {
+  // The mocked DEFAULT_ENGINE is what the route runs when FIT_ENGINE is not
+  // set; a runner that exports FIT_ENGINE must not override it.
+  beforeEach(() => {
+    vi.stubEnv("FIT_ENGINE", "");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("runs v1", () => {
     expect(DEFAULT_ENGINE).toBe("v1");
   });
@@ -69,7 +78,7 @@ describe("loadOwnedFit under fit-v1 with an unlisted row", () => {
       vi.mocked(scoreFitV1).mock.calls[0]![1].map((m) => m.slug),
     ).not.toContain("logitech-m100");
 
-    // Every priors computation (scoring and stored null scores) saw only listed rows.
+    // Every priors computation (scoring) saw only listed rows.
     expect(computePriors).toHaveBeenCalled();
     for (const [catalogue] of vi.mocked(computePriors).mock.calls)
       expect(catalogue.map((m) => m.slug)).not.toContain("logitech-m100");
@@ -79,8 +88,5 @@ describe("loadOwnedFit under fit-v1 with an unlisted row", () => {
       ...result.fit.excluded.map((e) => e.slug),
     ];
     expect(everywhere).not.toContain("logitech-m100");
-    expect(fake.saveFitResultsCalls.flat().map((r) => r.mouseId)).not.toContain(
-      "mouse-hidden",
-    );
   });
 });

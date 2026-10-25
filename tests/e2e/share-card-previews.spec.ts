@@ -20,7 +20,7 @@ import { decodePng, type DecodedPng } from "./fixtures/png";
  * information for the person choosing.
  */
 const DEMO = "/scan/share-card-demo";
-const SITE_URL = "https://open-mouse.vercel.app";
+const SITE_URL = "https://palmate.kirby-fivesenses.com";
 
 async function withoutWebShare(page: Page) {
   await page.addInitScript(() => {
@@ -35,8 +35,13 @@ async function withoutWebShare(page: Page) {
 async function makeCard(page: Page, query: string): Promise<Buffer> {
   await withoutWebShare(page);
   await page.goto(`${DEMO}?preset=rog&${query}`);
-  const download = page.waitForEvent("download");
+  // V3.2 F21: the entry opens the preview; 下載 hands the file over.
   await page.getByTestId("share-card-button").last().click();
+  await expect(page.getByTestId("share-preview-image")).toBeVisible({
+    timeout: 15_000,
+  });
+  const download = page.waitForEvent("download");
+  await page.getByTestId("share-preview-download").click();
   return readFileSync(await (await download).path());
 }
 

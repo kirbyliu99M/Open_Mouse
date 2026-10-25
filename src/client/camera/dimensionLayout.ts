@@ -15,6 +15,16 @@ import {
 import { clampInto } from "./photoLayout";
 import type { Point, Rect } from "./quad";
 
+/**
+ * The dot on each measured point (a, b), in on-screen CSS pixels. The OUTER
+ * diameter (white fill plus the dark ring around it) is 6; the ring is 1.5 wide
+ * and drawn centred on the fill's edge, so the fill's diameter is 6 - 1.5 =
+ * 4.5 and the pure-white core inside the ring is 3. `.easyDimDot` in
+ * easy-scan.css uses the same 1.5 for its stroke-width.
+ */
+export const ENDPOINT_DOT_OUTER_DIAMETER_PX = 6;
+export const ENDPOINT_DOT_RING_PX = 1.5;
+
 export interface DimensionSpec {
   readonly a: Point;
   readonly b: Point;
@@ -27,6 +37,8 @@ export interface DimensionLayout {
   /** One centred label pill per spec. */
   readonly boxes: readonly Box[];
   readonly fontSize: number;
+  /** Radius of the dot on each measured point, in overlay units (the fill; outer 6 CSS px with the ring). */
+  readonly dotRadius: number;
 }
 
 /**
@@ -63,7 +75,13 @@ export function layoutDimensions(
     width: specs[i].label.length * fontSize * 0.62 + paddingX * 2,
     height: labelHeight,
   }));
-  return { geometries, boxes: placeLabels(rawBoxes, visible), fontSize };
+  return {
+    geometries,
+    boxes: placeLabels(rawBoxes, visible),
+    fontSize,
+    dotRadius:
+      ((ENDPOINT_DOT_OUTER_DIAMETER_PX - ENDPOINT_DOT_RING_PX) / 2) * scale,
+  };
 }
 
 const EPSILON = 1e-6;

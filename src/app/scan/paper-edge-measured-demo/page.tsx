@@ -47,7 +47,9 @@ const DEMO_SUBMISSION = scanSubmissionSchema.parse({
     paperSize: "a4",
     edgeFitResidualMm: 0.6,
     minSideCoverage: 0.92,
-    parallaxCorrected: true,
+    // Fixed demo numbers, shown as they are: a corrected scan would be shown
+    // on the engine's scale (landmark-raw-v3, D1 = B) and move the screenshots.
+    parallaxCorrected: false,
   },
   measurementModelVersion: MEASUREMENT_MODEL_VERSION,
 });

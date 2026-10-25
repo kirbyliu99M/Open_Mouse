@@ -8,10 +8,12 @@
  * already the part on screen), `parallaxCorrected` says what really happened,
  * and the submission is valid.
  *
- * What it costs: with no EXIF focal length the correction runs only when the
- * sheet's own perspective fixes a focal length (a tilted view, `reliable`);
- * for a phone held flat above the sheet it does not run, and the hand length
- * is the uncorrected one (a little high: the landmarks are above the sheet).
+ * Before landmark-raw-v3, with no EXIF focal length the correction ran only
+ * when the sheet's own perspective fixed a focal length (a tilted view,
+ * `reliable`); for a phone held flat above the sheet it did not run. Since v3
+ * (V3.2 candidate, design R7) the nominal focal prior corrects it then
+ * (`focalSource` nominal), taken on the frame's long edge, or on the stream's
+ * when the camera passes `focalReferenceLongEdgePx`.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -54,6 +56,13 @@ import {
   computeHandMeasurements,
 } from "../../src/client/geometry/measurements";
 import { scanSubmissionSchema } from "../../src/lib/contracts/measurement";
+import { estimateFocalFromHomography } from "../../src/client/geometry/focal-from-homography";
+import { judgeParallaxCorrection } from "../../src/client/geometry/parallaxGuard";
+import {
+  nominalFocalPx,
+  nominalFocalPxFromLongEdge,
+  NOMINAL_FOCAL_EQUIV_MM_STILL,
+} from "../../src/client/geometry/nominalFocalShadow";
 import {
   runPhotoPipeline,
   type PipelineResult,
@@ -143,13 +152,20 @@ const noExif = () =>
 
 function run(
   file: File = noExif(),
-  extra: { focalReferenceWidthPx?: number } = {},
+  extra: {
+    focalReferenceWidthPx?: number;
+    focalReferenceLongEdgePx?: number;
+  } = {},
 ) {
   return runPhotoPipeline({
     file,
     hand: "right",
     handExplicit: true,
     calibration: { method: "paper-edge", paperSize: "a4" },
+    // A frame of the video: the camera always passes the stream's long edge
+    // (here the frame's own), which marks it as a video frame and gives it
+    // the 18 mm prior (F17 review). An upload passes `undefined`.
+    focalReferenceLongEdgePx: Math.max(FRAME.width, FRAME.height),
     ...extra,
   });
 }
@@ -160,7 +176,11 @@ function ok(result: PipelineResult) {
   return result;
 }
 
-function reference(corners: Corners, landmarks: readonly Point2[]) {
+function reference(
+  corners: Corners,
+  landmarks: readonly Point2[],
+  prior: number | null = nominalFocalPx(FRAME),
+) {
   const quad = {
     corners: corners as never,
     cornersSeen: 4 as const,
@@ -172,6 +192,10 @@ function reference(corners: Corners, landmarks: readonly Point2[]) {
     paperRegionFound: true,
   };
   const { geometry } = evaluatePaperEdgeCalibration(quad, "a4", false);
+  // The correction alone, WITHOUT the F16 guard (review fix): a reference
+  // that called the guard itself would agree with the pipeline whether the
+  // guard refused or not. Where the guard's decision matters the tests say
+  // what they expect in so many words.
   return {
     homography: geometry!.homography,
     corrected: computeCorrectedHandMeasurements(
@@ -181,6 +205,7 @@ function reference(corners: Corners, landmarks: readonly Point2[]) {
         exifFocalPx: null,
         widthPx: FRAME.width,
         heightPx: FRAME.height,
+        nominalFocalPx: prior,
       },
     ),
   };
@@ -225,50 +250,128 @@ describe("paper-edge pipeline with a frame of the video (no EXIF, no previewView
     expect(result.overlay.paperCorners).toEqual(FRONTAL);
   });
 
-  it("a sheet seen flat from above cannot fix a focal length: parallaxCorrected is false and the measurements are the uncorrected ones", async () => {
+  it("a sheet seen flat from above cannot fix a focal length: since v3 the nominal prior on the frame's long edge corrects it", async () => {
     const landmarks = landmarksFor(FRONTAL);
     arrange(FRONTAL, landmarks);
     const result = ok(await run());
     const { homography, corrected } = reference(FRONTAL, landmarks);
-    expect(corrected.parallaxCorrected).toBe(false);
-    expect(result.diagnostics?.parallaxCorrected).toBe(false);
-    // No correction: no focal length either, and the measured numbers are the result's own.
-    expect(result.diagnostics?.focal).toEqual({ source: "none", px: null });
+    // Without the prior nothing could correct it (the pre-v3 answer).
+    expect(
+      reference(FRONTAL, landmarks, null).corrected.parallaxCorrected,
+    ).toBe(false);
+    expect(corrected.focalSource).toBe("nominal");
+    expect(result.diagnostics?.parallaxCorrected).toBe(true);
+    expect(result.diagnostics?.focal).toEqual({
+      source: "nominal",
+      px: nominalFocalPx(FRAME),
+    });
+    expect(nominalFocalPx(FRAME)).toBeCloseTo(0.52 * 1088, 0);
     expect(result.diagnostics?.measured).toEqual({
       handLengthMm: result.measurements.handLengthMm,
       palmWidthMm: result.measurements.palmWidthMm,
     });
     expect(result.submission.calibration).toMatchObject({
       method: "paper-edge",
-      parallaxCorrected: false,
+      parallaxCorrected: true,
+      focalSource: "nominal",
     });
-    expect(result.measurements).toEqual(
-      computeHandMeasurements(landmarks, homography),
+    expect(result.measurements).toEqual(corrected.measurements);
+    // The synthetic hand's landmarks were drawn ON the sheet (190 mm), so
+    // the correction for their assumed height reads it shorter; the shadow
+    // keeps the uncorrected 190 for the local log.
+    const uncorrected = computeHandMeasurements(landmarks, homography);
+    expect(uncorrected.handLengthMm).toBeCloseTo(190, 6);
+    expect(result.measurements.handLengthMm).toBeLessThan(190);
+    expect(result.diagnostics?.shadowPrior?.uncorrected).toEqual({
+      handLengthMm: uncorrected.handLengthMm,
+      palmLengthMm: uncorrected.palmLengthMm,
+      palmWidthMm: uncorrected.palmWidthMm,
+    });
+    expect(result.diagnostics?.shadowPrior?.handLengthDeltaMm).toBeCloseTo(
+      uncorrected.handLengthMm - result.measurements.handLengthMm,
+      9,
     );
-    // The synthetic hand is 190 mm long, and without the correction it reads 190.
-    expect(result.measurements.handLengthMm).toBeCloseTo(190, 6);
   });
 
-  it("a tilted view: whatever the focal policy decides, the flag says it and the measurements are the reference's", async () => {
+  it("F17 review: the same pixels as an upload with no EXIF (no stream edge passed) are a still and get the 26 mm prior, not the video frame's 18 mm", async () => {
+    const landmarks = landmarksFor(FRONTAL);
+    arrange(FRONTAL, landmarks);
+    const result = ok(
+      await run(noExif(), { focalReferenceLongEdgePx: undefined }),
+    );
+    const still = nominalFocalPxFromLongEdge(
+      Math.max(FRAME.width, FRAME.height),
+      NOMINAL_FOCAL_EQUIV_MM_STILL,
+    )!;
+    expect(result.diagnostics?.focal).toEqual({ source: "nominal", px: still });
+    expect(still / nominalFocalPx(FRAME)!).toBeCloseTo(26 / 18, 9);
+    expect(result.measurements).toEqual(
+      reference(FRONTAL, landmarks, still).corrected.measurements,
+    );
+  });
+
+  it("a frame cut on its long side: the prior is taken on the stream's long edge the camera passes, not the frame's (design R7 §5.1 item 4)", async () => {
+    const landmarks = landmarksFor(FRONTAL);
+    arrange(FRONTAL, landmarks);
+    // FRAME's long edge is 1088; say the stream's was 1920 in these pixels.
+    const result = ok(await run(noExif(), { focalReferenceLongEdgePx: 1920 }));
+    const prior = nominalFocalPxFromLongEdge(1920)!;
+    expect(prior).toBeCloseTo(998.4, 0);
+    expect(result.diagnostics?.focal).toEqual({
+      source: "nominal",
+      px: prior,
+    });
+    expect(result.measurements).toEqual(
+      reference(FRONTAL, landmarks, prior).corrected.measurements,
+    );
+    expect(result.measurements).not.toEqual(
+      reference(FRONTAL, landmarks).corrected.measurements,
+    );
+  });
+
+  it("a tilted view (focal estimate 1.284 x the F17 nominal, palm width ratio 1.221, 模擬): KEPT under the current candidate design (b4be146d, 未拍板: a ratio outside the limits is refused only when the focal length is not backed)", async () => {
     const landmarks = landmarksFor(TILTED);
     arrange(TILTED, landmarks);
     const result = ok(await run());
-    const { corrected } = reference(TILTED, landmarks);
-    expect(result.diagnostics?.parallaxCorrected).toBe(
-      corrected.parallaxCorrected,
+    const { homography, corrected } = reference(TILTED, landmarks);
+    const prior = nominalFocalPx(FRAME)!;
+    // The situation (模擬): no EXIF, the homography's estimate is not
+    // reliable, so the nominal prior corrects it; the estimate is 1.284 of it
+    // (0.889 of the pre-F17 26 mm prior), inside PARALLAX_GUARD.focalAgreement
+    // (0.85-1.4).
+    const estimate = estimateFocalFromHomography(homography, {
+      cx: FRAME.width / 2,
+      cy: FRAME.height / 2,
+    })!;
+    expect(estimate.reliable).toBe(false);
+    expect(estimate.fPx / prior).toBeCloseTo(1.284, 3);
+    // The ratios are outside the limits: the hand made longer (190.0 ->
+    // 194.7 mm), the palm width much narrower (80.0 -> 65.5 mm).
+    const uncorrected = computeHandMeasurements(landmarks, homography);
+    const verdict = judgeParallaxCorrection(
+      uncorrected,
+      corrected.measurements,
     );
-    expect(result.diagnostics?.focal).toEqual({
-      source: corrected.focalSource,
-      px: corrected.fPx,
+    expect(verdict).toMatchObject({ accept: false, reason: "lengthened" });
+    expect(verdict.ratios.handLength).toBeCloseTo(0.976, 3);
+    expect(verdict.ratios.palmWidth).toBeCloseTo(1.221, 3);
+    expect(uncorrected.handLengthMm).toBeCloseTo(190.0, 1);
+    expect(corrected.measurements.handLengthMm).toBeCloseTo(194.7, 1);
+    expect(corrected.measurements.palmWidthMm).toBeCloseTo(65.5, 1);
+    // The current design: kept. If Claude/Kirby choose the brief's literal
+    // AC2 (refuse whenever a ratio is outside), this flips to parallaxCorrected
+    // false, focal none, the uncorrected numbers.
+    expect(result.diagnostics?.parallaxCorrected).toBe(true);
+    expect(result.diagnostics?.focal).toEqual({ source: "nominal", px: prior });
+    expect(result.submission.calibration).toMatchObject({
+      parallaxCorrected: true,
+      focalSource: "nominal",
     });
+    expect(result.measurements).toEqual(corrected.measurements);
     expect(result.diagnostics?.measured).toEqual({
       handLengthMm: corrected.measurements.handLengthMm,
       palmWidthMm: corrected.measurements.palmWidthMm,
     });
-    expect(result.submission.calibration).toMatchObject({
-      parallaxCorrected: corrected.parallaxCorrected,
-    });
-    expect(result.measurements).toEqual(corrected.measurements);
   });
 
   it("a run that stops before it measures has no measured numbers and no focal length", async () => {
@@ -306,7 +409,9 @@ describe("paper-edge pipeline with a frame of the video (no EXIF, no previewView
         new File([bytes as BlobPart], "frame.jpg", { type: "image/jpeg" }),
       );
       expect(result.status).toBe("ok");
-      expect(result.diagnostics?.parallaxCorrected).toBe(false);
+      // No EXIF, a frontal sheet: the nominal prior (landmark-raw-v3).
+      expect(result.diagnostics?.parallaxCorrected).toBe(true);
+      expect(result.diagnostics?.focal?.source).toBe("nominal");
     }
   });
 });

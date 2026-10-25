@@ -10,6 +10,7 @@ import type { Locale } from "@/lib/contracts/locale";
 import type { SurveyMineResponse } from "@/lib/contracts/survey";
 import type { AccountCopy } from "@/lib/copy/account";
 import type { AccountScan } from "@/server/account/repo";
+import { engineScaleMeasurements } from "@/lib/fit/fit-scale";
 
 const NBSP = String.fromCharCode(0xa0);
 
@@ -76,21 +77,38 @@ export function splitScans(scans: readonly AccountScan[]): {
 }
 
 /**
+ * The hand length and palm width a page shows for one scan (landmark-raw-v3,
+ * V3.2 candidate, D1 = B): a parallax-corrected scan's on the engine's scale,
+ * the numbers its recommendation reads; anything else as stored.
+ */
+export function shownAccountMeasurements(scan: AccountScan): {
+  handLengthMm: number;
+  palmWidthMm: number;
+} {
+  const shown = engineScaleMeasurements(
+    scan.measurements,
+    scan.parallaxCorrected,
+  );
+  return { handLengthMm: shown.handLengthMm, palmWidthMm: shown.palmWidthMm };
+}
+
+/**
  * The rows of 我的手 for one scan: hand length and palm width always, grip and
  * palm thickness only when the person stated them (both are nullable, and a
  * skipped answer is never shown as a value).
  */
 export function handRows(scan: AccountScan, copy: AccountCopy): ValueRow[] {
+  const shown = shownAccountMeasurements(scan);
   const rows: ValueRow[] = [
     {
       key: "handLength",
       label: copy.handLength,
-      value: formatCm(scan.measurements.handLengthMm),
+      value: formatCm(shown.handLengthMm),
     },
     {
       key: "palmWidth",
       label: copy.palmWidth,
-      value: formatCm(scan.measurements.palmWidthMm),
+      value: formatCm(shown.palmWidthMm),
     },
   ];
   if (scan.gripStyleStated !== null) {

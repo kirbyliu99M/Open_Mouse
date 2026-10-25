@@ -12,10 +12,7 @@ import type { PalmThicknessLevel } from "../../lib/contracts/measurement";
  *
  * Bump `ENGINE_VERSION` when a score, weight, total or ranking can change for
  * the same input. Changing only which reason code or params a sub-score reports
- * does not: `fit_results` is unique on (scan, mouse, engineVersion) and upserts
- * `reasons` on conflict, so a re-fit under the same version simply overwrites
- * them, while a new version would leave a second row per mouse for the same
- * scan. (G4: a palm grip with no thumb rest now reports `thumb_rest_missing`
+ * does not. (G4: a palm grip with no thumb rest now reports `thumb_rest_missing`
  * instead of `thumb_neutral`, with the same score, so no bump.)
  */
 export const ENGINE_VERSION = "fit-v0-provisional";
@@ -165,11 +162,18 @@ export const VERTICAL_FORM_FACTOR_RATIO = 0.55;
  * Which engine the fit route uses. Kirby switched the default to v1 on
  * 2026-10-10, after the v0-vs-v1 comparison on the real catalogue. v1 is still
  * a candidate (未拍板): only the default changed, not the label or any number.
+ *
+ * "v2" (2026-10-18) is an internal candidate for tests and explicit opt-in
+ * only. It must not become the default before every consumer handles
+ * `coverage` (src/lib/contracts/fit.ts); tests/unit/fit-v2c-engine.test.ts pins
+ * the default and lists what has to happen first.
+ *
+ * "v3" (2026-10-19) is the fit-v3.0 candidate on the same terms: internal,
+ * test-only, never the default until every consumer handles `calibration`.
  */
-export type EngineId = "v0" | "v1";
+export type EngineId = "v0" | "v1" | "v2" | "v3";
 export const DEFAULT_ENGINE: EngineId = "v1";
 
-/** `fit_results` is unique on (scan, mouse, engineVersion), so a new version needs no migration. */
 export const ENGINE_VERSION_V1 = "fit-v1-candidate.3";
 
 /**
@@ -219,3 +223,80 @@ export const THICKNESS_HEIGHT_SHIFT_MM: Record<PalmThicknessLevel, number> = {
   medium: 0,
   thick: 1.5,
 };
+
+// ── fit-v2.0 (candidate) ───────────────────────────────────────────────────
+// The v2 candidate engine (score-v2-candidate.ts) and its rank stability
+// (rank-stability-candidate.ts). v2 reuses every v1 coefficient above
+// unchanged; only the numbers below are new. 未拍板: all candidates, and v2
+// is not the default engine (see `DEFAULT_ENGINE`).
+
+/**
+ * v2 ranks against a length target clamped to the ranked mice's length range,
+ * and blends an unstated grip with equal weights, so a ranking can change for
+ * the same input: a version of its own.
+ */
+export const ENGINE_VERSION_V2 = "fit-v2.0-candidate.0";
+
+/**
+ * Rank stability: how many resampled inputs are drawn. 200 gives a step of
+ * 0.005 and, at worst (a share near 0.5), a Monte Carlo standard error of
+ * about 0.035.
+ */
+export const RANK_STABILITY_DRAWS = 200;
+
+/** A card "stays" when its shell is among this many cards in a resample. */
+export const RANK_STABILITY_TOP_CARDS = 5;
+
+/** Only this many baseline cards carry a `rankStability`. */
+export const RANK_STABILITY_TRACKED_CARDS = 10;
+
+/**
+ * Fixed global seed of the resampling (mulberry32). Never derived from the
+ * input: every input sees the same draws (common random numbers), so two
+ * neighbouring hands differ only by the hand, not by sampling noise. The
+ * perturbation sizes are `SIGMA_MEAS_MM` (hand length, palm width), which
+ * nobody has validated.
+ */
+export const RANK_STABILITY_SEED = 20261018;
+
+// ── fit-v3.0 (candidate) ───────────────────────────────────────────────────
+// The v3 candidate engine (score-v3-candidate.ts) and its personal calibration
+// (calibration-v3-candidate.ts). v3 reuses v2 (length clamp, equal grip
+// weights when no grip is stated, rank stability, coverage) and v1's
+// coefficients except the ones below. Kirby's provisional settings of
+// 2026-10-19; 未拍板, and v3 is not the default engine (see `DEFAULT_ENGINE`).
+
+/** A v3 score can differ from v2 for the same input, so it has a version of its own. */
+export const ENGINE_VERSION_V3 = "fit-v3.0-candidate.0";
+
+/** v3's grip-width target is palmWidth x this (v1 and v2: `GRIP_WIDTH_FACTOR`, 0.88). */
+export const GRIP_WIDTH_FACTOR_V3 = 1.0;
+
+/**
+ * v3 reverses v1's palm-thickness shift: a thick palm lowers the height
+ * target, a thin one raises it (v1: `THICKNESS_HEIGHT_SHIFT_MM`, the other
+ * way round). No answer means no shift. Uncalibrated, like the v1 numbers.
+ */
+export const THICKNESS_HEIGHT_SHIFT_MM_V3: Record<PalmThicknessLevel, number> =
+  {
+    thin: 1.5,
+    medium: 0,
+    thick: -1.5,
+  };
+
+/** The offset grid of the calibration: -30 to +30 mm in steps of 0.1 mm. */
+export const CALIBRATION_GRID_HALF_RANGE_MM = 30;
+export const CALIBRATION_GRID_STEP_MM = 0.1;
+
+/** The prior of an offset is N(0, (this x band)^2), band = the dimension's `SIGMA_MM`. */
+export const CALIBRATION_PRIOR_SCALE = 1.5;
+
+/** How fuzzy "just right" is: the logistic scale is this fraction of the band. */
+export const CALIBRATION_FEEL_SOFTNESS = 0.3;
+
+/** The floor of P("just right"), so one odd answer never zeroes a likelihood. */
+export const CALIBRATION_FINE_FLOOR = 1e-6;
+
+/** With at least `MIN_ANSWERS` answers, a joint fit below `FIT_BELOW` is a conflict. */
+export const CALIBRATION_CONFLICT_MIN_ANSWERS = 2;
+export const CALIBRATION_CONFLICT_FIT_BELOW = 0.3;

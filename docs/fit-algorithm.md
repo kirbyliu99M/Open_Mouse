@@ -24,6 +24,36 @@ scanned). So for a `manual-entry` scan the engine's input width is the typed wid
 (`src/server/fit/scoring-measurements.ts`) in front of both scoring entries; the stored and displayed values
 stay as typed and the length is not converted. Every other calibration method scores as stored.
 
+**The engine's scale for a parallax-corrected scan (landmark-raw-v3, V3.2, candidate 未拍板; Kirby
+2026-10-22, design R7).** Since `landmark-raw-v3` a photo with no EXIF focal length and no trustworthy
+homography estimate is still corrected for parallax, with a nominal focal length (18 mm equivalent on the
+camera frame's long edge since V3.2 F17, 26 mm before; `nominalFocalPxFromLongEdge`), so most frame scans now read a few per cent
+shorter than before. The engine, the hand type, the survey bins, the grip prediction and the similar-hand
+cells were all tuned on UNcorrected frame scans, so every reader of a scan's size goes through
+`fitScaleMeasurements` (`src/lib/fit/fit-scale.ts`, re-exported from `scoring-measurements.ts`):
+
+| Scan                                   | What the engine reads                                                                     |
+| -------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `parallaxCorrected: true` (any source) | hand length x 1.047, palm length x 1.067, palm width x 1.044 (`FIT_SCALE_FROM_CORRECTED`) |
+| `manual-entry`                         | typed width x 0.77 (`MANUAL_ENTRY.widthToLandmarkScale`), everything else as typed        |
+| anything else (uncorrected, old rows)  | as stored, the same object                                                                |
+
+The ratios k are simulated (模擬: uncorrected over corrected on a frame path at a paper fill of 0.65,
+Kirby's measured average 0.653) and are to be replaced by the ratios measured on Kirby's S25 before
+production (D5). The rule reads `calibration_evidence.parallaxCorrected`, never the measurement version, so
+an older corrected record (EXIF, homography) is scaled too (D3). No engine coefficient changed and
+`ENGINE_VERSION_V3` did not move: the engine sees the same scale as before. What the person sees is this
+same engine-scale number (D1 = B): the scan sheet, the scan page and the account page show
+`engineScaleMeasurements`, and the fit route hands it to the page and the analysis; a typed size is shown
+as typed. Simulated effect on the V1 population (600 hands, seed 20261018), corrected + scaled against
+today's uncorrected scan: top-10 Jaccard 0.829-0.934 and the same first place 81.8-92.5 % depending on
+the grip (a second uncorrected scan of the same hand: 0.792-0.920, 76.0-91.5 %), `predictGrip` differs for
+3.2 % of hands (unscaled: 35.5 %; S25 measured at the 18 mm frame prior, 2026-10-24; a second person on an iPhone agreed). These numbers come from the real `fitScaleMeasurements` (script
+`v32-program-2026-10-21\review\R7\d12_fit_population.ts`, output `d12.out.txt`, outside the repo) and are
+pinned, with the acceptance "not below a second scan minus 0.02", by
+`tests/unit/engine-scale-population.test.ts`; rerun both when the ratios change. The 0.77 is unchanged: on
+the corrected landmark scale it would be about 0.73 (0.733 x 1.044 = 0.77). Summary: `docs/research/nominal-focal-r7.md`.
+
 ## 2. Grip
 
 - Stated grip → weights `w = {stated: 1}`.
@@ -155,10 +185,9 @@ answer fixed (every answer must stay at 2 points or below). `--real` includes bo
 `ENGINE_VERSION_V1 = "fit-v1-candidate.3"` (the palm-thickness shift bumped it from `fit-v1-candidate.2`, CALIB-1's value, and CALIB-1 had bumped `fit-v1-candidate`, so stored rows of different calibrations never mix; v0's `ENGINE_VERSION` stays `fit-v0-provisional`),
 `ENGINE_IS_PROVISIONAL = true`. `DEFAULT_ENGINE` in `coefficients.ts` (`"v0"` or `"v1"`) is the
 switch `scoreFitDefault` (`engine.ts`, used by the fit route) reads; it is `"v1"` since 2026-10-10 (see below). `fit_results` is unique
-on (scan, mouse, engineVersion), so no migration. That one line also switches what `fit_results` stores for a
-null sub-score: `core.ts` passes `storedNullScore(DEFAULT_ENGINE, catalogue)` to `buildFitResultRows`,
-so v1 rows store the catalogue-mean prior its total used (rounded, the column is a smallint) and v0
-rows keep 75.
+on (scan, mouse, engineVersion), so no migration. Since 2026-10-20 the request path no longer writes `fit_results` (the table stays, old
+rows are still deleted with their scan or account; nothing reads it), so `storedNullScore` and
+`buildFitResultRows` are gone.
 
 **Default engine.** Since 2026-10-10 (Kirby, after the v0-vs-v1 comparison on the real catalogue) v1 is the default engine (now `fit-v1-candidate.3`); `scoreFit` (v0, `fit-v0-provisional`) stays in the code and is reachable through `scoreWithEngine("v0", ...)`. v1 is still a candidate: its coefficients and labels were unchanged by the switch, and `.3` adds only the palm-thickness shift (§3); all of it is 未拍板.
 

@@ -101,7 +101,7 @@ describe("the questionnaire's words", () => {
       zhTW.consentKept + zhTW.consentNotKept + zhTW.consentWithdraw,
     ).not.toMatch(/天|小時|個月/);
     // The consent text is tied to a version of the contract: say so when it moves.
-    expect(SURVEY_CONSENT_VERSION).toBe("survey-consent-v2-draft");
+    expect(SURVEY_CONSENT_VERSION).toBe("survey-consent-v3-draft");
   });
 
   it("the 'kept' list names every item the form actually sends, in both languages", () => {

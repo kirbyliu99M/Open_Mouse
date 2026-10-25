@@ -15,33 +15,40 @@ import {
   RESULT_FEEDBACK_AUTOCLOSE_MS,
   RESULT_FEEDBACK_TICK_MS,
   addVisibleTime,
-  buildSubmission,
   canPageScroll,
   dismissedEventDue,
   dragClosesSheet,
   escapeCloses,
   fetchAnswered,
+  INITIAL_SHEET_GATE,
   markFeedbackDone,
   reachedEnd,
-  readFeedbackDone,
-  sendFeedback,
+  feedbackSender,
+  recordFirstShow,
+  sheetGateOnMount,
+  submitFeedback,
   shouldShowSheet,
-  shownEvent,
-  submittedEvent,
   type SendFailure,
   type SheetPhase,
 } from "@/lib/results/resultFeedback";
+import {
+  fetchReminderStatus,
+  type ReminderStatus,
+} from "@/lib/results/surveyReminder";
 import { ResultFeedbackPanel } from "./ResultFeedbackPanel";
 import { resultFeedbackCopy } from "@/lib/copy/result-feedback";
 
 /**
  * The feedback sheet of the results page (v2, Kirby 2026-10-15): a bottom
  * sheet on a phone and a floating card on a desktop that does not block the
- * page (no backdrop, no focus trap) and is announced politely. It appears when
- * the end of the list has been scrolled into view, or after
- * `RESULT_FEEDBACK_DWELL_MS` of the tab being visible once the person has
- * scrolled (or the page cannot scroll), and only if `GET` says the scan was
- * not rated and this device has not closed it. The rules are in
+ * page (no backdrop, no focus trap) and is announced politely. It appears
+ * after `RESULT_FEEDBACK_MIN_DWELL_MS` of the tab being visible once the end of
+ * the list has been scrolled into view or Details was opened, or after
+ * `RESULT_FEEDBACK_DWELL_MS` once the person has scrolled (or the page cannot
+ * scroll), and only if `GET` says the scan was not rated, this device has not
+ * closed it, this device was not prompted in the last 30 days and the
+ * questionnaire is known to be unanswered (V3.2 F11, candidate; "unknown" or
+ * not back yet keeps it away). The rules are in
  * `src/lib/results/resultFeedback.ts`; what is drawn is in
  * `ResultFeedbackPanel`. Closing (X, Esc, or pulling the handle down) means
  * this device is not asked again for this scan. Renders an invisible marker
@@ -51,11 +58,27 @@ export function ResultFeedbackSheet({
   scanId,
   language,
   emit,
+  resultFingerprint,
+  onResultChanged,
+  openedDetails = false,
 }: {
   scanId: string;
   language: Locale;
   /** The results page's emitter (real pages only); it adds the page fields. */
   emit?: ResultsEmit;
+  /**
+   * V3.2 F1 (candidate): the fingerprint of the ranking on screen, sent with
+   * the rating. Absent: no header (the server behaves as before).
+   */
+  resultFingerprint?: string;
+  /**
+   * Called when the server answers 412 (the ranking changed): the page fetches
+   * the new ranking. The sheet keeps the stars and the comment, says why, and
+   * waits for the person to send again; it never sends by itself.
+   */
+  onResultChanged?: () => void;
+  /** The person opened the Details section of the first place (V3.2 F11). */
+  openedDetails?: boolean;
 }) {
   const copy = resultFeedbackCopy(language);
   const markerRef = useRef<HTMLDivElement>(null);
@@ -64,7 +87,18 @@ export function ResultFeedbackSheet({
   const shownSent = useRef(false);
 
   const [answered, setAnswered] = useState<boolean | null>(null);
-  const [localDone, setLocalDone] = useState(false);
+  // V3.2 F11: until this device's memory is read it counts as cooling down,
+  // and the questionnaire keeps the sheet away until it is known to be
+  // unanswered (`null`: not back yet).
+  const [localDone, setLocalDone] = useState<boolean>(
+    INITIAL_SHEET_GATE.localDone,
+  );
+  const [coolingDown, setCoolingDown] = useState<boolean>(
+    INITIAL_SHEET_GATE.coolingDown,
+  );
+  const [questionnaire, setQuestionnaire] = useState<ReminderStatus | null>(
+    null,
+  );
   const [markerInView, setMarkerInView] = useState(false);
   const [scrollMovedPx, setScrollMovedPx] = useState(0);
   const [hasScrolled, setHasScrolled] = useState(false);
@@ -78,22 +112,29 @@ export function ResultFeedbackSheet({
   const [notesOpen, setNotesOpen] = useState(false);
   const [failure, setFailure] = useState<SendFailure | null>(null);
 
-  // This device's memory and the server's status, asked once.
+  // This device's memory and the server's status, asked once. A device that
+  // is cooling down asks nothing (V3.2 F11).
   useEffect(() => {
-    if (readFeedbackDone(scanId)) {
+    const gate = sheetGateOnMount(scanId, Date.now());
+    if (gate === "done") {
       setLocalDone(true);
       return;
     }
+    if (gate === "cooling") return;
+    setCoolingDown(false);
     const controller = new AbortController();
     void fetchAnswered(scanId, controller.signal).then((next) => {
       if (!controller.signal.aborted) setAnswered(next);
+    });
+    void fetchReminderStatus(controller.signal).then((status) => {
+      if (!controller.signal.aborted) setQuestionnaire(status);
     });
     return () => controller.abort();
   }, [scanId]);
 
   // The visible-time clock: a tick counts only while the tab is visible, and
   // each tick re-measures whether the page can scroll (the list may load late).
-  const clockRunning = !opened && !localDone;
+  const clockRunning = !opened && !localDone && !coolingDown;
   useEffect(() => {
     if (!clockRunning) return;
     const measure = () =>
@@ -148,6 +189,9 @@ export function ResultFeedbackSheet({
     hasScrolled,
     canScroll,
     isDemo: false,
+    openedDetails,
+    coolingDown,
+    questionnaire,
   });
   // Once shown it stays until closed.
   useEffect(() => {
@@ -155,7 +199,10 @@ export function ResultFeedbackSheet({
     setOpened(true);
     if (shownSent.current) return;
     shownSent.current = true;
-    const event = shownEvent(scrolledToEnd);
+    // One prompt per device per cool-down, whatever the scan (V3.2 F11). A
+    // sheet shown because Details was opened (not the end of the list) is sent
+    // as "dwell": the contract has no value of its own for it (`shownEvent`).
+    const event = recordFirstShow(Date.now(), scrolledToEnd);
     emit?.(event.name, event.props);
     // `scrolledToEnd` is read at the moment the sheet first shows.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -233,34 +280,28 @@ export function ResultFeedbackSheet({
     close();
   };
 
-  const submit = async () => {
-    if (phase === "sending") return;
-    const built = buildSubmission({ stars, comment, locale: language });
-    if (!built.ok) {
-      setFailure(built.reason);
-      return;
-    }
-    setFailure(null);
-    setPhase("sending");
-    const result = await sendFeedback(scanId, built.body);
-    if (result.ok) {
-      markFeedbackDone(scanId);
-      const event = submittedEvent({
-        stars: built.body.stars,
-        comment: built.body.comment,
-      });
-      emit?.(event.name, event.props);
-      setPhase("thanks");
-      return;
-    }
-    if (result.reason === "conflict") {
-      markFeedbackDone(scanId);
-      setPhase("already");
-      return;
-    }
-    setFailure(result.reason);
-    setPhase("form");
-  };
+  // The wiring is `submitFeedback` (tested in result-fingerprint.test.ts):
+  // only the button calls it, so the sheet never sends by itself, also not
+  // when a new ranking (a new `resultFingerprint`) arrives after a 412.
+  const submit = () =>
+    submitFeedback(
+      {
+        scanId,
+        phase,
+        stars,
+        comment,
+        locale: language,
+        resultFingerprint,
+      },
+      {
+        send: feedbackSender(),
+        markDone: (id) => markFeedbackDone(id),
+        setFailure,
+        setPhase,
+        emitSubmitted: (event) => emit?.(event.name, event.props),
+        onResultChanged,
+      },
+    );
 
   // Thanks closes itself. After "thanks" or "already sent" the submit button
   // is gone: if the focus was on it (now the body), keep it inside the sheet,

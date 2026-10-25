@@ -21,7 +21,12 @@ import {
   fitResponseSchema,
   type FitResponse,
 } from "@/lib/contracts/fit";
-import { analysisPath, fitPath, scanPath } from "@/lib/contracts/routes";
+import {
+  RESULT_FINGERPRINT_HEADER,
+  analysisPath,
+  fitPath,
+  scanPath,
+} from "@/lib/contracts/routes";
 import {
   analysisResponseSchema,
   type AnalysisResponse,
@@ -45,6 +50,8 @@ export type FitOutcome =
 
 export type AnalysisOutcome =
   | { status: "ready"; response: AnalysisResponse }
+  /** 412 (V3.2 F1, candidate): the ranking changed on the server since the page loaded it. */
+  | { status: "stale" }
   | { status: "rateLimited" }
   | { status: "networkError" }
   | { status: "serverError" };
@@ -55,11 +62,12 @@ async function postJson(
   path: string,
   body: unknown,
   fetchImpl: FetchImpl,
+  extraHeaders: Record<string, string> = {},
 ): Promise<Response | "networkError"> {
   try {
     return await fetchImpl(path, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...extraHeaders },
       body: JSON.stringify(body),
     });
   } catch {
@@ -124,13 +132,38 @@ export async function deleteScan(
   return "deleted";
 }
 
+/**
+ * The header that tells the server which ranking the page is showing (V3.2
+ * F1, candidate): none when the fit response carried no fingerprint (an
+ * engine from before it), so the request behaves as it always did.
+ */
+export function fingerprintHeaders(
+  resultFingerprint: string | undefined,
+): Record<string, string> {
+  return resultFingerprint
+    ? { [RESULT_FINGERPRINT_HEADER]: resultFingerprint }
+    : {};
+}
+
+/**
+ * `resultFingerprint` is the one of the fit on screen; a 412 means the server
+ * now ranks differently (`stale`), and the caller fetches the fit again before
+ * asking once more (`ResultsScanProvider`).
+ */
 export async function fetchAnalysisResult(
   scanId: string,
   preferences: FitPreferencesInput,
   fetchImpl: FetchImpl = fetch,
+  resultFingerprint?: string,
 ): Promise<AnalysisOutcome> {
-  const res = await postJson(analysisPath(scanId), preferences, fetchImpl);
+  const res = await postJson(
+    analysisPath(scanId),
+    preferences,
+    fetchImpl,
+    fingerprintHeaders(resultFingerprint),
+  );
   if (res === "networkError") return { status: "networkError" };
+  if (res.status === 412) return { status: "stale" };
   if (res.status === 429) return { status: "rateLimited" };
   if (!res.ok) return { status: "serverError" };
 
@@ -143,4 +176,29 @@ export async function fetchAnalysisResult(
   const parsed = analysisResponseSchema.safeParse(json);
   if (!parsed.success) return { status: "serverError" };
   return { status: "ready", response: parsed.data };
+}
+
+/**
+ * V3.2 F1 (candidate): ask for the analysis of the ranking on screen; when the
+ * server says that ranking is stale (412), fetch the fit once more (`refreshFit`,
+ * which also puts the new ranking on screen) and ask again with the new
+ * fingerprint. Only one refetch per call, so a server that keeps answering 412
+ * ends in an error, never a loop. A refetch that fails is an error too.
+ */
+export async function analyseShownRanking(input: {
+  resultFingerprint: string | undefined;
+  fetchAnalysis: (
+    resultFingerprint: string | undefined,
+  ) => Promise<AnalysisOutcome>;
+  refreshFit: () => Promise<FitResponse | null>;
+  /** False once the request is no longer wanted (the page moved on). */
+  stillWanted?: () => boolean;
+}): Promise<AnalysisOutcome | null> {
+  const first = await input.fetchAnalysis(input.resultFingerprint);
+  if (first.status !== "stale") return first;
+  const fresh = await input.refreshFit();
+  if (input.stillWanted && !input.stillWanted()) return null;
+  if (!fresh) return { status: "serverError" };
+  const second = await input.fetchAnalysis(fresh.resultFingerprint);
+  return second.status === "stale" ? { status: "serverError" } : second;
 }

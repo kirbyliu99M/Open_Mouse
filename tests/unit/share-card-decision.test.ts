@@ -161,6 +161,50 @@ describe("the share card's input from a fit response", () => {
     });
   });
 
+  it("out of the catalogue's length range carries no total and no band, and no coverage", () => {
+    const out: FitResponse = {
+      ...withHandType,
+      engineVersion: "fit-v3.0-candidate.0",
+      coverage: {
+        lengthOutOfRange: true,
+        direction: "above",
+        usedGripLengthTargetMm: 150.2,
+        catalogueLengthRangeMm: [70.4, 138.4],
+      },
+    };
+    const top = out.results[0]!;
+    for (const lang of ["zh-TW", "en"] as const) {
+      const input = buildShareCardInput(out, lang, null)!;
+      expect(input).toEqual({
+        lang,
+        handType: { size: "medium", grip: "claw", width: "wide" },
+        brand: top.mouse.brand,
+        model: top.mouse.model,
+        total: null,
+        bandLabel: null,
+        photoSrc: null,
+      });
+      // Hard rule 2: the coverage block and its numbers never enter the input.
+      const json = JSON.stringify(input);
+      expect(json).not.toMatch(/coverage|lengthOutOfRange|150\.2|138\.4/);
+    }
+  });
+
+  it("in range (a v3 response with coverage false) the card is exactly the v1 card", () => {
+    const inRange: FitResponse = {
+      ...withHandType,
+      coverage: {
+        lengthOutOfRange: false,
+        direction: null,
+        usedGripLengthTargetMm: 120.1,
+        catalogueLengthRangeMm: [70.4, 138.4],
+      },
+    };
+    expect(buildShareCardInput(inRange, "zh-TW", null)).toEqual(
+      buildShareCardInput(withHandType, "zh-TW", null),
+    );
+  });
+
   it("has no handType when the engine sent none (fit-v0), and never makes one up", () => {
     expect(fit.handType).toBeUndefined();
     const input = buildShareCardInput(fit, "en", null)!;

@@ -586,16 +586,22 @@
   }
 }
 
-.results-handNotice {
-  line-height: 1.5;
-}
-
-.results-fitNotice {
+/* F15: .results-measureNote ("still being validated", moved here from the
+   scan's sheet) looks like the other notes about how the scan was made. */
+.results-handNotice,
+.results-measureNote {
   line-height: 1.5;
 }
 
 .results-fitNotice,
-.results-handNotice {
+.results-coverageNotice {
+  line-height: 1.5;
+}
+
+.results-fitNotice,
+.results-coverageNotice,
+.results-handNotice,
+.results-measureNote {
   color: #b5b5bd;
 }
 
@@ -636,6 +642,30 @@
 .results-page-error {
   max-width: 44rem;
   margin-inline: auto;
+}
+/* The particle loader (V3.2 U1, candidate): a failed fit keeps it, smaller,
+   above the error. The results fade in once it has gone (opacity only). */
+.results-page-failedLoader {
+  padding: 1rem 0 1.5rem;
+}
+.results-page-failedLoader .particleLoader-canvas {
+  width: min(44vw, 10rem);
+}
+.resultsMain.results-entered {
+  animation: results-enter 200ms ease-out;
+}
+@keyframes results-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media print {
+  .resultsMain.results-entered {
+    animation: none;
+  }
 }
 
 /* Top bar: back link, site name (wide only), share spot. */
@@ -1501,6 +1531,8 @@
 .results-disclosure-hint:lang(zh-TW),
 :lang(zh-TW) > .results-disclosure-hint,
 .results-handNotice:lang(zh-TW),
+.results-measureNote:lang(zh-TW),
+.results-coverageNotice:lang(zh-TW),
 .results-fitNotice:lang(zh-TW) {
   line-height: 1.6;
 }
@@ -1644,7 +1676,9 @@
   .results-subscoreBar-reason,
   .results-sizeNotice,
   .results-fitNotice,
-  .results-handNotice {
+  .results-coverageNotice,
+  .results-handNotice,
+  .results-measureNote {
     color: var(--text-secondary);
   }
 
@@ -2221,5 +2255,70 @@ body {
   }
   body {
     padding-bottom: 0;
+  }
+}
+
+/* ---- "Results updated" line (V3.2 F13, candidate / 未拍板) ----
+ * Floats over the top of the page after an in-place refresh (412), so nothing
+ * below moves. Fades by opacity only; none under reduced motion. */
+.results-updatedNotice {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+  left: 50%;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  box-sizing: border-box;
+  max-width: calc(100vw - 2rem);
+  padding: 0.25rem 0.25rem 0.25rem 1rem;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: #121316;
+  color: var(--text-primary);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.45);
+  transform: translateX(-50%);
+  animation: results-updatedNotice-in 220ms ease-out;
+  transition: opacity 220ms ease-in;
+}
+.results-updatedNotice[data-phase="leaving"] {
+  opacity: 0;
+  /* Invisible while it fades: it must not catch taps meant for the top bar. */
+  pointer-events: none;
+}
+.results-updatedNotice p {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}
+.results-updatedNotice-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.results-updatedNotice-close:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: -4px;
+}
+@keyframes results-updatedNotice-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .results-updatedNotice {
+    animation: none;
+    transition: none;
   }
 }

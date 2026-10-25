@@ -4,6 +4,7 @@ import {
   SUBSCORES,
   fitPreferencesSchema,
   fitResponseSchema,
+  resultFingerprintSchema,
 } from "../../src/lib/contracts/fit";
 
 const sub = (score: number | null) => ({
@@ -336,5 +337,198 @@ describe("fitPreferencesSchema", () => {
     ],
   ])("rejects %s", (_, bad) => {
     expect(fitPreferencesSchema.safeParse(bad).success).toBe(false);
+  });
+});
+
+// fit-v2.0 (candidate, 2026-10-18): two optional fields only a v2 engine fills.
+describe("fitResponseSchema: v2 coverage and rankStability", () => {
+  const coverage = {
+    lengthOutOfRange: true,
+    direction: "above",
+    usedGripLengthTargetMm: 150.2,
+    catalogueLengthRangeMm: [70.4, 138.4],
+  };
+
+  it("still accepts a v0/v1 response that carries neither field", () => {
+    expect(fitResponseSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it("accepts a coverage block and a rankStability on an entry", () => {
+    const r = fitResponseSchema.safeParse({
+      ...valid,
+      coverage,
+      results: [{ ...entry, rankStability: 0.42 }],
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts an unclamped coverage block with no direction", () => {
+    const r = fitResponseSchema.safeParse({
+      ...valid,
+      coverage: { ...coverage, lengthOutOfRange: false, direction: null },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts lengthOutOfRange with a null direction (an unstated grip blend)", () => {
+    const r = fitResponseSchema.safeParse({
+      ...valid,
+      coverage: { ...coverage, direction: null },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("refuses a direction without lengthOutOfRange", () => {
+    const r = fitResponseSchema.safeParse({
+      ...valid,
+      coverage: { ...coverage, lengthOutOfRange: false },
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("refuses a reversed range, a missing field and an extra key", () => {
+    for (const bad of [
+      { ...coverage, catalogueLengthRangeMm: [138.4, 70.4] },
+      { ...coverage, catalogueLengthRangeMm: [70.4] },
+      { ...coverage, usedGripLengthTargetMm: Number.NaN },
+      { ...coverage, probability: 0.9 },
+    ]) {
+      expect(
+        fitResponseSchema.safeParse({ ...valid, coverage: bad }).success,
+      ).toBe(false);
+    }
+    const missing: Record<string, unknown> = { ...coverage };
+    delete missing.usedGripLengthTargetMm;
+    expect(
+      fitResponseSchema.safeParse({ ...valid, coverage: missing }).success,
+    ).toBe(false);
+  });
+
+  it("keeps rankStability inside 0 to 1", () => {
+    for (const v of [-0.01, 1.01, Number.NaN]) {
+      const r = fitResponseSchema.safeParse({
+        ...valid,
+        results: [{ ...entry, rankStability: v }],
+      });
+      expect(r.success).toBe(false);
+    }
+    for (const v of [0, 1]) {
+      const r = fitResponseSchema.safeParse({
+        ...valid,
+        results: [{ ...entry, rankStability: v }],
+      });
+      expect(r.success).toBe(true);
+    }
+  });
+});
+
+describe("fit-v3 candidate: references and calibration", () => {
+  const dim = (shiftMm: number, answers: number, conflict = false) => ({
+    shiftMm,
+    answers,
+    conflict,
+  });
+  const calibration = {
+    referencesUsed: 2,
+    dims: {
+      length: dim(2.1, 2),
+      gripWidth: dim(-1.3, 2),
+      height: dim(0, 2, true),
+    },
+  };
+  const ref = {
+    slug: "logitech-g903-hero",
+    grips: ["palm", "claw"],
+    feel: { length: 0, width: 0, height: null },
+  };
+
+  it("accepts a calibration block, and a response without one", () => {
+    expect(fitResponseSchema.safeParse({ ...valid, calibration }).success).toBe(
+      true,
+    );
+    expect(fitResponseSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it("freezes a dimension in conflict at a shift of 0", () => {
+    const bad = {
+      ...calibration,
+      dims: { ...calibration.dims, height: dim(1.5, 2, true) },
+    };
+    expect(
+      fitResponseSchema.safeParse({ ...valid, calibration: bad }).success,
+    ).toBe(false);
+  });
+
+  it("gives a dimension nobody answered no shift and no conflict", () => {
+    for (const d of [dim(0.4, 0), dim(0, 0, true)]) {
+      const bad = { ...calibration, dims: { ...calibration.dims, length: d } };
+      expect(
+        fitResponseSchema.safeParse({ ...valid, calibration: bad }).success,
+      ).toBe(false);
+    }
+  });
+
+  it("refuses a non-finite shift and an extra key", () => {
+    for (const bad of [
+      {
+        ...calibration,
+        dims: { ...calibration.dims, length: dim(Number.NaN, 2) },
+      },
+      { ...calibration, probability: 0.9 },
+      { ...calibration, referencesUsed: 9 },
+    ]) {
+      expect(
+        fitResponseSchema.safeParse({ ...valid, calibration: bad }).success,
+      ).toBe(false);
+    }
+  });
+
+  it("accepts references and defaults specialUse to false", () => {
+    const r = fitPreferencesSchema.safeParse({ references: [ref] });
+    expect(r.success).toBe(true);
+    expect(r.success && r.data.references?.[0].specialUse).toBe(false);
+  });
+
+  it("reads a feel dimension left out as not answered", () => {
+    const r = fitPreferencesSchema.safeParse({
+      references: [{ ...ref, feel: { length: -1 } }],
+    });
+    expect(r.success).toBe(true);
+    expect(r.success && r.data.references?.[0].feel).toEqual({
+      length: -1,
+      width: null,
+      height: null,
+    });
+  });
+
+  it("refuses a feel outside -1, 0, 1, a repeated grip, a repeated mouse and more than 8", () => {
+    for (const references of [
+      [{ ...ref, feel: { ...ref.feel, length: 2 } }],
+      [{ ...ref, feel: { ...ref.feel, width: 0.5 } }],
+      [{ ...ref, grips: ["palm", "palm"] }],
+      [ref, { ...ref }],
+      Array.from({ length: 9 }, (_, i) => ({ ...ref, slug: `m-${i}` })),
+      [{ ...ref, slug: "" }],
+    ]) {
+      expect(fitPreferencesSchema.safeParse({ references }).success).toBe(
+        false,
+      );
+    }
+  });
+});
+
+describe("resultFingerprintSchema (V3.2 candidate)", () => {
+  it("takes sixteen lower-case hex characters and nothing else", () => {
+    expect(resultFingerprintSchema.safeParse("0123456789abcdef").success).toBe(
+      true,
+    );
+    for (const bad of [
+      "0123456789ABCDEF",
+      "0123456789abcde",
+      "0123456789abcdef0",
+      "g123456789abcdef",
+      "",
+    ])
+      expect(resultFingerprintSchema.safeParse(bad).success).toBe(false);
   });
 });

@@ -180,6 +180,19 @@ export function toggleOption(
   return withSelection(filters, group, values);
 }
 
+/**
+ * Set one group's whole selection (the results page's shape toggle: one
+ * option, or none). A group that keeps a selection keeps its place in
+ * `order`; an emptied group leaves it.
+ */
+export function setSelection(
+  filters: Filters,
+  group: FilterGroup,
+  values: readonly string[],
+): Filters {
+  return withSelection(filters, group, values);
+}
+
 /** Drop every option of one group. */
 export function clearGroup(filters: Filters, group: FilterGroup): Filters {
   return withSelection(filters, group, []);

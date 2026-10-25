@@ -217,6 +217,6 @@ describe("candidate copy", () => {
 
   it("names the site and its address in one place", () => {
     expect(SITE_NAME).toBe("Palmate");
-    expect(SITE_URL).toBe("https://open-mouse.vercel.app");
+    expect(SITE_URL).toBe("https://palmate.kirby-fivesenses.com");
   });
 });

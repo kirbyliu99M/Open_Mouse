@@ -5,6 +5,20 @@ import type {
 import { MANUAL_ENTRY } from "../../lib/contracts/measurement";
 
 /**
+ * landmark-raw-v3 (V3.2 candidate): the engine scale. Every reader of a scan's
+ * size goes through `fitScaleMeasurements` (manual-entry width x 0.77 as
+ * below, plus a parallax-corrected scan's lengths x `FIT_SCALE_FROM_CORRECTED`);
+ * `scoringMeasurements` stays as the manual-entry half alone. Defined in
+ * src/lib/fit/fit-scale.ts so the client shows the same numbers (D1 = B).
+ */
+export {
+  engineScaleMeasurements,
+  fitScaleMeasurements,
+  parallaxCorrectedOf,
+  type FitScaleContext,
+} from "../../lib/fit/fit-scale";
+
+/**
  * The measurements the fit engine scores, which are not always the ones stored
  * (candidate, Kirby 2026-10-17: OK). A typed (`manual-entry`) hand width is a
  * ruler, skin-to-skin width; fit v1's grip-width target was made for a scan's

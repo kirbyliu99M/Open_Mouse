@@ -25,6 +25,7 @@ export function OtherMice({
   hand,
   language,
   filtering = false,
+  showScores = true,
   onOpened,
 }: {
   ranked: readonly FilteredCard[];
@@ -33,6 +34,12 @@ export function OtherMice({
   hand: FitResponse["hand"];
   language: Locale;
   filtering?: boolean;
+  /**
+   * False while the hand is outside the catalogue's length range: the rows
+   * keep their order and the excluded keep their reasons, with no number
+   * (the contract's hard rule covers `excluded[].total` too).
+   */
+  showScores?: boolean;
   /** Called each time the section is opened (not closed). */
   onOpened?: () => void;
 }) {
@@ -76,10 +83,12 @@ export function OtherMice({
                     </span>
                   )}
                 </span>
-                <span className="results-otherMice-score results-tabularNum">
-                  {entry.total}
-                  <span> {copy.outOf}</span>
-                </span>
+                {showScores && (
+                  <span className="results-otherMice-score results-tabularNum">
+                    {entry.total}
+                    <span> {copy.outOf}</span>
+                  </span>
+                )}
               </li>
             ))}
           </ol>
@@ -100,7 +109,7 @@ export function OtherMice({
                     <span className="results-excluded-reason">
                       {copy.excludedReason(item.reason, hand)}
                     </span>
-                    {item.total !== undefined && (
+                    {showScores && item.total !== undefined && (
                       <>
                         <span aria-hidden="true">{copy.excludedSeparator}</span>
                         <span className="results-excluded-mirror">

@@ -382,6 +382,57 @@ export function frameFocalReferenceWidthPx(
 }
 
 /**
+ * The long edge of the WHOLE camera frame a frame of the video was cut from,
+ * in the pixels the pipeline will analyse (landmark-raw-v3, candidate 未拍板;
+ * design R7 §1.3): the nominal focal prior is taken on it. The same scaling as
+ * `frameFocalReferenceWidthPx`, on `max(stream.width, stream.height)`: a frame
+ * cut on its long side (a 4 : 3 tablet screen showing a 9 : 16 stream) keeps
+ * the stream's long edge, because a cut narrows the picture, not the lens.
+ * `frame` unknown (`null`), no scaling is assumed.
+ */
+export function frameFocalReferenceLongEdgePx(
+  stream: FrameSize,
+  frame: FrameSize | null,
+): number {
+  const longEdge = Math.max(stream.width, stream.height);
+  if (!usable(frame)) return longEdge;
+  const decoded = computeDownscaleSize(frame.width, frame.height);
+  return (longEdge * decoded.width) / frame.width;
+}
+
+/**
+ * The `focalReferenceLongEdgePx` the camera passes to the pipeline for one
+ * capture (F17 review, candidate 未拍板). Passing it is what marks the photo
+ * as a frame of the live video, whose nominal prior is the video frame's lens
+ * (18 mm, Kirby's S25 frames, 實測); `undefined` for a still (an upload, the
+ * camera's takePhoto picture), which then keeps the still lens (26 mm,
+ * `nominalPriorFor`, paperEdgeFinish.ts). A frame whose stream size was not
+ * recorded is taken as its own stream. Pure.
+ */
+export function frameNominalReferenceLongEdgePx(
+  capture:
+    | {
+        readonly captureSource?: string | null;
+        readonly frame?: { readonly stream: FrameSize } | null;
+        readonly photoWidth?: number | null;
+        readonly photoHeight?: number | null;
+      }
+    | null
+    | undefined,
+): number | undefined {
+  if (!capture || capture.captureSource !== "frame") return undefined;
+  const photo: FrameSize | null =
+    typeof capture.photoWidth === "number" &&
+    typeof capture.photoHeight === "number"
+      ? { width: capture.photoWidth, height: capture.photoHeight }
+      : null;
+  const stream = capture.frame?.stream ?? photo;
+  if (!usable(stream)) return undefined;
+  const edge = frameFocalReferenceLongEdgePx(stream, photo);
+  return Number.isFinite(edge) && edge > 0 ? edge : undefined;
+}
+
+/**
  * The focal length in pixels the paper detector assumes for the live loop's
  * sample (a 70 degree horizontal field of view over the width of the WHOLE
  * stream, scaled to the sample's pixels). The sample is the visible part of the

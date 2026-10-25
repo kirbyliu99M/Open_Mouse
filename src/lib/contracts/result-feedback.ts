@@ -20,9 +20,10 @@
  *   - How the snapshot is computed, so it does not depend on what the page
  *     last asked for: the server runs the current default engine on the
  *     scan's stored measurements with EMPTY preferences (`{}`: the same result
- *     an empty fit request gets), at the moment of the POST. It does NOT read
- *     `fit_results`, which every fit request overwrites with whatever
- *     preferences (grip override, weight, vertical mice) that request carried.
+ *     an empty fit request gets, which for a signed-in person under a v3
+ *     engine includes the automatic survey calibration), at the moment of the
+ *     POST. It does NOT read `fit_results`, which is no longer written
+ *     (2026-10-20) and only holds older rows.
  *     So `grip` is the grip the engine used for `{}` (the stated grip, else
  *     the predicted one), `palmThicknessStated` is the scan's own column, the
  *     ranking is before any filter or preference the page had on, the band is
@@ -30,6 +31,10 @@
  *     hand type is what the fit response's `handType` would say (null when
  *     that response has none). A first-three mouse with no band (`bandOf`
  *     gives null) is a 500, not a guess: a ranked mouse always has a total.
+ *     2026-10-20 (fit-v3.0 candidate): when the fit response says the hand's
+ *     length is outside what the catalogue covers (`coverage.lengthOutOfRange`),
+ *     no band may be shown or kept, so each `band` is null for that snapshot.
+ *     null means "out of the catalogue's range", never "unknown".
  *   - Never kept: photos, a millimetre value, a hand-length or palm-width bin,
  *     names, email. Without a measurement, nothing here needs the survey's
  *     consent tick; the page shows a notice above the button instead
@@ -114,7 +119,8 @@ export const resultFeedbackSnapshotSchema = z.strictObject({
     .array(
       z.strictObject({
         slug: z.string().min(1).max(100),
-        band: z.enum(FIT_BANDS),
+        /** null only when the fit response's length is out of range (above). */
+        band: z.enum(FIT_BANDS).nullable(),
       }),
     )
     .max(RESULT_FEEDBACK_TOP_MICE),

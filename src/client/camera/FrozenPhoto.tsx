@@ -4,6 +4,7 @@ import type { PhotoOverlay } from "../photo/pipeline";
 import { layoutDimensions, type DimensionSpec } from "./dimensionLayout";
 import {
   overlayUnitsPerPx,
+  overlayVisibleRect,
   type FrozenPhotoLayout,
   type Size,
 } from "./photoLayout";
@@ -18,7 +19,7 @@ export type { DimensionSpec };
 /**
  * The measured photo's two dimension lines (hand length, then palm width): a
  * simpler cousin of ScanClient's DimensionLinesOverlay (no skeleton dots,
- * matching screen 16's plain white lines), built on the same tested pure
+ * matching screen 16's plain white lines, plus a dot on each measured point), built on the same tested pure
  * geometry (computeDimensionLine, separateLabelBoxes).
  *
  * They draw in order, about 350 ms each (scan v2): the main line grows from
@@ -49,7 +50,7 @@ export function DimensionLinesOverlay({
    * scale instead. */
   scale: number;
 }) {
-  const { geometries, boxes, fontSize } = layoutDimensions(
+  const { geometries, boxes, fontSize, dotRadius } = layoutDimensions(
     specs,
     scale,
     visible,
@@ -99,6 +100,19 @@ export function DimensionLinesOverlay({
                 y2={g.endConnector[1].y}
                 className="easyDimExtension"
               />
+              {/* The measured points themselves (the extension lines above
+                  start on them): the main line is drawn beside the hand, and
+                  these show where the numbers were taken. */}
+              {[specs[i].a, specs[i].b].map((p, j) => (
+                <circle
+                  key={j}
+                  cx={p.x}
+                  cy={p.y}
+                  r={dotRadius}
+                  className="easyDimDot"
+                  data-endpoint={j === 0 ? "a" : "b"}
+                />
+              ))}
             </g>
             <g
               transform={`translate(${g.offsetStart.x} ${g.offsetStart.y}) rotate(${angle})`}
@@ -164,6 +178,8 @@ export interface FrozenPhotoProps {
   readonly overlay: PhotoOverlay | null;
   /** Still pixels per overlay pixel (the pipeline may analyse a scaled-down photo). */
   readonly overlayToStill: number;
+  /** The same on the vertical axis: the scale-down rounds width and height separately. Defaults to `overlayToStill`. */
+  readonly overlayToStillY?: number;
   /** The scale the whole layer ends up at (0.9 once measured), so the drawing's fixed-size parts come out at their intended size. */
   readonly layerScale: number;
   /** The two dimension lines, once measured. */
@@ -188,6 +204,7 @@ export function FrozenPhoto({
   phase,
   overlay,
   overlayToStill,
+  overlayToStillY = overlayToStill,
   layerScale,
   dimensions,
   problem,
@@ -224,7 +241,7 @@ export function FrozenPhoto({
         preserveAspectRatio="none"
       />
       {overlay && phase !== "processing" && (
-        <g transform={`scale(${overlayToStill})`}>
+        <g transform={`scale(${overlayToStill} ${overlayToStillY})`}>
           {problem && (
             <>
               <rect
@@ -264,12 +281,11 @@ export function FrozenPhoto({
             <DimensionLinesOverlay
               scale={scale}
               specs={dimensions}
-              visible={{
-                x: crop.x / overlayToStill,
-                y: crop.y / overlayToStill,
-                width: crop.width / overlayToStill,
-                height: crop.height / overlayToStill,
-              }}
+              visible={overlayVisibleRect(
+                crop,
+                overlayToStill,
+                overlayToStillY,
+              )}
             />
           )}
         </g>

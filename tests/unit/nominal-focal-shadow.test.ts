@@ -65,31 +65,35 @@ afterEach(() => {
 });
 
 describe("nominalFocalPx", () => {
-  it("is the 26 mm equivalent over the 43.27 mm full-frame diagonal, on the photo's diagonal", () => {
-    expect(NOMINAL_FOCAL_EQUIV_MM).toBe(26);
+  it("is the 18 mm equivalent (F17, Kirby's measured S25 estimates) over the 43.27 mm full-frame diagonal, on the photo's diagonal", () => {
+    expect(NOMINAL_FOCAL_EQUIV_MM).toBe(18);
     expect(FULL_FRAME_DIAGONAL_MM).toBe(43.27);
     // The audit's budget rig: 1080 x 1440, diagonal 1800 px.
-    expect(nominalFocalPx(FRAME)).toBeCloseTo((26 / 43.27) * 1800, 9);
-    expect(nominalFocalPx(FRAME)).toBeCloseTo(1081.58, 1);
+    expect(nominalFocalPx(FRAME)).toBeCloseTo((18 / 43.27) * 1800, 9);
+    expect(nominalFocalPx(FRAME)).toBeCloseTo(748.79, 1);
   });
   it("is taken on the long edge of a 4:3 sensor, so a frame cut on its short side keeps the lens", () => {
     // The live video frame: 1080 x 1920 from the stream, and the 887 x 1920 part
     // of it that is on screen. One lens, one long edge, one focal length.
     const stream = nominalFocalPx({ width: 1080, height: 1920 })!;
     const onScreen = nominalFocalPx({ width: 887, height: 1920 })!;
-    expect(stream).toBeCloseTo((26 / 43.27) * 1.25 * 1920, 9);
-    expect(stream).toBeCloseTo(1442.1, 1);
+    expect(stream).toBeCloseTo((18 / 43.27) * 1.25 * 1920, 9);
+    expect(stream).toBeCloseTo(998.4, 1);
     expect(onScreen).toBe(stream);
     // Landscape or portrait does not matter.
     expect(nominalFocalPx({ width: 1920, height: 1080 })).toBe(stream);
     // A 4:3 photo is as the EXIF rule has it: the photo's own diagonal.
     expect(nominalFocalPx({ width: 3000, height: 4000 })).toBeCloseTo(
-      (26 / 43.27) * 5000,
+      (18 / 43.27) * 5000,
       9,
     );
   });
-  it("is not the detector's 70 degree assumption (771 px on a 1080 px wide frame)", () => {
-    expect(nominalFocalPx(FRAME)).toBeGreaterThan(1000);
+  it("is not the detector's 70 degree assumption: on Kirby's 1024 x 1920 frame that is 731 px, the prior 998 px", () => {
+    const detector = 1024 / 2 / Math.tan((35 * Math.PI) / 180);
+    expect(detector).toBeCloseTo(731.2, 1);
+    expect(
+      nominalFocalPx({ width: 1024, height: 1920 })! / detector,
+    ).toBeGreaterThan(1.3);
   });
   it.each([
     [0, 100],

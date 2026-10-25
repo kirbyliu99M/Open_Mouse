@@ -20,6 +20,12 @@ export interface ShareCardCopy {
   /** What kind of mouse suits: length class and grip width, never the hand. */
   sentence: (type: HandType) => string;
   topPickLabel: string;
+  /**
+   * The title when the card carries no score (the hand is outside the
+   * catalogue's length range): "best fit" would claim too much. Candidate
+   * (未拍板), pending Kirby's call on the card title.
+   */
+  closestPickLabel: string;
   scoreLabel: string;
   tagline: string;
   /** Alt/accessible name of the silhouette is not needed: it is drawn on a canvas. */
@@ -27,6 +33,18 @@ export interface ShareCardCopy {
   buttonPrimary: string;
   busy: string;
   error: string;
+  /** The preview (V3.2 F21, candidate 未拍板): its title, also the dialog's name. */
+  previewTitle: string;
+  /** The card image's alt text in the preview. */
+  previewAlt: string;
+  share: string;
+  download: string;
+  /** The small hint after a download. */
+  saved: string;
+  /** The close button's accessible name. */
+  close: string;
+  /** Neither the share nor the download worked. */
+  actionError: string;
 }
 
 const sizeLengthZh: Record<HandType["size"], string> = {
@@ -57,12 +75,20 @@ export const zhTW: ShareCardCopy = {
   sentence: (t) =>
     `適合長度${sizeLengthZh[t.size]}、握寬${widthGripZh[t.width]}的滑鼠`,
   topPickLabel: "最適合我的滑鼠",
+  closestPickLabel: "目錄中最接近我的滑鼠",
   scoreLabel: "合手度分數",
   tagline: "測測你的手型",
   buttonLink: "分享",
   buttonPrimary: "製作我的分享圖",
   busy: "製作中…",
   error: "分享圖做不出來，請再試一次。",
+  previewTitle: "分享圖預覽",
+  previewAlt: "分享圖預覽",
+  share: "分享",
+  download: "下載",
+  saved: "已下載",
+  close: "關閉",
+  actionError: "沒有成功，請再試一次。",
 };
 
 export const en: ShareCardCopy = {
@@ -74,12 +100,20 @@ export const en: ShareCardCopy = {
   sentence: (t) =>
     `Suits a mouse of ${sizeLengthEn[t.size]} length and ${widthGripEn[t.width]} grip width.`,
   topPickLabel: "My best-fit mouse",
+  closestPickLabel: "My closest mouse in the catalogue",
   scoreLabel: "Fit score",
   tagline: "Find your mouse type",
   buttonLink: "Share",
   buttonPrimary: "Make my share card",
   busy: "Making…",
   error: "Could not make the card. Please try again.",
+  previewTitle: "Share image preview",
+  previewAlt: "Share image preview",
+  share: "Share",
+  download: "Download",
+  saved: "Saved",
+  close: "Close",
+  actionError: "That did not work. Please try again.",
 };
 
 export function shareCardCopy(lang: Locale): ShareCardCopy {

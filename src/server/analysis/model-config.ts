@@ -12,6 +12,15 @@
 
 export const DEFAULT_GEMINI_ANALYSIS_MODEL = "gemini-3.8-flash";
 
+/**
+ * How long one analysis request may wait for the model, in total (the first
+ * attempt and the retry share it). The route's `maxDuration` is 30 seconds;
+ * 20 leaves room to read the fit, build the fallback and answer. Past it the
+ * request gets the deterministic fallback (`source: "fallback"`, not cached),
+ * not an error. Candidate value (未拍板).
+ */
+export const ANALYSIS_MODEL_TIMEOUT_MS = 20_000;
+
 export interface AnalysisModelConfig {
   apiKey: string;
   modelName: string;

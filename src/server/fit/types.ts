@@ -16,12 +16,9 @@ import type { ReasonCode } from "../../lib/contracts/fit";
  * fields are nullable: an unclassified mouse still scores (§3 null-descriptor
  * rules), just with lower confidence.
  *
- * `id` is optional here because `scoreFit` itself never reads it — only the
- * fit route does, to resolve a scored `FitEntry.mouse.slug` back to the
- * `mice.id` a `fit_results.mouse_id` foreign key needs (issue #27). It stays
- * optional so existing scoring fixtures that predate persistence (golden
- * fixtures, subscore/exclusion/grip unit tests) don't need an `id` they have
- * no use for. The real catalogue loader (`src/server/fit/drizzle-repo.ts`)
+ * `id` is optional here because `scoreFit` itself never reads it. It stays
+ * optional so the scoring fixtures (golden fixtures, subscore/exclusion/grip
+ * unit tests) don't need an `id` they have no use for. The real catalogue loader (`src/server/fit/drizzle-repo.ts`)
  * always populates it.
  */
 export interface CatalogueMouse {

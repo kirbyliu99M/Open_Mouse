@@ -85,6 +85,14 @@ test.describe("results: main page and rank 2 to 5 detail pages", () => {
   test("main, then rank 2, back to main, Details, then a reload on the detail page", async ({
     page,
   }) => {
+    // The dev server compiles each route on first use. Measured on the V3.2
+    // branch (2026-10-21, trace on): the main page's first load 10 s, the
+    // first visit to /m/[slug] another 9 s, so the walk below used all of the
+    // default 30 s before its last step. The product is not slow here:
+    // after that, a detail page loaded in 4 s, 1.2 s of it the loader's
+    // minimum time then (F7, 2026-10-21: the loader now has no minimum and
+    // appears only after 300 ms).
+    test.setTimeout(120_000);
     const calls = await stubScan(page);
 
     // Main page: rank 1, the hand type, and the other four of the top five.
@@ -105,7 +113,8 @@ test.describe("results: main page and rank 2 to 5 detail pages", () => {
 
     // To rank 2: same layout, a new URL, no second fit request, no analysis.
     await cards.filter({ hasText: "G305" }).click();
-    await expect(page).toHaveURL(`${MAIN}/m/${RANK_2}`);
+    // The first visit compiles the detail route (RSC request pending 8.9 s).
+    await expect(page).toHaveURL(`${MAIN}/m/${RANK_2}`, { timeout: 30_000 });
     await expect(page.locator(".results-score-rank")).toHaveText(
       "#2 · Logitech",
     );
@@ -147,8 +156,13 @@ test.describe("results: main page and rank 2 to 5 detail pages", () => {
 
     // A reload on a detail page fetches again and stays on that page.
     await page.goto(`${MAIN}/m/${RANK_2}`);
+    // A fit slower than 300 ms shows the loader, which fills (250 ms) and
+    // fades (200 ms) with no minimum since F7; dev hydration adds about 2 s.
+    // Measured before F7 (1.2 s minimum): 3 to 4 s from the request to the
+    // mouse's name, close to the 5 s default.
     await expect(page.locator(".results-score-model")).toHaveText(
       "G305 Lightspeed",
+      { timeout: 15_000 },
     );
     await expect(page.locator(".results-details")).not.toHaveAttribute(
       "open",
@@ -157,6 +171,7 @@ test.describe("results: main page and rank 2 to 5 detail pages", () => {
     await page.reload();
     await expect(page.locator(".results-score-model")).toHaveText(
       "G305 Lightspeed",
+      { timeout: 15_000 }, // the loader again, as above
     );
     await expect(page).toHaveURL(`${MAIN}/m/${RANK_2}`);
     expect(calls.fit).toBe(3); // the main page, the direct visit, the reload

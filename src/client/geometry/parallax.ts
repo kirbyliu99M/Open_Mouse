@@ -403,10 +403,13 @@ export function correctLandmarks(
 //
 // Issue #16: "EXIF when present; otherwise the homography estimate if it's
 // well-conditioned; otherwise no correction and parallaxCorrected: false."
-// One place decides this so measurements.ts's corrected path and any future
-// caller can't disagree on the policy.
+// landmark-raw-v3 (V3.2 candidate, 未拍板; Kirby 2026-10-22, design R7 §1.1)
+// adds a nominal focal prior at the end of that order, for a caller that
+// passes one (only the product's photo pipeline does). One place decides
+// this so measurements.ts's corrected path and any future caller can't
+// disagree on the policy.
 
-export type FocalSource = "exif" | "homography" | "none";
+export type FocalSource = "exif" | "homography" | "nominal" | "none";
 
 export interface ResolvedFocal {
   /** Null exactly when `source` is "none" — no usable focal length. */
@@ -414,30 +417,126 @@ export interface ResolvedFocal {
   readonly source: FocalSource;
 }
 
+/**
+ * A focal length worked out earlier for the SAME photo (F10 item 2, R6 F1,
+ * candidate 未拍板): the automatic run's, from EXIF, from a reliable
+ * homography estimate on the detector's corners, or (landmark-raw-v3) the
+ * nominal prior. A focal length is the lens's, not the frame's, so a frame
+ * the person placed on that photo may use it. Its `source` is the one that
+ * run recorded.
+ */
+export interface ReusedFocal {
+  readonly fPx: number;
+  readonly source: "exif" | "homography" | "nominal";
+}
+
+/**
+ * The plausible range of a homography focal estimate around the nominal
+ * prior (design R7 §1.1, candidate 未拍板): an estimate below 0.7 or above
+ * 1.4 times the prior is refused and the prior used instead. Simulated
+ * (模擬): at a tilt of 3 degrees, 70 % of the estimates judged reliable were
+ * more than 20 % off.
+ *
+ * V3.2 F17 (candidate 未拍板): the ratios are unchanged and are taken on the
+ * new prior (18 mm equivalent, 998 px on a 1920 px long edge,
+ * `NOMINAL_FOCAL_EQUIV_MM`), so the window is now about 699-1398 px there
+ * instead of 1009-2019 px. All of Kirby's measured S25 estimates (實測,
+ * 894-1153 px, 0.90-1.16 of the new prior) are inside it; under the 26 mm
+ * prior the hand-placed ones (894, 902, 934.6) were refused. What it means
+ * for other phones is 不確定: a video frame at the full picture of a 26 mm
+ * main camera (1442 px, 1.44x) now falls just outside, and a 13 mm
+ * ultra-wide (0.72x) just inside. A still with no EXIF (upload, takePhoto)
+ * is not a video frame and keeps the 26 mm prior (F17 review,
+ * `NOMINAL_FOCAL_EQUIV_MM_STILL`), so its window is what it was before F17.
+ */
+export const FOCAL_PRIOR_RANGE = { min: 0.7, max: 1.4 } as const;
+
+/** A finite focal length above zero, in px. */
+function usableFocal(fPx: number | null | undefined): fPx is number {
+  return typeof fPx === "number" && Number.isFinite(fPx) && fPx > 0;
+}
+
+/**
+ * Whether `fPx` is inside `FOCAL_PRIOR_RANGE` of `priorPx` (both ends
+ * included). Pure.
+ */
+export function focalWithinPrior(fPx: number, priorPx: number): boolean {
+  if (!usableFocal(fPx) || !usableFocal(priorPx)) return false;
+  const ratio = fPx / priorPx;
+  return ratio >= FOCAL_PRIOR_RANGE.min && ratio <= FOCAL_PRIOR_RANGE.max;
+}
+
 export interface ResolveFocalOptions {
   /** Result of exif-focal.ts, or null if EXIF had no usable focal length. */
   readonly exifFocalPx: number | null;
   readonly homography: Homography;
   readonly principalPoint: PrincipalPoint;
+  /**
+   * Only for a frame placed by hand on a photo whose automatic run had a
+   * usable focal length (`ReusedFocal`). The automatic path never passes it,
+   * so nothing it measures changes.
+   */
+  readonly reusedFocal?: ReusedFocal | null;
+  /**
+   * landmark-raw-v3 (candidate): the nominal focal prior for this photo, px
+   * (`nominalFocalPxFromLongEdge`). Passed only by the product's photo
+   * pipeline. Omitted (or not a finite number above 0), the order is exactly
+   * what it was before v3, with no range check on the homography estimate:
+   * the learning kit (src/lib/learning/plane.ts) never passes it.
+   */
+  readonly nominalFocalPx?: number | null;
 }
 
 /**
- * Pick which focal length (if any) to use for parallax correction: EXIF
- * first, then a well-conditioned homography-focal estimate
- * (focal-from-homography.ts flags an unreliable — e.g. near-fronto-parallel
- * — estimate itself, so this just refuses to use one), else null (no
- * correction).
+ * Pick which focal length (if any) to use for parallax correction, in this
+ * order (design R7 §1.1, candidate):
+ *
+ * 1. EXIF.
+ * 2. (A placed frame only, F10) the same photo's focal length from its
+ *    automatic run; one that came from a homography estimate must also be
+ *    inside `FOCAL_PRIOR_RANGE` of the prior when there is one.
+ * 3. A well-conditioned homography-focal estimate (focal-from-homography.ts
+ *    flags an unreliable — e.g. near-fronto-parallel — estimate itself), and,
+ *    when there is a prior, inside `FOCAL_PRIOR_RANGE` of it.
+ * 4. The nominal prior, when the caller passed one.
+ * 5. None: no correction.
+ *
+ * Why the reused one comes before this frame's own estimate (R6, simulated):
+ * hand-placed corners are a few px off the sheet's, and a few px are enough
+ * to make the estimate unreliable (81-100 % of nudged frames lost the
+ * correction) or, 1-3 % of the time, reliable but wrong by more than 20 %.
+ * The automatic run's estimate came from the detector's sub-pixel corners.
  */
 export function resolveFocalPx(options: ResolveFocalOptions): ResolvedFocal {
   if (options.exifFocalPx !== null) {
     return { fPx: options.exifFocalPx, source: "exif" };
   }
+  const prior = usableFocal(options.nominalFocalPx)
+    ? options.nominalFocalPx
+    : null;
+  const reused = options.reusedFocal;
+  if (
+    reused &&
+    usableFocal(reused.fPx) &&
+    (reused.source !== "homography" ||
+      prior === null ||
+      focalWithinPrior(reused.fPx, prior))
+  ) {
+    return { fPx: reused.fPx, source: reused.source };
+  }
   const estimate = estimateFocalFromHomography(
     options.homography,
     options.principalPoint,
   );
-  if (estimate !== null && estimate.reliable) {
+  if (
+    estimate !== null &&
+    estimate.reliable &&
+    (prior === null || focalWithinPrior(estimate.fPx, prior))
+  ) {
     return { fPx: estimate.fPx, source: "homography" };
+  }
+  if (prior !== null) {
+    return { fPx: prior, source: "nominal" };
   }
   return { fPx: null, source: "none" };
 }

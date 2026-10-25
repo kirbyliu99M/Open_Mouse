@@ -37,9 +37,74 @@ export function resultManualEntryKey(scanId: string): string {
   return `open-mouse:manual-entry:${scanId}`;
 }
 
+/**
+ * V3.2 F2 (candidate): set for a scan whose paper frame the person placed or
+ * moved by hand (`cornersSource` adjusted or manual), so the results page can
+ * say so. Kept per scan in this browser, like the two keys above; the value is
+ * only "1".
+ */
+export function resultPaperAdjustedKey(scanId: string): string {
+  return `open-mouse:paper-adjusted:${scanId}`;
+}
+
+/** Whether the stored value says the frame was adjusted; anything else is false. */
+export function parseStoredPaperAdjusted(raw: string | null): boolean {
+  return raw === "1";
+}
+
+/**
+ * V3.2 F13 (candidate): set, next to `resultPaperAdjustedKey`, for a scan
+ * whose hand-placed frame was confirmed after the detector measured the sheet
+ * as not lying flat (`PAPER_CURLED`): the results page then adds that the
+ * paper may not have been flat. Kept in this browser only; never sent to the
+ * server. The value is only "1".
+ */
+export function resultPaperCurledKey(scanId: string): string {
+  return `open-mouse:paper-curled:${scanId}`;
+}
+
+/** Whether the stored value says the paper was found curled; anything else is false. */
+export function parseStoredPaperCurled(raw: string | null): boolean {
+  return raw === "1";
+}
+
 export interface StoredManualEntry {
   readonly handLengthMm: number;
   readonly handWidthMm: number;
+}
+
+/** The per-scan notes the results page reads from this browser. */
+export interface ScanDisclosures {
+  readonly enteredLength: number | null;
+  readonly enteredManual: StoredManualEntry | null;
+  readonly paperAdjusted: boolean;
+  /** V3.2 F13: the hand-placed frame followed a `PAPER_CURLED` result. */
+  readonly paperCurled: boolean;
+}
+
+/**
+ * Every per-scan note for `scanId`, each from its own key and parsed by its
+ * own reader. The results page calls this; an unreadable value is "no note".
+ * A storage that throws is the caller's to catch.
+ */
+export function readScanDisclosures(
+  storage: Pick<Storage, "getItem">,
+  scanId: string,
+): ScanDisclosures {
+  return {
+    enteredLength: parseStoredUserLength(
+      storage.getItem(resultLengthKey(scanId)),
+    ),
+    enteredManual: parseStoredManualEntry(
+      storage.getItem(resultManualEntryKey(scanId)),
+    ),
+    paperAdjusted: parseStoredPaperAdjusted(
+      storage.getItem(resultPaperAdjustedKey(scanId)),
+    ),
+    paperCurled: parseStoredPaperCurled(
+      storage.getItem(resultPaperCurledKey(scanId)),
+    ),
+  };
 }
 
 export function serializeManualEntry(entry: StoredManualEntry): string {
@@ -132,6 +197,8 @@ export function clearScanDisclosures(
   for (const scanId of scanIds) {
     storage.removeItem(resultLengthKey(scanId));
     storage.removeItem(resultManualEntryKey(scanId));
+    storage.removeItem(resultPaperAdjustedKey(scanId));
+    storage.removeItem(resultPaperCurledKey(scanId));
     // Legacy key, no longer written (see handDisclosure.ts).
     storage.removeItem(resultHandKey(scanId));
   }

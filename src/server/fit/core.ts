@@ -7,15 +7,21 @@ import type {
 } from "../../lib/contracts/measurement";
 import type { ScanRepo } from "../scans/repo";
 import type { FitRepo } from "./repo";
-import { buildFitResultRows } from "./rows";
-import { scoreFitDefault, storedNullScore } from "./engine";
-import { scoringMeasurements } from "./scoring-measurements";
-import { DEFAULT_ENGINE } from "./coefficients";
+import {
+  surveyReferencesFor,
+  type SurveyReferenceSource,
+} from "./auto-calibration";
+import { resolveFitEngine, scoreFitDefault } from "./engine";
+import {
+  engineScaleMeasurements,
+  fitScaleMeasurements,
+} from "./scoring-measurements";
 import { listedOnly } from "./listed";
 import { withFilterFacts } from "./filter-facts";
 import { withPhotos } from "./photos";
 import mouseMediaFile from "../../data/mouse-media.json";
 import { groupShells } from "./shell-groups";
+import { fingerprintOfFit } from "./fingerprint";
 
 const scanIdSchema = z.string().uuid();
 
@@ -33,6 +39,12 @@ export interface FitOwner {
 export interface FitCoreDeps {
   scanRepo: ScanRepo;
   fitRepo: FitRepo;
+  /**
+   * Where a signed-in person's survey ratings come from, for the automatic
+   * calibration of a v3 result (`./auto-calibration.ts`). Absent means no
+   * automatic calibration (tests, and any caller that does not want it).
+   */
+  surveyReferences?: SurveyReferenceSource;
   /** Injectable clock; defaults to `new Date()`. */
   now?: () => Date;
 }
@@ -64,9 +76,10 @@ export type LoadOwnedFitResult =
  * so a malformed id can't reach the database.
  *
  * Throws (never silently returns bad data) if `scoreFit`'s output fails its
- * own `fitResponseSchema`, or if persisting `fit_results` fails — an HTTP
- * adapter turns either into a 500. Every number in the result comes from
- * `scoreFit`; this function adds none of its own (hard rule 2).
+ * own `fitResponseSchema` — an HTTP adapter turns that into a 500. Nothing is
+ * stored: since 2026-10-20 the request path no longer writes `fit_results`
+ * (the table stays for old rows; nothing reads it). Every number in the result
+ * comes from `scoreFit`; this function adds none of its own (hard rule 2).
  */
 export async function loadOwnedFit(
   scanId: string,
@@ -90,13 +103,30 @@ export async function loadOwnedFit(
 
   // Unlisted rows (CAT-1) leave here, before scoring and before the priors.
   const catalogue = listedOnly(await deps.fitRepo.loadCatalogue());
-  // A typed width is scored on the scan's scale; `owned.measurements` itself
-  // (returned below, shown on the page) stays as typed.
+  // Automatic calibration (candidate, Kirby 2026-10-20): under the v3 engine a
+  // signed-in caller with at least two usable survey ratings and no references
+  // in the request gets those ratings as references, for this request only.
+  // The engine decides what they do; nothing is stored.
+  const surveyReferences = await surveyReferencesFor({
+    engine: resolveFitEngine(),
+    userId: owner.userId,
+    prefs,
+    catalogue,
+    source: deps.surveyReferences,
+  });
+  // A typed width is scored on the scan's scale, and a parallax-corrected scan
+  // on the engine's (landmark-raw-v3, `fitScaleMeasurements`). What is
+  // returned below for the page and the analysis is the engine scale too
+  // (D1 = B), with a typed size as typed.
   const engineOutput = scoreFitDefault(
-    scoringMeasurements(owned.measurements, owned.calibrationMethod),
+    fitScaleMeasurements(owned.measurements, {
+      calibrationMethod: owned.calibrationMethod,
+      parallaxCorrected: owned.parallaxCorrected,
+    }),
     catalogue,
     {
       ...prefs,
+      ...(surveyReferences ? { references: surveyReferences } : {}),
       gripStyle: prefs.gripStyle ?? owned.gripStyleStated ?? undefined,
       // A skipped answer is null in the scan; it must reach the engine as
       // undefined (no shift), never as "medium".
@@ -105,8 +135,8 @@ export async function loadOwnedFit(
     },
     owned.hand,
   );
-  // Same-shell entries become one card; ranks are renumbered, so what is
-  // stored and what is shown are the same list. `excluded` is untouched.
+  // Same-shell entries become one card; ranks are renumbered. `excluded` is
+  // untouched.
   // The filter's catalogue facts (shape, connectivity) ride along after the
   // grouping; nothing scores on them and the analysis never sees them. The
   // product photo (a static file) follows, for every entry; the same holds for
@@ -116,7 +146,15 @@ export async function loadOwnedFit(
     withFilterFacts(groupShells(engineOutput.results, catalogue), catalogue),
     mouseMediaFile,
   );
-  const response = { scanId, ...engineOutput, results };
+  // V3.2 F1 (candidate): the fingerprint of exactly this ranking, so analysis
+  // and feedback can refuse a request made for a ranking that is no longer it.
+  // Every route that answers with or recomputes a fit comes through here.
+  const response = {
+    scanId,
+    ...engineOutput,
+    resultFingerprint: fingerprintOfFit({ ...engineOutput, results }),
+    results,
+  };
 
   const validated = fitResponseSchema.safeParse(response);
   if (!validated.success) {
@@ -125,25 +163,13 @@ export async function loadOwnedFit(
     );
   }
 
-  const mouseIdBySlug = new Map(
-    catalogue
-      .filter((m): m is typeof m & { id: string } => m.id !== undefined)
-      .map((m) => [m.slug, m.id] as const),
-  );
-  const storedNull = storedNullScore(DEFAULT_ENGINE, catalogue);
-  const rows = buildFitResultRows(
-    scanId,
-    engineOutput.engineVersion,
-    results,
-    mouseIdBySlug,
-    (sub) => storedNull(sub, engineOutput.gripStyle.used),
-  );
-  await deps.fitRepo.saveFitResults(rows);
-
   return {
     status: "ok",
     fit: validated.data,
-    measurements: owned.measurements,
+    measurements: engineScaleMeasurements(
+      owned.measurements,
+      owned.parallaxCorrected,
+    ),
     calibrationMethod: owned.calibrationMethod ?? null,
   };
 }

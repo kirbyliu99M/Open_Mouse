@@ -20,6 +20,12 @@ type DemoWindow = Window & {
   __easyScanLiveCalls?: RunPhotoPipelineInput[];
   /** Test hook: while unresolved, the fake pipeline stays "processing". */
   __easyScanLiveHold?: Promise<void>;
+  /**
+   * Test hook (F15): set to "retake" to make the next runs answer the hand
+   * problem that `?result=retake` gives, after a measured photo on the same
+   * page.
+   */
+  __easyScanLiveResult?: "retake";
 };
 
 /**
@@ -46,7 +52,9 @@ const SUBMISSION = scanSubmissionSchema.parse({
     paperSize: "a4",
     edgeFitResidualMm: 0.6,
     minSideCoverage: 0.92,
-    parallaxCorrected: true,
+    // Fixed demo numbers, shown as they are: a corrected scan would be shown
+    // on the engine's scale (landmark-raw-v3, D1 = B) and move the screenshots.
+    parallaxCorrected: false,
   },
   measurementModelVersion: MEASUREMENT_MODEL_VERSION,
 });
@@ -89,8 +97,12 @@ async function measuredPipeline(
       { x: width * PAPER.left, y: height * PAPER.bottom },
     ] as const,
   };
-  // `?result=retake`: a problem with the hand that the pipeline located.
-  if (new URLSearchParams(window.location.search).get("result") === "retake") {
+  // `?result=retake` (or the test hook): a problem with the hand that the
+  // pipeline located.
+  if (
+    new URLSearchParams(window.location.search).get("result") === "retake" ||
+    demoWindow.__easyScanLiveResult === "retake"
+  ) {
     return {
       status: "error",
       errors: [
@@ -102,10 +114,22 @@ async function measuredPipeline(
       overlay,
     };
   }
+  // A frame placed or confirmed by hand is said in the submission, as the
+  // real pipeline says it (`cornersSource`), so a moved frame's sheet opens
+  // without the adjustment opening by itself again (F15).
+  const submission = input.manualPaperCorners
+    ? scanSubmissionSchema.parse({
+        ...SUBMISSION,
+        calibration: {
+          ...SUBMISSION.calibration,
+          cornersSource: input.manualPaperCorners.source,
+        },
+      })
+    : SUBMISSION;
   return {
     status: "ok",
-    measurements: SUBMISSION.measurements,
-    submission: SUBMISSION,
+    measurements: submission.measurements,
+    submission,
     warnings: [],
     overlay,
   };

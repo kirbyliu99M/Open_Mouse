@@ -36,6 +36,7 @@ import {
   hasAnswers,
   mouseRows,
   otherAnswerRows,
+  shownAccountMeasurements,
   splitScans,
   type AnswersState,
   type MouseRow,
@@ -567,8 +568,10 @@ function HandSection({
                     {scan.hand === "left" ? copy.leftHand : copy.rightHand}
                   </span>
                   <span className="profile-row-value">
-                    {copy.handLength} {formatCm(scan.measurements.handLengthMm)}{" "}
-                    · {copy.palmWidth} {formatCm(scan.measurements.palmWidthMm)}
+                    {copy.handLength}{" "}
+                    {formatCm(shownAccountMeasurements(scan).handLengthMm)} ·{" "}
+                    {copy.palmWidth}{" "}
+                    {formatCm(shownAccountMeasurements(scan).palmWidthMm)}
                   </span>
                 </li>
               ))}

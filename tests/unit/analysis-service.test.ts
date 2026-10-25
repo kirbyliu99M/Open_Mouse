@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { errorResponseSchema } from "../../src/lib/contracts/routes";
 import { analysisResponseSchema } from "../../src/lib/contracts/analysis";
 import {
@@ -135,9 +135,11 @@ describe("POST /api/scans/{scanId}/analysis — ownership: 404, never 403", () =
 
   it("an internal failure while loading the fit is a 500 without leaking internals", async () => {
     const scanRepo = createFakeScanRepo(vi.fn(async () => sampleOwnedScan));
-    const { repo: fitRepo } = createFakeFitRepo(undefined, async () => {
-      throw new Error("db write failed: connection reset at 10.0.0.5:5432");
-    });
+    const fitRepo = {
+      loadCatalogue: vi.fn(async () => {
+        throw new Error("db read failed: connection reset at 10.0.0.5:5432");
+      }),
+    };
 
     const res = await computeAnalysisForScan(analysisRequest({}), SCAN_ID, {
       ...baseDeps(),
@@ -261,7 +263,7 @@ describe("POST /api/scans/{scanId}/analysis — oversized body", () => {
     const findOwnedScan = vi.fn(async () => sampleOwnedScan);
     const scanRepo = createFakeScanRepo(findOwnedScan);
     const loadCatalogue = vi.fn(async () => []);
-    const fitRepo = { loadCatalogue, saveFitResults: vi.fn(async () => {}) };
+    const fitRepo = { loadCatalogue };
     const request = new Request(
       `http://localhost/api/scans/${SCAN_ID}/analysis`,
       {
@@ -411,5 +413,54 @@ describe("POST /api/scans/{scanId}/analysis — hard rule: never a malformed 200
 
     expect(res.status).toBe(500);
     expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+});
+
+describe("POST /api/scans/{scanId}/analysis — calibration from the survey", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const ratings = ["logitech-g502", "razer-basilisk"].map((slug) => ({
+    slug,
+    satisfaction: 5,
+    painPoints: [],
+    gripStyle: "claw" as const,
+  }));
+
+  it("analyses the same calibrated ranking the fit route shows a signed-in v3 caller (the prompt says the targets were adjusted)", async () => {
+    vi.stubEnv("FIT_ENGINE", "v3");
+    const loadRatings = vi.fn(async () => ratings);
+    const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
+
+    const res = await computeAnalysisForScan(analysisRequest({}), SCAN_ID, {
+      ...baseDeps({ client }),
+      getUserId: async () => "user-1",
+      surveyReferences: { loadRatings },
+    });
+
+    expect(res.status).toBe(200);
+    expect(loadRatings).toHaveBeenCalledTimes(1);
+    expect(loadRatings).toHaveBeenCalledWith("user-1");
+    expect(client.calls[0]!.prompt).toContain(
+      "已經加入依使用者自己持有的滑鼠所做的調整",
+    );
+  });
+
+  it("an anonymous caller: the survey is not read and the prompt carries no adjustment flag", async () => {
+    vi.stubEnv("FIT_ENGINE", "v3");
+    const loadRatings = vi.fn(async () => ratings);
+    const client = new FakeTextModel({ answer: () => CLEAN_ANSWER });
+
+    const res = await computeAnalysisForScan(analysisRequest({}), SCAN_ID, {
+      ...baseDeps({ client }),
+      surveyReferences: { loadRatings },
+    });
+
+    expect(res.status).toBe(200);
+    expect(loadRatings).not.toHaveBeenCalled();
+    expect(client.calls[0]!.prompt).not.toContain(
+      "已經加入依使用者自己持有的滑鼠所做的調整",
+    );
   });
 });

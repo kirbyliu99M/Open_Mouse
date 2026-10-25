@@ -8,8 +8,10 @@ import {
   computeFrozenPhotoLayout,
   computeGuideRect,
   computeMeasuredTransform,
+  computeOverlayToStill,
   computeResultFocusRect,
   overlayUnitsPerPx,
+  overlayVisibleRect,
   computeStillCrop,
   padRect,
   paperAspect,
@@ -17,6 +19,7 @@ import {
   rectCorners,
 } from "../../src/client/camera/photoLayout";
 import { computeCoverRect } from "../../src/client/camera/quad";
+import { computeDownscaleSize } from "../../src/client/photo/decode";
 
 const STAGE = { width: 390, height: 844 };
 
@@ -610,5 +613,181 @@ describe("clampInto: a label kept inside the visible photo", () => {
   it("a box as wide as the space, or wider, is centred on it", () => {
     expect(clampInto(10, 200, 100, 200)).toBe(200);
     expect(clampInto(10, 300, 100, 200)).toBe(200);
+  });
+});
+
+describe("computeOverlayToStill and the per-axis overlay ratios (A1)", () => {
+  // R2's example: the analysed copy is rounded per axis, so the two ratios differ.
+  const still = { width: 4001, height: 3000 };
+  const analysed = computeDownscaleSize(still.width, still.height);
+  const stage = { width: 390, height: 731 };
+
+  it("4001x3000 is analysed at 3000x2249, with a ratio per axis", () => {
+    expect(analysed).toEqual({ width: 3000, height: 2249 });
+    const { x, y } = computeOverlayToStill(still, {
+      imageWidth: analysed.width,
+      imageHeight: analysed.height,
+    });
+    expect(x).toBeCloseTo(4001 / 3000, 12);
+    expect(y).toBeCloseTo(3000 / 2249, 12);
+    expect(y).not.toBeCloseTo(x, 4);
+  });
+
+  it("restores the bottom row to the still's bottom row: the 0.5837 px error is gone", () => {
+    const { x, y } = computeOverlayToStill(still, {
+      imageWidth: analysed.width,
+      imageHeight: analysed.height,
+    });
+    const bottom = analysed.height; // the analysed copy's last edge
+    expect(Math.abs(bottom * y - still.height)).toBeLessThan(1e-9);
+    // The width ratio on its own (the old behaviour) was 0.5837 still px off.
+    expect(bottom * x - still.height).toBeCloseTo(-0.5837, 4);
+  });
+
+  it("the focus rect puts a point where an independent mapping puts it, to 1e-6 still px", () => {
+    const layout = computeFrozenPhotoLayout({ stage, stream: null, still });
+    const ratio = computeOverlayToStill(still, {
+      imageWidth: analysed.width,
+      imageHeight: analysed.height,
+    });
+    const points = [
+      { x: 100, y: analysed.height - 1 },
+      { x: analysed.width - 1, y: 0 },
+      { x: 1234.5, y: 987.25 },
+    ];
+    for (const point of points) {
+      const focus = computeResultFocusRect({
+        stage,
+        layout,
+        overlayToStill: ratio.x,
+        overlayToStillY: ratio.y,
+        overlay: { landmarksPx: [point] },
+        labelAllowancePx: 0,
+      });
+      // Independent: scale by the true still/analysed sizes, no shared helper.
+      const expected = photoPointToStage(
+        {
+          x: (point.x * still.width) / analysed.width,
+          y: (point.y * still.height) / analysed.height,
+        },
+        layout,
+      );
+      const stillPerStagePx = layout.crop.width / layout.box.width;
+      expect(Math.abs(focus.x - expected.x) * stillPerStagePx).toBeLessThan(
+        1e-6,
+      );
+      expect(Math.abs(focus.y - expected.y) * stillPerStagePx).toBeLessThan(
+        1e-6,
+      );
+    }
+    // The width ratio alone misses the bottom point by more than half a still px.
+    const old = computeResultFocusRect({
+      stage,
+      layout,
+      overlayToStill: ratio.x,
+      overlay: { landmarksPx: [points[0]] },
+      labelAllowancePx: 0,
+    });
+    const want = photoPointToStage(
+      {
+        x: (points[0].x * still.width) / analysed.width,
+        y: (points[0].y * still.height) / analysed.height,
+      },
+      layout,
+    );
+    expect(
+      Math.abs(old.y - want.y) * (layout.crop.width / layout.box.width),
+    ).toBeGreaterThan(0.5);
+  });
+
+  it("with a crop: the focus rect and the visible rect both follow their own axis", () => {
+    // A 3:4 still under a 9:16 preview is cropped on the left and right.
+    const stream = { width: 1080, height: 1920 };
+    const croppedStill = { width: 3000, height: 4001 };
+    const down = computeDownscaleSize(croppedStill.width, croppedStill.height);
+    const ratio = computeOverlayToStill(croppedStill, {
+      imageWidth: down.width,
+      imageHeight: down.height,
+    });
+    const layout = computeFrozenPhotoLayout({
+      stage,
+      stream,
+      still: croppedStill,
+    });
+    expect(layout.crop.x).toBeGreaterThan(0);
+    const visible = overlayVisibleRect(layout.crop, ratio.x, ratio.y);
+    expect(visible.x * ratio.x).toBeCloseTo(layout.crop.x, 9);
+    expect(visible.y * ratio.y).toBeCloseTo(layout.crop.y, 9);
+    expect(visible.width * ratio.x).toBeCloseTo(layout.crop.width, 9);
+    expect(visible.height * ratio.y).toBeCloseTo(layout.crop.height, 9);
+    // The overlay's last row maps to the still's last row, so it sits at the
+    // visible rect's bottom when the crop reaches the still's bottom.
+    const point = { x: down.width / 2, y: down.height - 1 };
+    const focus = computeResultFocusRect({
+      stage,
+      layout,
+      overlayToStill: ratio.x,
+      overlayToStillY: ratio.y,
+      overlay: { landmarksPx: [point] },
+      labelAllowancePx: 0,
+    });
+    const expected = photoPointToStage(
+      {
+        x: (point.x * croppedStill.width) / down.width,
+        y: (point.y * croppedStill.height) / down.height,
+      },
+      layout,
+    );
+    expect(focus.x).toBeCloseTo(expected.x, 9);
+    expect(focus.y).toBeCloseTo(expected.y, 9);
+  });
+
+  it("equal ratios: both axes are the same and the old call (no Y) gives the same rect", () => {
+    const same = { width: 2000, height: 1500 };
+    const ratio = computeOverlayToStill(same, {
+      imageWidth: 1000,
+      imageHeight: 750,
+    });
+    expect(ratio).toEqual({ x: 2, y: 2 });
+    const layout = computeFrozenPhotoLayout({
+      stage,
+      stream: null,
+      still: same,
+    });
+    const overlay = {
+      landmarksPx: [
+        { x: 100, y: 200 },
+        { x: 800, y: 700 },
+      ],
+    };
+    const withoutY = computeResultFocusRect({
+      stage,
+      layout,
+      overlayToStill: 2,
+      overlay,
+      labelAllowancePx: 10,
+    });
+    const withY = computeResultFocusRect({
+      stage,
+      layout,
+      overlayToStill: 2,
+      overlayToStillY: 2,
+      overlay,
+      labelAllowancePx: 10,
+    });
+    expect(withY).toEqual(withoutY);
+    expect(overlayVisibleRect(layout.crop, 2)).toEqual(
+      overlayVisibleRect(layout.crop, 2, 2),
+    );
+  });
+
+  it("no overlay or no still: 1 on both axes; a missing height falls back to the width ratio", () => {
+    expect(computeOverlayToStill(still, null)).toEqual({ x: 1, y: 1 });
+    expect(
+      computeOverlayToStill(null, { imageWidth: 100, imageHeight: 100 }),
+    ).toEqual({ x: 1, y: 1 });
+    expect(
+      computeOverlayToStill(still, { imageWidth: 2000, imageHeight: 0 }),
+    ).toEqual({ x: 4001 / 2000, y: 4001 / 2000 });
   });
 });

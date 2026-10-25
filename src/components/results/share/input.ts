@@ -2,7 +2,8 @@
  * From a fit response to the share card's input, and the file name of the PNG.
  * Pure. Every value on the card comes from the response: the top entry's
  * brand, model and total, its band from `bandOf`, and the hand type if the
- * engine sent one (fit-v0 does not, and the card never invents one).
+ * engine sent one (fit-v0 does not, and the card never invents one). Out of
+ * the catalogue's length range the total and the band are null.
  */
 import type { Locale } from "../../../lib/contracts/locale";
 import type { FitEntry, FitResponse } from "../../../lib/contracts/fit";
@@ -39,13 +40,18 @@ export function buildShareCardInput(
 ): ShareCardInput | null {
   const top = topPick(fit);
   if (top === null) return null;
+  // Out of the catalogue's length range `total` is the value the engine sorted
+  // by against the catalogue's edge, not a distance to this hand (contract,
+  // `fitCoverageSchema`): no number, no band. `coverage` itself never enters
+  // the card input; only these two fields change.
+  const hidden = fit.coverage?.lengthOutOfRange === true;
   return {
     lang,
     ...(fit.handType ? { handType: fit.handType } : {}),
     brand: top.mouse.brand,
     model: top.mouse.model,
-    total: top.total,
-    bandLabel: bandLabelFor(top.total, lang),
+    total: hidden ? null : top.total,
+    bandLabel: hidden ? null : bandLabelFor(top.total, lang),
     photoSrc: isSitePath(photoSrc) ? photoSrc : null,
   };
 }

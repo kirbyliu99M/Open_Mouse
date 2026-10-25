@@ -29,8 +29,8 @@ const CACHED: CachedAnalysis = {
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
 describe("computeCacheKey", () => {
-  it("uses prompt version 6", () => {
-    expect(ANALYSIS_PROMPT_VERSION).toBe(6);
+  it("uses prompt version 8", () => {
+    expect(ANALYSIS_PROMPT_VERSION).toBe(10);
   });
   it("is deterministic for the same fit and measurements (identical input -> same key)", () => {
     const fit = makeFit();
@@ -40,7 +40,7 @@ describe("computeCacheKey", () => {
     );
   });
 
-  it("matches sha256(promptVersion + the canonical first prompt) exactly, so ANALYSIS_PROMPT_VERSION participates", () => {
+  it("matches sha256(promptVersion + score mode + the canonical first prompt) exactly, so ANALYSIS_PROMPT_VERSION participates", () => {
     const fit = makeFit();
     const measurements = makeMeasurements();
     const prompt = buildPrompt(
@@ -51,10 +51,12 @@ describe("computeCacheKey", () => {
     const key = computeCacheKey(fit, measurements, "en");
     expect(key).toBe(
       sha256(`${ANALYSIS_PROMPT_VERSION}
+scored
 ${prompt}`),
     );
     expect(key).not.toBe(
       sha256(`${ANALYSIS_PROMPT_VERSION + 1}
+scored
 ${prompt}`),
     );
   });

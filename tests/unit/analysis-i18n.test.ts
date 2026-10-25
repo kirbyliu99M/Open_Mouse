@@ -218,10 +218,14 @@ describe("cache keys", () => {
       computeCacheKey(fit, m, "en"),
     );
   });
-  it("the en key is unchanged from before the zh-TW work", () => {
-    // Computed with the code on main before this change (prompt version 6).
+  it("the en key of a scored input is pinned (prompt version 10, score mode scored)", () => {
+    // Pinned at v3.1 (M3): the version went 6 -> 7 and the key now carries the
+    // score mode, so the old value (version 6) could not stay. Version 8 (the
+    // unscored mode loses its sub-score params) moved it again, and
+    // versions 9 and 10 (A1-01 name check, A1-02 unscored output check) once
+    // more. A scored input reads the same prompt as before; only the key moved.
     expect(computeCacheKey(makeFit(), makeMeasurements(), "en")).toBe(
-      "0047a9a9e0ea8117e916724b5c8ab3047834e24350873bf9b61535266e752171",
+      "6e5d443d55a4dfeba94a5b2edb7f7852077cbec705624cc2c612242af61ed353",
     );
   });
 });
