@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { useLocale } from "@/client/i18n/LocaleProvider";
+import { Presence } from "@/components/motion/Presence";
 import {
   MAIN_USES,
   MAX_RATED_MICE,
@@ -503,78 +504,87 @@ export function QuestionnaireForm({
         </div>
       </ProfileSheet>
 
-      {overlay?.kind === "pick-current" && (
-        <MouseChoiceFlow
-          catalogue={catalogue}
-          chosenSlugs={formSlugs(form)}
-          allowOther={!otherTaken(form, "current")}
-          showModelField={showModelField}
-          initialOther={current?.kind === "other" ? current.draft : undefined}
-          onChoose={chooseCurrent}
-          onClose={() => setOverlay(null)}
-          returnFocusTo={trigger}
-        />
-      )}
-      {overlay?.kind === "pick-extra" && (
-        <MouseChoiceFlow
-          catalogue={catalogue}
-          chosenSlugs={formSlugs(form)}
-          allowOther={!otherTaken(form, "extra")}
-          showModelField={showModelField}
-          onChoose={chooseExtra}
-          onClose={() => setOverlay(null)}
-          returnFocusTo={trigger}
-        />
-      )}
-      {overlay?.kind === "extra-rating" && (
-        <RatingSheet
-          title={nameOf(overlay.draft.slug)}
-          initial={overlay.draft}
-          initialCurrent={false}
-          showCurrent={false}
-          working={false}
-          line={null}
-          onSave={(draft) => saveExtraRating(draft)}
-          onRemove={
-            overlay.fresh
-              ? undefined
-              : () => {
-                  update({
-                    extraRatings: form.extraRatings.filter(
-                      (r) => r.slug !== overlay.draft.slug,
-                    ),
-                  });
-                  setOverlay(null);
-                }
-          }
-          onClose={() => setOverlay(null)}
-          returnFocusTo={trigger}
-        />
-      )}
-      {overlay?.kind === "extra-other" && (
-        <OtherMouseEditSheet
-          title={copy.otherEditTitle(brandName(overlay.draft.brand, account))}
-          initialSizeFeel={overlay.draft.sizeFeel}
-          initialCurrent={false}
-          showCurrent={false}
-          working={false}
-          line={null}
-          onSave={(sizeFeel) => {
-            update({ extraOther: { ...overlay.draft, sizeFeel } });
-            setOverlay(null);
-          }}
-          onRemove={
-            overlay.fresh
-              ? undefined
-              : () => {
-                  update({ extraOther: null });
-                  setOverlay(null);
-                }
-          }
-          onClose={() => setOverlay(null)}
-          returnFocusTo={trigger}
-        />
-      )}
+      {/* Each sheet slides down before it unmounts (V3.2 motion pass #28). */}
+      <Presence kind="sheet">
+        {overlay?.kind === "pick-current" && (
+          <MouseChoiceFlow
+            catalogue={catalogue}
+            chosenSlugs={formSlugs(form)}
+            allowOther={!otherTaken(form, "current")}
+            showModelField={showModelField}
+            initialOther={current?.kind === "other" ? current.draft : undefined}
+            onChoose={chooseCurrent}
+            onClose={() => setOverlay(null)}
+            returnFocusTo={trigger}
+          />
+        )}
+      </Presence>
+      <Presence kind="sheet">
+        {overlay?.kind === "pick-extra" && (
+          <MouseChoiceFlow
+            catalogue={catalogue}
+            chosenSlugs={formSlugs(form)}
+            allowOther={!otherTaken(form, "extra")}
+            showModelField={showModelField}
+            onChoose={chooseExtra}
+            onClose={() => setOverlay(null)}
+            returnFocusTo={trigger}
+          />
+        )}
+      </Presence>
+      <Presence kind="sheet">
+        {overlay?.kind === "extra-rating" && (
+          <RatingSheet
+            title={nameOf(overlay.draft.slug)}
+            initial={overlay.draft}
+            initialCurrent={false}
+            showCurrent={false}
+            working={false}
+            line={null}
+            onSave={(draft) => saveExtraRating(draft)}
+            onRemove={
+              overlay.fresh
+                ? undefined
+                : () => {
+                    update({
+                      extraRatings: form.extraRatings.filter(
+                        (r) => r.slug !== overlay.draft.slug,
+                      ),
+                    });
+                    setOverlay(null);
+                  }
+            }
+            onClose={() => setOverlay(null)}
+            returnFocusTo={trigger}
+          />
+        )}
+      </Presence>
+      <Presence kind="sheet">
+        {overlay?.kind === "extra-other" && (
+          <OtherMouseEditSheet
+            title={copy.otherEditTitle(brandName(overlay.draft.brand, account))}
+            initialSizeFeel={overlay.draft.sizeFeel}
+            initialCurrent={false}
+            showCurrent={false}
+            working={false}
+            line={null}
+            onSave={(sizeFeel) => {
+              update({ extraOther: { ...overlay.draft, sizeFeel } });
+              setOverlay(null);
+            }}
+            onRemove={
+              overlay.fresh
+                ? undefined
+                : () => {
+                    update({ extraOther: null });
+                    setOverlay(null);
+                  }
+            }
+            onClose={() => setOverlay(null)}
+            returnFocusTo={trigger}
+          />
+        )}
+      </Presence>
     </>
   );
 }

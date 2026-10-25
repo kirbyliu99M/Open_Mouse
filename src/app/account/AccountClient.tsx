@@ -2,6 +2,7 @@
 
 import { useRef, useState, type ComponentProps } from "react";
 import { useLocale } from "@/client/i18n/LocaleProvider";
+import { Presence } from "@/components/motion/Presence";
 import { MAX_ACCOUNT_MICE, type SurveyEdit } from "@/lib/contracts/survey";
 import { accountCopy } from "@/lib/copy/account";
 import { questionnaireCopy } from "@/lib/copy/questionnaire";
@@ -425,8 +426,10 @@ export function SignedInProfile({
       >
         <AccountView {...viewProps} handlers={handlers} />
       </div>
-      {renderOverlay()}
-      {renderRemove()}
+      {/* Sheets slide down and the removal confirmation fades before they
+          unmount (V3.2 motion pass #10, #28). */}
+      <Presence kind="sheet">{renderOverlay()}</Presence>
+      <Presence kind="fade">{renderRemove()}</Presence>
     </>
   );
 }
@@ -466,18 +469,20 @@ export function SignedOutAnswer({
       <div onClickCapture={onClickCapture}>
         <AnonymousAnswerLink scanId={scanId} onOpen={() => setOpen(true)} />
       </div>
-      {open && scanId !== null && (
-        <QuestionnaireForm
-          scanId={scanId}
-          signedIn={false}
-          catalogue={catalogue}
-          mouseNames={mouseNames}
-          showModelField={showModelField}
-          onClose={() => setOpen(false)}
-          onSubmitted={() => setOpen(false)}
-          returnFocusTo={() => last.current}
-        />
-      )}
+      <Presence kind="sheet">
+        {open && scanId !== null && (
+          <QuestionnaireForm
+            scanId={scanId}
+            signedIn={false}
+            catalogue={catalogue}
+            mouseNames={mouseNames}
+            showModelField={showModelField}
+            onClose={() => setOpen(false)}
+            onSubmitted={() => setOpen(false)}
+            returnFocusTo={() => last.current}
+          />
+        )}
+      </Presence>
     </>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useLocale } from "@/client/i18n/LocaleProvider";
+import { usePresence } from "@/components/motion/Presence";
 import { resultsScreensCopy } from "@/lib/copy/results-screens";
 import { deleteScan } from "./fetchResults";
 import { clearScanDisclosures } from "./userLengthDisclosure";
@@ -44,6 +45,9 @@ export function DeleteScanAction({
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   const open = status !== "idle";
+  // Closing fades the confirmation and the dimmed page out (V3.2 motion pass
+  // #25) before it unmounts; focus still goes back at once (below).
+  const presence = usePresence(open, "fade");
 
   useEffect(() => {
     if (open) cancelRef.current?.focus();
@@ -93,14 +97,22 @@ export function DeleteScanAction({
         {copy.trigger}
       </button>
 
-      {open && (
-        <div className="dialog-backdrop" role="presentation">
+      {presence.mounted && (
+        <div
+          className="dialog-backdrop"
+          role="presentation"
+          data-leaving={presence.leaving ? "true" : undefined}
+          // On its way out it is already closed: out of the accessibility
+          // tree and the tab order, as it was when it unmounted at once.
+          inert={presence.leaving}
+        >
           <div
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="delete-scan-title"
             aria-describedby="delete-scan-body"
             className="dialog"
+            data-leaving={presence.leaving ? "true" : undefined}
           >
             <h2 id="delete-scan-title">{copy.title}</h2>
             <p id="delete-scan-body">{copy.body}</p>

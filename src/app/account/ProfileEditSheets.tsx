@@ -17,12 +17,15 @@
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
   type RefObject,
 } from "react";
 import { useLocale } from "@/client/i18n/LocaleProvider";
+import { reducedMotionNow, useLeaving } from "@/components/motion/Presence";
+import { cardMotion, TOGGLE_MOTION } from "@/lib/results/shapeToggle";
 import { Avatar } from "@/components/nav/Avatar";
 import { accountCopy } from "@/lib/copy/account";
 import { cropToSquareBlob } from "./avatar-crop";
@@ -51,7 +54,12 @@ type SaveStatus = "idle" | "saving" | "error";
  *   - `variant` "tall" fills most of the screen (the mouse picker), "page" fills
  *     all of it (the form), with no handle;
  *   - `returnFocusTo` names the control to focus on close (default: whatever had
- *     focus when the sheet opened).
+ *     focus when the sheet opened);
+ *   - `swapKey` / `swapDir`: one sheet showing steps (the mouse picker's list
+ *     and 「其他」, V3.2 motion pass #11). A new key swaps the content in the
+ *     same dialog: it comes in from the side of the step it goes to (`swapDir`
+ *     1 from the right, -1 from the left) over --motion-base, and focus goes
+ *     to the first control, where a newly opened dialog would put it.
  * Without any of these it is the plain sheet of the nickname and avatar.
  */
 export function ProfileSheet({
@@ -64,6 +72,8 @@ export function ProfileSheet({
   variant = "sheet",
   returnFocusTo,
   labelledBy,
+  swapKey,
+  swapDir = 0,
 }: {
   title: string;
   onClose: () => void;
@@ -75,10 +85,43 @@ export function ProfileSheet({
   returnFocusTo?: () => HTMLElement | null;
   /** Overrides the title as the dialog's accessible name. */
   labelledBy?: string;
+  /** The step shown; a change swaps the content in place (see above). */
+  swapKey?: string;
+  /** Where the new step comes in from: 1 the right, -1 the left. */
+  swapDir?: -1 | 0 | 1;
 }) {
   const copy = accountCopy(useLocale());
   const titleId = useId();
   const modal = useModalDialog({ onClose, initialFocus, returnFocusTo });
+  // Its owner keeps it for the slide down (`<Presence kind="sheet">`).
+  const leaving = useLeaving();
+
+  // A new step: its content comes in, before it is painted.
+  const shownKey = useRef(swapKey);
+  useLayoutEffect(() => {
+    if (shownKey.current === swapKey) return;
+    shownKey.current = swapKey;
+    const dialog = modal.dialogRef.current;
+    if (!dialog) return;
+    const m = cardMotion(swapDir, reducedMotionNow());
+    for (const part of Array.from(dialog.children)) {
+      if (!(part instanceof HTMLElement) || typeof part.animate !== "function")
+        continue;
+      part.animate(
+        [
+          { opacity: 0, transform: `translateX(${m.inFromPx}px)` },
+          { opacity: 1, transform: "translateX(0)" },
+        ],
+        { duration: m.inMs, easing: TOGGLE_MOTION.EASE_OUT },
+      );
+    }
+    // The control that was pressed has gone with the old step.
+    dialog
+      .querySelector<HTMLElement>(
+        "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]",
+      )
+      ?.focus();
+  }, [swapKey, swapDir, modal.dialogRef]);
 
   const pinned = footer !== undefined;
   return (
@@ -87,6 +130,7 @@ export function ProfileSheet({
       className={`profile-sheet profile-sheet-${variant}${
         pinned ? " profile-sheet-pinned" : ""
       }`}
+      data-leaving={leaving ? "true" : undefined}
       aria-labelledby={labelledBy ?? titleId}
       onClose={modal.onClose}
       onCancel={modal.onCancel}
