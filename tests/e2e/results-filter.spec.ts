@@ -169,16 +169,15 @@ test.describe("desktop sidebar", () => {
     ).toBeVisible();
     await line.getByRole("button", { name: "收起分析" }).click();
     await expect(page.getByText("Analysis body")).toBeHidden();
-    // The share button is secondary, with its note.
+    // The share button is the usual one: its card is about this filter's #1
+    // (V3.2 F24, Kirby 2026-10-26), so no "overall #1" note.
     const share = page
       .locator(".results-share-hero")
       .getByTestId("share-card-button");
-    await expect(share).toHaveText("分享總排名第 1 名");
+    await expect(share).toHaveText("製作我的分享圖");
     await expect(
       page.locator(".results-share-hero .shareCard-note"),
-    ).toHaveText("篩選中，分享圖仍放總排名第 1 名");
-    // Not the primary pill: a text link with no fill.
-    await expect(share).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    ).toHaveCount(0);
     // Removing a chip updates everything.
     await chips.getByRole("button", { name: "移除「無線」" }).click();
     expect(search(page)).toBe("?brand=Razer");
@@ -477,11 +476,15 @@ test.describe("desktop sidebar: focus, weights, state across the breakpoint", ()
     await expect(page.locator(".results-details")).toHaveAttribute("open", "");
   });
 
-  test("a share button that says it shares the overall #1 only when the view is swapped", async ({
+  test("a share button that says it shares the overall #1 only when nothing matches (V3.2 F24)", async ({
     page,
   }) => {
+    // Swapped: the card follows the filter's #1, so no note (F24).
     await page.goto(`${MAIN}?brand=Razer`);
-    await expect(page.locator(".shareCard-note").first()).toBeVisible();
+    await expect(
+      page.locator(".results-share-hero").getByTestId("share-card-button"),
+    ).toBeVisible();
+    await expect(page.locator(".shareCard-note")).toHaveCount(0);
     await page.goto(`${MAIN}?brand=Zowie`);
     await expect(page.locator(".shareCard-note")).toHaveCount(0);
     // Nothing matches: the note is there for the (phone) bottom button; on a
