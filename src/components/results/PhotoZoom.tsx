@@ -73,6 +73,8 @@ export function PhotoZoom({
   onOpened?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  // Opened again while it is still fading out: it stays (V3.2 motion pass).
+  const [reopened, setReopened] = useState(0);
   const buttonRef = useRef<HTMLButtonElement>(null);
   // The URL already asked for: this component is reused when the photo changes
   // (a filter or brand change), so "once per mount" is not enough.
@@ -103,6 +105,7 @@ export function PhotoZoom({
         aria-haspopup="dialog"
         aria-label={copy.enlarge(name)}
         onClick={() => {
+          if (open) setReopened((n) => n + 1);
           setOpen(true);
           onOpened?.();
         }}
@@ -131,6 +134,7 @@ export function PhotoZoom({
           name={name}
           copy={copy}
           onClosed={handleClosed}
+          reopened={reopened}
         />
       )}
     </>
@@ -143,12 +147,15 @@ function PhotoDialog({
   name,
   copy,
   onClosed,
+  reopened = 0,
 }: {
   imageUrl: string;
   largeUrl: string;
   name: string;
   copy: PhotoZoomCopy;
   onClosed: () => void;
+  /** Bumped when the photo is opened again while this one is fading out. */
+  reopened?: number;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const areaRef = useRef<HTMLDivElement>(null);
@@ -176,10 +183,16 @@ function PhotoDialog({
   const scrimClick = useRef(false);
   // Every way out (the close button, the scrim, Esc) fades the dialog out
   // first (V3.2 motion pass #13): `close()` runs after leaveMs("fade").
-  const { leaving, requestClose } = useLeaveThenClose(
+  const { leaving, requestClose, cancelClose } = useLeaveThenClose(
     () => dialogRef.current?.close(),
     "fade",
   );
+  const seenReopen = useRef(reopened);
+  useEffect(() => {
+    if (seenReopen.current === reopened) return;
+    seenReopen.current = reopened;
+    cancelClose();
+  }, [reopened, cancelClose]);
 
   const flush = useCallback(() => {
     frame.current = 0;

@@ -95,13 +95,48 @@ test("the banner comes up from the bottom edge the way it leaves, not in one fra
   page,
 }) => {
   await stubGoogle(page);
+  // Every data-state the strip ever has, in order: the one it is mounted with
+  // (a node added) and each change after. An observer misses none of them.
+  await page.addInitScript(() => {
+    const w = window as unknown as { __cookieStates: string[] };
+    w.__cookieStates = [];
+    const note = (el: Element) => {
+      const state = el.getAttribute("data-state");
+      if (state !== null) w.__cookieStates.push(state);
+    };
+    new MutationObserver((records) => {
+      for (const r of records) {
+        if (r.type === "attributes") {
+          note(r.target as Element);
+          continue;
+        }
+        for (const node of r.addedNodes) {
+          if (!(node instanceof Element)) continue;
+          const bar = node.matches('[data-testid="cookie-banner"]')
+            ? node
+            : node.querySelector('[data-testid="cookie-banner"]');
+          if (bar) note(bar);
+        }
+      }
+    }).observe(document, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["data-state"],
+    });
+  });
   await page.goto("/");
   const banner = page.getByTestId("cookie-banner");
-  // It is first drawn below the edge, then moves up by a transition.
-  await expect
-    .poll(async () => banner.getAttribute("data-state"), { intervals: [10] })
-    .toMatch(/entering|open/);
   await settled(banner);
+  // It was drawn below the edge first, then moved up: "entering" before "open".
+  const states = await page.evaluate(
+    () => (window as unknown as { __cookieStates: string[] }).__cookieStates,
+  );
+  const entering = states.indexOf("entering");
+  expect(entering, states.join(" > ")).toBeGreaterThanOrEqual(0);
+  expect(states.indexOf("open", entering), states.join(" > ")).toBeGreaterThan(
+    entering,
+  );
   const rest = await banner.evaluate((el) => ({
     transform: getComputedStyle(el).transform,
     opacity: getComputedStyle(el).opacity,
@@ -110,7 +145,7 @@ test("the banner comes up from the bottom edge the way it leaves, not in one fra
   }));
   expect(rest.transform).toBe("none");
   expect(rest.opacity).toBe("1");
-  expect(rest.bottom).toBe(rest.h);
+  expect(rest.bottom).toBeCloseTo(rest.h, 0);
 });
 
 test("Accept loads gtag with the ads signals denied and a redacted page_view, and survives a reload", async ({

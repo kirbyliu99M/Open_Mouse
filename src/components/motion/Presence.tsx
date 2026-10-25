@@ -135,12 +135,13 @@ export function Presence({
 /**
  * For a dialog that closes itself: `requestClose()` marks it leaving and runs
  * `finish` (the native `close()`, or the owner's `onClosed`) after
- * `leaveMs(kind)`. Asking twice does nothing; unmounting cancels the timer.
+ * `leaveMs(kind)`. Asking twice does nothing; unmounting cancels the timer;
+ * `cancelClose()` keeps it open after all.
  */
 export function useLeaveThenClose(
   finish: () => void,
   kind: "fade" | "sheet",
-): { leaving: boolean; requestClose: () => void } {
+): { leaving: boolean; requestClose: () => void; cancelClose: () => void } {
   const [leaving, setLeaving] = useState(false);
   const finishRef = useRef(finish);
   finishRef.current = finish;
@@ -163,5 +164,9 @@ export function useLeaveThenClose(
   const requestClose = useCallback(() => {
     leave.current?.request();
   }, []);
-  return { leaving, requestClose };
+  /** Asked back during the leave: it stays, and runs back from where it is. */
+  const cancelClose = useCallback(() => {
+    leave.current?.cancel();
+  }, []);
+  return { leaving, requestClose, cancelClose };
 }
