@@ -44,9 +44,12 @@ describe("after the shutter: no loading screen, only 測量中… (Kirby 2026-10
 
   it("draws one small role=status line, by measuringShown, with the copy's words", () => {
     expect(source.split("measuringShown(").length - 1).toBe(1);
-    const at = source.indexOf(
-      "measuringShown(result.kind, shutterMeasuring) && (",
+    // V3.2 motion pass #19: the line is kept for its fade-out (useLeaving),
+    // still decided by measuringShown alone.
+    expect(source).toContain(
+      "measuringShown(result.kind, shutterMeasuring) ? true : null,",
     );
+    const at = source.indexOf("{measuringLeave.shown && (");
     expect(at).toBeGreaterThan(0);
     const block = source.slice(at, source.indexOf("</p>", at));
     expect(block).toContain('className="easyProcessingPill"');
