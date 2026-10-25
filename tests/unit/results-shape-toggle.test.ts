@@ -289,8 +289,13 @@ describe("the toggle's change reaches analytics.send (wiring)", () => {
 
   it("ResultsView hands the toggle's change on with source shape_toggle", () => {
     const view = read("../../src/components/results/ResultsView.tsx");
+    // V3.2 motion pass review fix #1: computed when it is applied, from the
+    // latest filters, and handed on through commitFilters (onFiltersChange).
     expect(view).toMatch(
-      /const next = withSegment\(filters, segment\);[\s\S]*?onFiltersChange\(next, "shape_toggle"\)/,
+      /commitFilters\(\s*withSegment\(latestFilters\.current, segment\),\s*"shape_toggle",?\s*\)/,
+    );
+    expect(view).toMatch(
+      /const commitFilters = \([^)]*\) => \{[\s\S]*?onFiltersChange\?\.\(next, source\);/,
     );
     // The toggle's handler is the only place this source is passed.
     expect(view.match(/"shape_toggle"/g)).toHaveLength(1);
