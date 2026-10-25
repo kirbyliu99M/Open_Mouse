@@ -14,8 +14,13 @@ import type { ScanSubmission } from "@/lib/contracts/measurement";
 
 // Filled in after the imports; `vi.mock` factories are hoisted above them.
 const live = vi.hoisted(() => ({
-  pushes: [] as { path: string; handoffAtPush: string | null }[],
+  pushes: [] as {
+    path: string;
+    handoffAtPush: string | null;
+    loaderAtPush: number | null;
+  }[],
   take: null as null | (() => { scanHandoff: string | null }),
+  peekLoader: null as null | ((scanId: string) => number | null),
 }));
 const pushes = live.pushes;
 let outcome:
@@ -40,7 +45,12 @@ vi.mock("next/navigation", () => ({
     // Reads the real module memory synchronously, exactly when the push
     // happens: a handoff noted after the push would read null here.
     push: (path: string) => {
-      live.pushes.push({ path, handoffAtPush: live.take!().scanHandoff });
+      live.pushes.push({
+        path,
+        handoffAtPush: live.take!().scanHandoff,
+        // V3.2 F23: the send veil's loader start, handed over before the push.
+        loaderAtPush: live.peekLoader!(path.split("/")[2] ?? ""),
+      });
     },
   }),
 }));
@@ -54,8 +64,15 @@ vi.mock("@/client/analytics/track", () => ({ track: () => {} }));
 import { useScanSubmit } from "@/client/scan/useScanSubmit";
 import { resultsPagePath } from "@/lib/contracts/routes";
 import { takeArrivalMemory } from "@/lib/results/resultsHistory";
+import {
+  clearSendLoaderStart,
+  noteSendLoaderStart,
+  peekLoaderHandoff,
+  takeLoaderHandoff,
+} from "@/lib/results/loaderHandoff";
 
 live.take = takeArrivalMemory;
+live.peekLoader = peekLoaderHandoff;
 
 /** Lets the send's promise chain and the push settle. */
 async function settle() {
@@ -67,6 +84,7 @@ describe("F11-8: useScanSubmit hands the scan id to the results page", () => {
   beforeEach(() => {
     pushes.length = 0;
     takeArrivalMemory();
+    takeLoaderHandoff("s7");
   });
 
   it("notes the handoff before it pushes the results page", async () => {
@@ -75,8 +93,22 @@ describe("F11-8: useScanSubmit hands the scan id to the results page", () => {
     submit({} as ScanSubmission);
     await settle();
     expect(pushes).toEqual([
-      { path: resultsPagePath("s7"), handoffAtPush: "s7" },
+      { path: resultsPagePath("s7"), handoffAtPush: "s7", loaderAtPush: null },
     ]);
+  });
+
+  it("F23: with the send veil up, its loader start is handed to the scan before the push", async () => {
+    outcome = { status: "success", scanId: "s7" };
+    noteSendLoaderStart(4321);
+    const { submit } = useScanSubmit();
+    submit({} as ScanSubmission);
+    await settle();
+    expect(pushes).toEqual([
+      { path: resultsPagePath("s7"), handoffAtPush: "s7", loaderAtPush: 4321 },
+    ]);
+    // The veil unmounting after the push does not take it back.
+    clearSendLoaderStart(4321);
+    expect(takeLoaderHandoff("s7")).toBe(4321);
   });
 
   it("notes nothing and pushes nothing when the send fails", async () => {

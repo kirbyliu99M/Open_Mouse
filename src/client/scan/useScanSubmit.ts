@@ -21,6 +21,7 @@ import { useRouter } from "next/navigation";
 import type { ScanSubmission } from "@/lib/contracts/measurement";
 import { resultsPagePath } from "@/lib/contracts/routes";
 import { noteScanHandoff } from "@/lib/results/resultsHistory";
+import { noteLoaderHandoff } from "@/lib/results/loaderHandoff";
 import type { ScanFlow } from "@/lib/contracts/analytics";
 import { track } from "@/client/analytics/track";
 import type { SubmitScanErrorKind } from "@/client/scan/submitScan";
@@ -77,6 +78,10 @@ export function useScanSubmit(flow?: ScanFlow) {
             setState({ kind: "success" });
             // V3.2 F11: the results page's top-bar back can then go back here.
             noteScanHandoff(outcome.scanId);
+            // V3.2 F23 (candidate / 未拍板): the send veil's loader start goes
+            // to the results page, which draws the same loader at once; with
+            // no veil up (the printed sheet) nothing is handed over.
+            noteLoaderHandoff(outcome.scanId);
             router.push(resultsPagePath(outcome.scanId));
             return;
           }

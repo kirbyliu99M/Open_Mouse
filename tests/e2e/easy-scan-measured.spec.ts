@@ -36,6 +36,19 @@ async function captureScans(
   return bodies;
 }
 
+/** The alpha of an element's computed background colour (1 when opaque). */
+async function backgroundAlpha(
+  locator: ReturnType<Page["locator"]>,
+): Promise<number> {
+  const color = await locator.evaluate(
+    (el) => getComputedStyle(el).backgroundColor,
+  );
+  const m = color.match(/rgba?\(([^)]*)\)/);
+  if (!m) throw new Error(`not an rgb colour: ${color}`);
+  const parts = m[1]!.split(/[\s,/]+/).filter(Boolean);
+  return parts.length === 4 ? Number(parts[3]) : 1;
+}
+
 const sheet = (page: Page) =>
   page.getByRole("dialog", { name: "Hand measured" });
 const gripPage = (page: Page) =>
@@ -303,7 +316,8 @@ test.describe("the palm-thickness page (2 of 2)", () => {
     await expect(dialog.getByRole("alert")).toContainText(
       "Something went wrong on our end",
     );
-    // The veil fades out again over the error and its retry (F13).
+    // The veil fades out again over the error and its retry (F13; still so
+    // with F23's opaque veil).
     await expect(dialog.getByTestId("submit-overlay")).toHaveCount(0);
     await expect(dialog.getByRole("radio", { name: /^Thin/ })).toBeChecked();
     await expect(
@@ -345,6 +359,12 @@ test.describe("the palm-thickness page (2 of 2)", () => {
     ).toBeDisabled();
     await expect(dialog.getByText(/Sending/)).toHaveCount(0);
     await expect(dialog.getByTestId("submit-overlay")).toBeVisible();
+    // V3.2 F23: the veil is the page itself (opaque, no fade in).
+    await expect(dialog.getByTestId("submit-overlay")).toHaveCSS(
+      "opacity",
+      "1",
+    );
+    expect(await backgroundAlpha(dialog.getByTestId("submit-overlay"))).toBe(1);
     await expect(dialog.getByRole("button", { name: "Skip" })).toBeDisabled();
     await expect(dialog.getByRole("button", { name: "Back" })).toBeDisabled();
     release();
@@ -357,6 +377,118 @@ test.describe("the palm-thickness page (2 of 2)", () => {
     await expect(page).toHaveURL(new RegExp(`/results/${SCAN_ID}`), {
       timeout: 30_000,
     });
+  });
+
+  test("one loader from the send to the results: the veil is opaque, and the results page's loader is there from its first frame at the same spot (F23)", async ({
+    page,
+  }) => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    await page.route("**/api/scans", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      await gate;
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({ scanId: SCAN_ID }),
+      });
+    });
+    // The fit never answers, so the results page stays on its loader.
+    await page.route(`**/api/scans/${SCAN_ID}/fit`, () => {});
+    await toThicknessPage(page, null);
+    const dialog = thicknessPage(page);
+    await dialog.getByRole("radio", { name: /^Medium/ }).check();
+    await dialog
+      .getByRole("button", { name: "See results", exact: true })
+      .click();
+    const veil = dialog.getByTestId("submit-overlay");
+    await expect(veil).toBeVisible();
+    // Opaque at once: the page colour at alpha 1, no fade in running.
+    expect(await backgroundAlpha(veil)).toBe(1);
+    await expect(veil).toHaveCSS("opacity", "1");
+    const veilCanvas = veil.locator(".particleLoader-canvas");
+    await expect(veilCanvas).toBeVisible();
+    const veilBox = (await veilCanvas.boundingBox())!;
+    expect(veilBox.width).toBeGreaterThan(0);
+
+    // Watch the results page arrive (a client navigation: this script stays):
+    // whether a pending (empty) loading screen or the 300 ms loader ever shows,
+    // and where the handed-over loader's canvas is when it first appears.
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __f23: {
+          sawPending: boolean;
+          sawLateLoader: boolean;
+          firstBox: {
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+          } | null;
+        };
+      };
+      w.__f23 = { sawPending: false, sawLateLoader: false, firstBox: null };
+      const check = () => {
+        if (document.querySelector(".results-page-pending"))
+          w.__f23.sawPending = true;
+        if (document.querySelector(".results-page-status"))
+          w.__f23.sawLateLoader = true;
+        const canvas = document.querySelector(
+          ".results-page-handoff .particleLoader-canvas",
+        );
+        if (canvas && !w.__f23.firstBox) {
+          const r = canvas.getBoundingClientRect();
+          w.__f23.firstBox = {
+            x: r.x,
+            y: r.y,
+            width: r.width,
+            height: r.height,
+          };
+        }
+      };
+      new MutationObserver(check).observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+      });
+    });
+    release();
+    await expect(page).toHaveURL(new RegExp(`/results/${SCAN_ID}`), {
+      timeout: 30_000,
+    });
+    const handed = page.locator(".results-page-handoff .particleLoader");
+    await expect(handed).toBeVisible();
+    await expect(handed.getByRole("status")).toHaveText("Matching");
+    const seen = await page.evaluate(
+      () =>
+        (
+          window as unknown as {
+            __f23: {
+              sawPending: boolean;
+              sawLateLoader: boolean;
+              firstBox: {
+                x: number;
+                y: number;
+                width: number;
+                height: number;
+              } | null;
+            };
+          }
+        ).__f23,
+    );
+    expect(seen.sawPending, "no empty loading screen first").toBe(false);
+    expect(seen.sawLateLoader, "not the 300 ms loader").toBe(false);
+    expect(seen.firstBox).not.toBeNull();
+    for (const key of ["x", "y", "width", "height"] as const)
+      expect(
+        Math.abs(seen.firstBox![key] - veilBox[key]),
+        `canvas ${key}: results ${seen.firstBox![key]} vs veil ${veilBox[key]}`,
+      ).toBeLessThanOrEqual(2);
+    // And it stays there.
+    const nowBox = (await handed
+      .locator(".particleLoader-canvas")
+      .boundingBox())!;
+    expect(Math.abs(nowBox.x - veilBox.x)).toBeLessThanOrEqual(2);
+    expect(Math.abs(nowBox.y - veilBox.y)).toBeLessThanOrEqual(2);
   });
 });
 

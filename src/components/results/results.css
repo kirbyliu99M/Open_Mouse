@@ -651,6 +651,23 @@
 .results-page-failedLoader .particleLoader-canvas {
   width: min(44vw, 10rem);
 }
+/* V3.2 F23 (candidate / 未拍板): the loader straight after the send, where the
+   send veil's was. The veil (src/client/scan/submit-overlay.css) centres the
+   canvas in the viewport (`position: fixed; inset: 0`, flex centre, no
+   padding); this does the same, so at the page switch the loader neither
+   moves nor changes size. No background: the page (`:root`) is `--bg`, the veil's
+   colour, and the top bar under it stays usable. */
+.results-page-handoff {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.results-page-handoff .results-page-handoffLoader {
+  padding: 0;
+}
 .resultsMain.results-entered {
   animation: results-enter 200ms ease-out;
 }
