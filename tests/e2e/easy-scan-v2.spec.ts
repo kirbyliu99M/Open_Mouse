@@ -7,6 +7,7 @@ import {
   expectNothingMeasuredShown,
 } from "./fixtures/confirm-frame";
 import { uploadGreyPhoto } from "./fixtures/slow-model";
+import { leavingRecords, leftWith, recordLeaving } from "./fixtures/leaving";
 
 /**
  * Scan v2 (docs/design/scan-v2-2026-09-30/README.md): the stage that never
@@ -431,7 +432,7 @@ test.describe("AC7: reduced motion", () => {
 });
 
 test.describe("AC5: only transform and opacity move", () => {
-  test("every property the scan flow animates or transitions is one of those two (one named exception)", async ({
+  test("every property the scan flow animates or transitions is one of those two (two named exceptions)", async ({
     page,
   }) => {
     await page.addInitScript(() => {
@@ -481,9 +482,15 @@ test.describe("AC5: only transform and opacity move", () => {
     console.log(
       `AC5 animated entries: ${JSON.stringify([...new Set(animated)])}`,
     );
-    // The one deliberate exception: the shutter ring's fill, a 96 px SVG circle
-    // (camera.css, unchanged from before this slice).
-    const allowed = new Set(["transform", "opacity", "stroke-dashoffset"]);
+    // The deliberate exceptions: the shutter ring's fill, a 96 px SVG circle
+    // (camera.css, unchanged from before this slice), and the cue's colour
+    // turning green (V3.2 motion pass #20: a colour, nothing moves).
+    const allowed = new Set([
+      "transform",
+      "opacity",
+      "stroke-dashoffset",
+      "background-color",
+    ]);
     expect(properties.filter((p) => !allowed.has(p))).toEqual([]);
     expect(properties).toContain("transform");
     expect(properties).toContain("opacity");
@@ -2139,10 +2146,13 @@ test.describe("F15: the adjustment that opens by itself on a measured photo", ()
     const sheet = page.getByRole("dialog", { name: "Retake needed" });
     await expect(sheet).toBeVisible({ timeout: 30_000 });
     await expect(adjust).toBeHidden();
-    await expect(page.locator("dialog.easyResultSheet")).not.toHaveAttribute(
-      "data-resumed",
-      "true",
-    );
+    // A new result rises as any arrival does (V3.2 motion pass #1: every
+    // arrival of the sheet slides in now; `data-resumed` is gone).
+    expect(
+      await page
+        .locator("dialog.easyResultSheet")
+        .evaluate((el) => getComputedStyle(el).animationName),
+    ).toBe("easySheetSlideIn");
     await expect(sheet.locator(".easySheetTitle")).toBeFocused();
   });
 });
@@ -2205,5 +2215,136 @@ test.describe("a wide screen: the adjustment and the measured sheet are centred 
       .boundingBox())!;
     expect(button.x).toBeGreaterThanOrEqual(s.x);
     expect(button.x + button.width).toBeLessThanOrEqual(s.x + s.width);
+  });
+});
+
+/**
+ * V3.2 motion pass (Kirby 2026-10-26 "閃現", candidate): nothing in the scan
+ * flow pops in or out. Each piece is recorded the moment it starts to leave
+ * (fixtures/leaving.ts), so the checks do not race the animations: how it
+ * goes (the token's duration, the way it came), that a native dialog is
+ * already closed, and that what leaves is inert.
+ */
+test.describe("V3.2 motion pass: the scan flow leaves the way it came", () => {
+  for (const motion of ["no-preference", "reduce"] as const) {
+    test(`with motion set to ${motion}: tip, cue, dock, adjustment, pill, sheet and the retaken photo all leave with their tokens`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion: motion });
+      const reduced = motion === "reduce";
+      const expectLeft = (
+        records: Awaited<ReturnType<typeof leavingRecords>>,
+        cls: string,
+        name: string,
+        duration: string,
+        open: boolean | null = null,
+      ) => {
+        const record = leftWith(records, cls);
+        expect(record, `${cls} left`).toBeDefined();
+        expect(
+          [record!.animationName, record!.animationDuration, record!.open],
+          cls,
+        ).toEqual(
+          reduced ? ["easyFadeOut", "0.12s", open] : [name, duration, open],
+        );
+      };
+      await recordLeaving(page);
+      await captureAndMeasure(page);
+      const before = await leavingRecords(page);
+      // #21: the first-run tip slides down, closed at once, over a fading scrim.
+      expectLeft(before, "easyTipSheet", "easySheetSlideOut", "0.24s", false);
+      expect(leftWith(before, "easyTipSheet")!.inert).toBe(true);
+      expectLeft(before, "easyTipScrim", "easyFadeOut", "0.24s");
+      // #3: the cue goes up and the dock down when the photo is taken.
+      expectLeft(before, "cameraCueWrap", "easyLiftOut", "0.15s");
+      expectLeft(before, "easyBottomDock", "easySinkOut", "0.15s");
+      expect(leftWith(before, "easyBottomDock")!.inert).toBe(true);
+      // #22: the adjustment that opened by itself (F15) fades out.
+      expectLeft(before, "paperAdjust", "easyFadeOut", "0.16s", false);
+      // #19: the 測量中… pill fades out once the measurement is in.
+      expectLeft(before, "easyProcessingPill", "easyFadeOut", "0.15s");
+
+      await page.getByRole("button", { name: "Retake photo" }).click();
+      await expect
+        .poll(async () =>
+          Boolean(leftWith(await leavingRecords(page), "easyPhotoLeaving")),
+        )
+        .toBe(true);
+      const after = await leavingRecords(page);
+      // #1: the sheet slides down instead of being unmounted.
+      expectLeft(after, "easyResultSheet", "easySheetSlideOut", "0.24s", false);
+      // #2: the photo stays where it was and fades out over the live picture.
+      expectLeft(after, "easyPhotoLeaving", "easyFadeOut", "0.22s");
+      // Both are gone once they have left.
+      await expect(page.locator(".easyPhotoLeaving")).toHaveCount(0);
+      await expect(page.locator("dialog.easyResultSheet")).toHaveCount(0);
+      // #3 and #2: the dock rises back in, and the live picture fades in.
+      expect(
+        await page.locator(".easyBottomDock").evaluate((el) => {
+          const style = getComputedStyle(el);
+          return [style.animationName, style.animationDuration];
+        }),
+      ).toEqual(reduced ? ["easyFadeIn", "0.12s"] : ["easyRiseIn", "0.22s"]);
+      expect(
+        await page
+          .locator(".easyStage video.cameraVideo")
+          .evaluate((el) => getComputedStyle(el).transitionDuration),
+      ).toBe(reduced ? "0.12s" : "0.22s");
+    });
+  }
+
+  test("#5: the hand-length step fades in and out, and the camera under it is usable at once", async ({
+    page,
+  }) => {
+    await recordLeaving(page);
+    await openLive(page);
+    await page
+      .locator(".easyBottomDock")
+      .getByRole("button", { name: "No paper? Use a ruler instead" })
+      .click();
+    const step = page.locator("section.easyLengthStep");
+    await expect(
+      page.getByRole("heading", { name: "Hand length" }),
+    ).toBeVisible();
+    expect(
+      await step.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return [style.animationName, style.animationDuration];
+      }),
+    ).toEqual(["easyFadeIn", "0.22s"]);
+    await page.getByRole("button", { name: "Back to camera" }).click();
+    await expect
+      .poll(async () =>
+        Boolean(leftWith(await leavingRecords(page), "easyLengthStep")),
+      )
+      .toBe(true);
+    const record = leftWith(await leavingRecords(page), "easyLengthStep")!;
+    expect([
+      record.animationName,
+      record.animationDuration,
+      record.inert,
+    ]).toEqual(["easyFadeOut", "0.22s", true]);
+    await expect(step).toHaveCount(0);
+    // Focus went back to the entry that opened it, as before.
+    await expect(
+      page
+        .locator(".easyBottomDock")
+        .getByRole("button", { name: "No paper? Use a ruler instead" }),
+    ).toBeFocused();
+  });
+
+  test("#20: the cue turns green over --motion-fast (a colour, the one named exception); at once under reduced motion", async ({
+    page,
+  }) => {
+    await openLive(page);
+    const cue = page.getByTestId("camera-cue");
+    const transition = () =>
+      cue.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return [style.transitionProperty, style.transitionDuration];
+      });
+    expect(await transition()).toEqual(["background-color", "0.15s"]);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    expect((await transition())[1]).toBe("0s");
   });
 });
