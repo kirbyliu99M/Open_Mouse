@@ -440,6 +440,7 @@ export function AccountView({
           data-leaving={confirm.leaving ? "true" : undefined}
           // Leaving: no second 刪除全部 (DELETE) during the fade.
           inert={confirm.leaving}
+          aria-hidden={confirm.leaving ? true : undefined}
           role="alertdialog"
           aria-labelledby="delete-all-title"
           aria-describedby="delete-all-body"

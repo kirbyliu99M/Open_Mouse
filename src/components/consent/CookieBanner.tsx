@@ -114,6 +114,7 @@ export function CookieBanner() {
       data-testid="cookie-banner"
       data-state={shown ? (entered ? "open" : "entering") : "closing"}
       inert={!shown}
+      aria-hidden={!shown ? true : undefined}
     >
       <div className="cookieBanner-inner">
         <div className="cookieBanner-text">

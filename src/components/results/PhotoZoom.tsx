@@ -441,6 +441,7 @@ function PhotoDialog({
       className="results-photoDialog"
       data-leaving={leaving ? "true" : undefined}
       inert={leaving}
+      aria-hidden={leaving ? true : undefined}
       aria-labelledby={captionId}
       aria-describedby={keysId}
       // Esc fades out too, rather than the browser's instant close.

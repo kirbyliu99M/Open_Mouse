@@ -21,7 +21,8 @@ import { RESULT_FEEDBACK_MIN_DWELL_MS } from "../../src/lib/results/resultFeedba
  *   - then no ancestor of <main> is inert, the body scrolls, a button on the
  *     page takes a click, and focus is on the documented target.
  * The photo and the share preview are also opened again during their leave:
- * they end open and usable.
+ * they end open and usable; and a double click on their close buttons
+ * presses nothing underneath (a leaving element swallows the second tap).
  *
  * The scan routes are stubbed (no database in e2e), as in results-back.spec.ts.
  * The account sheets need a signed-in user and are not covered here.
@@ -299,6 +300,61 @@ test.describe("motion: things leave, and the page is usable after", () => {
         FADE,
         () => preview.locator(".sharePreview-close").click(),
       );
+      await pageIsUsable(page, entry, entry);
+    });
+
+    // A leaving dialog swallows taps (inert, aria-hidden, still hit-tested):
+    // the second click of a double click lands on it and does nothing. With
+    // pointer-events: none it would fall through to the page underneath.
+    test("a double click on the photo's close button presses nothing underneath", async ({
+      page,
+    }) => {
+      const open = page.locator(".results-photoZoom-btn").first();
+      const dialog = page.locator("dialog.results-photoDialog");
+      const url = page.url();
+      const history = await page.evaluate(() => window.history.length);
+
+      await open.click();
+      await expect(dialog).toBeVisible();
+      await clearLeaving(page);
+      await dialog.locator(".results-photoDialog-close").dblclick();
+      await expect
+        .poll(() => sawLeaving(page, "dialog.results-photoDialog"))
+        .toBe(true);
+      await expect(dialog).toHaveCount(0, { timeout: FADE + 300 });
+      await page.waitForTimeout(300);
+      // Nothing under the button was pressed.
+      expect(page.url()).toBe(url);
+      expect(await page.evaluate(() => window.history.length)).toBe(history);
+      await expect(page.locator("dialog[open]")).toHaveCount(0);
+      await expect(page.getByTestId("share-preview")).toHaveCount(0);
+      await pageIsUsable(page, open, open);
+    });
+
+    test("a double click on the share preview's close button presses nothing underneath", async ({
+      page,
+    }) => {
+      const entry = page
+        .locator('[data-testid="share-card-button"]:visible')
+        .first();
+      const preview = page.getByTestId("share-preview");
+      const url = page.url();
+      const history = await page.evaluate(() => window.history.length);
+
+      await entry.click();
+      await expect(preview).toBeVisible();
+      await clearLeaving(page);
+      await preview.locator(".sharePreview-close").dblclick();
+      await expect
+        .poll(() => sawLeaving(page, '[data-testid="share-preview"]'))
+        .toBe(true);
+      await expect(preview).toHaveCount(0, { timeout: FADE + 300 });
+      await page.waitForTimeout(300);
+      // Not reopened by a share entry underneath, and no navigation.
+      await expect(preview).toHaveCount(0);
+      expect(page.url()).toBe(url);
+      expect(await page.evaluate(() => window.history.length)).toBe(history);
+      await expect(page.locator("dialog[open]")).toHaveCount(0);
       await pageIsUsable(page, entry, entry);
     });
 

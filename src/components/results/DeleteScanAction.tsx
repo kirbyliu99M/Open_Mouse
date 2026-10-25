@@ -109,6 +109,7 @@ export function DeleteScanAction({
           // On its way out it is already closed: out of the accessibility
           // tree and the tab order, as it was when it unmounted at once.
           inert={presence.leaving}
+          aria-hidden={presence.leaving ? true : undefined}
         >
           <div
             role="alertdialog"
@@ -118,6 +119,7 @@ export function DeleteScanAction({
             className="dialog"
             data-leaving={presence.leaving ? "true" : undefined}
             inert={presence.leaving}
+            aria-hidden={presence.leaving ? true : undefined}
           >
             <h2 id="delete-scan-title">{copy.title}</h2>
             <p id="delete-scan-body">{copy.body}</p>

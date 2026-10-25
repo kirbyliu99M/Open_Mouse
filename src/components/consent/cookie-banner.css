@@ -57,7 +57,6 @@
   opacity: 0;
 }
 .cookieBanner[data-state="closing"] {
-  pointer-events: none;
   transition:
     transform var(--motion-sheet-out) var(--ease-in),
     opacity var(--motion-sheet-out) var(--ease-in);

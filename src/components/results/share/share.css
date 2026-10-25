@@ -130,7 +130,6 @@
 }
 .sharePreview[data-leaving="true"] {
   opacity: 0;
-  pointer-events: none;
 }
 
 .sharePreview-panel {
