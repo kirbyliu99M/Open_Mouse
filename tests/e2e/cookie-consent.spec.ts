@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 // The cookie banner and GA4 need a measurement ID at build time, and the
 // default e2e server has none (analytics-off.spec.ts relies on that), so this
@@ -25,6 +25,17 @@ async function stubGoogle(page: Page): Promise<string[]> {
     });
   });
   return seen;
+}
+
+/**
+ * The strip comes up from the bottom edge (V3.2 motion pass #27): wait until
+ * it is in place, with its transition over, before measuring it.
+ */
+async function settled(banner: Locator): Promise<void> {
+  await expect(banner).toHaveAttribute("data-state", "open");
+  await banner.evaluate((el) =>
+    Promise.all(el.getAnimations().map((a) => a.finished)),
+  );
 }
 
 /** The gtag() calls so far, as plain arrays. */
@@ -65,7 +76,7 @@ test("an answer slides the banner down and fades it before it is removed", async
   await stubGoogle(page);
   await page.goto("/");
   const banner = page.getByTestId("cookie-banner");
-  await expect(banner).toHaveAttribute("data-state", "open");
+  await settled(banner);
   await banner.getByRole("button", { name: "Accept" }).click();
   // Still in the page, leaving: same text, no longer answerable.
   await expect(banner).toHaveAttribute("data-state", "closing");
@@ -78,6 +89,28 @@ test("an answer slides the banner down and fades it before it is removed", async
     )
     .toBeLessThan(1);
   await expect(banner).toHaveCount(0);
+});
+
+test("the banner comes up from the bottom edge the way it leaves, not in one frame", async ({
+  page,
+}) => {
+  await stubGoogle(page);
+  await page.goto("/");
+  const banner = page.getByTestId("cookie-banner");
+  // It is first drawn below the edge, then moves up by a transition.
+  await expect
+    .poll(async () => banner.getAttribute("data-state"), { intervals: [10] })
+    .toMatch(/entering|open/);
+  await settled(banner);
+  const rest = await banner.evaluate((el) => ({
+    transform: getComputedStyle(el).transform,
+    opacity: getComputedStyle(el).opacity,
+    bottom: el.getBoundingClientRect().bottom,
+    h: innerHeight,
+  }));
+  expect(rest.transform).toBe("none");
+  expect(rest.opacity).toBe("1");
+  expect(rest.bottom).toBe(rest.h);
 });
 
 test("Accept loads gtag with the ads signals denied and a redacted page_view, and survives a reload", async ({
@@ -294,6 +327,7 @@ for (const [name, width, height, sideBySide, maxHeight] of [
     await page.goto("/");
     const banner = page.getByTestId("cookie-banner");
     await expect(banner).toBeVisible();
+    await settled(banner);
     const m = await page.evaluate(() => {
       const box = (selector: string) => {
         const r = document.querySelector(selector)!.getBoundingClientRect();
@@ -413,6 +447,7 @@ test("opened on a short screen the banner scrolls inside itself and keeps the bu
   await page.setViewportSize({ width: 320, height: 480 });
   await page.goto("/");
   const banner = page.getByTestId("cookie-banner");
+  await settled(banner);
   await banner.getByRole("button", { name: "Details" }).click();
   const top = await banner.evaluate((el) => el.getBoundingClientRect().top);
   expect(top).toBeGreaterThanOrEqual(0);

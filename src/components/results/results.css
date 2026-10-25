@@ -958,10 +958,20 @@
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  animation: results-photoDialog-in 150ms ease-out;
+  animation: results-photoDialog-in var(--motion-fast) var(--ease-out);
 }
 .results-photoDialog::backdrop {
   background: transparent;
+}
+/* Closing (V3.2 motion pass #13, candidate / 未拍板): the photo and its dark
+   page fade out over --motion-out, the way they faded in; PhotoZoom keeps the
+   dialog open for leaveMs("fade") and then closes it. */
+.results-photoDialog {
+  transition: opacity var(--motion-out) var(--ease-in);
+}
+.results-photoDialog[data-leaving="true"] {
+  opacity: 0;
+  pointer-events: none;
 }
 .results-photoDialog-caption {
   position: absolute;
@@ -994,7 +1004,7 @@
   cursor: zoom-in;
   user-select: none;
   -webkit-user-select: none;
-  animation: results-photoDialog-in 150ms ease-out;
+  animation: results-photoDialog-in var(--motion-fast) var(--ease-out);
 }
 .results-photoDialog-area:focus {
   outline: none;
@@ -1620,9 +1630,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* A --motion-reduced fade in and out (the fade is already all it does). */
   .results-photoDialog[open],
   .results-photoDialog-area {
-    animation: none;
+    animation: results-photoDialog-in var(--motion-reduced) linear;
+  }
+  .results-photoDialog {
+    transition-duration: var(--motion-reduced);
   }
   .results-chevron {
     transition: none;

@@ -38,27 +38,39 @@
   /* Opened on a short screen the strip scrolls inside itself, never off-screen. */
   max-height: 70dvh;
   overflow-y: auto;
-  /* Leaving (Kirby, 2026-10-25: vanishing was not smooth): it slides back down
-     the way it sat and fades, on transform and opacity only, with an ease-out
-     that settles without bounce. CookieBanner.tsx keeps it mounted for the same
-     time (EXIT_MS). A reopen mid-exit runs the same transition back. */
+  /* Coming in and leaving are one transition, on transform and opacity only
+     (V3.2 motion pass #27, candidate / 未拍板): it is drawn below the edge
+     (data-state "entering"), comes up over --motion-sheet-in with the site's
+     ease-out, and after an answer goes back down the way it came over
+     --motion-sheet-out with the ease-in (Kirby, 2026-10-25: vanishing was not
+     smooth). CookieBanner.tsx keeps it mounted for leaveMs("sheet"). A
+     transition runs from where the strip is, so a reopen mid-exit turns it
+     back up from there. */
   transition:
-    transform 0.36s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+    transform var(--motion-sheet-in) var(--ease-out),
+    opacity var(--motion-sheet-in) var(--ease-out);
 }
 
+.cookieBanner[data-state="entering"],
 .cookieBanner[data-state="closing"] {
   transform: translateY(100%);
   opacity: 0;
+}
+.cookieBanner[data-state="closing"] {
   pointer-events: none;
+  transition:
+    transform var(--motion-sheet-out) var(--ease-in),
+    opacity var(--motion-sheet-out) var(--ease-in);
 }
 
 /* Reduced motion: a cross-fade, no slide (design-guidelines.md, Accessibility). */
 @media (prefers-reduced-motion: reduce) {
-  .cookieBanner {
-    transition: opacity 0.2s linear;
+  .cookieBanner,
+  .cookieBanner[data-state="closing"] {
+    transition: opacity var(--motion-reduced) linear;
   }
 
+  .cookieBanner[data-state="entering"],
   .cookieBanner[data-state="closing"] {
     transform: none;
   }

@@ -9,12 +9,11 @@ import {
   useConsentReopened,
 } from "@/client/consent/consent";
 import { useLocale } from "@/client/i18n/LocaleProvider";
+import { reducedMotionNow } from "@/components/motion/Presence";
 import { showsSiteFooter } from "@/components/SiteFooter";
 import { cookieConsentCopy } from "@/lib/copy/cookie-consent";
+import { leaveMs } from "@/lib/motion";
 import "./cookie-banner.css";
-
-/** How long the banner takes to leave; cookie-banner.css has the same time. */
-const EXIT_MS = 360;
 
 /**
  * The cookie question, for GA4 only: a quiet glass strip across the bottom, in
@@ -28,8 +27,11 @@ const EXIT_MS = 360;
  * (the camera, the print pages), and never when no GA4 ID is configured, since
  * there is then nothing to ask about. Ignoring the banner loads nothing: GA4
  * starts only on Accept. Neither answer is pre-selected. It does not take focus.
- * After an answer it slides down and fades out (EXIT_MS) instead of vanishing
- * (Kirby, 2026-10-25: it was not smooth), showing what it showed until gone.
+ * It comes in the way it leaves (V3.2 motion pass #27, candidate / 未拍板):
+ * up from the bottom edge with a fade over --motion-sheet-in, and after an
+ * answer back down over --motion-sheet-out (`leaveMs("sheet")`) instead of
+ * vanishing (Kirby, 2026-10-25: it was not smooth), showing what it showed
+ * until gone. Reduced motion: a --motion-reduced fade both ways.
  */
 export function CookieBanner() {
   const pathname = usePathname();
@@ -39,6 +41,11 @@ export function CookieBanner() {
   const [open, setOpen] = useState(false);
   const detailsId = useId();
   const [, drop] = useState(0);
+  // False for the first frames of a showing: the strip is drawn below the
+  // edge (data-state "entering") and then moves up, by the same transition
+  // that takes it down. A frame later is enough for the browser to have the
+  // start; two make sure it was painted.
+  const [entered, setEntered] = useState(false);
   // What the strip last showed, for the exit; null once it is gone.
   const last = useRef<{ consent: typeof consent; open: boolean } | null>(null);
   const shown =
@@ -54,12 +61,27 @@ export function CookieBanner() {
     }
     if (!last.current) return;
     // An answer was just given: keep the strip for the exit, then drop it.
-    const timer = window.setTimeout(() => {
-      last.current = null;
-      drop((n) => n + 1);
-    }, EXIT_MS);
+    const timer = window.setTimeout(
+      () => {
+        last.current = null;
+        setEntered(false);
+        drop((n) => n + 1);
+      },
+      leaveMs("sheet", reducedMotionNow()),
+    );
     return () => window.clearTimeout(timer);
   }, [shown, consent, open]);
+  useEffect(() => {
+    if (!shown || entered) return;
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => setEntered(true));
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
+  }, [shown, entered]);
   // Not shown and nothing to animate out: render nothing.
   if (!shown && !last.current) return null;
   // While it leaves it keeps the text and buttons of its last open state.
@@ -90,7 +112,7 @@ export function CookieBanner() {
       role="region"
       aria-label={copy.regionLabel}
       data-testid="cookie-banner"
-      data-state={shown ? "open" : "closing"}
+      data-state={shown ? (entered ? "open" : "entering") : "closing"}
       inert={!shown}
     >
       <div className="cookieBanner-inner">

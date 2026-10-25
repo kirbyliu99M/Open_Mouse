@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { usePresence } from "@/components/motion/Presence";
 import type { Locale } from "@/lib/contracts/locale";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
@@ -89,8 +90,24 @@ export function ShareCardButton({
   const latest = useRef({ fit, lang, pick, qrSize, qrStyle, onShareFinished });
   latest.current = { fit, lang, pick, qrSize, qrStyle, onShareFinished };
   const previewRef = useRef<SharePreview | null>(null);
+  // A close asked for focus back on the entry: given once the preview has
+  // faded out and its modal is closed (a control behind an open modal can
+  // not take focus).
+  const focusEntry = useRef(false);
 
   useEffect(() => () => previewRef.current?.dispose(), []);
+
+  const open = state.phase !== "closed";
+  // While it fades out it keeps showing what it showed last.
+  const shownState = useRef(state);
+  if (open) shownState.current = state;
+  // The preview fades out before it unmounts (V3.2 motion pass #9). Hooks
+  // stay above the early return below.
+  const presence = usePresence(open, "fade", () => {
+    if (!focusEntry.current) return;
+    focusEntry.current = false;
+    entryRef.current?.focus();
+  });
 
   const top = topPick(fit);
   if (top === null) return null;
@@ -103,7 +120,6 @@ export function ShareCardButton({
     : variant === "primary"
       ? copy.buttonPrimary
       : copy.buttonLink;
-  const open = state.phase !== "closed";
 
   function preview(): SharePreview {
     if (previewRef.current) return previewRef.current;
@@ -144,10 +160,11 @@ export function ShareCardButton({
       cache: cardCache,
       onChange: setState,
       onFinished: (outcome) => latest.current.onShareFinished?.(outcome),
-      // After React has removed the dialog: a control behind an open modal
-      // can not take focus.
+      // After the preview has faded out and React has removed the dialog
+      // (`usePresence`'s exit above): a control behind an open modal can not
+      // take focus.
       returnFocus: () => {
-        window.setTimeout(() => entryRef.current?.focus(), 0);
+        focusEntry.current = true;
       },
     });
     return previewRef.current;
@@ -191,10 +208,11 @@ export function ShareCardButton({
       {/* In <body>, not inside the top bar or the hero: their styles stay
           out of the preview. Only rendered after a click, so never on the
           server. */}
-      {open && typeof document !== "undefined"
+      {presence.mounted && typeof document !== "undefined"
         ? createPortal(
             <SharePreviewDialog
-              state={state}
+              state={open ? state : shownState.current}
+              leaving={presence.leaving}
               copy={copy}
               onClose={() => previewRef.current?.close()}
               onShare={() => void previewRef.current?.share()}

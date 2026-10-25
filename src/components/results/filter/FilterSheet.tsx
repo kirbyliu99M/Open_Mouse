@@ -22,11 +22,10 @@ import {
 } from "@/lib/results/filters";
 import { FilterFacets } from "./FilterFacets";
 import { FilterStatus } from "./FilterStatus";
+import { leaveMs } from "@/lib/motion";
 import { prefersReducedMotion } from "./useWideLayout";
 import "./filter.css";
 
-/** How long the slide-down takes; also the longest the close waits for it. */
-const CLOSE_MS = 240;
 /** Past this share of the sheet's height, or this speed (px per ms), letting go closes it. */
 const DRAG_CLOSE_SHARE = 0.3;
 const DRAG_CLOSE_SPEED = 0.6;
@@ -88,18 +87,17 @@ export function FilterSheet({
     onClosed();
   }, [onClosed]);
 
-  /** Close with the slide-down (at once with reduced motion). */
+  /**
+   * Close with the slide-down; with reduced motion a --motion-reduced fade
+   * (V3.2 motion pass #30: it used to vanish at once).
+   */
   const requestClose = useCallback(
     (apply: boolean) => {
       if (closing.current) return;
       closing.current = true;
       if (apply) onApply(closeSheet(state, true));
-      if (prefersReducedMotion()) {
-        finish();
-        return;
-      }
       setLeaving(true);
-      window.setTimeout(finish, CLOSE_MS);
+      window.setTimeout(finish, leaveMs("sheet", prefersReducedMotion()));
     },
     [finish, onApply, state],
   );
@@ -149,8 +147,8 @@ export function FilterSheet({
         (d.dy > 24 && speed > DRAG_CLOSE_SPEED));
     sheet.style.transition = "";
     if (leave) {
-      // Carry on down from where the finger let go.
-      sheet.style.transform = "translateY(100%)";
+      // Carry on down from where the finger let go (a fade, with reduced motion).
+      sheet.style.transform = prefersReducedMotion() ? "" : "translateY(100%)";
       requestClose(false);
     } else {
       // Back up from where the finger let go: the transition runs from the

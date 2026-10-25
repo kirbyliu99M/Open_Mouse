@@ -9,6 +9,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { useLeaveThenClose } from "@/components/motion/Presence";
 import {
   createScrimPress,
   lockModal,
@@ -173,6 +174,12 @@ function PhotoDialog({
   // Set by a pointerup that ended a clean press on the scrim; the click that
   // follows it does the closing, so nothing underneath receives that click.
   const scrimClick = useRef(false);
+  // Every way out (the close button, the scrim, Esc) fades the dialog out
+  // first (V3.2 motion pass #13): `close()` runs after leaveMs("fade").
+  const { leaving, requestClose } = useLeaveThenClose(
+    () => dialogRef.current?.close(),
+    "fade",
+  );
 
   const flush = useCallback(() => {
     frame.current = 0;
@@ -419,8 +426,14 @@ function PhotoDialog({
     <dialog
       ref={dialogRef}
       className="results-photoDialog"
+      data-leaving={leaving ? "true" : undefined}
       aria-labelledby={captionId}
       aria-describedby={keysId}
+      // Esc fades out too, rather than the browser's instant close.
+      onCancel={(event) => {
+        event.preventDefault();
+        requestClose();
+      }}
       // A close event that arrives while the dialog is open again (StrictMode's
       // second mount) or after unmount is not a close.
       onClose={() => {
@@ -451,7 +464,7 @@ function PhotoDialog({
         const close = scrimClick.current;
         scrimClick.current = false;
         if (close && event.target === event.currentTarget) {
-          dialogRef.current?.close();
+          requestClose();
         }
       }}
     >
@@ -465,7 +478,7 @@ function PhotoDialog({
         type="button"
         className="results-photoDialog-close"
         aria-label={copy.close}
-        onClick={() => dialogRef.current?.close()}
+        onClick={requestClose}
       >
         <svg
           viewBox="0 0 20 20"

@@ -14,12 +14,18 @@ import { onPreviewCancel, type SharePreviewState } from "./sharePreview";
  */
 export function SharePreviewDialog({
   state,
+  leaving = false,
   copy,
   onClose,
   onShare,
   onDownload,
 }: {
   state: SharePreviewState;
+  /**
+   * On its way out (V3.2 motion pass #9): the owner keeps it mounted, and
+   * open, for leaveMs("fade") while it fades.
+   */
+  leaving?: boolean;
   copy: ShareCardCopy;
   onClose: () => void;
   onShare: () => void;
@@ -54,6 +60,7 @@ export function SharePreviewDialog({
       aria-modal="true"
       aria-labelledby={titleId}
       data-testid="share-preview"
+      data-leaving={leaving ? "true" : undefined}
       onCancel={(event) => onPreviewCancel(event, { close: onClose })}
       // Closed some other way (a form, the browser): tell the owner, unless it
       // is our own unmount or StrictMode's second mount (see `lockModal`).
