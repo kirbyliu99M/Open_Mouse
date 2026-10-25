@@ -483,6 +483,7 @@ export function PaperAdjust({
       data-entry={entry}
       data-leaving={leaving ? "true" : undefined}
       inert={leaving}
+      aria-hidden={leaving || undefined}
       onCancel={(e) => {
         e.preventDefault();
         if (leaving) return;

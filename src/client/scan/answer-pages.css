@@ -39,6 +39,15 @@
   pointer-events: none;
   animation: answerFadeOut var(--motion-base) var(--ease-in) forwards;
 }
+/* The box the two pages swap in (EasyScanCamera.tsx): the swap slides a page
+   24 px sideways, and a transform counts towards what a scroller can scroll.
+   Clipped here along x only (clip makes no scroller), so the dialog never
+   gains a horizontal scroll from it; the page's height is not clipped, and
+   the page's min-height: 100% still fills the dialog. */
+.answerSwap {
+  height: 100%;
+  overflow-x: clip;
+}
 @keyframes answerFadeIn {
   from {
     opacity: 0;

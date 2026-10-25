@@ -145,5 +145,14 @@ export function useAnswerPageSwap(
     });
   });
 
-  return swap;
+  // The page's slide-in, ended where it rests (a send starts: the F23 veil
+  // inside the page is fixed to the viewport only without a transform).
+  const finish = useCallback(() => {
+    const page = pageIn(rootRef.current);
+    if (!page) return;
+    for (const a of page.getAnimations())
+      if (a.playState === "running") a.finish();
+  }, [rootRef]);
+
+  return { swap, finish };
 }

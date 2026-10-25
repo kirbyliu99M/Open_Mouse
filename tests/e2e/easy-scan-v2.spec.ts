@@ -2394,8 +2394,19 @@ test.describe("V3.2 motion pass: interrupted transitions end usable", () => {
   test("retake tapped twice fast: the second tap falls through the leaving sheet, and the camera comes back once", async ({
     page,
   }) => {
+    // Fix round 2: the second tap lands where the sheet was, after the sheet
+    // has let go of the pointer. On the dev server that spot can be the
+    // Next.js dev tools button (bottom left, `nextjs-portal`, not part of the
+    // product); a tap there opened its panel, which then covered the shutter
+    // (the first run's 30 s timeout). It is hidden here, and an error the page
+    // throws fails the test by name.
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
     await armManualFreeze(page);
     const { sheet } = await captureAndMeasure(page);
+    await page.addStyleTag({
+      content: "nextjs-portal { display: none !important; }",
+    });
     await page.waitForTimeout(400); // the sheet has risen
     const retake = sheet.getByRole("button", { name: "Retake photo" });
     const b = (await retake.boundingBox())!;
@@ -2403,15 +2414,28 @@ test.describe("V3.2 motion pass: interrupted transitions end usable", () => {
     const y = b.y + b.height / 2;
     await page.mouse.click(x, y);
     await freezeNow(page); // no new photo is taken by itself meanwhile
-    // Still inside the 240 ms slide-out: the sheet is inert and lets the tap
-    // through to the stage (a tap to focus at most), so no second retake.
+    // Still inside the 240 ms slide-out: the leaving sheet is inert and takes
+    // no pointer, so the tap reaches what is under it (the camera screen
+    // coming back), never a second retake.
+    const under = await page.evaluate(
+      ([px, py]) =>
+        Boolean(
+          document.elementFromPoint(px, py)?.closest("dialog.easyResultSheet"),
+        ),
+      [x, y] as const,
+    );
+    expect(under, "the leaving sheet takes the second tap").toBe(false);
     await page.mouse.click(x, y);
     await expect(
       page.locator(".easyStage video.cameraVideo.ready"),
-    ).toBeVisible({
-      timeout: 20_000,
-    });
+    ).toBeVisible({ timeout: 20_000 });
+    // The tap may have landed on the dock's paper-size pill or the
+    // manual-entry strip coming back; close what it opened, if anything.
+    if (await page.getByTestId("manual-entry-sheet").isVisible())
+      await page.keyboard.press("Escape");
+    await expect(page.getByTestId("manual-entry-sheet")).toHaveCount(0);
     await cameraUsable(page);
+    expect(errors).toEqual([]);
   });
 
   test("retake during the result sheet's rise: it slides back down from where it was, and the camera comes back", async ({

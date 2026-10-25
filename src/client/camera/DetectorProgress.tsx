@@ -92,6 +92,7 @@ export function DetectorProgress({ inert = false }: { inert?: boolean }) {
       data-leaving={loading.leaving ? "true" : undefined}
       tabIndex={-1}
       inert={inert || loading.leaving}
+      aria-hidden={loading.leaving || undefined}
     >
       <div
         className="easyDetectorBar"

@@ -485,6 +485,48 @@ describe("the wiring (source pins)", () => {
       expect(camera).toContain(line);
   });
 
+  it("every leaving copy is out of the accessibility tree, not only inert (e2e round: Playwright saw two 'Edit hand length' buttons)", () => {
+    const leaving = [
+      "answersLeave",
+      "lengthLeave",
+      "liveChromeLeave",
+      "measuringLeave",
+      "sheetLeave",
+      "tipLeave",
+    ];
+    for (const name of leaving) {
+      const inerts = camera.split(`inert={${name}.leaving}`).length - 1;
+      const hidden =
+        camera.split(`aria-hidden={${name}.leaving || undefined}`).length - 1;
+      expect(inerts, name).toBeGreaterThan(0);
+      expect(hidden, name).toBe(inerts);
+    }
+    expect(source("src/client/camera/PaperAdjust.tsx")).toContain(
+      "aria-hidden={leaving || undefined}",
+    );
+    expect(source("src/client/camera/DetectorProgress.tsx")).toContain(
+      "aria-hidden={loading.leaving || undefined}",
+    );
+  });
+
+  it("the pages swap inside a box that clips the slide sideways only, so the dialog never scrolls sideways (e2e round: short screens)", () => {
+    expect(camera).toContain('<div className="answerSwap">');
+    expect(answerCss).toMatch(
+      /\.answerSwap \{\s*height: 100%;\s*overflow-x: clip;\s*\}/,
+    );
+  });
+
+  it("a send first ends a page still sliding in (the F23 veil is fixed to the viewport only without a transform)", () => {
+    const send = camera.slice(
+      camera.indexOf("const sendScan = useCallback("),
+      camera.indexOf(
+        "if (manualValues) {",
+        camera.indexOf("const sendScan = useCallback("),
+      ),
+    );
+    expect(send).toContain("finishAnswerPageSwap();");
+  });
+
   it("the answer dialog's own close (to fade out) is not taken as a Back", () => {
     expect(camera).toContain(
       'if (e.currentTarget.dataset.leaving === "true") return;',
