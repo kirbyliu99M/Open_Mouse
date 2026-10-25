@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 /**
  * V3.2 motion pass (candidate / 未拍板): a record of every piece of the scan
@@ -83,4 +83,15 @@ export function leftWith(
   cls: string,
 ): LeavingRecord | undefined {
   return records.find((r) => r.className.split(/\s+/).includes(cls));
+}
+
+/**
+ * Fix round (review item 8): an interrupted transition must not leave
+ * anything behind. Once it has played out, nothing is still marked leaving
+ * and nothing is still inert (nothing in the scan flow is inert at rest: the
+ * modal dialogs make the page inert without the attribute).
+ */
+export async function expectSettled(page: Page): Promise<void> {
+  await expect(page.locator("[data-leaving]")).toHaveCount(0);
+  await expect(page.locator("[inert]")).toHaveCount(0);
 }

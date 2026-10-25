@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { expectSettled } from "./fixtures/leaving";
 
 /**
  * `/scan/easy/measured-demo` mounts the real EasyScanCamera against a
@@ -1074,5 +1075,99 @@ test.describe("the typed-length path stores the length only after the scan was s
       .click();
     await expect(thicknessPage(page).getByRole("alert")).toBeVisible();
     expect(await lengthKeys(page)).toEqual([]);
+  });
+});
+
+/**
+ * Fix round (review item 8): the question pages interrupted part-way. Each
+ * ends with nothing left marked leaving, nothing stray inert, and the next
+ * control usable.
+ */
+test.describe("V3.2 motion pass: interrupted question pages end usable", () => {
+  test("返回 (Esc) during the grip → thickness swap: the dialog fades out, the page does not flash back, and Continue opens the grip page whole again", async ({
+    page,
+  }) => {
+    await openGripPage(page);
+    await gripPage(page).getByRole("radio", { name: /^Palm/ }).check();
+    await gripPage(page).getByRole("button", { name: "Confirm" }).click();
+    // Inside the 160 ms fade-out of the grip page (its buttons are inert
+    // then; Esc reaches the dialog itself).
+    await page.keyboard.press("Escape");
+    await expect(sheet(page)).toBeVisible();
+    await expect(page.locator("dialog.answerDialog")).toHaveCount(0);
+    await expectSettled(page);
+    const continueButton = sheet(page).getByRole("button", {
+      name: "Continue",
+    });
+    await expect(continueButton).toBeFocused();
+    await continueButton.click();
+    await expect(gripPage(page)).toBeVisible();
+    // Not the swap's leftover: the grip page, at full opacity, answer kept.
+    await expect(
+      gripPage(page).getByRole("radio", { name: /^Palm/ }),
+    ).toBeChecked();
+    await page.waitForTimeout(400);
+    expect(
+      await page
+        .locator(".answerPage")
+        .evaluate((el) => getComputedStyle(el).opacity),
+    ).toBe("1");
+    await expectSettled(page);
+    await gripPage(page).getByRole("button", { name: "Confirm" }).click();
+    await expect(thicknessPage(page)).toBeVisible();
+  });
+
+  test("送出 pressed within 160 ms of 返回 on the thickness page: nothing is sent, and the grip page comes up usable (review item 2)", async ({
+    page,
+  }) => {
+    // The behaviour chosen: the thickness page is inert while it fades out,
+    // so the press lands on nothing; 返回 completes. (Not: send and stay.)
+    const bodies = await captureScans(page);
+    await toThicknessPage(page, "Claw");
+    await thicknessPage(page)
+      .getByRole("radio", { name: /^Medium/ })
+      .check();
+    const send = thicknessPage(page).getByRole("button", {
+      name: "See results",
+      exact: true,
+    });
+    await expect(send).toBeEnabled();
+    const b = (await send.boundingBox())!;
+    await thicknessPage(page).getByRole("button", { name: "Back" }).click();
+    await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+    await expect(gripPage(page)).toBeVisible();
+    await page.waitForTimeout(400);
+    expect(bodies).toHaveLength(0);
+    await expect(page.getByTestId("submit-overlay")).toHaveCount(0);
+    await expectSettled(page);
+    await expect(
+      gripPage(page).getByRole("radio", { name: /^Claw/ }),
+    ).toBeChecked();
+    // Forward again and send: it goes.
+    await gripPage(page).getByRole("button", { name: "Confirm" }).click();
+    await thicknessPage(page)
+      .getByRole("radio", { name: /^Medium/ })
+      .check();
+    await thicknessPage(page)
+      .getByRole("button", { name: "See results", exact: true })
+      .click();
+    await expect.poll(() => bodies.length).toBe(1);
+  });
+
+  test("返回 pressed twice during one thickness → grip swap is one step back, not two", async ({
+    page,
+  }) => {
+    await toThicknessPage(page, "Claw");
+    await thicknessPage(page).getByRole("button", { name: "Back" }).click();
+    // Esc inside the fade: the same 返回 again (a later swap wins, and it is
+    // dropped if the page has already changed).
+    await page.keyboard.press("Escape");
+    await expect(gripPage(page)).toBeVisible();
+    await page.waitForTimeout(400);
+    await expect(gripPage(page)).toBeVisible();
+    await expect(sheet(page)).toBeHidden();
+    await expectSettled(page);
+    await gripPage(page).getByRole("button", { name: "Confirm" }).click();
+    await expect(thicknessPage(page)).toBeVisible();
   });
 });

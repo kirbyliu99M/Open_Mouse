@@ -7,7 +7,12 @@ import {
   expectNothingMeasuredShown,
 } from "./fixtures/confirm-frame";
 import { uploadGreyPhoto } from "./fixtures/slow-model";
-import { leavingRecords, leftWith, recordLeaving } from "./fixtures/leaving";
+import {
+  expectSettled,
+  leavingRecords,
+  leftWith,
+  recordLeaving,
+} from "./fixtures/leaving";
 
 /**
  * Scan v2 (docs/design/scan-v2-2026-09-30/README.md): the stage that never
@@ -441,8 +446,14 @@ test.describe("AC5: only transform and opacity move", () => {
       addEventListener(
         "transitionrun",
         (event) => {
+          const property = (event as TransitionEvent).propertyName;
+          // The cue's colour is allowed on the cue alone (V3.2 motion pass
+          // #20): anywhere else a background-color transition still fails.
+          const onCue =
+            property === "background-color" &&
+            (event.target as Element).classList?.contains("cameraCue");
           w.__animated!.push(
-            `transition:${(event as TransitionEvent).propertyName}`,
+            `transition:${onCue ? "cue-background-color" : property}`,
           );
         },
         true,
@@ -489,7 +500,7 @@ test.describe("AC5: only transform and opacity move", () => {
       "transform",
       "opacity",
       "stroke-dashoffset",
-      "background-color",
+      "cue-background-color",
     ]);
     expect(properties.filter((p) => !allowed.has(p))).toEqual([]);
     expect(properties).toContain("transform");
@@ -2346,5 +2357,143 @@ test.describe("V3.2 motion pass: the scan flow leaves the way it came", () => {
     expect(await transition()).toEqual(["background-color", "0.15s"]);
     await page.emulateMedia({ reducedMotion: "reduce" });
     expect((await transition())[1]).toBe("0s");
+  });
+});
+
+/**
+ * Fix round (review item 8): transitions interrupted part-way. Each ends with
+ * nothing left marked leaving, nothing stray inert, and the next control
+ * usable.
+ */
+test.describe("V3.2 motion pass: interrupted transitions end usable", () => {
+  // The frame wrapper of fixtures/freeze-loop.ts, armed on nothing: the test
+  // stops the loop itself right after the retake, so the auto-shutter cannot
+  // take a new photo while the end state is read. (Nothing checked here runs
+  // on frames: the leaves are CSS animations timed by setTimeout.)
+  const armManualFreeze = (page: Page) =>
+    installLoopFreeze(page, { selector: "[data-never-matches]", count: 1 });
+  const freezeNow = (page: Page) =>
+    page.evaluate(() => {
+      (window as Window & { __loopFrozen?: boolean }).__loopFrozen = true;
+    });
+
+  /** The camera is back and its shutter can be pressed. */
+  async function cameraUsable(page: Page) {
+    await expect(page.locator(".easyStage")).toHaveAttribute(
+      "data-phase",
+      "none",
+    );
+    await expect(page.locator("dialog.easyResultSheet")).toHaveCount(0);
+    await expect(page.locator(".easyPhotoLeaving")).toHaveCount(0);
+    await expectSettled(page);
+    await page
+      .getByRole("button", { name: "Take photo" })
+      .click({ trial: true });
+  }
+
+  test("retake tapped twice fast: the second tap falls through the leaving sheet, and the camera comes back once", async ({
+    page,
+  }) => {
+    await armManualFreeze(page);
+    const { sheet } = await captureAndMeasure(page);
+    await page.waitForTimeout(400); // the sheet has risen
+    const retake = sheet.getByRole("button", { name: "Retake photo" });
+    const b = (await retake.boundingBox())!;
+    const x = b.x + b.width / 2;
+    const y = b.y + b.height / 2;
+    await page.mouse.click(x, y);
+    await freezeNow(page); // no new photo is taken by itself meanwhile
+    // Still inside the 240 ms slide-out: the sheet is inert and lets the tap
+    // through to the stage (a tap to focus at most), so no second retake.
+    await page.mouse.click(x, y);
+    await expect(
+      page.locator(".easyStage video.cameraVideo.ready"),
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+    await cameraUsable(page);
+  });
+
+  test("retake during the result sheet's rise: it slides back down from where it was, and the camera comes back", async ({
+    page,
+  }) => {
+    await holdPipeline(page);
+    await armManualFreeze(page);
+    await openLive(page);
+    await expect(page.locator(".easyStage")).toHaveAttribute(
+      "data-phase",
+      "processing",
+      { timeout: 20_000 },
+    );
+    await release(page);
+    await confirmAutoFrame(page);
+    // The moment the sheet is open (polled every frame), while it still rises.
+    const handle = await page.waitForFunction(() => {
+      const sheet = document.querySelector<HTMLDialogElement>(
+        "dialog.easyResultSheet[open]",
+      );
+      if (!sheet) return false;
+      const rising = sheet
+        .getAnimations()
+        .some((a) => a.playState === "running");
+      sheet.querySelector<HTMLButtonElement>(".easyRetakeButton")!.click();
+      (window as Window & { __loopFrozen?: boolean }).__loopFrozen = true;
+      return { rising };
+    });
+    expect(await handle.jsonValue()).toEqual({ rising: true });
+    await expect(
+      page.locator(".easyStage video.cameraVideo.ready"),
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+    await cameraUsable(page);
+  });
+
+  test("the adjustment cancelled and opened again within its 160 ms fade-out ends open and usable (review item 1)", async ({
+    page,
+  }) => {
+    await openLive(page);
+    // A frame placed by hand that is then turned back on the hand: the failure
+    // sheet offers the adjustment (rescue) with no adjustment open by itself.
+    const adjust = page.getByTestId("paper-adjust");
+    await expect(adjust).toBeVisible({ timeout: 20_000 });
+    await page.evaluate(() => {
+      (
+        window as Window & { __easyScanLiveResult?: string }
+      ).__easyScanLiveResult = "retake";
+    });
+    await page.getByTestId("paper-adjust-handle-0").focus();
+    await page.keyboard.press("Shift+ArrowRight");
+    await page.getByTestId("paper-adjust-confirm").click();
+    const failure = page.getByRole("dialog", { name: "Retake needed" });
+    await expect(failure).toBeVisible({ timeout: 20_000 });
+    await failure.getByTestId("adjust-frame-entry").click();
+    await expect(adjust).toBeVisible();
+    await expect(adjust).toHaveAttribute("data-entry", "rescue");
+    // Cancel, and 60 ms later (inside the fade) open it again from the sheet.
+    await page.evaluate(async () => {
+      document
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="paper-adjust-cancel"]',
+        )!
+        .click();
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      document
+        .querySelector<HTMLButtonElement>('[data-testid="adjust-frame-entry"]')!
+        .click();
+    });
+    await expectSettled(page);
+    await expect(page.locator("dialog.paperAdjust")).toHaveCount(1);
+    expect(
+      await page
+        .locator("dialog.paperAdjust")
+        .evaluate((el) => (el as HTMLDialogElement).open),
+    ).toBe(true);
+    await expect(adjust).toBeVisible();
+    await expect(page.locator("#paper-adjust-title")).toBeFocused();
+    // Usable: a corner moves with the keys, and confirm can be pressed.
+    await page.getByTestId("paper-adjust-handle-0").focus();
+    await page.keyboard.press("Shift+ArrowRight");
+    await page.getByTestId("paper-adjust-confirm").click({ trial: true });
   });
 });
