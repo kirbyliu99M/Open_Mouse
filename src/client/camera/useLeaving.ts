@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  leavingAfter,
+  leavingTimedOut,
+  leavingView,
+  type LeavingState,
+} from "./scanMotion";
 
 /**
  * Keeps something on screen while it leaves (V3.2 motion pass, candidate /
@@ -12,9 +18,12 @@ import { useEffect, useRef, useState } from "react";
  *   made inert, so nothing under it is blocked and nothing reads it).
  *
  * Interruptible: a `value` that comes back while the old one is leaving
- * replaces it at once (`leaving` goes back to false, the timer is dropped).
+ * replaces it at once (`leaving` goes back to false, the timer is dropped; a
+ * later leave gets its whole time again). The caller makes the piece usable
+ * again: each dialog's effect opens it when it is wanted and not open.
  * Only presence matters, not identity, so a `value` built anew on every
- * render (an object of props) does not restart anything.
+ * render (an object of props) does not restart anything. The rules are the
+ * pure `leavingAfter`, `leavingTimedOut` and `leavingView` (scanMotion.ts).
  */
 export function useLeaving<T>(
   value: T | null,
@@ -26,26 +35,24 @@ export function useLeaving<T>(
   // same render returned.
   const lastRef = useRef<T | null>(value);
   if (present) lastRef.current = value;
-  const [wasPresent, setWasPresent] = useState(present);
-  const [leavingState, setLeavingState] = useState(false);
+  const [state, setState] = useState<LeavingState>({
+    wasPresent: present,
+    leaving: false,
+  });
   // A change of presence updates the state in this render (React's "state
   // derived from props" pattern), so the first frame of the leave is already
   // painted with the element kept.
-  if (present !== wasPresent) {
-    setWasPresent(present);
-    setLeavingState(!present);
-  }
-  const leaving =
-    !present &&
-    (leavingState || present !== wasPresent) &&
-    lastRef.current !== null;
+  const next = leavingAfter(state, present);
+  if (next !== state) setState(next);
 
   useEffect(() => {
-    if (!leavingState) return;
-    const timer = window.setTimeout(() => setLeavingState(false), ms);
+    if (!state.leaving) return;
+    const timer = window.setTimeout(
+      () => setState((s) => leavingTimedOut(s)),
+      ms,
+    );
     return () => window.clearTimeout(timer);
-  }, [leavingState, ms]);
+  }, [state.leaving, ms]);
 
-  if (present) return { shown: value, leaving: false };
-  return { shown: leaving ? lastRef.current : null, leaving };
+  return leavingView(value, next, lastRef.current);
 }

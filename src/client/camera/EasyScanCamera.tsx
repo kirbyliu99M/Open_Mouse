@@ -876,12 +876,22 @@ export default function EasyScanCamera({
   );
   // #22: the paper adjustment fades out (--motion-out) over the sheet coming
   // back, with the props it had (its key included, so it is not remounted).
+  // Each opening has a key of its own (fix round, review item 1): opened again
+  // during that fade, it is a new screen that opens as any does (showModal,
+  // focus on its title, the frame as it opens), not the closed one that was
+  // leaving. `adjustOpenings` counts the openings (state derived in render).
+  const [adjustOpenings, setAdjustOpenings] = useState({ open: false, n: 0 });
+  if ((adjustOpen !== null) !== adjustOpenings.open)
+    setAdjustOpenings((prev) => ({
+      open: adjustOpen !== null,
+      n: adjustOpen !== null ? prev.n + 1 : prev.n,
+    }));
   const adjustLeave = useLeaving(
     adjustOpen &&
       (result.kind === "measured" || result.kind === "gateFailure") &&
       result.overlay
       ? {
-          key: `${adjustOpen}:${result.previewUrl}`,
+          key: `${adjustOpen}:${result.previewUrl}:${adjustOpenings.n}`,
           entry: adjustOpen,
           overlay: result.overlay,
           previous:
@@ -932,6 +942,14 @@ export default function EasyScanCamera({
     );
   }, []);
   const swapAnswerPage = useAnswerPageSwap(answerDialogRef, reducedMotion);
+  // What a page swap checks once its old page has faded (fix round, review
+  // item 2): still on the page it was pressed on, and nothing being sent.
+  const answersStepRef = useRef(answers.step);
+  answersStepRef.current = answers.step;
+  const submitBusyRef = useRef(submitBusy);
+  submitBusyRef.current = submitBusy;
+  const stillOnPage = (step: "grip" | "thickness") => () =>
+    answersStepRef.current === step && !submitBusyRef.current;
 
   // The measured / gate-failure bottom sheet: a native <dialog> for the
   // focus trap + Escape handling, opened the moment the pipeline settles
@@ -2646,8 +2664,11 @@ export default function EasyScanCamera({
   // page leaves the dialog, which fades.
   const answersShownStep = answersLeave.shown;
   const backFromPage = () => {
-    if (answers.step === "thickness") swapAnswerPage(-1, backFromAnswers);
-    else backFromAnswers();
+    if (answers.step === "thickness") {
+      // 返回 is off while the scan is being sent (backEnabled: !busy).
+      if (submitBusy) return;
+      swapAnswerPage(-1, backFromAnswers, stillOnPage("thickness"));
+    } else backFromAnswers();
   };
   const answersDialog = answersShownStep ? (
     <dialog
@@ -2686,10 +2707,18 @@ export default function EasyScanCamera({
           value={answers.grip}
           onChange={(grip) => dispatchAnswers({ type: "chooseGrip", grip })}
           onConfirm={() =>
-            swapAnswerPage(1, () => dispatchAnswers({ type: "confirmGrip" }))
+            swapAnswerPage(
+              1,
+              () => dispatchAnswers({ type: "confirmGrip" }),
+              stillOnPage("grip"),
+            )
           }
           onSkip={() =>
-            swapAnswerPage(1, () => dispatchAnswers({ type: "skipGrip" }))
+            swapAnswerPage(
+              1,
+              () => dispatchAnswers({ type: "skipGrip" }),
+              stillOnPage("grip"),
+            )
           }
           onBack={backFromPage}
           required={manualMode}

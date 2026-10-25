@@ -1,10 +1,15 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
-  answerPageDirection,
   answerPageSwap,
   closeAsIfRemoved,
   fadeMs,
+  leavingAfter,
+  leavingTimedOut,
+  leavingView,
+  pageSwapKeyframes,
+  settleSwap,
+  type LeavingState,
 } from "../../src/client/camera/scanMotion";
 import { MOTION } from "../../src/lib/motion";
 
@@ -22,17 +27,6 @@ describe("fadeMs", () => {
     expect(fadeMs("out", false)).toBe(MOTION.OUT_MS);
     for (const kind of ["fast", "base", "out"] as const)
       expect(fadeMs(kind, true)).toBe(MOTION.REDUCED_MS);
-  });
-});
-
-describe("answerPageDirection", () => {
-  it("forward from grip to thickness, back the other way, none otherwise", () => {
-    expect(answerPageDirection("grip", "thickness")).toBe(1);
-    expect(answerPageDirection("thickness", "grip")).toBe(-1);
-    expect(answerPageDirection("grip", "grip")).toBe(0);
-    expect(answerPageDirection("sheet", "grip")).toBe(0);
-    expect(answerPageDirection("grip", "sheet")).toBe(0);
-    expect(answerPageDirection("thickness", "sheet")).toBe(0);
   });
 });
 
@@ -61,6 +55,117 @@ describe("answerPageSwap", () => {
         outToPx: 0,
         inFromPx: 0,
       });
+  });
+});
+
+describe("pageSwapKeyframes (the WAAPI keyframes of the page swap)", () => {
+  it("animate only opacity and transform, both ways and under reduced motion", () => {
+    for (const reduced of [false, true])
+      for (const dir of [1, -1] as const) {
+        const frames = pageSwapKeyframes(answerPageSwap(dir, reduced));
+        for (const frame of [...frames.out, ...frames.in])
+          for (const key of Object.keys(frame))
+            expect(["opacity", "transform"]).toContain(key);
+      }
+  });
+  it("the old page goes where the person is going, the new one comes from the other side and rests at 0", () => {
+    const forward = pageSwapKeyframes(answerPageSwap(1, false));
+    expect(forward.out).toEqual([
+      { opacity: 0, transform: `translateX(${-MOTION.SHIFT_PX}px)` },
+    ]);
+    expect(forward.in).toEqual([
+      { opacity: 0, transform: `translateX(${MOTION.SHIFT_PX}px)` },
+      { opacity: 1, transform: "translateX(0)" },
+    ]);
+    const reduced = pageSwapKeyframes(answerPageSwap(-1, true));
+    expect(reduced.out[0]!.transform).toBe("translateX(0px)");
+    expect(reduced.in[0]!.transform).toBe("translateX(0px)");
+  });
+});
+
+describe("settleSwap (what a page swap does once its old page has faded)", () => {
+  const base = { mine: 3, latest: 3, stillValid: true, dialogLeaving: false };
+  it("applies the change when nothing happened meanwhile", () => {
+    expect(settleSwap(base)).toBe("apply");
+  });
+  it("leaves it to a later swap", () => {
+    expect(settleSwap({ ...base, latest: 4 })).toBe("superseded");
+    expect(
+      settleSwap({
+        ...base,
+        latest: 4,
+        stillValid: false,
+        dialogLeaving: true,
+      }),
+    ).toBe("superseded");
+  });
+  it("review item 2: 返回 from the thickness page, then 送出 started a send: dropped, and the page shown again", () => {
+    expect(settleSwap({ ...base, stillValid: false })).toBe("release");
+  });
+  it("review item 3: 確認 on the grip page, then 返回 left the dialog: dropped, and the page kept faded in the fading dialog", () => {
+    expect(
+      settleSwap({ ...base, stillValid: false, dialogLeaving: true }),
+    ).toBe("keep");
+    // Even a change that would still be valid is not made in a leaving dialog.
+    expect(settleSwap({ ...base, dialogLeaving: true })).toBe("keep");
+  });
+});
+
+describe("useLeaving's rules (leavingAfter, leavingTimedOut, leavingView)", () => {
+  const shown: LeavingState = { wasPresent: true, leaving: false };
+  const gone: LeavingState = { wasPresent: false, leaving: false };
+
+  it("present → absent starts the leave and shows the last value, marked leaving", () => {
+    const next = leavingAfter(shown, false);
+    expect(next).toEqual({ wasPresent: false, leaving: true });
+    expect(leavingView(null, next, "last")).toEqual({
+      shown: "last",
+      leaving: true,
+    });
+  });
+
+  it("the time up ends the leave: nothing shown", () => {
+    const after = leavingTimedOut({ wasPresent: false, leaving: true });
+    expect(after).toEqual(gone);
+    expect(leavingView(null, after, "last")).toEqual({
+      shown: null,
+      leaving: false,
+    });
+  });
+
+  it("review item 1: wanted back during its leave, it is simply shown, not leaving", () => {
+    const leaving = leavingAfter(shown, false);
+    const back = leavingAfter(leaving, true);
+    expect(back).toEqual(shown);
+    expect(leavingView("new", back, "last")).toEqual({
+      shown: "new",
+      leaving: false,
+    });
+    // ...and the old leave's timer firing late changes nothing that shows.
+    expect(leavingView("new", leavingTimedOut(back), "last")).toEqual({
+      shown: "new",
+      leaving: false,
+    });
+  });
+
+  it("a second leave after coming back starts afresh (the hook's timer restarts on the new leave)", () => {
+    const again = leavingAfter(
+      leavingAfter(leavingAfter(shown, false), true),
+      false,
+    );
+    expect(again).toEqual({ wasPresent: false, leaving: true });
+  });
+
+  it("no change of presence returns the same object (no re-render), and nothing was ever shown means nothing leaves", () => {
+    expect(leavingAfter(shown, true)).toBe(shown);
+    expect(leavingAfter(gone, false)).toBe(gone);
+    expect(leavingTimedOut(gone)).toBe(gone);
+    expect(
+      leavingView(null, { wasPresent: false, leaving: true }, null),
+    ).toEqual({
+      shown: null,
+      leaving: false,
+    });
   });
 });
 
@@ -276,13 +381,14 @@ describe("the scan flow's motion CSS (source pins)", () => {
   });
 
   it("reduced motion: every leaving piece is a --motion-reduced fade, every entrance too, nothing moves", () => {
-    expect(easyReduced).toContain(
-      "animation: easyFadeOut var(--motion-reduced) linear forwards;",
-    );
-    expect(easyReduced).toContain(
-      "animation: easyFadeIn var(--motion-reduced) linear backwards;",
-    );
-    for (const selector of [
+    // Each rule of the block, by its exact selectors (review item 5: a
+    // substring check let an entrance pass on its leaving rule's selector).
+    const rules = new Map<string, string>();
+    const inner = easyReduced.slice(easyReduced.indexOf("{") + 1);
+    for (const m of inner.matchAll(/([^{}]+)\{([^{}]*)\}/g))
+      for (const selector of m[1]!.split(","))
+        rules.set(selector.trim(), m[2]!.trim());
+    const leaves = [
       '.easySheet[data-leaving="true"]',
       ".easyTipScrim",
       ".easyPhotoLeaving",
@@ -292,6 +398,8 @@ describe("the scan flow's motion CSS (source pins)", () => {
       '.easyDetectorProgress[data-leaving="true"]',
       '.easyProcessingPill[data-leaving="true"]',
       '.paperAdjust[data-leaving="true"]',
+    ];
+    const entrances = [
       ".easyScanShell .cameraCueWrap",
       ".easyBottomDock",
       ".easyLengthStep",
@@ -300,8 +408,15 @@ describe("the scan flow's motion CSS (source pins)", () => {
       ".easyScanNoCamera",
       ".easyManualDock",
       ".easyProcessingPill",
-    ])
-      expect(easyReduced, selector).toContain(selector);
+    ];
+    for (const selector of leaves)
+      expect(rules.get(selector), selector).toBe(
+        "animation: easyFadeOut var(--motion-reduced) linear forwards;",
+      );
+    for (const selector of entrances)
+      expect(rules.get(selector), selector).toBe(
+        "animation: easyFadeIn var(--motion-reduced) linear backwards;",
+      );
     expect(easyReduced).not.toMatch(/translate|scale/);
     // The sheets fade under reduced motion (the tip used to just appear).
     expect(easyCss).toMatch(

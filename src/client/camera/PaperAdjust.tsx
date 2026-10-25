@@ -214,12 +214,15 @@ export function PaperAdjust({
   const pendingMoveRef = useRef<PendingMove | null>(null);
   const frameRef = useRef<number | null>(null);
 
-  // A modal of its own (focus stays inside), opened when it mounts.
+  // A modal of its own (focus stays inside), opened when it mounts, and
+  // again should it be wanted back while it was leaving (fix round, review
+  // item 1: the camera gives each opening a new key, so this is a guard).
   useEffect(() => {
+    if (leaving) return;
     const dialog = dialogRef.current;
     if (dialog && !dialog.open) dialog.showModal();
     titleRef.current?.focus();
-  }, []);
+  }, [leaving]);
 
   useEffect(
     () => () => {

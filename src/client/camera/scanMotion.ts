@@ -1,5 +1,4 @@
 import { MOTION } from "@/lib/motion";
-import type { AnswerStep } from "../scan/answers";
 
 /**
  * The scan flow's share of the V3.2 motion pass (Kirby 2026-10-26 "閃現",
@@ -22,24 +21,6 @@ export function fadeMs(kind: ScanFade, reducedMotion: boolean): number {
   if (kind === "fast") return MOTION.FAST_MS;
   if (kind === "base") return MOTION.BASE_MS;
   return MOTION.OUT_MS;
-}
-
-/** A question page that is on screen (the sheet is not a page). */
-export type AnswerPage = Exclude<AnswerStep, "sheet">;
-
-/**
- * Which way a change of question page goes (V3.2 motion pass #4): 1 on the
- * way forward (grip → thickness), -1 on the way back, 0 when the page does
- * not change or the change is not between two pages (the dialog itself fades
- * in or out then).
- */
-export function answerPageDirection(
-  from: AnswerStep,
-  to: AnswerStep,
-): -1 | 0 | 1 {
-  if (from === "grip" && to === "thickness") return 1;
-  if (from === "thickness" && to === "grip") return -1;
-  return 0;
 }
 
 export interface AnswerPageSwap {
@@ -79,6 +60,97 @@ export function answerPageSwap(
     outToPx: -shift,
     inFromPx: shift,
   };
+}
+
+/** The keyframes of a page swap: each a list of opacity and transform only. */
+export interface PageSwapKeyframes {
+  /** The old page: one keyframe, so it fades from where it is now. */
+  readonly out: readonly Keyframe[];
+  /** The new page: from the side it comes from to where it rests. */
+  readonly in: readonly Keyframe[];
+}
+
+/** The Web Animations keyframes of `answerPageSwap` (opacity and transform). */
+export function pageSwapKeyframes(m: AnswerPageSwap): PageSwapKeyframes {
+  return {
+    out: [{ opacity: 0, transform: `translateX(${m.outToPx}px)` }],
+    in: [
+      { opacity: 0, transform: `translateX(${m.inFromPx}px)` },
+      { opacity: 1, transform: "translateX(0)" },
+    ],
+  };
+}
+
+/**
+ * What a page swap does once its old page has faded out (fix round, review
+ * items 2 and 3):
+ * - `superseded`: a later swap took over; it applies (or drops) the change.
+ * - `apply`: nothing changed while the page faded: the change is made.
+ * - `release`: the page was left by another way while it faded (返回 with Esc,
+ *   or the scan started sending): the change is dropped and the old page is
+ *   shown again, usable.
+ * - `keep`: the same, but the dialog itself is leaving: the old page stays
+ *   faded out, so it does not flash back inside the fading dialog.
+ */
+export type SwapSettle = "superseded" | "apply" | "release" | "keep";
+
+export function settleSwap(o: {
+  /** This swap's number, and the newest one's. */
+  readonly mine: number;
+  readonly latest: number;
+  /** Whether the step and the sending state are still what they were when pressed. */
+  readonly stillValid: boolean;
+  /** Whether the dialog is leaving or gone. */
+  readonly dialogLeaving: boolean;
+}): SwapSettle {
+  if (o.mine !== o.latest) return "superseded";
+  if (o.stillValid && !o.dialogLeaving) return "apply";
+  return o.dialogLeaving ? "keep" : "release";
+}
+
+/**
+ * The state of something that leaves the screen (useLeaving.ts), kept apart
+ * so its rules are tested without React (fix round, review item 4).
+ * `wasPresent`: whether it was wanted at the last render; `leaving`: whether
+ * its leave is running (the hook's timer ends it).
+ */
+export interface LeavingState {
+  readonly wasPresent: boolean;
+  readonly leaving: boolean;
+}
+
+/**
+ * The state after a render where it is (or is not) wanted. Wanted → not: the
+ * leave starts. Not → wanted, during a leave or not: the leave is dropped and
+ * it is simply shown. No change: the same object (no re-render).
+ */
+export function leavingAfter(
+  state: LeavingState,
+  present: boolean,
+): LeavingState {
+  if (present === state.wasPresent) return state;
+  return { wasPresent: present, leaving: !present };
+}
+
+/** The leave's time is up (the same object when nothing was leaving). */
+export function leavingTimedOut(state: LeavingState): LeavingState {
+  return state.leaving
+    ? { wasPresent: state.wasPresent, leaving: false }
+    : state;
+}
+
+/**
+ * What to render: the value while there is one; during a leave the last one
+ * shown, marked leaving; else nothing.
+ */
+export function leavingView<T>(
+  value: T | null,
+  state: LeavingState,
+  last: T | null,
+): { shown: T | null; leaving: boolean } {
+  if (value !== null) return { shown: value, leaving: false };
+  const leaving = state.leaving && last !== null;
+  return { shown: leaving ? last : null, leaving };
 }
 
 /** The little of the DOM `closeAsIfRemoved` needs (a test passes fakes). */
