@@ -205,7 +205,9 @@
   /* Above the chrome laid over the camera: a dialog is in the top layer, but
      axe orders elements by z-index and would think that chrome overlaps it. */
   z-index: 10;
-  animation: easySheetSlideIn 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  /* V3.2 motion pass: the site's sheet tokens (it slides out with
+     --motion-sheet-out, see "Leaving" at the end of this file). */
+  animation: easySheetSlideIn var(--motion-sheet-in) var(--ease-out) both;
 }
 /* The measured/gate-failure sheet is a non-blocking panel over the user's
    own photo (docs/design-guidelines.md: "Modal tasks ... dim the
@@ -230,6 +232,8 @@
 }
 .easyTipSheet::backdrop {
   background: rgb(0 0 0 / 45%);
+  /* V3.2 motion pass #21: the dimming fades in with the sheet. */
+  animation: easyFadeIn var(--motion-sheet-in) var(--ease-out) backwards;
 }
 @keyframes easySheetSlideIn {
   from {
@@ -402,8 +406,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* V3.2 motion pass: a short fade instead of the slide (the tip too, which
+     used to just appear). */
   .easySheet {
-    animation: none;
+    animation: easyFadeIn var(--motion-reduced) linear both;
+  }
+  .easyTipSheet::backdrop {
+    animation-duration: var(--motion-reduced);
+    animation-timing-function: linear;
   }
   .cameraCornerDot {
     transition: none;
@@ -844,7 +854,8 @@ main.easyScanShell {
 }
 .easyStage .cameraVideo {
   opacity: 0;
-  transition: opacity 200ms ease-out;
+  /* V3.2 motion pass #2: the same fade as the retaken photo leaving over it. */
+  transition: opacity var(--motion-base) var(--ease-out);
 }
 .easyStage .cameraVideo.ready {
   opacity: 1;
@@ -1447,7 +1458,7 @@ main.easyScanShell {
     display: none;
   }
   .easyStage .cameraVideo {
-    transition-duration: 120ms;
+    transition-duration: var(--motion-reduced);
   }
   /* The moved picture fades in over the unmoved one (which the script keeps
      rendered as .leaving): the unmoved one stays fully opaque until the last
@@ -1460,7 +1471,7 @@ main.easyScanShell {
     animation: easyLeave 120ms linear both;
   }
   .easySheet.easyResultSheet {
-    animation: easyFadeIn 120ms linear both;
+    animation: easyFadeIn var(--motion-reduced) linear both;
   }
   .easyReticleBox {
     animation: easyReticleFade 1500ms linear both;
@@ -1585,13 +1596,6 @@ main.easyScanShell {
   word-break: keep-all;
 }
 
-/* Back from a question page: the result sheet was there a moment ago, so it
-   neither rises nor fades in again (EasyScanCamera.tsx sets the attribute).
-   More specific than the rise above and its reduced-motion fade. */
-.easySheet.easyResultSheet[data-resumed="true"] {
-  animation: none;
-}
-
 /* The desktop scan page with the typed-size form next to the QR card (Pencil
    B8sJF, candidate): two columns when wide, stacked below about 960 px. */
 .easyDeviceEntry-manual {
@@ -1669,11 +1673,19 @@ main.easyScanShell {
   flex-direction: column;
 }
 /* F15 (candidate): the screen fades in over the frozen photo once the photo
-   is analysed (no loading screen in between); under reduced motion it is
-   simply there. */
-@media (prefers-reduced-motion: no-preference) {
-  .paperAdjust[open] {
-    animation: easyFadeIn 180ms ease-out both;
+   is analysed (no loading screen in between). V3.2 motion pass #22: with the
+   site's tokens, its backdrop with it (it used to cover the photo at once),
+   and a --motion-reduced fade under reduced motion instead of nothing; it
+   leaves with a fade too ("Leaving", at the end of this file). */
+.paperAdjust[open],
+.paperAdjust[open]::backdrop {
+  animation: easyFadeIn var(--motion-base) var(--ease-out) backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .paperAdjust[open],
+  .paperAdjust[open]::backdrop {
+    animation-duration: var(--motion-reduced);
+    animation-timing-function: linear;
   }
 }
 .paperAdjust::backdrop {
@@ -1910,4 +1922,158 @@ main.easyScanShell {
 .easyAdjustFrameButton:focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 3px;
+}
+
+/* ── V3.2 motion pass: leaving the way it came ─────────────────────────────
+   Kirby 2026-10-26 "很多 UI 轉場都是閃現" (candidate / 未拍板). Nothing in the
+   scan flow pops in or out: each piece comes in and goes with the site's
+   motion tokens (src/app/tokens.css), leaves the way it came, and only
+   transform and opacity move (the one named exception is the cue's
+   background colour, #20, in camera.css). The script keeps a leaving piece
+   mounted, painted and inert for the length of its animation (useLeaving.ts,
+   `data-leaving="true"`); a native <dialog> is already closed by then, so
+   that the screen under it is usable at once, and is shown here although it
+   is no longer [open]. Under reduced motion every piece is a --motion-reduced
+   fade and nothing moves (the block after this one). The item numbers are
+   the motion pass's inventory. */
+@keyframes easyFadeOut {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes easySheetSlideOut {
+  to {
+    transform: translateY(100%);
+  }
+}
+/* The bottom dock: up from below, and back down. */
+@keyframes easyRiseIn {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-shift));
+  }
+}
+@keyframes easySinkOut {
+  to {
+    opacity: 0;
+    transform: translateY(var(--motion-shift));
+  }
+}
+/* The cue under the top bar: down from above, and back up. */
+@keyframes easyDropIn {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--motion-shift)));
+  }
+}
+@keyframes easyLiftOut {
+  to {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--motion-shift)));
+  }
+}
+
+/* #1, #21: the result sheet and the first-run tip slide back down. */
+.easySheet[data-leaving="true"] {
+  display: block;
+  overflow: hidden;
+  pointer-events: none;
+  animation: easySheetSlideOut var(--motion-sheet-out) var(--ease-in) forwards;
+}
+/* #21: the tip's dimming. The closed dialog's ::backdrop is gone, so this
+   scrim (the same colour) stands in for it and fades out with the sheet. */
+.easyTipScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  background: rgb(0 0 0 / 45%);
+  pointer-events: none;
+  animation: easyFadeOut var(--motion-sheet-out) var(--ease-in) forwards;
+}
+/* #2: the retaken photo fades out over the live picture fading in. */
+.easyPhotoLeaving {
+  pointer-events: none;
+  animation: easyFadeOut var(--motion-base) var(--ease-in) forwards;
+}
+/* The drawing on it is a copy mounted for the fade: it shows as it ended (the
+   lines drawn, the labels in), not drawing itself again. */
+.easyPhotoLeaving * {
+  animation: none;
+}
+/* #3: the cue and the bottom dock of the live camera. */
+.easyScanShell .cameraCueWrap {
+  animation: easyDropIn var(--motion-base) var(--ease-out) backwards;
+}
+.easyScanShell .cameraCueWrap[data-leaving="true"] {
+  animation: easyLiftOut var(--motion-fast) var(--ease-in) forwards;
+}
+.easyBottomDock {
+  animation: easyRiseIn var(--motion-base) var(--ease-out) backwards;
+}
+.easyBottomDock[data-leaving="true"] {
+  pointer-events: none;
+  animation: easySinkOut var(--motion-fast) var(--ease-in) forwards;
+}
+/* #5: the typed-hand-length step. */
+.easyLengthStep {
+  animation: easyFadeIn var(--motion-base) var(--ease-out) backwards;
+}
+.easyLengthStep[data-leaving="true"] {
+  pointer-events: none;
+  animation: easyFadeOut var(--motion-base) var(--ease-in) forwards;
+}
+/* #17: the screens where the camera cannot be used, and their strip. */
+.easyScanShell .cameraResumeCard,
+.easyScanShell .cameraErrorCard,
+.easyScanNoCamera,
+.easyManualDock {
+  animation: easyFadeIn var(--motion-base) var(--ease-out) backwards;
+}
+/* #18: the detector's download notice, once the detector is ready. */
+.easyDetectorProgress[data-leaving="true"] {
+  pointer-events: none;
+  animation: easyFadeOut var(--motion-out) var(--ease-in) forwards;
+}
+/* #19: the 測量中… pill. Opacity only: its transform centres it. */
+.easyProcessingPill {
+  animation: easyFadeIn var(--motion-fast) var(--ease-out) backwards;
+}
+.easyProcessingPill[data-leaving="true"] {
+  animation: easyFadeOut var(--motion-fast) var(--ease-in) forwards;
+}
+/* #22: the paper adjustment, over the sheet coming back. */
+.paperAdjust[data-leaving="true"] {
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+  animation: easyFadeOut var(--motion-out) var(--ease-in) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .easySheet[data-leaving="true"],
+  .easyTipScrim,
+  .easyPhotoLeaving,
+  .easyScanShell .cameraCueWrap[data-leaving="true"],
+  .easyBottomDock[data-leaving="true"],
+  .easyLengthStep[data-leaving="true"],
+  .easyDetectorProgress[data-leaving="true"],
+  .easyProcessingPill[data-leaving="true"],
+  .paperAdjust[data-leaving="true"] {
+    animation: easyFadeOut var(--motion-reduced) linear forwards;
+  }
+  .easyScanShell .cameraCueWrap,
+  .easyBottomDock,
+  .easyLengthStep,
+  .easyScanShell .cameraResumeCard,
+  .easyScanShell .cameraErrorCard,
+  .easyScanNoCamera,
+  .easyManualDock,
+  .easyProcessingPill {
+    animation: easyFadeIn var(--motion-reduced) linear backwards;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .easyTipScrim {
+    background: #000;
+  }
 }

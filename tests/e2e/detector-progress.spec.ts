@@ -8,6 +8,7 @@ import {
   slowModel,
   uploadGreyPhoto,
 } from "./fixtures/slow-model";
+import { leavingRecords, leftWith, recordLeaving } from "./fixtures/leaving";
 
 test("shows real progress while the model streams in, in coarse steps for assistive technology, then goes away", async ({
   page,
@@ -40,6 +41,26 @@ test("shows real progress while the model streams in, in coarse steps for assist
       () => (window as Window & { __modelFetches?: number }).__modelFetches,
     ),
   ).toBe(1);
+});
+
+test("once the detector is ready the notice fades out (--motion-out), inert, instead of vanishing (V3.2 motion pass #18)", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "mobile", "Runs in the mobile project.");
+  await recordLeaving(page);
+  await slowModel(page, "gated");
+  await page.goto("/scan/easy");
+  await page.getByRole("button", { name: "Got it" }).click();
+  await expect(pill(page)).toBeVisible();
+  await release(page, 10);
+  await expect(pill(page)).toHaveCount(0, { timeout: 15_000 });
+  const record = leftWith(await leavingRecords(page), "easyDetectorProgress");
+  expect(record).toBeDefined();
+  expect([
+    record!.animationName,
+    record!.animationDuration,
+    record!.inert,
+  ]).toEqual(["easyFadeOut", "0.16s", true]);
 });
 
 test("a screen reader is offered a handful of values, not one per chunk", async ({

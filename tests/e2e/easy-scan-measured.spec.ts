@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { expectSettled } from "./fixtures/leaving";
 
 /**
  * `/scan/easy/measured-demo` mounts the real EasyScanCamera against a
@@ -751,7 +752,10 @@ test.describe("the browser closing the question page by itself", () => {
 });
 
 test.describe("coming back to the sheet, scrolling, focus and the failure banner", () => {
-  test("Back to the sheet: no new slide-in, and focus is on Continue; the first arrival does slide", async ({
+  // V3.2 motion pass #1 (candidate): the sheet now slides down when the grip
+  // page opens over it, so it comes back the way it went, rising again. It
+  // used to stay put (it had closed out of sight under the page).
+  test("Back to the sheet: it rises again (it was seen sliding away), and focus is on Continue; the first arrival slides too", async ({
     page,
   }) => {
     await page.goto("/scan/easy/measured-demo");
@@ -763,13 +767,13 @@ test.describe("coming back to the sheet, scrolling, focus and the failure banner
     await expect(gripPage(page)).toBeVisible();
     await gripPage(page).getByRole("button", { name: "Back" }).click();
     await expect(sheet(page)).toBeVisible();
-    expect(await animation()).toBe("none");
+    expect(await animation()).toBe("easySheetSlideIn");
     await expect(
       sheet(page).getByRole("button", { name: "Continue" }),
     ).toBeFocused();
   });
 
-  test("under reduced motion the sheet never slides (it fades in on arrival, and not at all on return)", async ({
+  test("under reduced motion the sheet never slides (it fades in on arrival, and again on return)", async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -781,7 +785,7 @@ test.describe("coming back to the sheet, scrolling, focus and the failure banner
     await sheet(page).getByRole("button", { name: "Continue" }).click();
     await gripPage(page).getByRole("button", { name: "Back" }).click();
     await expect(sheet(page)).toBeVisible();
-    expect(await animation()).toBe("none");
+    expect(await animation()).toBe("easyFadeIn");
   });
 
   test("a new page starts at the top, even on a screen too short for the page", async ({
@@ -876,8 +880,109 @@ test.describe("coming back to the sheet, scrolling, focus and the failure banner
         .click();
       await expect(dialog.getByRole("alert")).toBeVisible();
       await expect(dialog.getByTestId("thickness-retake")).toHaveCount(0);
+      // V3.2 motion pass #23: the banner fades in (--motion-fast), it does
+      // not just appear. Opacity only: its height is not animated.
+      expect(
+        await dialog.locator(".answerError").evaluate((el) => {
+          const style = getComputedStyle(el);
+          return [style.animationName, style.animationDuration];
+        }),
+      ).toEqual(["answerFadeIn", "0.15s"]);
     }
   });
+});
+
+/**
+ * V3.2 motion pass #4 (Kirby 2026-10-26 "閃現", candidate): the question pages'
+ * dialog fades in and out (--motion-base), and a change between the grip and
+ * thickness pages slides the old page out and the new one in by 24 px
+ * (forward to the left, back to the right), through the Web Animations API.
+ */
+test.describe("V3.2 motion pass: the question pages come and go without a jump", () => {
+  /** Records the keyframes of every animation started on a question page. */
+  async function recordPageSwaps(page: Page) {
+    await page.evaluate(() => {
+      const w = window as Window & { __swaps?: string[] };
+      w.__swaps = [];
+      const original = Element.prototype.animate;
+      Element.prototype.animate = function (
+        this: Element,
+        keyframes: Keyframe[] | PropertyIndexedKeyframes | null,
+        options?: number | KeyframeAnimationOptions,
+      ) {
+        if (this.classList.contains("answerPage"))
+          w.__swaps!.push(JSON.stringify(keyframes));
+        return original.call(this, keyframes, options);
+      };
+    });
+  }
+  const swaps = (page: Page) =>
+    page.evaluate(
+      () => (window as Window & { __swaps?: string[] }).__swaps ?? [],
+    );
+
+  for (const motion of ["no-preference", "reduce"] as const) {
+    test(`with motion set to ${motion}: the dialog fades in, the pages swap with a slide, and Back from the grip page fades it out`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion: motion });
+      const shift = motion === "reduce" ? 0 : 24;
+      const fade = motion === "reduce" ? "0.12s" : "0.22s";
+      await openGripPage(page);
+      const dialog = page.locator("dialog.answerDialog");
+      expect(
+        await dialog.evaluate((el) => {
+          const style = getComputedStyle(el);
+          return [style.animationName, style.animationDuration];
+        }),
+      ).toEqual(["answerFadeIn", fade]);
+
+      await recordPageSwaps(page);
+      await gripPage(page).getByRole("radio", { name: /^Palm/ }).check();
+      await gripPage(page).getByRole("button", { name: "Confirm" }).click();
+      await expect(thicknessPage(page)).toBeVisible();
+      await expect.poll(async () => (await swaps(page)).length).toBe(2);
+      const forward = await swaps(page);
+      // The grip page leaves to the left, the thickness page comes from the right.
+      expect(forward[0]).toContain(`translateX(${-shift}px)`);
+      expect(forward[1]).toContain(`translateX(${shift}px)`);
+
+      await thicknessPage(page).getByRole("button", { name: "Back" }).click();
+      await expect(gripPage(page)).toBeVisible();
+      await expect.poll(async () => (await swaps(page)).length).toBe(4);
+      const back = (await swaps(page)).slice(2);
+      // ...and the other way round on the way back.
+      expect(back[0]).toContain(`translateX(${shift}px)`);
+      expect(back[1]).toContain(`translateX(${-shift}px)`);
+      // The answer survives the swap.
+      await expect(
+        gripPage(page).getByRole("radio", { name: /^Palm/ }),
+      ).toBeChecked();
+
+      // Back from the grip page: closed at once (the sheet is usable), still
+      // painted while it fades out, then gone.
+      await gripPage(page).getByRole("button", { name: "Back" }).click();
+      const leaving = await dialog.evaluate((el) => ({
+        attr: el.getAttribute("data-leaving"),
+        open: (el as HTMLDialogElement).open,
+        inert: (el as HTMLElement).inert,
+        name: getComputedStyle(el).animationName,
+        duration: getComputedStyle(el).animationDuration,
+      }));
+      expect(leaving).toEqual({
+        attr: "true",
+        open: false,
+        inert: true,
+        name: "answerFadeOut",
+        duration: fade,
+      });
+      await expect(sheet(page)).toBeVisible();
+      await expect(dialog).toHaveCount(0);
+      await expect(
+        sheet(page).getByRole("button", { name: "Continue" }),
+      ).toBeFocused();
+    });
+  }
 });
 
 test.describe("short screens: the main button and Skip are on the first screen", () => {
@@ -970,5 +1075,99 @@ test.describe("the typed-length path stores the length only after the scan was s
       .click();
     await expect(thicknessPage(page).getByRole("alert")).toBeVisible();
     expect(await lengthKeys(page)).toEqual([]);
+  });
+});
+
+/**
+ * Fix round (review item 8): the question pages interrupted part-way. Each
+ * ends with nothing left marked leaving, nothing stray inert, and the next
+ * control usable.
+ */
+test.describe("V3.2 motion pass: interrupted question pages end usable", () => {
+  test("返回 (Esc) during the grip → thickness swap: the dialog fades out, the page does not flash back, and Continue opens the grip page whole again", async ({
+    page,
+  }) => {
+    await openGripPage(page);
+    await gripPage(page).getByRole("radio", { name: /^Palm/ }).check();
+    await gripPage(page).getByRole("button", { name: "Confirm" }).click();
+    // Inside the 160 ms fade-out of the grip page (its buttons are inert
+    // then; Esc reaches the dialog itself).
+    await page.keyboard.press("Escape");
+    await expect(sheet(page)).toBeVisible();
+    await expect(page.locator("dialog.answerDialog")).toHaveCount(0);
+    await expectSettled(page);
+    const continueButton = sheet(page).getByRole("button", {
+      name: "Continue",
+    });
+    await expect(continueButton).toBeFocused();
+    await continueButton.click();
+    await expect(gripPage(page)).toBeVisible();
+    // Not the swap's leftover: the grip page, at full opacity, answer kept.
+    await expect(
+      gripPage(page).getByRole("radio", { name: /^Palm/ }),
+    ).toBeChecked();
+    await page.waitForTimeout(400);
+    expect(
+      await page
+        .locator(".answerPage")
+        .evaluate((el) => getComputedStyle(el).opacity),
+    ).toBe("1");
+    await expectSettled(page);
+    await gripPage(page).getByRole("button", { name: "Confirm" }).click();
+    await expect(thicknessPage(page)).toBeVisible();
+  });
+
+  test("送出 pressed within 160 ms of 返回 on the thickness page: nothing is sent, and the grip page comes up usable (review item 2)", async ({
+    page,
+  }) => {
+    // The behaviour chosen: the thickness page is inert while it fades out,
+    // so the press lands on nothing; 返回 completes. (Not: send and stay.)
+    const bodies = await captureScans(page);
+    await toThicknessPage(page, "Claw");
+    await thicknessPage(page)
+      .getByRole("radio", { name: /^Medium/ })
+      .check();
+    const send = thicknessPage(page).getByRole("button", {
+      name: "See results",
+      exact: true,
+    });
+    await expect(send).toBeEnabled();
+    const b = (await send.boundingBox())!;
+    await thicknessPage(page).getByRole("button", { name: "Back" }).click();
+    await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+    await expect(gripPage(page)).toBeVisible();
+    await page.waitForTimeout(400);
+    expect(bodies).toHaveLength(0);
+    await expect(page.getByTestId("submit-overlay")).toHaveCount(0);
+    await expectSettled(page);
+    await expect(
+      gripPage(page).getByRole("radio", { name: /^Claw/ }),
+    ).toBeChecked();
+    // Forward again and send: it goes.
+    await gripPage(page).getByRole("button", { name: "Confirm" }).click();
+    await thicknessPage(page)
+      .getByRole("radio", { name: /^Medium/ })
+      .check();
+    await thicknessPage(page)
+      .getByRole("button", { name: "See results", exact: true })
+      .click();
+    await expect.poll(() => bodies.length).toBe(1);
+  });
+
+  test("返回 pressed twice during one thickness → grip swap is one step back, not two", async ({
+    page,
+  }) => {
+    await toThicknessPage(page, "Claw");
+    await thicknessPage(page).getByRole("button", { name: "Back" }).click();
+    // Esc inside the fade: the same 返回 again (a later swap wins, and it is
+    // dropped if the page has already changed).
+    await page.keyboard.press("Escape");
+    await expect(gripPage(page)).toBeVisible();
+    await page.waitForTimeout(400);
+    await expect(gripPage(page)).toBeVisible();
+    await expect(sheet(page)).toBeHidden();
+    await expectSettled(page);
+    await gripPage(page).getByRole("button", { name: "Confirm" }).click();
+    await expect(thicknessPage(page)).toBeVisible();
   });
 });

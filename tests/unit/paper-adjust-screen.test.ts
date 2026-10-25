@@ -459,7 +459,7 @@ describe("styles (easy-scan.css)", () => {
     expect(rule(".paperAdjustStage")).toContain("touch-action: none");
   });
 
-  it("reduced motion removes the only transition; the one animation is the screen's fade-in (F15), and only with motion allowed", () => {
+  it("reduced motion removes the only transition; the one animation is the screen's fade-in (F15), with the motion tokens and a --motion-reduced fade under reduced motion (V3.2 motion pass #22)", () => {
     const reduced = section.slice(
       section.indexOf("@media (prefers-reduced-motion: reduce)"),
     );
@@ -468,7 +468,10 @@ describe("styles (easy-scan.css)", () => {
     expect(own).not.toMatch(/@keyframes/);
     expect(own.match(/animation:/g)).toHaveLength(1);
     expect(own).toMatch(
-      /@media \(prefers-reduced-motion: no-preference\) \{\s*\.paperAdjust\[open\] \{\s*animation: easyFadeIn \d+ms ease-out both;\s*\}\s*\}/,
+      /\.paperAdjust\[open\],\s*\.paperAdjust\[open\]::backdrop \{\s*animation: easyFadeIn var\(--motion-base\) var\(--ease-out\) backwards;\s*\}/,
+    );
+    expect(own).toMatch(
+      /@media \(prefers-reduced-motion: reduce\) \{\s*\.paperAdjust\[open\],\s*\.paperAdjust\[open\]::backdrop \{\s*animation-duration: var\(--motion-reduced\);/,
     );
   });
 
@@ -491,7 +494,8 @@ describe("where the camera offers it (EasyScanCamera.tsx)", () => {
 
   it("F15: the one button left is the failure sheet's rescue; 檢查邊框 and the corner check are gone", () => {
     const count = (needle: string) => source.split(needle).length - 1;
-    expect(count('{adjustEntry === "rescue" && (')).toBe(1);
+    // V3.2 motion pass #1: decided on the result the sheet shows.
+    expect(count('{adjustEntryFor(sheetResult) === "rescue" && (')).toBe(1);
     expect(count('{adjustEntry === "review"')).toBe(0);
     expect(count('"check"')).toBe(0);
     expect(count('data-testid="adjust-frame-entry"')).toBe(1);
@@ -563,7 +567,7 @@ describe("where the camera offers it (EasyScanCamera.tsx)", () => {
 
   it("F15: the measured sheet has only its title, numbers, retake, continue (and Debug with ?debug=1)", () => {
     const sheet = source.slice(
-      source.indexOf('{result.kind === "measured" ? ('),
+      source.indexOf('{sheetResult.kind === "measured" ? ('),
       source.indexOf('className="easySheetTitle easySheetTitleError"'),
     );
     expect(sheet.length).toBeGreaterThan(0);
@@ -595,7 +599,11 @@ describe("where the camera offers it (EasyScanCamera.tsx)", () => {
     // F14: no warning on the screen any more; the way out says 重拍 when it
     // opened by itself.
     expect(source).not.toContain("warning={");
-    expect(source).toContain('leave={adjustDirect ? "retake" : "cancel"}');
+    // V3.2 motion pass #22: kept with its props while it fades out.
+    expect(source).toContain(
+      'leave: adjustDirect ? ("retake" as const) : ("cancel" as const),',
+    );
+    expect(source).toContain("leave={adjustLeave.shown.leave}");
     // F10: no first-code special case any more (F7 opened PAPER_NOT_FOUND on
     // the centred sheet); the frame opens on the best guess in the overlay.
     expect(source).not.toContain("firstCode=");

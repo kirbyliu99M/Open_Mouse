@@ -154,8 +154,10 @@ describe("failureOffersLengthEdit", () => {
 
   it("is what the failure sheet checks", () => {
     const source = readFileSync("src/client/camera/EasyScanCamera.tsx", "utf8");
+    // V3.2 motion pass #1: the sheet draws from `sheetResult`, the result it
+    // shows (kept while it slides down after a retake).
     expect(source).toMatch(
-      /failureOffersLengthEdit\(\s*noPaperMode,\s*result\.errors\[0\]\?\.code,?\s*\)/,
+      /failureOffersLengthEdit\(\s*noPaperMode,\s*sheetResult\.errors\[0\]\?\.code,?\s*\)/,
     );
   });
 });

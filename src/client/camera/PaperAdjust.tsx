@@ -97,6 +97,7 @@ import {
   type PlacedFrame,
   type PointerKind,
 } from "./paperAdjustState";
+import { closeAsIfRemoved } from "./scanMotion";
 
 /**
  * The status line after a press of the confirm button that was refused (F14):
@@ -139,6 +140,12 @@ export interface PaperAdjustProps {
    * camera), else `cancel` (back to the sheet it was opened from).
    */
   readonly leave?: "cancel" | "retake";
+  /**
+   * V3.2 motion pass #22: the screen is on its way out. The parent keeps it
+   * mounted for the fade (`useLeaving`); it closes at once, as its unmount
+   * did, and stays painted and inert while it fades.
+   */
+  readonly leaving?: boolean;
   /** For tests and the static render: a state to start from, and the stage's size. */
   readonly initialState?: AdjustState;
   readonly initialStageSize?: FrameSize;
@@ -172,6 +179,7 @@ export function PaperAdjust({
   onConfirm,
   previous = null,
   leave = "cancel",
+  leaving = false,
   initialState,
   initialStageSize,
 }: PaperAdjustProps) {
@@ -206,12 +214,15 @@ export function PaperAdjust({
   const pendingMoveRef = useRef<PendingMove | null>(null);
   const frameRef = useRef<number | null>(null);
 
-  // A modal of its own (focus stays inside), opened when it mounts.
+  // A modal of its own (focus stays inside), opened when it mounts, and
+  // again should it be wanted back while it was leaving (fix round, review
+  // item 1: the camera gives each opening a new key, so this is a guard).
   useEffect(() => {
+    if (leaving) return;
     const dialog = dialogRef.current;
     if (dialog && !dialog.open) dialog.showModal();
     titleRef.current?.focus();
-  }, []);
+  }, [leaving]);
 
   useEffect(
     () => () => {
@@ -219,6 +230,13 @@ export function PaperAdjust({
     },
     [],
   );
+
+  // Leaving (V3.2 motion pass #22): closed in the commit that started the
+  // fade, with the focus outcome its unmount had (the sheet coming back
+  // focuses its own control after this effect).
+  useLayoutEffect(() => {
+    if (leaving) closeAsIfRemoved(dialogRef.current);
+  }, [leaving]);
 
   useLayoutEffect(() => {
     const stage = stageRef.current;
@@ -463,8 +481,11 @@ export function PaperAdjust({
       aria-labelledby="paper-adjust-title"
       data-testid="paper-adjust"
       data-entry={entry}
+      data-leaving={leaving ? "true" : undefined}
+      inert={leaving}
       onCancel={(e) => {
         e.preventDefault();
+        if (leaving) return;
         onCancel();
       }}
     >
