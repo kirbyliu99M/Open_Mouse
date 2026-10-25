@@ -25,10 +25,24 @@
   border: none;
   border-radius: 0;
   box-shadow: -8px 0 32px rgb(0 0 0 / 12%);
-  animation: navMenuSlideIn 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  /* In from the right over --motion-sheet-in, and back out the same way over
+     --motion-sheet-out once NavMenu sets data-leaving (V3.2 motion pass #14,
+     candidate / 未拍板); the dimmed page fades with it. No fill: a held end
+     value would stop the way out. */
+  animation: navMenuSlideIn var(--motion-sheet-in) var(--ease-out);
+  transition: transform var(--motion-sheet-out) var(--ease-in);
 }
 .navMenu::backdrop {
   background: rgb(0 0 0 / 40%);
+  animation: motion-fade-in var(--motion-sheet-in) var(--ease-out);
+  transition: opacity var(--motion-sheet-out) var(--ease-in);
+}
+.navMenu[data-leaving="true"] {
+  transform: translateX(100%);
+  pointer-events: none;
+}
+.navMenu[data-leaving="true"]::backdrop {
+  opacity: 0;
 }
 
 @keyframes navMenuSlideIn {
@@ -117,9 +131,16 @@
   background: #17395f;
 }
 
+/* Reduced motion: a --motion-reduced fade in and out, no slide. */
 @media (prefers-reduced-motion: reduce) {
-  .navMenu {
-    animation: none;
+  .navMenu,
+  .navMenu::backdrop {
+    animation: motion-fade-in var(--motion-reduced) linear;
+    transition: opacity var(--motion-reduced) linear;
+  }
+  .navMenu[data-leaving="true"] {
+    transform: none;
+    opacity: 0;
   }
 }
 

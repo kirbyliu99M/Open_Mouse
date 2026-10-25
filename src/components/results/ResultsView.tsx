@@ -131,6 +131,7 @@ export function ResultsView({
   filters = emptyFilters(),
   onFiltersChange,
   navigation,
+  enter,
 }: {
   response: FitResponse;
   /**
@@ -181,11 +182,25 @@ export function ResultsView({
   onFiltersChange?: (next: Filters, source: ResultsFilterChange) => void;
   /** The real results pages only (V3.2 F11). */
   navigation?: ResultsNavigation;
+  /**
+   * This page replaces another results page of the same scan (V3.2 motion
+   * pass #6): it fades in with a short shift, from the right going deeper
+   * ("forward") or from the left back to the main page ("back").
+   */
+  enter?: "forward" | "back";
 }) {
   const view = filteredView(response, filters);
   const reducedMotion = usePrefersReducedMotion();
   const rootRef = useRef<HTMLDivElement>(null);
-  const swap = useSegmentSwap(rootRef, reducedMotion);
+  const swap = useSegmentSwap<Filters>(rootRef, reducedMotion);
+  // The filters as last applied from here, ahead of the render that brings
+  // them: a change made while another is still fading out builds on it.
+  const latestFilters = useRef(filters);
+  latestFilters.current = filters;
+  const commitFilters = (next: Filters, source: ResultsFilterChange) => {
+    latestFilters.current = next;
+    onFiltersChange?.(next, source);
+  };
   // The segment just pressed, until the change it starts reaches `filters`
   // (the cards fade out first): the toggle shows it at once.
   const [pressed, setPressed] = useState<{
@@ -197,10 +212,18 @@ export function ResultsView({
     pressed && pressed.on === filters ? pressed.segment : segmentOf(filters);
   const selectSegment = (segment: ShapeSegment, refocus = false) => {
     if (!onFiltersChange) return;
-    const next = withSegment(filters, segment);
     setPressed({ segment, on: filters });
-    swap(segmentDirection(shownSegment, segment), () =>
-      onFiltersChange(next, "shape_toggle"),
+    // Computed when it is applied, from the latest filters (a chip removed
+    // meanwhile stays removed); a change computed without it is rebased.
+    swap(
+      segmentDirection(shownSegment, segment),
+      () =>
+        commitFilters(
+          withSegment(latestFilters.current, segment),
+          "shape_toggle",
+        ),
+      "out-in",
+      (value) => withSegment(value, segment),
     );
     // The note's button goes away with the change: focus moves to the
     // segment that is now checked.
@@ -213,6 +236,12 @@ export function ResultsView({
           ?.focus(),
       );
   };
+  // A filter change (the sidebar, the sheet, a chip, the no-match button):
+  // applied at once, and the new cards come in (V3.2 motion pass #7).
+  const filterChange = onFiltersChange
+    ? (next: Filters, source: ResultsFilterChange) =>
+        swap(0, (under) => commitFilters(under(next), source), "in")
+    : undefined;
   const card = headerCard(view, rank);
   const entry = card?.entry ?? null;
   // The official link and the purchase links of the one mouse in the big
@@ -319,7 +348,7 @@ export function ResultsView({
               response={response}
               filters={filters}
               language={language}
-              onChange={(next) => onFiltersChange(next, "no_match")}
+              onChange={(next) => filterChange?.(next, "no_match")}
               headingLevel={hand ? 2 : 1}
             />
           )}
@@ -681,7 +710,12 @@ export function ResultsView({
   );
 
   return (
-    <div className="results-view" data-rank={card?.displayRank} ref={rootRef}>
+    <div
+      className="results-view"
+      data-rank={card?.displayRank}
+      data-enter={enter}
+      ref={rootRef}
+    >
       <PrintOpenDetails />
       {/* Decorative haze behind the hero: see .results-glow in results.css. */}
       <div className="results-glow" aria-hidden="true" />
@@ -719,7 +753,7 @@ export function ResultsView({
           language={language}
           filters={filters}
           count={view.count}
-          onChange={onFiltersChange}
+          onChange={filterChange ?? onFiltersChange}
           onSheetOpened={
             analytics ? () => emit("filter_sheet_opened", {}) : undefined
           }

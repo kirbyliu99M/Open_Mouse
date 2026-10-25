@@ -32,6 +32,11 @@ import {
 import { RESULTS_VIEWER_ENABLED } from "@/lib/results/features";
 import { mainResultsPath } from "@/lib/results/rankRoutes";
 import {
+  enterDirection,
+  lastShownView,
+  noteShownView,
+} from "@/lib/results/viewEnter";
+import {
   currentStamp,
   customHistoryState,
   notePendingArrival,
@@ -209,6 +214,25 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
     [isMain, scanId, router],
   );
 
+  // Which page this is, and how it comes in (V3.2 motion pass #6,
+  // `viewEnter.ts`): a page that replaces another of this scan fades in with
+  // a short shift. Decided once per page shown, remembered once on screen.
+  const viewKey =
+    target?.kind === "detail" ? target.card.entry.mouse.slug : "main";
+  const entering = useRef<{ key: string; enter?: "forward" | "back" } | null>(
+    null,
+  );
+  if (entering.current?.key !== viewKey) {
+    entering.current = {
+      key: viewKey,
+      enter: enterDirection(lastShownView(), scanId, viewKey),
+    };
+  }
+  const enter = entering.current.enter;
+  useEffect(() => {
+    if (!redirect) noteShownView({ scanId, key: viewKey });
+  }, [redirect, scanId, viewKey]);
+
   const { requestAnalysis } = scan;
   // The rule (main page only, once per scan) is `shouldRequestAnalysis`.
   useEffect(() => {
@@ -219,7 +243,9 @@ export function ResultsRankClient({ slug }: { slug?: string }) {
 
   return (
     <ResultsView
+      // The same key as `viewKey` above, written out (a unit test pins it).
       key={target?.kind === "detail" ? target.card.entry.mouse.slug : "main"}
+      enter={enter}
       response={response}
       rank={target?.kind === "detail" ? target.card.displayRank : 1}
       language={scan.language}

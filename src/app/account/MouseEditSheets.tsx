@@ -2,6 +2,7 @@
 
 import { useId, useRef, useState, type RefObject } from "react";
 import { useLocale } from "@/client/i18n/LocaleProvider";
+import { useLeaving } from "@/components/motion/Presence";
 import {
   MAIN_USES,
   MAX_FEEDBACK_CHARS,
@@ -406,11 +407,16 @@ export function RemoveConfirm({
     initialFocus: cancelRef,
     returnFocusTo,
   });
+  // Its owner keeps it for the fade out (`<Presence kind="fade">`).
+  const leaving = useLeaving();
 
   return (
     <dialog
       ref={modal.dialogRef}
       className="qn-confirm"
+      data-leaving={leaving ? "true" : undefined}
+      // Leaving: 移除 can not be pressed again during the fade.
+      inert={leaving}
       role="alertdialog"
       aria-labelledby={titleId}
       aria-describedby={bodyId}

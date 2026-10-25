@@ -100,6 +100,14 @@
   }
 }
 
+/* The model is there: the stand-in fades out over --motion-out (V3.2 motion
+   pass #33, candidate / 未拍板). ViewerRegion reads the opacity the breathing
+   has reached, stops it and fades from that value with Web Animations; this
+   rule only keeps it from taking a pointer meanwhile. */
+.viewer-skeleton[data-leaving="true"] {
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .viewer-skeleton {
     animation: none;

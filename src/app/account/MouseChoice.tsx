@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useState, type ComponentProps } from "react";
 import { useLocale } from "@/client/i18n/LocaleProvider";
 import {
   OTHER_MOUSE_BRANDS,
@@ -59,30 +59,50 @@ export function MouseChoiceFlow({
   returnFocusTo?: () => HTMLElement | null;
 }) {
   const [step, setStep] = useState<"list" | "other">("list");
-  if (step === "other") {
-    return (
-      <OtherMouseSheet
-        initial={initialOther ?? emptyOtherDraft()}
-        showModelField={showModelField}
-        answeredBrands={answeredBrands}
-        onDone={(draft) => onChoose({ kind: "other", draft })}
-        onBack={() => setStep("list")}
-        onClose={onClose}
-        returnFocusTo={returnFocusTo}
-      />
-    );
-  }
+  // Both steps live in ONE dialog (V3.2 motion pass #11): a step change swaps
+  // the sheet's content in place (`swapKey`), sideways, instead of closing one
+  // dialog and opening the next. Each step starts afresh when it is shown, as
+  // it did when it was its own sheet.
+  const list = usePickerStep({
+    catalogue,
+    chosenSlugs,
+    allowOther,
+    onPick: (slug) => onChoose({ kind: "catalogue", slug }),
+    onOther: () => {
+      other.reset();
+      setStep("other");
+    },
+  });
+  const other = useOtherStep({
+    initial: initialOther ?? emptyOtherDraft(),
+    showModelField,
+    answeredBrands,
+    onDone: (draft) => onChoose({ kind: "other", draft }),
+    onBack: () => {
+      list.reset();
+      setStep("list");
+    },
+  });
+  const shown = step === "other" ? other : list;
   return (
-    <MousePickerSheet
-      catalogue={catalogue}
-      chosenSlugs={chosenSlugs}
-      allowOther={allowOther}
-      onPick={(slug) => onChoose({ kind: "catalogue", slug })}
-      onOther={() => setStep("other")}
+    <ProfileSheet
+      {...shown.sheet}
       onClose={onClose}
       returnFocusTo={returnFocusTo}
+      swapKey={step}
+      swapDir={step === "other" ? 1 : -1}
     />
   );
+}
+
+/** One step of the sheet: what `ProfileSheet` shows for it. */
+interface SheetStep {
+  sheet: Pick<
+    ComponentProps<typeof ProfileSheet>,
+    "title" | "variant" | "note" | "footer" | "children"
+  >;
+  /** Back to how the step starts (an empty search, the first draft). */
+  reset: () => void;
 }
 
 function CheckIcon() {
@@ -134,23 +154,19 @@ function SearchIcon() {
   );
 }
 
-function MousePickerSheet({
+function usePickerStep({
   catalogue,
   chosenSlugs,
   allowOther,
   onPick,
   onOther,
-  onClose,
-  returnFocusTo,
 }: {
   catalogue: readonly CatalogueChoice[];
   chosenSlugs: readonly string[];
   allowOther: boolean;
   onPick: (slug: string) => void;
   onOther: () => void;
-  onClose: () => void;
-  returnFocusTo?: () => HTMLElement | null;
-}) {
+}): SheetStep {
   const copy = questionnaireCopy(useLocale());
   const [query, setQuery] = useState("");
   const [brand, setBrand] = useState<string | null>(null);
@@ -162,13 +178,16 @@ function MousePickerSheet({
     [sorted, query, brand],
   );
 
-  return (
-    <ProfileSheet
-      title={copy.pickerTitle}
-      variant="tall"
-      onClose={onClose}
-      returnFocusTo={returnFocusTo}
-      note={
+  const reset = () => {
+    setQuery("");
+    setBrand(null);
+  };
+  return {
+    reset,
+    sheet: {
+      title: copy.pickerTitle,
+      variant: "tall",
+      note: (
         <div className="qn-picker-tools">
           <label className="profile-sr-only" htmlFor={searchId}>
             {copy.searchLabel}
@@ -212,84 +231,92 @@ function MousePickerSheet({
             ))}
           </div>
         </div>
-      }
-      footer={
-        allowOther ? (
-          <button type="button" className="qn-other-row" onClick={onOther}>
-            <span>{copy.notFoundOther}</span>
-            <svg
-              viewBox="0 0 24 24"
-              width="20"
-              height="20"
-              aria-hidden="true"
-              focusable="false"
-            >
-              <path
-                d="M9 6l6 6-6 6"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-        ) : null
-      }
-    >
-      {rows.length === 0 ? (
-        <p className="profile-muted" role="status">
-          {copy.noResults}
-        </p>
-      ) : (
-        <ul className="qn-choice-list">
-          {rows.map((row) => {
-            const chosen = chosenSlugs.includes(row.slug);
-            return (
-              <li key={row.slug}>
-                <button
-                  type="button"
-                  className="qn-choice"
-                  aria-current={chosen ? "true" : undefined}
-                  onClick={() => onPick(row.slug)}
-                >
-                  <span className="qn-choice-text">
-                    <span className="qn-choice-brand">{row.brand}</span>
-                    <span className="qn-choice-model">{row.model}</span>
-                  </span>
-                  {chosen && (
-                    <>
-                      <CheckIcon />
-                      <span className="profile-sr-only">{copy.chosen}</span>
-                    </>
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </ProfileSheet>
-  );
+      ),
+      footer: allowOther ? (
+        <button type="button" className="qn-other-row" onClick={onOther}>
+          <span>{copy.notFoundOther}</span>
+          <svg
+            viewBox="0 0 24 24"
+            width="20"
+            height="20"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path
+              d="M9 6l6 6-6 6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      ) : null,
+      children:
+        rows.length === 0 ? (
+          <p className="profile-muted" role="status">
+            {copy.noResults}
+          </p>
+        ) : (
+          <ul className="qn-choice-list">
+            {rows.map((row) => {
+              const chosen = chosenSlugs.includes(row.slug);
+              return (
+                <li key={row.slug}>
+                  <button
+                    type="button"
+                    className="qn-choice"
+                    aria-current={chosen ? "true" : undefined}
+                    onClick={() => onPick(row.slug)}
+                  >
+                    <span className="qn-choice-text">
+                      <span className="qn-choice-brand">{row.brand}</span>
+                      <span className="qn-choice-model">{row.model}</span>
+                    </span>
+                    {chosen && (
+                      <>
+                        <CheckIcon />
+                        <span className="profile-sr-only">{copy.chosen}</span>
+                      </>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ),
+    },
+  };
 }
 
 export function OtherMouseSheet({
+  onClose,
+  returnFocusTo,
+  ...step
+}: Parameters<typeof useOtherStep>[0] & {
+  onClose: () => void;
+  returnFocusTo?: () => HTMLElement | null;
+}) {
+  const { sheet } = useOtherStep(step);
+  return (
+    <ProfileSheet {...sheet} onClose={onClose} returnFocusTo={returnFocusTo} />
+  );
+}
+
+function useOtherStep({
   initial,
   showModelField,
   answeredBrands = [],
   onDone,
   onBack,
-  onClose,
-  returnFocusTo,
 }: {
   initial: OtherDraft;
   showModelField: boolean;
   answeredBrands?: readonly OtherMouseBrand[];
   onDone: (draft: OtherDraft) => void;
   onBack: () => void;
-  onClose: () => void;
-  returnFocusTo?: () => HTMLElement | null;
-}) {
+}): SheetStep {
   const locale = useLocale();
   const copy = questionnaireCopy(locale);
   const account = accountCopy(locale);
@@ -297,12 +324,11 @@ export function OtherMouseSheet({
   const brandId = useId();
   const modelId = useId();
 
-  return (
-    <ProfileSheet
-      title={copy.otherTitle}
-      onClose={onClose}
-      returnFocusTo={returnFocusTo}
-      footer={
+  return {
+    reset: () => setDraft(initial),
+    sheet: {
+      title: copy.otherTitle,
+      footer: (
         <>
           <button
             type="button"
@@ -319,67 +345,71 @@ export function OtherMouseSheet({
             {copy.backToList}
           </button>
         </>
-      }
-    >
-      <div className="qn-q">
-        <label className="qn-legend" htmlFor={brandId}>
-          {copy.brandLabel}
-        </label>
-        <div className="qn-select">
-          <select
-            id={brandId}
-            value={draft.brand}
-            onChange={(event) =>
-              setDraft({
-                ...draft,
-                brand:
-                  OTHER_MOUSE_BRANDS.find((b) => b === event.target.value) ??
-                  draft.brand,
-              })
-            }
-          >
-            {OTHER_MOUSE_BRANDS.map((slug) => (
-              <option key={slug} value={slug}>
-                {answeredBrands.includes(slug)
-                  ? copy.brandAnswered(brandName(slug, account))
-                  : brandName(slug, account)}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-      {showModelField && (
-        <div className="qn-q">
-          <label className="qn-legend" htmlFor={modelId}>
-            {copy.modelLabel}
-          </label>
-          <input
-            id={modelId}
-            className="qn-input"
-            type="text"
-            value={draft.model}
-            maxLength={80}
-            placeholder={copy.modelPlaceholder}
-            autoComplete="off"
-            onChange={(event) =>
-              setDraft({ ...draft, model: event.target.value })
+      ),
+      children: (
+        <>
+          <div className="qn-q">
+            <label className="qn-legend" htmlFor={brandId}>
+              {copy.brandLabel}
+            </label>
+            <div className="qn-select">
+              <select
+                id={brandId}
+                value={draft.brand}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    brand:
+                      OTHER_MOUSE_BRANDS.find(
+                        (b) => b === event.target.value,
+                      ) ?? draft.brand,
+                  })
+                }
+              >
+                {OTHER_MOUSE_BRANDS.map((slug) => (
+                  <option key={slug} value={slug}>
+                    {answeredBrands.includes(slug)
+                      ? copy.brandAnswered(brandName(slug, account))
+                      : brandName(slug, account)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {showModelField && (
+            <div className="qn-q">
+              <label className="qn-legend" htmlFor={modelId}>
+                {copy.modelLabel}
+              </label>
+              <input
+                id={modelId}
+                className="qn-input"
+                type="text"
+                value={draft.model}
+                maxLength={80}
+                placeholder={copy.modelPlaceholder}
+                autoComplete="off"
+                onChange={(event) =>
+                  setDraft({ ...draft, model: event.target.value })
+                }
+              />
+            </div>
+          )}
+          <ChipChoice
+            legend={copy.sizeFeelLabel}
+            options={SIZE_FEELS.map((value) => ({
+              value,
+              label: copy.sizeFeels[value],
+            }))}
+            selected={draft.sizeFeel}
+            allowClear={false}
+            columns={3}
+            onSelect={(value) =>
+              value !== null && setDraft({ ...draft, sizeFeel: value })
             }
           />
-        </div>
-      )}
-      <ChipChoice
-        legend={copy.sizeFeelLabel}
-        options={SIZE_FEELS.map((value) => ({
-          value,
-          label: copy.sizeFeels[value],
-        }))}
-        selected={draft.sizeFeel}
-        allowClear={false}
-        columns={3}
-        onSelect={(value) =>
-          value !== null && setDraft({ ...draft, sizeFeel: value })
-        }
-      />
-    </ProfileSheet>
-  );
+        </>
+      ),
+    },
+  };
 }

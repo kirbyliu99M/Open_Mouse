@@ -442,6 +442,7 @@ dialog.results-sheet[open] {
 }
 dialog.results-sheet[data-leaving="true"] {
   transform: translateY(100%);
+  pointer-events: none;
 }
 dialog.results-sheet::backdrop {
   background: color-mix(in srgb, var(--bg) 70%, transparent);
@@ -628,14 +629,20 @@ dialog.results-sheet[data-leaving="true"]::backdrop {
 }
 
 /* ---- Accessibility variants ---- */
+/* Reduced motion: the sheet fades in and out over --motion-reduced, no slide
+   (V3.2 motion pass #30: it used to vanish on close). */
 @media (prefers-reduced-motion: reduce) {
   dialog.results-sheet,
   dialog.results-sheet[data-leaving="true"]::backdrop {
-    transition: none;
+    transition: opacity var(--motion-reduced) linear;
   }
   dialog.results-sheet[open],
   dialog.results-sheet::backdrop {
-    animation: none;
+    animation: motion-fade-in var(--motion-reduced) linear;
+  }
+  dialog.results-sheet[data-leaving="true"] {
+    transform: none;
+    opacity: 0;
   }
   .results-facet-chevron {
     transition: none;

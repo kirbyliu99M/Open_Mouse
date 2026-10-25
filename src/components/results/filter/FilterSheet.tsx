@@ -22,11 +22,10 @@ import {
 } from "@/lib/results/filters";
 import { FilterFacets } from "./FilterFacets";
 import { FilterStatus } from "./FilterStatus";
+import { leaveMs } from "@/lib/motion";
 import { prefersReducedMotion } from "./useWideLayout";
 import "./filter.css";
 
-/** How long the slide-down takes; also the longest the close waits for it. */
-const CLOSE_MS = 240;
 /** Past this share of the sheet's height, or this speed (px per ms), letting go closes it. */
 const DRAG_CLOSE_SHARE = 0.3;
 const DRAG_CLOSE_SPEED = 0.6;
@@ -66,6 +65,7 @@ export function FilterSheet({
   const [state, setState] = useState(() => openSheet(applied));
   const closing = useRef(false);
   const [leaving, setLeaving] = useState(false);
+  const closeTimer = useRef<number | undefined>(undefined);
 
   const draftCount = matchCount(countSource ?? response, state.draft);
 
@@ -79,6 +79,8 @@ export function FilterSheet({
     root.style.overflow = "hidden";
     return () => {
       root.style.overflow = before;
+      // Unmounted during the leave: no late `finish`.
+      window.clearTimeout(closeTimer.current);
     };
   }, []);
 
@@ -88,18 +90,20 @@ export function FilterSheet({
     onClosed();
   }, [onClosed]);
 
-  /** Close with the slide-down (at once with reduced motion). */
+  /**
+   * Close with the slide-down; with reduced motion a --motion-reduced fade
+   * (V3.2 motion pass #30: it used to vanish at once).
+   */
   const requestClose = useCallback(
     (apply: boolean) => {
       if (closing.current) return;
       closing.current = true;
       if (apply) onApply(closeSheet(state, true));
-      if (prefersReducedMotion()) {
-        finish();
-        return;
-      }
       setLeaving(true);
-      window.setTimeout(finish, CLOSE_MS);
+      closeTimer.current = window.setTimeout(
+        finish,
+        leaveMs("sheet", prefersReducedMotion()),
+      );
     },
     [finish, onApply, state],
   );
@@ -131,7 +135,10 @@ export function FilterSheet({
     const sheet = dialogRef.current;
     if (!d || !sheet || d.id !== e.pointerId) return;
     d.dy = Math.max(0, e.clientY - d.startY);
-    sheet.style.transform = `translateY(${d.dy}px)`;
+    // With reduced motion the sheet does not follow the finger (as the
+    // feedback sheet): the pull is judged, by the same rule, when it ends.
+    if (!prefersReducedMotion())
+      sheet.style.transform = `translateY(${d.dy}px)`;
   };
   const endDrag = (
     e: ReactPointerEvent<HTMLDivElement>,
@@ -149,8 +156,8 @@ export function FilterSheet({
         (d.dy > 24 && speed > DRAG_CLOSE_SPEED));
     sheet.style.transition = "";
     if (leave) {
-      // Carry on down from where the finger let go.
-      sheet.style.transform = "translateY(100%)";
+      // Carry on down from where the finger let go (a fade, with reduced motion).
+      sheet.style.transform = prefersReducedMotion() ? "" : "translateY(100%)";
       requestClose(false);
     } else {
       // Back up from where the finger let go: the transition runs from the
@@ -164,6 +171,7 @@ export function FilterSheet({
       ref={dialogRef}
       className="results-sheet"
       data-leaving={leaving ? "true" : undefined}
+      inert={leaving}
       aria-labelledby={titleId}
 
       onCancel={(e) => {

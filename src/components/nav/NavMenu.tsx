@@ -14,6 +14,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useLocale } from "@/client/i18n/LocaleProvider";
+import { usePresence } from "@/components/motion/Presence";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { navCopy } from "@/lib/copy/nav";
 import { UnansweredMarker } from "./UnansweredMarker";
@@ -35,8 +36,13 @@ export function NavMenu({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
+  // Closing slides the menu back out to the right (V3.2 motion pass #14): it
+  // stays open for leaveMs("sheet") after `open` turns false, and only then
+  // closes and gives focus back to the trigger.
+  const menu = usePresence(open, "sheet");
+
   useEffect(() => {
-    if (!open) return;
+    if (!menu.mounted) return;
     const dialog = dialogRef.current;
     const trigger = triggerRef.current;
     dialog?.showModal();
@@ -45,7 +51,7 @@ export function NavMenu({
       dialog?.close();
       trigger?.focus();
     };
-  }, [open]);
+  }, [menu.mounted]);
 
   return (
     <>
@@ -67,13 +73,20 @@ export function NavMenu({
           />
         </svg>
       </button>
-      {open && (
+      {menu.mounted && (
         <dialog
           ref={dialogRef}
           className="navMenu"
           aria-label={copy.menuDialogLabel}
+          data-leaving={menu.leaving ? "true" : undefined}
+          inert={menu.leaving}
           onClose={() => setOpen(false)}
-          onCancel={() => setOpen(false)}
+          onCancel={(event) => {
+            // Esc: slide out like the close button, not the browser's
+            // instant close.
+            event.preventDefault();
+            setOpen(false);
+          }}
         >
           <div className="navMenuHeader">
             <span className="navMenuTitle">{copy.menuTitle}</span>

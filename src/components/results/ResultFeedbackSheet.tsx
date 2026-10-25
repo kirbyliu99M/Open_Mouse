@@ -9,6 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
+import { usePresence } from "@/components/motion/Presence";
 import type { Locale } from "@/lib/contracts/locale";
 import type { ResultsEmit } from "@/lib/results/analyticsEvents";
 import {
@@ -209,6 +210,8 @@ export function ResultFeedbackSheet({
   }, [show]);
 
   const visible = opened && !localDone;
+  // Closed, it slides down before it unmounts (V3.2 motion pass #8).
+  const presence = usePresence(visible, "sheet");
 
   // Room at the very bottom of the page (after the footer), as tall as the
   // sheet and its gap to the window edge, so the footer and the share button
@@ -217,7 +220,9 @@ export function ResultFeedbackSheet({
   useEffect(() => {
     const sheet = sheetRef.current;
     const section = sectionRef.current;
-    if (!visible || !sheet || !section) return;
+    // Kept until the sheet has slid out (not when it is closed), so the page
+    // does not jump under the leaving sheet.
+    if (!presence.mounted || !sheet || !section) return;
     const root = document.documentElement;
     const measure = () => {
       const gap = parseFloat(getComputedStyle(section).bottom) || 0;
@@ -238,7 +243,7 @@ export function ResultFeedbackSheet({
       observer?.disconnect();
       root.style.removeProperty("--feedback-room");
     };
-  }, [visible]);
+  }, [presence.mounted]);
 
   // The data note opens in place: bring it into view in the scrolling panel.
   useEffect(() => {
@@ -359,8 +364,19 @@ export function ResultFeedbackSheet({
       const current = drag.current;
       if (!current || current.id !== event.pointerId) return;
       drag.current = null;
-      if (dragClosesSheet(current.dy)) dismiss();
-      else resetSheet();
+      if (dragClosesSheet(current.dy)) {
+        // Carry on down from where the finger let go (a fade, with reduced
+        // motion); the leaving rule in results.css times it.
+        const sheet = sheetRef.current;
+        if (sheet) {
+          const reduced = window.matchMedia(
+            "(prefers-reduced-motion: reduce)",
+          ).matches;
+          sheet.style.transition = "";
+          sheet.style.transform = reduced ? "" : "translateY(100%)";
+        }
+        dismiss();
+      } else resetSheet();
     },
     onPointerCancel: () => {
       drag.current = null;
@@ -390,9 +406,10 @@ export function ResultFeedbackSheet({
       {/* In the body, not in the page: the results view isolates its own
           stacking context, and the site footer (later in the page) would paint
           over a sheet that lives inside it. */}
-      {visible &&
+      {presence.mounted &&
         createPortal(
           <ResultFeedbackPanel
+            leaving={presence.leaving}
             language={language}
             phase={phase}
             stars={stars}

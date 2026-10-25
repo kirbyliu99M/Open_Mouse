@@ -620,19 +620,40 @@ test.describe("phone sheet", () => {
     await expect(trigger(page)).toBeFocused();
   });
 
-  test("with reduced motion nothing slides: it closes at once", async ({
+  // V3.2 motion pass #30: with reduced motion it no longer vanishes; it fades
+  // in and out over --motion-reduced (120 ms), and never slides.
+  test("with reduced motion nothing slides: it fades in and out", async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto(MAIN);
     await trigger(page).click();
     await expect(sheet(page)).toBeVisible();
-    const animation = await sheet(page).evaluate(
-      (el) => getComputedStyle(el).animationName,
-    );
-    expect(animation).toBe("none");
-    await sheet(page).getByRole("button", { name: "關閉篩選" }).click();
-    await expect(sheet(page)).toHaveCount(0, { timeout: 100 });
+    const opening = await sheet(page).evaluate((el) => ({
+      animation: getComputedStyle(el).animationName,
+      duration: getComputedStyle(el).animationDuration,
+    }));
+    expect(opening).toEqual({ animation: "motion-fade-in", duration: "0.12s" });
+    // Closed and read in one go: the fade lasts only 120 ms.
+    const leaving = await sheet(page).evaluate(async (el) => {
+      el.querySelector<HTMLButtonElement>(
+        'button[aria-label="關閉篩選"]',
+      )!.click();
+      await new Promise((done) => requestAnimationFrame(done));
+      return {
+        leaving: el.getAttribute("data-leaving"),
+        transform: getComputedStyle(el).transform,
+        transition: getComputedStyle(el).transitionProperty,
+      };
+    });
+    // Leaving: a fade on opacity, no movement.
+    expect(leaving).toEqual({
+      leaving: "true",
+      transform: "none",
+      transition: "opacity",
+    });
+    await expect(sheet(page)).toHaveCount(0, { timeout: 1_000 });
+    await expect(trigger(page)).toBeFocused();
   });
 
   test("the footer clears the draft only; the page keeps its filter until applied", async ({

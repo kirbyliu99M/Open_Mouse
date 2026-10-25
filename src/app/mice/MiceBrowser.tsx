@@ -5,16 +5,20 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { reducedMotionNow } from "@/components/motion/Presence";
 import { FilterNoMatch } from "@/components/results/filter/FilterNoMatch";
 import { ResultsFilterLayout } from "@/components/results/filter/ResultsFilterLayout";
 import type { Locale } from "@/lib/contracts/locale";
 import { micePageCopy } from "@/lib/copy/mice-page";
 import { RESULTS_PAGE_COPY, type FilterCopy } from "@/lib/copy/results-page";
 import { firstRendered } from "@/lib/mice/rendered";
+import { MOTION } from "@/lib/motion";
+import { enteringRowsFrom } from "@/lib/presence";
 import {
   MAX_SEARCH_LENGTH,
   MICE_PAGE_SIZE,
@@ -37,6 +41,7 @@ import {
   serializeFilters,
   type Filters,
 } from "@/lib/results/filters";
+import { rowDelayMs } from "@/lib/results/shapeToggle";
 import "@/components/results/results.css";
 import "./mice.css";
 
@@ -171,6 +176,38 @@ export function MiceBrowser({
       ) ?? [];
     firstRendered(candidates)?.focus();
   }, [shown]);
+  // New rows fade in, one after another (V3.2 motion pass #29): every row
+  // from the top after a filter change, the added ones after 「顯示更多」;
+  // 30 ms apart, the first five only (the shape toggle's rhythm). The rows the
+  // server sent, and a search keystroke, do not fade.
+  const filterKey = serializeFilters(filters);
+  const seenRows = useRef<{ key: string; shown: number } | null>(null);
+  useLayoutEffect(() => {
+    const before = seenRows.current;
+    seenRows.current = { key: filterKey, shown };
+    if (before === null) return;
+    const from = enteringRowsFrom({
+      previousKey: before.key,
+      key: filterKey,
+      previousShown: before.shown,
+      shown,
+    });
+    if (from === null) return;
+    const reduced = reducedMotionNow();
+    root.current
+      ?.querySelectorAll<HTMLElement>("[data-row-index]")
+      .forEach((row) => {
+        const delay = rowDelayMs(Number(row.dataset.rowIndex) - from, reduced);
+        if (delay === null || typeof row.animate !== "function") return;
+        row.animate([{ opacity: 0 }, { opacity: 1 }], {
+          duration: reduced ? MOTION.REDUCED_MS : MOTION.BASE_MS,
+          delay,
+          easing: MOTION.EASE_OUT,
+          // Hidden until its turn.
+          fill: "backwards",
+        });
+      });
+  }, [filterKey, shown]);
   const showMore = () => {
     focusFrom.current = shownRows.length;
     setPaging({ key: pagingKey, shown: nextShownCount(shown, count) });
