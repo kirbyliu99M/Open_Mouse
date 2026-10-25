@@ -224,8 +224,13 @@ describe("the wiring (source pins, F23)", () => {
       "display: flex;",
       "align-items: center;",
       "justify-content: center;",
+      // Opaque and above the site footer, which otherwise covered it
+      // (Kirby's phone test 2026-10-25); below the cookie banner (50).
+      "z-index: 30;",
+      "background: var(--bg);",
     ])
       expect(rule).toContain(line);
+    expect(rule).not.toContain("pointer-events: none");
     expect(css).toMatch(
       /\.results-page-handoff \.results-page-handoffLoader \{\s*padding: 0;/,
     );

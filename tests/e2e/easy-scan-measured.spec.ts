@@ -458,6 +458,27 @@ test.describe("the palm-thickness page (2 of 2)", () => {
     const handed = page.locator(".results-page-handoff .particleLoader");
     await expect(handed).toBeVisible();
     await expect(handed.getByRole("status")).toHaveText("Matching");
+    // Seen, not just there: nothing (the site footer, Kirby's phone test
+    // 2026-10-25) is drawn over the canvas, and the loading page is opaque
+    // like the veil.
+    expect(
+      await page.evaluate(() => {
+        const canvas = document.querySelector(
+          ".results-page-handoff .particleLoader-canvas",
+        );
+        if (!canvas) return false;
+        const r = canvas.getBoundingClientRect();
+        const top = document.elementFromPoint(
+          r.x + r.width / 2,
+          r.y + r.height / 2,
+        );
+        return top === canvas;
+      }),
+      "the handed-over loader is on top at its centre",
+    ).toBe(true);
+    expect(await backgroundAlpha(page.locator(".results-page-handoff"))).toBe(
+      1,
+    );
     const seen = await page.evaluate(
       () =>
         (

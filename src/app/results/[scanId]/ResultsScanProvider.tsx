@@ -160,7 +160,8 @@ export function useResultsScan(): ResultsScan {
  * same spot as on the veil: the canvas centred in the viewport
  * (`.results-page-handoff`, fixed over the page, which matches the veil's
  * `position: fixed; inset: 0` flex centre), the same size and the same words
- * (`loadingCopy(locale).fit`). The top bar is drawn under it as usual. Since
+ * (`loadingCopy(locale).fit`). Like the veil it is opaque and covers the
+ * whole page, the top bar and the site footer included. Since
  * it is on screen from the start, even a quick answer goes through it (fills
  * and fades, `handedFitReveal`). Only the first fit request of the page gets
  * this; a retry keeps the 300 ms rule.

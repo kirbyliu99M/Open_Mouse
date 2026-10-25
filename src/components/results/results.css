@@ -655,15 +655,20 @@
    send veil's was. The veil (src/client/scan/submit-overlay.css) centres the
    canvas in the viewport (`position: fixed; inset: 0`, flex centre, no
    padding); this does the same, so at the page switch the loader neither
-   moves nor changes size. No background: the page (`:root`) is `--bg`, the veil's
-   colour, and the top bar under it stays usable. */
+   moves nor changes size. Like the veil it is the whole page: opaque (`--bg`,
+   the veil's colour) and above the top bar and the site footer (z-index 30;
+   the footer comes later in the page and has its own background, so without
+   both it covered the loader: Kirby's phone test 2026-10-25 saw a blank page
+   until the results). The cookie banner (50) stays above it. Taps stop here,
+   as on the veil. */
 .results-page-handoff {
   position: fixed;
   inset: 0;
+  z-index: 30;
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
+  background: var(--bg);
 }
 .results-page-handoff .results-page-handoffLoader {
   padding: 0;
