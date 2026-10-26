@@ -257,6 +257,7 @@ describe("placement in the attempt log", () => {
           wristToEdgeMm: 7,
           handAxisDeg: 1.3,
           palmOverHand: 0.5,
+          fingerRatioMean: null,
         },
         previous: {
           ageMs: 600,
@@ -264,6 +265,7 @@ describe("placement in the attempt log", () => {
           wristToEdgeMm: 7,
           handAxisDeg: 1.3,
           palmOverHand: 0.5,
+          fingerRatioMean: null,
         },
         earlier: {
           ageMs: 1100,
@@ -271,6 +273,7 @@ describe("placement in the attempt log", () => {
           wristToEdgeMm: 7,
           handAxisDeg: 1.3,
           palmOverHand: 0.5,
+          fingerRatioMean: null,
         },
       },
     });
@@ -308,6 +311,7 @@ describe("placement in the attempt log", () => {
           wristToEdgeMm: 7,
           handAxisDeg: 1,
           palmOverHand: 0.5,
+          fingerRatioMean: null,
         },
         previous: null,
         earlier: null,

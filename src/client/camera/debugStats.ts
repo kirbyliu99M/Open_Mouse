@@ -168,6 +168,8 @@ export interface ScanDebugSnapshot {
       readonly fill: number | null;
       readonly wristToEdgeMm: number | null;
       readonly handAxisDeg: number | null;
+      /** The fingers' mean distal/proximal ratio (2026-10-26; about 0.47 flat, 0.18 curled). */
+      readonly fingerRatioMean?: number | null;
       readonly ageMs: number | null;
       readonly costMsAverage: number | null;
       readonly costMsMax: number | null;
@@ -213,6 +215,7 @@ export function debugPlacement(input: {
     fill: input.fill ?? null,
     wristToEdgeMm: latest?.wristToEdgeMm ?? null,
     handAxisDeg: latest?.handAxisDeg ?? null,
+    fingerRatioMean: latest?.fingerRatioMean ?? null,
     ageMs: latest ? input.nowMs - latest.atMs : null,
     costMsAverage: mean(cost),
     costMsMax: cost.length ? Math.max(...cost) : null,
@@ -258,6 +261,10 @@ export function debugSnapshotJson(snapshot: ScanDebugSnapshot): string {
                 fill: round(live.placement.fill, 4),
                 wristToEdgeMm: round(live.placement.wristToEdgeMm, 1),
                 handAxisDeg: round(live.placement.handAxisDeg, 1),
+                fingerRatioMean: round(
+                  live.placement.fingerRatioMean ?? null,
+                  4,
+                ),
                 ageMs: round(live.placement.ageMs, 0),
                 costMsAverage: round(live.placement.costMsAverage, 3),
                 costMsMax: round(live.placement.costMsMax, 3),

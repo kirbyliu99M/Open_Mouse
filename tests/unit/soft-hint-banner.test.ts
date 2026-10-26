@@ -15,9 +15,11 @@ import {
   type SoftHintBannerSwitches,
 } from "../../src/client/camera/softHintBanner";
 import { SoftHintBanner } from "../../src/client/camera/SoftHintBannerView";
-import type {
-  SoftHintCode,
-  SoftHintInput,
+import {
+  meanFingerRatio,
+  pickSoftHint,
+  type SoftHintCode,
+  type SoftHintInput,
 } from "../../src/client/photo/softHint";
 import {
   appendAttempt,
@@ -288,5 +290,38 @@ describe("SoftHintBanner (the view)", () => {
     expect(css).toMatch(
       /easyFadeIn var\(--motion-reduced\) linear backwards;\s*\}\s*\.easySoftHint\[data-leaving/,
     );
+  });
+});
+
+describe("the curled-fingers banner (Kirby's S25 test, 2026-10-26)", () => {
+  // His two photos: slightly curved (shown nothing) and fully curled.
+  const photo = (
+    fingerRatioMean: number,
+    palmOverHand: number,
+    reachMean: number,
+  ) => ({
+    wristToEdgeMm: 8,
+    handAxisDeg: 0,
+    minSideMarginMm: 50,
+    palmOverHand,
+    reachMean,
+    palmTiltDeg: 40,
+    fingerFlexDeg: [36, 36, 36, 36],
+    fingerRatioMean,
+    sharpness: 45,
+    paperWidthFraction: 0.69,
+  });
+  it("fires 手掌沒壓平 on the full curl, not on the slightly curved hand", () => {
+    const t = softHintBannerThresholds();
+    expect(pickSoftHint(photo(0.1758, 0.519, 0.792), [], t).code).toBe(
+      "hand-flat",
+    );
+    expect(pickSoftHint(photo(0.4711, 0.4791, 0.898), [], t).code).toBe(null);
+  });
+  it("meanFingerRatio is the four fingers' mean, null without all four", () => {
+    expect(meanFingerRatio([0.1, 0.2, 0.3, 0.4])).toBeCloseTo(0.25, 10);
+    expect(meanFingerRatio(null)).toBe(null);
+    expect(meanFingerRatio([0.1, 0.2, 0.3])).toBe(null);
+    expect(meanFingerRatio([0.1, 0.2, Number.NaN, 0.4])).toBe(null);
   });
 });

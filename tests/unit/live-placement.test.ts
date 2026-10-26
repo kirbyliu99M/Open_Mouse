@@ -166,6 +166,7 @@ describe("pushLivePlacement", () => {
     palmOverHand: 0.5,
     minSideMarginMm: 20,
     wristEdge: "near-bottom",
+    fingerRatioMean: null,
   });
   it("keeps the newest three, oldest first", () => {
     let list: LivePlacementReading[] = [];
@@ -210,6 +211,7 @@ describe("liveReadingsAtShutter (stale readings never reach the log)", () => {
     // V3.3 WP3a: live-hint fields the log does not copy (toStrictEqual below).
     minSideMarginMm: 12,
     wristEdge: "near-bottom" as const,
+    fingerRatioMean: null,
   });
 
   it("ages each reading at the shutter, oldest first, values unchanged", () => {
@@ -220,6 +222,7 @@ describe("liveReadingsAtShutter (stale readings never reach the log)", () => {
         wristToEdgeMm: 7,
         handAxisDeg: 1,
         palmOverHand: 0.5,
+        fingerRatioMean: null,
       },
       {
         ageMs: 500,
@@ -227,6 +230,7 @@ describe("liveReadingsAtShutter (stale readings never reach the log)", () => {
         wristToEdgeMm: 7,
         handAxisDeg: 1,
         palmOverHand: 0.5,
+        fingerRatioMean: null,
       },
     ]);
   });

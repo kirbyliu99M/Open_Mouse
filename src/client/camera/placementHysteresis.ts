@@ -62,6 +62,8 @@ export interface PlacementLiveThresholds {
     readonly handInside: boolean;
     readonly handStraight: boolean;
     readonly handFlat: boolean;
+    /** The curl half of `hand-flat`: the fingers' distal/proximal ratio. */
+    readonly fingerCurl: boolean;
   };
   readonly showAfterReadings: number;
   readonly clearAfterReadings: number;
@@ -85,6 +87,10 @@ export interface PlacementLiveThresholds {
     readonly clearMin: number;
     readonly clearMax: number;
   };
+  readonly fingerRatio: {
+    readonly showBelow: number;
+    readonly clearFrom: number;
+  };
   readonly bottomEdgeWristMm: number;
 }
 
@@ -103,6 +109,8 @@ export interface PlacementObservation {
   readonly handAxisDeg: number | null;
   readonly minSideMarginMm: number | null;
   readonly palmOverHand: number | null;
+  /** The fingers' mean distal/proximal ratio; missing = not read. */
+  readonly fingerRatioMean?: number | null;
 }
 
 interface CheckState {
@@ -153,7 +161,7 @@ export function placementCheckOn(
     case "hand-straight":
       return t.live.handStraight;
     case "hand-flat":
-      return t.live.handFlat;
+      return t.live.handFlat || t.live.fingerCurl;
   }
 }
 
@@ -195,11 +203,25 @@ export function placementVerdict(
       return v > a.showAboveDeg ? "fail" : "pass";
     }
     case "hand-flat": {
+      // Two halves, each on its own switch: the palm/hand ratio (a lifted
+      // wrist) and the fingers' ratio (a curl). Either failing fails.
+      const verdicts: PlacementVerdict[] = [];
       const v = obs.palmOverHand;
-      if (!num(v)) return "unknown";
-      const p = t.palmOverHand;
-      if (active) return v >= p.clearMin && v <= p.clearMax ? "pass" : "fail";
-      return v < p.showMin || v > p.showMax ? "fail" : "pass";
+      if (t.live.handFlat && num(v)) {
+        const p = t.palmOverHand;
+        const ok = active
+          ? v >= p.clearMin && v <= p.clearMax
+          : !(v < p.showMin || v > p.showMax);
+        verdicts.push(ok ? "pass" : "fail");
+      }
+      const f = obs.fingerRatioMean;
+      if (t.live.fingerCurl && num(f)) {
+        const r = t.fingerRatio;
+        const ok = active ? f >= r.clearFrom : !(f < r.showBelow);
+        verdicts.push(ok ? "pass" : "fail");
+      }
+      if (verdicts.length === 0) return "unknown";
+      return verdicts.includes("fail") ? "fail" : "pass";
     }
   }
 }

@@ -76,6 +76,7 @@ const ALL_ON: PlacementLiveThresholds = {
     handInside: true,
     handStraight: true,
     handFlat: true,
+    fingerCurl: true,
   },
 };
 
@@ -127,13 +128,14 @@ describe("the switch: hints only with ?debug=1 (CAMERA_CONSTANTS.placement.enabl
     expect(placementHintsOn(true, "off")).toBe(false);
     expect(placementHintsOn(false, "on")).toBe(true);
   });
-  it("by default only hand-missing, wrist-align and hand-inside are on (WP1a ruling)", () => {
+  it("by default hand-missing, wrist-align, hand-inside and the finger-curl half of hand-flat are on (WP1a ruling; curl added after Kirby's S25 test 2026-10-26)", () => {
     expect(CAMERA_CONSTANTS.placement.live).toEqual({
       handMissing: true,
       wristAlign: true,
       handInside: true,
       handStraight: false,
       handFlat: false,
+      fingerCurl: true,
     });
   });
 });
@@ -648,5 +650,41 @@ describe("copy: both locales, live hints start with 請", () => {
     expect(en.paper.edgeCoveredBottom).toBe(
       "The bottom edge is covered. Move your hand in.",
     );
+  });
+});
+
+describe("the finger curl (Kirby's S25 test, 2026-10-26)", () => {
+  const obs = (atMs: number, fingerRatioMean: number | null) => ({
+    atMs,
+    handSeen: true,
+    wristToEdgeMm: 8,
+    wristEdge: "near-bottom" as const,
+    handAxisDeg: 0,
+    minSideMarginMm: 40,
+    palmOverHand: 0.5,
+    fingerRatioMean,
+  });
+  it("a full curl (ratio 0.18) shows 請把手掌壓平 after two readings; flat (0.47) never does; it goes from 0.40", () => {
+    let s = INITIAL_PLACEMENT_HYSTERESIS_STATE;
+    s = advancePlacementHysteresis(s, obs(1, 0.47));
+    s = advancePlacementHysteresis(s, obs(2, 0.47));
+    expect(s.checks["hand-flat"].active).toBe(false);
+    s = advancePlacementHysteresis(s, obs(3, 0.18));
+    expect(s.checks["hand-flat"].active).toBe(false);
+    s = advancePlacementHysteresis(s, obs(4, 0.18));
+    expect(s.checks["hand-flat"].active).toBe(true);
+    // 0.37 is above the show bound but below the clear bound: it stays.
+    s = advancePlacementHysteresis(s, obs(5, 0.37));
+    s = advancePlacementHysteresis(s, obs(6, 0.37));
+    expect(s.checks["hand-flat"].active).toBe(true);
+    s = advancePlacementHysteresis(s, obs(7, 0.45));
+    s = advancePlacementHysteresis(s, obs(8, 0.45));
+    expect(s.checks["hand-flat"].active).toBe(false);
+  });
+  it("no ratio is no verdict (the palm/hand half is off by default)", () => {
+    let s = INITIAL_PLACEMENT_HYSTERESIS_STATE;
+    for (let i = 1; i <= 4; i++)
+      s = advancePlacementHysteresis(s, obs(i, null));
+    expect(s.checks["hand-flat"].active).toBe(false);
   });
 });

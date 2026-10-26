@@ -38,6 +38,8 @@ export interface SoftHintBannerSwitches {
   readonly blurry: boolean;
   readonly palmTilt: boolean;
   readonly fingerFlex: boolean;
+  /** The fingers' mean distal/proximal ratio (softHint.ts `fingerRatioMin`). */
+  readonly fingerCurl: boolean;
   readonly handStraight: boolean;
   readonly handInside: boolean;
   readonly paperSmall: boolean;
@@ -90,6 +92,7 @@ export function softHintBannerThresholds(
       switches.handFlat && switches.fingerFlex
         ? switches.fingerFlexMaxDeg
         : null,
+    fingerRatioMin: switches.fingerCurl ? base.fingerRatioMin : null,
     minPaperWidthFraction: switches.paperSmall
       ? base.minPaperWidthFraction
       : -Infinity,

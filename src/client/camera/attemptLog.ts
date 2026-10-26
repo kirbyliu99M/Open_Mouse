@@ -37,6 +37,7 @@ import {
   type ShutterKind,
 } from "./livePlacement";
 import {
+  meanFingerRatio,
   pickSoftHint,
   SOFT_HINT_CODES,
   type SoftHintCode,
@@ -400,6 +401,8 @@ export interface AttemptLiveReading {
   readonly wristToEdgeMm: number | null;
   readonly handAxisDeg: number | null;
   readonly palmOverHand: number | null;
+  /** The fingers' mean distal/proximal ratio, to 0.0001 (2026-10-26). */
+  readonly fingerRatioMean?: number | null;
 }
 
 export interface AttemptGuidance {
@@ -943,6 +946,7 @@ function cleanLiveReading(value: unknown): AttemptLiveReading | null {
     ),
     handAxisDeg: cleanBounded(o.handAxisDeg, 1, -180, 180),
     palmOverHand: cleanBounded(o.palmOverHand, 4, 0, 10),
+    fingerRatioMean: cleanBounded(o.fingerRatioMean, 4, 0, 100),
   };
 }
 
@@ -1643,6 +1647,7 @@ export function softHintInputOf(
     reachMean: diagnostics.hand?.flatness?.reachMean ?? null,
     palmTiltDeg: placement.world.palmTiltDeg,
     fingerFlexDeg: placement.world.fingerFlexDeg,
+    fingerRatioMean: meanFingerRatio(placement.placement.distalOverProximal),
     sharpness: diagnostics.laplacianVariance ?? null,
     paperWidthFraction: diagnostics.paper?.widthFraction ?? null,
   };

@@ -172,7 +172,8 @@ export function ScanDebugPanel({
           fill{" "}
           {fixed(live.placement?.fill == null ? null : live.placement.fill, 3)}{" "}
           · wrist {fixed(live.placement?.wristToEdgeMm ?? null, 1)} mm · axis{" "}
-          {fixed(live.placement?.handAxisDeg ?? null, 1)}° · age{" "}
+          {fixed(live.placement?.handAxisDeg ?? null, 1)}° · fingers{" "}
+          {fixed(live.placement?.fingerRatioMean ?? null, 2)} · age{" "}
           {fixed(live.placement?.ageMs ?? null, 0)} ms · cost avg{" "}
           {fixed(live.placement?.costMsAverage ?? null, 3)} / max{" "}
           {fixed(live.placement?.costMsMax ?? null, 3)} ms

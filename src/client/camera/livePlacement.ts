@@ -33,6 +33,7 @@ import {
   type WristEdge,
 } from "../photo/handPlacement";
 import type { PaperSize } from "@/lib/contracts/measurement";
+import { meanFingerRatio } from "../photo/softHint";
 import { computeQuadWidthFraction } from "./quad";
 
 /** How many live readings the log keeps (§5.1: "最後 3 次讀數"). */
@@ -52,6 +53,8 @@ export interface LivePlacementReading {
    */
   readonly minSideMarginMm: number | null;
   readonly wristEdge: WristEdge | null;
+  /** The fingers' mean distal/proximal ratio (softHint.ts `meanFingerRatio`), for the live curl hint and the log. */
+  readonly fingerRatioMean: number | null;
 }
 
 /** What made the shutter fire: the ring, the person's tap, or F14's hand-held-still shot. */
@@ -144,6 +147,7 @@ export function readLivePlacement(input: {
       palmOverHand: placement.palmOverHand,
       minSideMarginMm: placement.minSideMarginMm,
       wristEdge: placement.wristEdge,
+      fingerRatioMean: meanFingerRatio(placement.distalOverProximal),
     };
   } catch {
     return null;
@@ -176,6 +180,7 @@ export interface LiveReadingAtShutter {
   readonly wristToEdgeMm: number | null;
   readonly handAxisDeg: number | null;
   readonly palmOverHand: number | null;
+  readonly fingerRatioMean: number | null;
 }
 
 /**
@@ -199,6 +204,7 @@ export function liveReadingsAtShutter(
       wristToEdgeMm: r.wristToEdgeMm,
       handAxisDeg: r.handAxisDeg,
       palmOverHand: r.palmOverHand,
+      fingerRatioMean: r.fingerRatioMean,
     });
   }
   return out;

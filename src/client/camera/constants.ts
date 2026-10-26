@@ -255,6 +255,12 @@ export const CAMERA_CONSTANTS = {
       handInside: true,
       handStraight: false,
       handFlat: false,
+      /**
+       * The curl half of 請把手掌壓平 (Kirby's S25 test 2026-10-26: a full
+       * curl read 25 mm short and was not caught). On; the palm/hand half
+       * (`handFlat`) stays off.
+       */
+      fingerCurl: true,
     },
     /** Hand readings in a row that fail before a live hint shows (§4.4)... */
     showAfterReadings: 2,
@@ -283,6 +289,13 @@ export const CAMERA_CONSTANTS = {
       clearMax: 0.54,
     },
     /**
+     * The fingers' mean distal/proximal ratio (實測 n = 1 each on the photo,
+     * 2026-10-26: flat about 0.47, full curl about 0.18): shows below 0.35,
+     * goes from 0.40. 候選; the live sample's own values are not measured yet
+     * (the log now keeps them).
+     */
+    fingerRatio: { showBelow: 0.35, clearFrom: 0.4 },
+    /**
      * §4.3: while the latest fresh hand reading has the wrist within this
      * many mm of the sheet's bottom edge (either side of it), "the bottom
      * edge is covered" is not said. The auto-capture is not changed by it.
@@ -300,6 +313,8 @@ export const CAMERA_CONSTANTS = {
       /** The 3D readings stay record-only until WP2 shows they separate. */
       palmTilt: false,
       fingerFlex: false,
+      /** 手掌沒壓平，建議重拍 for curled fingers (softHint.ts `fingerRatioMin`, 2026-10-26). */
+      fingerCurl: true,
       handStraight: false,
       handInside: false,
       paperSmall: false,

@@ -64,6 +64,12 @@ export interface SoftHintInput {
   readonly palmTiltDeg: number | null;
   /** handWorld.ts, degrees per finger. */
   readonly fingerFlexDeg: readonly number[] | null;
+  /**
+   * handPlacement.ts `distalOverProximal`, the four fingers' mean
+   * (`meanFingerRatio`): about 0.47 flat, about 0.18 fully curled (Kirby's
+   * S25 test, 2026-10-26, n = 1 each).
+   */
+  readonly fingerRatioMean?: number | null;
   /** Laplacian variance of the analysed photo (attempt log `sharpness`). */
   readonly sharpness: number | null;
   /** Paper width as a fraction of the photo width (attempt log `paper.widthFraction`). */
@@ -91,6 +97,8 @@ export interface SoftHintThresholds {
   readonly palmTiltMaxDeg: number | null;
   /** `hand-flat` when any finger's flex > this; null = check off. */
   readonly fingerFlexMaxDeg: number | null;
+  /** `hand-flat` when the fingers' mean distal/proximal ratio < this; null = check off. */
+  readonly fingerRatioMin: number | null;
   /** `paper-small` when paperWidthFraction < this. */
   readonly minPaperWidthFraction: number;
   /** `blurry` when sharpness < this; null = check off. */
@@ -120,6 +128,11 @@ export const SOFT_HINT_THRESHOLDS: SoftHintThresholds = Object.freeze({
   // §2.3 / WP5: the 3D readings stay record-only until WP2 shows they separate.
   palmTiltMaxDeg: null,
   fingerFlexMaxDeg: null,
+  // Kirby's S25 test 2026-10-26 (實測, n = 1 each): flat or slightly curved
+  // 0.44-0.49 per finger (mean 0.47), fully curled 0.10-0.31 (mean 0.18; the
+  // hand read 25 mm short). The palm/hand ratio and reachMean stayed in band
+  // for the curl, so this is the one that tells them apart. 候選.
+  fingerRatioMin: 0.35,
   // §3.2: auto-capture's lower bound stays 0.55.
   minPaperWidthFraction: 0.55,
   // Appendix A: LOW_SHARPNESS's 50 fires on most of Kirby's frames (實測
@@ -186,7 +199,10 @@ export function firedSoftHints(
     (t.palmTiltMaxDeg !== null &&
       num(input.palmTiltDeg) &&
       input.palmTiltDeg > t.palmTiltMaxDeg) ||
-    flexOver
+    flexOver ||
+    (t.fingerRatioMin !== null &&
+      num(input.fingerRatioMean) &&
+      input.fingerRatioMean < t.fingerRatioMin)
   ) {
     out.push("hand-flat");
   }
@@ -230,4 +246,17 @@ export function appendSoftHintHistory(
 ): (SoftHintCode | null)[] {
   const next = [...(Array.isArray(history) ? history : []), candidate];
   return next.slice(-Math.max(1, Math.floor(max)));
+}
+
+/**
+ * The four fingers' mean distal/proximal ratio (handPlacement.ts
+ * `distalOverProximal`), or null without all four finite values. Pure.
+ */
+export function meanFingerRatio(
+  ratios: readonly number[] | null | undefined,
+): number | null {
+  if (!Array.isArray(ratios) || ratios.length !== 4) return null;
+  if (!ratios.every((r) => typeof r === "number" && Number.isFinite(r)))
+    return null;
+  return (ratios[0] + ratios[1] + ratios[2] + ratios[3]) / 4;
 }

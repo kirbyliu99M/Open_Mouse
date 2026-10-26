@@ -2562,6 +2562,7 @@ export default function EasyScanCamera({
                 handAxisDeg: placed?.handAxisDeg ?? null,
                 minSideMarginMm: placed?.minSideMarginMm ?? null,
                 palmOverHand: placed?.palmOverHand ?? null,
+                fingerRatioMean: placed?.fingerRatioMean ?? null,
               },
             );
         }

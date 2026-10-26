@@ -291,6 +291,7 @@ describe("debugPlacement (V3.3 WP1b, log only)", () => {
     palmOverHand: 0.5,
     minSideMarginMm: 20,
     wristEdge: "near-bottom" as const,
+    fingerRatioMean: null,
   });
 
   it("takes the fill as given and wrist, axis and age from the newest reading", () => {
@@ -305,6 +306,7 @@ describe("debugPlacement (V3.3 WP1b, log only)", () => {
       fill: 0.65,
       wristToEdgeMm: 7.25,
       handAxisDeg: -2.04,
+      fingerRatioMean: null,
       ageMs: 300,
       costMsAverage: expect.closeTo(0.04, 10),
       costMsMax: 0.06,
@@ -323,6 +325,7 @@ describe("debugPlacement (V3.3 WP1b, log only)", () => {
       fill: null,
       wristToEdgeMm: null,
       handAxisDeg: null,
+      fingerRatioMean: null,
       ageMs: null,
       costMsAverage: null,
       costMsMax: null,
@@ -396,6 +399,7 @@ describe("debugSnapshotJson placement block", () => {
       fill: 0.6543,
       wristToEdgeMm: 7.3,
       handAxisDeg: -2,
+      fingerRatioMean: null,
       ageMs: 301,
       costMsAverage: 0.042,
       costMsMax: 0.09,
@@ -421,6 +425,7 @@ describe("debugSnapshotJson placement block", () => {
       fill: null,
       wristToEdgeMm: null,
       handAxisDeg: null,
+      fingerRatioMean: null,
       ageMs: null,
       costMsAverage: null,
       costMsMax: null,
