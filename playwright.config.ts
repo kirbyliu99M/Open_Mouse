@@ -99,7 +99,7 @@ export default defineConfig({
     {
       name: "chromium-camera-paper-edge",
       testMatch:
-        /camera-paper-edge\.spec\.ts|camera-screenshots\.spec\.ts|easy-scan\.spec\.ts|easy-scan-v2\.spec\.ts|easy-scan-v2-screenshots\.spec\.ts|easy-scan-screenshots\.spec\.ts|capture-failure-hint\.spec\.ts|scan-fov\.spec\.ts|no-paper-device\.spec\.ts|a11y-structure\.spec\.ts|a11y-axe\.spec\.ts|i18n-scan\.spec\.ts|manual-entry-flow\.spec\.ts/,
+        /camera-paper-edge\.spec\.ts|camera-screenshots\.spec\.ts|easy-scan\.spec\.ts|easy-scan-v2\.spec\.ts|easy-scan-v2-screenshots\.spec\.ts|easy-scan-soft-hints\.spec\.ts|easy-scan-screenshots\.spec\.ts|capture-failure-hint\.spec\.ts|scan-fov\.spec\.ts|no-paper-device\.spec\.ts|a11y-structure\.spec\.ts|a11y-axe\.spec\.ts|i18n-scan\.spec\.ts|manual-entry-flow\.spec\.ts/,
       use: {
         ...devices["Pixel 7"],
         viewport: { width: 390, height: 844 },
