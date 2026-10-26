@@ -233,6 +233,84 @@ export const CAMERA_CONSTANTS = {
     /** JPEG quality of the frame handed to the pipeline. */
     jpegQuality: 0.92,
   },
+  /**
+   * V3.3 WP3 (Kirby 2026-10-26, every number a candidate, 未拍板; F20 design
+   * §1.1, §4, appendix B): SOFT HINTS about where the hand lies on the sheet,
+   * live while framing (placementHysteresis.ts, `pickCue`) and after the shot
+   * (softHintBanner.ts). Hints only: no auto-capture gate, never blocks
+   * Continue or a retake, never changes a number. WP2's real scans set the
+   * thresholds.
+   */
+  placement: {
+    /**
+     * Who sees the hints: "debug-only" = only with `?debug=1` (until WP2 has
+     * set the thresholds); "off" = nobody; "on" = everyone. With the hints
+     * off the camera is exactly what it was before WP3.
+     */
+    enabled: "debug-only",
+    /** Each live hint on its own (WP1a ruling: straight and flat wait for WP2). */
+    live: {
+      handMissing: true,
+      wristAlign: true,
+      handInside: true,
+      handStraight: false,
+      handFlat: false,
+    },
+    /** Hand readings in a row that fail before a live hint shows (§4.4)... */
+    showAfterReadings: 2,
+    /** ...and that pass before it goes. */
+    clearAfterReadings: 2,
+    /**
+     * Wrist to its short edge, sheet mm, positive inside (§1.1, 推估). The
+     * hint shows below `showMinMm` or above `showMaxMm`, and goes again only
+     * within `clearMinMm`-`clearMaxMm` (a 3 mm band on each side).
+     */
+    wristToEdge: {
+      showMinMm: -3,
+      showMaxMm: 18,
+      clearMinMm: 0,
+      clearMaxMm: 15,
+    },
+    /** Smallest margin of the wrist and fingers to the sides and the far edge (§1.1): shows below 3 mm, goes at 5 mm. */
+    sideMargin: { showBelowMm: 3, clearFromMm: 5 },
+    /** |hand axis| against the sheet's long side (§1.1): shows above 20°, goes at 17°. */
+    handAxis: { showAboveDeg: 20, clearAtDeg: 17 },
+    /** Palm over hand length (§2.3): shows outside 0.44-0.56, goes within 0.46-0.54. */
+    palmOverHand: {
+      showMin: 0.44,
+      showMax: 0.56,
+      clearMin: 0.46,
+      clearMax: 0.54,
+    },
+    /**
+     * §4.3: while the latest fresh hand reading has the wrist within this
+     * many mm of the sheet's bottom edge (either side of it), "the bottom
+     * edge is covered" is not said. The auto-capture is not changed by it.
+     */
+    bottomEdgeWristMm: 20,
+    /**
+     * The post-shot banner (softHintBanner.ts, softHint.ts's picker). One
+     * switch per hint; the ones without banner words yet are off.
+     */
+    postShot: {
+      wristAlign: true,
+      handFlat: false,
+      /** WP1a ruling 1: today's sharpness floor would fire on most frames (實測 30-50 against 50). */
+      blurry: false,
+      /** The 3D readings stay record-only until WP2 shows they separate. */
+      palmTilt: false,
+      fingerFlex: false,
+      handStraight: false,
+      handInside: false,
+      paperSmall: false,
+      /** Used only when `blurry` is on (the photo gate's own LOW_SHARPNESS floor). */
+      blurryMinSharpness: 50,
+      /** Used only when `palmTilt` is on (推估). */
+      palmTiltMaxDeg: 10,
+      /** Used only when `fingerFlex` is on (§2.2: arching from about 30°, 模擬). */
+      fingerFlexMaxDeg: 30,
+    },
+  },
   /** Focus (scan v2). */
   focus: {
     /** After a tap's single-shot focus, continuous focus is asked for again. */

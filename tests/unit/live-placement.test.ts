@@ -164,6 +164,8 @@ describe("pushLivePlacement", () => {
     wristToEdgeMm: 5,
     handAxisDeg: 0,
     palmOverHand: 0.5,
+    minSideMarginMm: 20,
+    wristEdge: "near-bottom",
   });
   it("keeps the newest three, oldest first", () => {
     let list: LivePlacementReading[] = [];
@@ -205,6 +207,9 @@ describe("liveReadingsAtShutter (stale readings never reach the log)", () => {
     wristToEdgeMm: 7,
     handAxisDeg: 1,
     palmOverHand: 0.5,
+    // V3.3 WP3a: live-hint fields the log does not copy (toStrictEqual below).
+    minSideMarginMm: 12,
+    wristEdge: "near-bottom" as const,
   });
 
   it("ages each reading at the shutter, oldest first, values unchanged", () => {

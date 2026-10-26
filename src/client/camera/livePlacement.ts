@@ -30,6 +30,7 @@ import {
   centredIntrinsics,
   computeHandPlacement,
   placementPointsMm,
+  type WristEdge,
 } from "../photo/handPlacement";
 import type { PaperSize } from "@/lib/contracts/measurement";
 import { computeQuadWidthFraction } from "./quad";
@@ -45,6 +46,12 @@ export interface LivePlacementReading {
   readonly wristToEdgeMm: number | null;
   readonly handAxisDeg: number | null;
   readonly palmOverHand: number | null;
+  /**
+   * V3.3 WP3a: for the live hints only (placementHysteresis.ts); the attempt
+   * log does not copy them (`liveReadingsAtShutter`).
+   */
+  readonly minSideMarginMm: number | null;
+  readonly wristEdge: WristEdge | null;
 }
 
 /** What made the shutter fire: the ring, the person's tap, or F14's hand-held-still shot. */
@@ -135,6 +142,8 @@ export function readLivePlacement(input: {
       wristToEdgeMm: placement.wristToEdgeMm,
       handAxisDeg: placement.handAxisDeg,
       palmOverHand: placement.palmOverHand,
+      minSideMarginMm: placement.minSideMarginMm,
+      wristEdge: placement.wristEdge,
     };
   } catch {
     return null;

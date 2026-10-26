@@ -33,6 +33,15 @@ export interface CameraCuesCopy {
     holdStill: string;
     outOfFocus: string;
     perfect: string;
+    /**
+     * V3.3 WP3a live hand hints (candidate 未拍板, both locales; shown only
+     * with `?debug=1` until WP2). Live suggestions start with 請.
+     */
+    handMissing: string;
+    wristAlign: string;
+    handInside: string;
+    handStraight: string;
+    layHandFlat: string;
   };
   /** The same lines for the printed calibration sheet (`/scan`). */
   sheet: {
@@ -53,6 +62,15 @@ export interface CameraCuesCopy {
     holdStill: string;
     outOfFocus: string;
     perfect: string;
+    /**
+     * V3.3 WP3a live hand hints (candidate 未拍板, both locales; shown only
+     * with `?debug=1` until WP2). Live suggestions start with 請.
+     */
+    handMissing: string;
+    wristAlign: string;
+    handInside: string;
+    handStraight: string;
+    layHandFlat: string;
   };
   /** The easy scan's "perfect" line. */
   gotIt: string;
@@ -65,6 +83,16 @@ export interface CameraCuesCopy {
   pointAtSheet: string;
   /** Typed hand length: no paper to find, so one fixed cue and announcement. */
   handFlat: string;
+  /**
+   * V3.3 WP3b post-shot banner (candidate 未拍板): what was seen and what to
+   * do, no 請. `dismiss` is the close button's accessible name.
+   */
+  softHint: {
+    wristAlign: string;
+    handFlat: string;
+    blurry: string;
+    dismiss: string;
+  };
   /** Status chips. `n` of the 4 corners found. */
   paperChip: (n: number) => string;
   sheetChip: (n: number) => string;
@@ -91,6 +119,11 @@ export const zhTW: CameraCuesCopy = {
     holdStill: "請拿穩",
     outOfFocus: "等待畫面對焦清晰",
     perfect: "很好，請拿穩",
+    handMissing: "請把手放在紙上",
+    wristAlign: "請把手腕移到紙的下緣",
+    handInside: "請把整隻手放進紙內",
+    handStraight: "請讓手指朝向紙的上緣",
+    layHandFlat: "請把手掌壓平",
   },
   sheet: {
     placePaper: "請把校正表放在較深色的桌面上",
@@ -110,6 +143,11 @@ export const zhTW: CameraCuesCopy = {
     holdStill: "請拿穩",
     outOfFocus: "等待畫面對焦清晰",
     perfect: "很好，請拿穩",
+    handMissing: "請把手放在校正表上",
+    wristAlign: "請把手腕移到校正表的下緣",
+    handInside: "請把整隻手放進校正表內",
+    handStraight: "請讓手指朝向校正表的上緣",
+    layHandFlat: "請把手掌壓平",
   },
   gotIt: "已對準，請拿穩",
   tapToFocus: "點一下紙張來對焦",
@@ -117,6 +155,12 @@ export const zhTW: CameraCuesCopy = {
   pointAtPaper: "請把相機對準紙張",
   pointAtSheet: "請把相機對準校正表",
   handFlat: "手攤平、手指併攏，手機在正上方",
+  softHint: {
+    wristAlign: "手腕沒貼齊下緣，建議重拍",
+    handFlat: "手掌沒壓平，建議重拍",
+    blurry: "照片有點糊，擦擦鏡頭再拍",
+    dismiss: "關閉提示",
+  },
   paperChip: (n) => `紙張 ${n}/4`,
   sheetChip: (n) => `校正表 ${n}/4`,
   steadyChip: "穩定",
@@ -142,6 +186,11 @@ export const en: CameraCuesCopy = {
     holdStill: "Hold still",
     outOfFocus: "Waiting for a sharp picture",
     perfect: "Perfect — hold still",
+    handMissing: "Place your hand on the paper",
+    wristAlign: "Move your wrist to the bottom edge",
+    handInside: "Keep your hand inside the paper",
+    handStraight: "Point your fingers to the top edge",
+    layHandFlat: "Lay your hand flat",
   },
   sheet: {
     placePaper: "Place a blank sheet of sheet on a darker surface",
@@ -161,6 +210,11 @@ export const en: CameraCuesCopy = {
     holdStill: "Hold still",
     outOfFocus: "Waiting for a sharp picture",
     perfect: "Perfect — hold still",
+    handMissing: "Place your hand on the sheet",
+    wristAlign: "Move your wrist to the bottom edge",
+    handInside: "Keep your hand inside the sheet",
+    handStraight: "Point your fingers to the top edge",
+    layHandFlat: "Lay your hand flat",
   },
   gotIt: "Got it — hold still",
   tapToFocus: "Tap the paper to focus",
@@ -168,6 +222,12 @@ export const en: CameraCuesCopy = {
   pointAtPaper: "Point the camera at the paper",
   pointAtSheet: "Point the camera at the sheet",
   handFlat: "Hand flat, fingers together, phone straight above",
+  softHint: {
+    wristAlign: "Wrist isn't at the bottom edge. Try a retake.",
+    handFlat: "Palm isn't flat. Try a retake.",
+    blurry: "Photo is a bit blurry. Wipe the lens and retake.",
+    dismiss: "Dismiss",
+  },
   paperChip: (n) => `Paper ${n}/4`,
   sheetChip: (n) => `Sheet ${n}/4`,
   steadyChip: "Steady",

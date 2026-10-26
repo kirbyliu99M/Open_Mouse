@@ -28,6 +28,10 @@ import {
   paperStageLines,
   type PaperDetectionStage,
 } from "../paper/detectionStage";
+import type {
+  PlacementCueCode,
+  PlacementCueInput,
+} from "./placementHysteresis";
 
 /**
  * The cue codes that name where the paper detector stopped (scan S2,
@@ -58,7 +62,8 @@ export type CueCode =
   | "hold-still"
   | "out-of-focus"
   | "perfect"
-  | PaperStageCueCode;
+  | PaperStageCueCode
+  | PlacementCueCode;
 
 export interface Cue {
   readonly code: CueCode;
@@ -88,6 +93,12 @@ const CUE_KEYS: Record<
   "hold-still": "holdStill",
   "out-of-focus": "outOfFocus",
   perfect: "perfect",
+  // V3.3 WP3a (candidate): the live hand hints (placementHysteresis.ts).
+  "hand-missing": "handMissing",
+  "wrist-align": "wristAlign",
+  "hand-inside": "handInside",
+  "hand-straight": "handStraight",
+  "hand-flat": "layHandFlat",
 };
 
 /**
@@ -298,15 +309,64 @@ export interface CueInput {
    * bounds, exactly as before.
    */
   readonly previousSizeStatus?: QuadSizeStatus | null;
+  /**
+   * V3.3 WP3a (candidate 未拍板): the hand's settled live state
+   * (placementHysteresis.ts `placementCueInput`). Omitted or `null` (the
+   * hints are off, the hand detector is not loaded, the reading is stale):
+   * the cue is exactly what it was before WP3.
+   */
+  readonly placement?: PlacementCueInput | null;
 }
+
+/** The cues that say the paper itself passed (only the phone is left to hold or focus). */
+const PAPER_PASSED_CODES: readonly CueCode[] = [
+  "perfect",
+  "hold-still",
+  "out-of-focus",
+];
 
 /**
  * The one cue to show, per the spec's fixed priority order. Every input
  * after corner count is only consulted once 4/4 corners are found and a
  * quad exists — a partial corner set always short-circuits to
  * "some-corners".
+ *
+ * V3.3 WP3a (candidate 未拍板; F20 design §4.1): with `input.placement`, the
+ * hand's hint comes after the paper's own checks (corners, tilt, distance,
+ * light, edges) and before "hold still" and focus:
+ *   find the sheet → distance → light → edges → hand on the paper → wrist /
+ *   inside / direction → flat → hold still → focus → perfect.
+ * A hand hint is never "perfect" (`allPass` false). It is a HINT: the live
+ * loop fills the ring from the cue WITHOUT `placement` (EasyScanCamera), so
+ * the auto-capture is what it was. §4.3: with the wrist at the bottom edge,
+ * "the bottom edge is covered" is not said; the rest of the order is read
+ * as if the edges had passed, and where that would say "perfect" (the ring
+ * is not filling: the edge still fails) it says "hold still".
  */
 export function pickCue(
+  input: CueInput,
+  mode: CueCalibrationMode,
+  locale: Locale,
+): Cue {
+  const paper = pickPaperCue(input, mode, locale);
+  const placement = input.placement;
+  if (!placement) return paper;
+  if (PAPER_PASSED_CODES.includes(paper.code))
+    return placement.hint ? cue(placement.hint, mode, locale) : paper;
+  if (paper.code === "edge-covered-bottom" && placement.wristNearBottomEdge) {
+    if (placement.hint) return cue(placement.hint, mode, locale);
+    const rest = pickPaperCue(
+      { ...input, paperGate: { kind: "pass" } },
+      mode,
+      locale,
+    );
+    return rest.code === "perfect" ? cue("hold-still", mode, locale) : rest;
+  }
+  return paper;
+}
+
+/** `pickCue` without the hand: the paper's, the phone's and the light's checks only. */
+function pickPaperCue(
   input: CueInput,
   mode: CueCalibrationMode,
   locale: Locale,

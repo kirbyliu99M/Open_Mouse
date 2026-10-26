@@ -289,6 +289,8 @@ describe("debugPlacement (V3.3 WP1b, log only)", () => {
     wristToEdgeMm: wrist,
     handAxisDeg: axis,
     palmOverHand: 0.5,
+    minSideMarginMm: 20,
+    wristEdge: "near-bottom" as const,
   });
 
   it("takes the fill as given and wrist, axis and age from the newest reading", () => {
