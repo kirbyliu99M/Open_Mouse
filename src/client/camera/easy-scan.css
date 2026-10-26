@@ -2107,3 +2107,101 @@ main.easyScanShell {
     background: #000;
   }
 }
+
+/* V3.3 WP3a (candidate 未拍板): a live hand hint sits in the cue's place, one
+   line, lighter than a cue that blocks the shot (the ring still fills under
+   it). Only with ?debug=1 until WP2. */
+.easyScanStaged .cameraCue.cameraCueSoftHint {
+  background: rgba(0, 0, 0, 0.42);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .easyScanStaged .cameraCue.cameraCueSoftHint {
+    background: #000;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* V3.3 WP3b (candidate 未拍板): the post-shot soft hint, a glass line over the
+   photo just above the measured sheet (SoftHintBannerView.tsx). The glass is the
+   share preview's (share.css --sp-*): a faint accent glow on a thin line. It
+   fades in (--motion-base) and out (--motion-out); with reduced motion both
+   are the short --motion-reduced fade. */
+.easySoftHint {
+  --sh-glass: color-mix(in srgb, var(--on-accent) 8%, rgb(0 0 0 / 55%));
+  --sh-glass-line: color-mix(in srgb, var(--on-accent) 14%, transparent);
+  --sh-glow: color-mix(in srgb, var(--accent) 18%, transparent);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0 0 0.75rem;
+  padding: 0 0 0 0.875rem;
+  border: 1px solid var(--sh-glass-line);
+  border-radius: 1rem;
+  background:
+    radial-gradient(120% 140% at 50% -20%, var(--sh-glow), transparent 70%),
+    var(--sh-glass);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  backdrop-filter: blur(16px) saturate(1.3);
+  color: var(--scan-fg, #f5f5f7);
+  font-size: 0.9375rem;
+  line-height: 1.35;
+  animation: easyFadeIn var(--motion-base) var(--ease-out) backwards;
+}
+/* In the top layer (Popover API): placed by the viewport, above the sheet. */
+.easySoftHint:popover-open {
+  position: fixed;
+  inset: auto 16px calc(var(--soft-hint-sheet, 40vh) + 12px) 16px;
+  width: auto;
+  max-width: 28rem;
+  height: auto;
+  margin: 0 auto;
+  overflow: visible;
+}
+.easySoftHint[data-leaving="true"] {
+  animation: easyFadeOut var(--motion-out) var(--ease-in) forwards;
+}
+.easySoftHintText {
+  flex: 1;
+  margin: 0;
+  padding: 0.625rem 0;
+}
+.easySoftHintClose {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 1rem;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.easySoftHintClose:focus-visible {
+  outline: 2px solid var(--accent-text, #fff);
+  outline-offset: -4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .easySoftHint {
+    animation: easyFadeIn var(--motion-reduced) linear backwards;
+  }
+  .easySoftHint[data-leaving="true"] {
+    animation: easyFadeOut var(--motion-reduced) linear forwards;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .easySoftHint {
+    background: #000;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+@media (prefers-contrast: more) {
+  .easySoftHint {
+    border: 2px solid #fff;
+  }
+}

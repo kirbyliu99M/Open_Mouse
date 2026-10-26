@@ -40,6 +40,7 @@ import {
   pickSoftHint,
   SOFT_HINT_CODES,
   type SoftHintCode,
+  type SoftHintInput,
 } from "../photo/softHint";
 import type { PlacementDiagnostics } from "../photo/placementDiagnostics";
 import { aspectOfSize, compareFov } from "./previewConstraints";
@@ -333,6 +334,14 @@ export interface AttemptRecord {
    * not shown anywhere. Present with `placement`. Local only, never sent.
    */
   readonly softHint?: AttemptSoftHint;
+  /**
+   * V3.3 WP3b (candidate 未拍板): the post-shot banner this photo got
+   * (softHintBanner.ts): which one was shown, whether it was closed, and
+   * whether the person then retook the photo or went on. Present only where
+   * the banner was worked out (the hints on: `?debug=1` for now). Local
+   * only, never sent.
+   */
+  readonly softHintBanner?: AttemptSoftHintBanner;
   /** V3.3 WP1b: the experiment tag picked in the debug panel for this scan (`?debug=1` only). */
   readonly experimentTag?: ExperimentTag;
   readonly userAgent: string;
@@ -409,6 +418,18 @@ export interface AttemptSoftHint {
   /** The hint chosen before the throttle (the device history entry). */
   readonly candidate: SoftHintCode | null;
   readonly suppressed: boolean;
+}
+
+export interface AttemptSoftHintBanner {
+  /** The banner shown, after the repeat throttle; `null` for none. */
+  readonly code: SoftHintCode | null;
+  /** The banner chosen before the throttle (the device's banner history entry). */
+  readonly candidate: SoftHintCode | null;
+  readonly suppressed: boolean;
+  /** The person closed it (the close button). */
+  readonly dismissed: boolean;
+  /** What came next: a retake, Continue, or neither yet. A retake wins over an earlier Continue. */
+  readonly after: "retake" | "continue" | null;
 }
 
 export interface AttemptPaperEdgeFit {
@@ -702,6 +723,8 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
     ...worldField(raw.world),
     ...guidanceField(raw.guidance),
     ...softHintField(raw.softHint),
+    // V3.3 WP3b: only where the banner was worked out.
+    ...softHintBannerField(raw.softHintBanner),
     ...(isExperimentTag(raw.experimentTag)
       ? { experimentTag: raw.experimentTag }
       : {}),
@@ -960,6 +983,88 @@ function softHintField(value: unknown): { softHint?: AttemptSoftHint } {
       suppressed: o.suppressed === true,
     },
   };
+}
+
+/** The banner block; left out unless an object. */
+function softHintBannerField(value: unknown): {
+  softHintBanner?: AttemptSoftHintBanner;
+} {
+  const o = asObject(value);
+  if (!o) return {};
+  return {
+    softHintBanner: {
+      code: cleanSoftHintCode(o.code),
+      candidate: cleanSoftHintCode(o.candidate),
+      suppressed: o.suppressed === true,
+      dismissed: o.dismissed === true,
+      after: o.after === "retake" || o.after === "continue" ? o.after : null,
+    },
+  };
+}
+
+/**
+ * This device's BANNER history for its throttle (softHintBanner.ts): the
+ * candidate of every earlier record that worked a banner out, oldest first.
+ * Kept apart from `softHintHistoryOf` (the record-only hint, with today's
+ * thresholds), so the two never count each other's photos. Pure.
+ */
+export function softHintBannerHistoryOf(
+  records: readonly AttemptRecord[],
+): (SoftHintCode | null)[] {
+  const out: (SoftHintCode | null)[] = [];
+  for (const record of records) {
+    if (record.softHintBanner) out.push(record.softHintBanner.candidate);
+  }
+  return out;
+}
+
+export interface SoftHintBannerOutcome {
+  readonly dismissed?: boolean;
+  readonly after?: "retake" | "continue";
+}
+
+/**
+ * The list with the banner of the record made at `at` updated: `dismissed`
+ * once set stays set; `after` "retake" is never replaced by "continue". A
+ * list without that record (or a record without a banner) is returned as it
+ * was. Pure.
+ */
+export function withSoftHintBannerOutcome(
+  list: readonly AttemptRecord[],
+  at: string,
+  outcome: SoftHintBannerOutcome,
+): AttemptRecord[] {
+  return list.map((record) => {
+    if (record.at !== at || !record.softHintBanner) return record;
+    const banner = record.softHintBanner;
+    const after =
+      banner.after === "retake" ? "retake" : (outcome.after ?? banner.after);
+    const dismissed = banner.dismissed || outcome.dismissed === true;
+    if (after === banner.after && dismissed === banner.dismissed) return record;
+    return { ...record, softHintBanner: { ...banner, after, dismissed } };
+  });
+}
+
+/**
+ * Writes the banner's outcome into the stored record made at `at` (read
+ * again first, as `recordAttempt` does) and returns the page's list with it
+ * too. Best-effort: a missing, blocked or full store changes only the page's
+ * list. Never throws.
+ */
+export function recordSoftHintBannerOutcome(
+  storage: StorageLike | null,
+  at: string,
+  outcome: SoftHintBannerOutcome,
+  session: readonly AttemptRecord[] = [],
+): AttemptRecord[] {
+  try {
+    const stored = readAttempts(storage);
+    if (stored)
+      writeAttempts(storage, withSoftHintBannerOutcome(stored, at, outcome));
+  } catch {
+    // The log is a convenience: it must never break a scan.
+  }
+  return withSoftHintBannerOutcome(session, at, outcome);
 }
 
 /**
@@ -1282,6 +1387,12 @@ export function buildAttemptRecord(input: {
   readonly outcome: AttemptOutcome;
   /** V3.3 WP1b: this device's earlier soft-hint candidates (`softHintHistoryOf`), oldest first. */
   readonly softHintHistory?: readonly (SoftHintCode | null)[];
+  /** V3.3 WP3b: the banner this photo got (softHintBanner.ts); absent while the hints are off. */
+  readonly softHintBanner?: {
+    readonly code: SoftHintCode | null;
+    readonly candidate: SoftHintCode | null;
+    readonly suppressed: boolean;
+  };
 }): AttemptRecord {
   const { capture, outcome } = input;
   const at = input.at instanceof Date ? input.at.toISOString() : input.at;
@@ -1453,6 +1564,17 @@ export function buildAttemptRecord(input: {
         }
       : {}),
     ...(capture.guidance ? { guidance: guidanceRaw(capture.guidance) } : {}),
+    ...(input.softHintBanner
+      ? {
+          softHintBanner: {
+            code: input.softHintBanner.code,
+            candidate: input.softHintBanner.candidate,
+            suppressed: input.softHintBanner.suppressed,
+            dismissed: false,
+            after: null,
+          },
+        }
+      : {}),
     ...(capture.experimentTag ? { experimentTag: capture.experimentTag } : {}),
     userAgent: input.userAgent,
   });
@@ -1505,6 +1627,28 @@ export function buildAttemptRecord(input: {
 type PipelineResultDiagnostics = NonNullable<PipelineResult["diagnostics"]>;
 
 /**
+ * One photo's readings for the soft-hint picker (softHint.ts), from the
+ * pipeline's diagnostics: the same numbers the record-only hint and the
+ * post-shot banner (V3.3 WP3b) both go by. Pure.
+ */
+export function softHintInputOf(
+  diagnostics: PipelineResultDiagnostics,
+  placement: PlacementDiagnostics,
+): SoftHintInput {
+  return {
+    wristToEdgeMm: placement.placement.wristToEdgeMm,
+    handAxisDeg: placement.placement.handAxisDeg,
+    minSideMarginMm: placement.placement.minSideMarginMm,
+    palmOverHand: placement.placement.palmOverHand,
+    reachMean: diagnostics.hand?.flatness?.reachMean ?? null,
+    palmTiltDeg: placement.world.palmTiltDeg,
+    fingerFlexDeg: placement.world.fingerFlexDeg,
+    sharpness: diagnostics.laplacianVariance ?? null,
+    paperWidthFraction: diagnostics.paper?.widthFraction ?? null,
+  };
+}
+
+/**
  * The soft hint this photo would get (softHint.ts), with today's candidate
  * thresholds and the device's history. Recorded only; never shown. A throw
  * is no hint.
@@ -1515,20 +1659,7 @@ function softHintOf(
   history: readonly (SoftHintCode | null)[],
 ): AttemptSoftHint {
   try {
-    const hint = pickSoftHint(
-      {
-        wristToEdgeMm: placement.placement.wristToEdgeMm,
-        handAxisDeg: placement.placement.handAxisDeg,
-        minSideMarginMm: placement.placement.minSideMarginMm,
-        palmOverHand: placement.placement.palmOverHand,
-        reachMean: diagnostics.hand?.flatness?.reachMean ?? null,
-        palmTiltDeg: placement.world.palmTiltDeg,
-        fingerFlexDeg: placement.world.fingerFlexDeg,
-        sharpness: diagnostics.laplacianVariance ?? null,
-        paperWidthFraction: diagnostics.paper?.widthFraction ?? null,
-      },
-      history,
-    );
+    const hint = pickSoftHint(softHintInputOf(diagnostics, placement), history);
     return {
       code: hint.code,
       candidate: hint.candidate,

@@ -69,6 +69,14 @@ import {
   type ShutterKind,
 } from "./livePlacement";
 import {
+  INITIAL_PLACEMENT_HYSTERESIS_STATE,
+  advancePlacementHysteresis,
+  placementCueInput,
+  isPlacementCueCode,
+  placementHintsOn,
+  type PlacementHysteresisState,
+} from "./placementHysteresis";
+import {
   runPhotoPipeline,
   type PhotoOverlay,
   type PipelineIssue,
@@ -88,6 +96,7 @@ import {
   pickCue,
   type Cue,
   type CueCode,
+  type CueInput,
 } from "./cues";
 import { requestCameraStream } from "./requestStream";
 import {
@@ -223,12 +232,23 @@ import {
   buildAttemptRecord,
   readAttempts,
   recordAttempt,
+  recordSoftHintBannerOutcome,
+  softHintBannerHistoryOf,
   softHintHistoryOf,
+  softHintInputOf,
   type AttemptCapture,
   type AttemptCaptureSource,
   type AttemptOutcome,
   type AttemptRecord,
 } from "./attemptLog";
+import {
+  isSoftHintBannerCode,
+  pickSoftHintBanner,
+  softHintBannerText,
+  type SoftHintBannerCode,
+} from "./softHintBanner";
+import { SoftHintBanner } from "./SoftHintBannerView";
+import type { SoftHintCode } from "../photo/softHint";
 import {
   createPaperEdgeQuadSource,
   NO_QUAD_DETECTION,
@@ -429,6 +449,15 @@ type ResultState =
       submission: ScanSubmission;
       imageWidth: number;
       imageHeight: number;
+      /**
+       * V3.3 WP3b (candidate): the post-shot banner of this photo and the
+       * time of its attempt record (for what happened next). Absent while
+       * the hints are off.
+       */
+      softHint?: {
+        readonly code: SoftHintBannerCode | null;
+        readonly at: string;
+      };
     }
   | {
       kind: "gateFailure";
@@ -702,6 +731,10 @@ export default function EasyScanCamera({
   // the shutter the loop is about to fire, and the debug panel's experiment
   // tag for the next scan. None of them changes anything on screen.
   const livePlacementRef = useRef<readonly LivePlacementReading[]>([]);
+  // V3.3 WP3a (candidate): the live hand hints' per-reading hysteresis.
+  const placementHysteresisRef = useRef<PlacementHysteresisState>(
+    INITIAL_PLACEMENT_HYSTERESIS_STATE,
+  );
   const pendingShutterRef = useRef<ShutterKind | null>(null);
   const experimentTagRef = useRef<ExperimentTag | null>(null);
   const [experimentTag, setExperimentTagState] = useState<ExperimentTag | null>(
@@ -900,6 +933,17 @@ export default function EasyScanCamera({
       : null;
   const sheetLeave = useLeaving(sheetNow, leaveMs("sheet", reducedMotion));
   const sheetResult = sheetLeave.shown;
+  // V3.3 WP3b (candidate): the post-shot banner over the photo, while the
+  // measured sheet is up and until it is closed; it fades in and out.
+  const [softHintClosedAt, setSoftHintClosedAt] = useState<string | null>(null);
+  const softHintNow =
+    sheetResult?.kind === "measured" &&
+    !sheetLeave.leaving &&
+    sheetResult.softHint?.code &&
+    sheetResult.softHint.at !== softHintClosedAt
+      ? { code: sheetResult.softHint.code, at: sheetResult.softHint.at }
+      : null;
+  const softHintLeave = useLeaving(softHintNow, leaveMs("fade", reducedMotion));
   // #4: the question pages' dialog fades in and out (--motion-base), and
   // keeps the page it showed while it fades out.
   const answersLeave = useLeaving(
@@ -1202,6 +1246,7 @@ export default function EasyScanCamera({
     noSheetCaptureRef.current = INITIAL_NO_SHEET_CAPTURE_STATE;
     handReadingsRef.current = EMPTY_HAND_READINGS;
     livePlacementRef.current = [];
+    placementHysteresisRef.current = INITIAL_PLACEMENT_HYSTERESIS_STATE;
     pendingShutterRef.current = null;
     cornerStatesRef.current = INITIAL_CORNER_STATES;
     outlineRef.current = INITIAL_OUTLINE_HYSTERESIS_STATE;
@@ -1396,7 +1441,19 @@ export default function EasyScanCamera({
   // ?debug=1: the record is the only trace a failed scan leaves, and what it
   // holds is the same few numbers the debug panel shows.
   const logAttempt = useCallback(
-    async (info: CaptureInfo | null, outcome: AttemptOutcome) => {
+    async (
+      info: CaptureInfo | null,
+      outcome: AttemptOutcome,
+      // V3.3 WP3b: the record's time and the banner it got (hints on only).
+      banner?: {
+        readonly at: Date;
+        readonly result: {
+          readonly code: SoftHintBannerCode | null;
+          readonly candidate: SoftHintCode | null;
+          readonly suppressed: boolean;
+        };
+      },
+    ) => {
       try {
         const size = info?.stillSize ? await info.stillSize : null;
         const capture: AttemptCapture = {
@@ -1417,12 +1474,37 @@ export default function EasyScanCamera({
         attemptsRef.current = recordAttempt(
           getBrowserStorage(),
           buildAttemptRecord({
-            at: new Date(),
+            at: banner?.at ?? new Date(),
             userAgent: shortUserAgent(navigator.userAgent),
             capture,
             outcome,
             softHintHistory: softHintHistoryOf(attemptsRef.current),
+            ...(banner ? { softHintBanner: banner.result } : {}),
           }),
+          attemptsRef.current,
+        );
+      } catch {
+        // The log is a convenience: it must never break a scan.
+      }
+    },
+    [],
+  );
+
+  // V3.3 WP3b (candidate): what happened after a banner (closed, retaken,
+  // continued), written into that photo's attempt record. Local only.
+  const noteSoftHintOutcome = useCallback(
+    (
+      at: string,
+      outcome: {
+        readonly dismissed?: boolean;
+        readonly after?: "retake" | "continue";
+      },
+    ) => {
+      try {
+        attemptsRef.current = recordSoftHintBannerOutcome(
+          getBrowserStorage(),
+          at,
+          outcome,
           attemptsRef.current,
         );
       } catch {
@@ -1524,7 +1606,43 @@ export default function EasyScanCamera({
           // known is its own stream.
           focalReferenceLongEdgePx: frameNominalReferenceLongEdgePx(info),
         });
-        void logAttempt(info, { kind: "result", result: pipelineResult });
+        // V3.3 WP3b (candidate): the post-shot banner, worked out once per
+        // measured photo while the hints are on (`?debug=1` for now), from
+        // the same readings the record-only hint uses and this device's
+        // banner history. It changes no number and gates nothing.
+        const bannerAt = new Date();
+        let banner: {
+          code: SoftHintBannerCode | null;
+          candidate: SoftHintCode | null;
+          suppressed: boolean;
+        } | null = null;
+        if (
+          placementHintsOn(debugOnRef.current) &&
+          pipelineResult.status === "ok" &&
+          pipelineResult.diagnostics?.placement
+        ) {
+          try {
+            const picked = pickSoftHintBanner(
+              softHintInputOf(
+                pipelineResult.diagnostics,
+                pipelineResult.diagnostics.placement,
+              ),
+              softHintBannerHistoryOf(attemptsRef.current),
+            );
+            banner = {
+              code: isSoftHintBannerCode(picked.code) ? picked.code : null,
+              candidate: picked.candidate,
+              suppressed: picked.suppressed,
+            };
+          } catch {
+            banner = null;
+          }
+        }
+        void logAttempt(
+          info,
+          { kind: "result", result: pipelineResult },
+          banner ? { at: bannerAt, result: banner } : undefined,
+        );
         if (runId !== runIdRef.current) return;
         if (manualActiveRef.current) {
           // The form opened while this was analysed: its result must not open
@@ -1566,6 +1684,14 @@ export default function EasyScanCamera({
             submission: pipelineResult.submission,
             imageWidth: pipelineResult.overlay.imageWidth,
             imageHeight: pipelineResult.overlay.imageHeight,
+            ...(banner
+              ? {
+                  softHint: {
+                    code: banner.code,
+                    at: bannerAt.toISOString(),
+                  },
+                }
+              : {}),
           };
           setResult(measured);
           // F15 (candidate): a photo measured from the detector's own four
@@ -1943,6 +2069,9 @@ export default function EasyScanCamera({
   );
 
   const retake = useCallback(() => {
+    // V3.3 WP3b: a retake after a banner is what the banner asked for.
+    if (result.kind === "measured" && result.softHint)
+      noteSoftHintOutcome(result.softHint.at, { after: "retake" });
     if (result.kind !== "none") revokeAfterFade(result.previewUrl);
     setResult({ kind: "none" });
     setAdjustOpen(null);
@@ -1962,7 +2091,14 @@ export default function EasyScanCamera({
       window.isSecureContext &&
       typeof navigator.mediaDevices?.getUserMedia === "function";
     if (canUseCamera && deviceFit === "phone") void startCamera();
-  }, [result, startCamera, deviceFit, clearSubmitError, revokeAfterFade]);
+  }, [
+    result,
+    startCamera,
+    deviceFit,
+    clearSubmitError,
+    revokeAfterFade,
+    noteSoftHintOutcome,
+  ]);
 
   // 手動調整邊框 (V3.2 F2, candidate). A button only on the failure sheet:
   // after any paper failure or a failure with a frame placed by hand (rescue,
@@ -2321,29 +2457,28 @@ export default function EasyScanCamera({
           computeQuadWidthFraction(sampleQuad, width),
           previousSizeStatus,
         );
-      const nextCue = pickCue(
-        {
-          cornersSeen: detection.cornersSeen,
-          quad: sampleQuad,
-          frameWidth: width,
-          meanLuma,
-          clippedFraction,
-          steady,
-          sharpEnough,
-          // The photo's own paper gate, on this detection: no second
-          // detector run (paperGate.ts).
-          paperGate: evaluateLivePaperGate(detection, paperSizeRef.current),
-          // Where the detector stopped, from the same detection (scan S2):
-          // nothing is computed again for it.
-          paperStage: detection.failureStage ?? null,
-          // No stage cue before the sheet was ever found (cues.ts).
-          sheetSeenYet: firstSheetSeenAtRef.current !== null,
-          msSinceLastDetection,
-          previousSizeStatus,
-        },
-        "paper-edge",
-        localeRef.current,
-      );
+      const cueInput: CueInput = {
+        cornersSeen: detection.cornersSeen,
+        quad: sampleQuad,
+        frameWidth: width,
+        meanLuma,
+        clippedFraction,
+        steady,
+        sharpEnough,
+        // The photo's own paper gate, on this detection: no second
+        // detector run (paperGate.ts).
+        paperGate: evaluateLivePaperGate(detection, paperSizeRef.current),
+        // Where the detector stopped, from the same detection (scan S2):
+        // nothing is computed again for it.
+        paperStage: detection.failureStage ?? null,
+        // No stage cue before the sheet was ever found (cues.ts).
+        sheetSeenYet: firstSheetSeenAtRef.current !== null,
+        msSinceLastDetection,
+        previousSizeStatus,
+      };
+      // The paper's cue, without the hand: the ring, the F14 wait and the
+      // auto-capture read this one (V3.3 WP3: the hand hints never gate).
+      const nextCue = pickCue(cueInput, "paper-edge", localeRef.current);
 
       // The ring reads the raw sample: one or two failures pause it, the
       // third in a row empties it (autoCapture.ts).
@@ -2387,9 +2522,10 @@ export default function EasyScanCamera({
           // V3.3 WP1b (log only): with a hand and the sheet's four corners in
           // this sample, where the wrist and the hand axis lie on the sheet.
           // Kept for the attempt log; no cue, ring or gate reads it.
+          let placed: LivePlacementReading | null = null;
           if (reading && detection.corners) {
             const placementStartedAt = performance.now();
-            const placed = readLivePlacement({
+            placed = readLivePlacement({
               atMs: now,
               points: reading.points,
               corners: detection.corners,
@@ -2413,8 +2549,39 @@ export default function EasyScanCamera({
                 performance.now() - placementStartedAt,
               );
           }
+          // V3.3 WP3a (candidate): each hand reading is counted once by the
+          // hints' hysteresis, only while the hints are on.
+          if (placementHintsOn(debugOnRef.current))
+            placementHysteresisRef.current = advancePlacementHysteresis(
+              placementHysteresisRef.current,
+              {
+                atMs: now,
+                handSeen: points !== null,
+                wristToEdgeMm: placed?.wristToEdgeMm ?? null,
+                wristEdge: placed?.wristEdge ?? null,
+                handAxisDeg: placed?.handAxisDeg ?? null,
+                minSideMarginMm: placed?.minSideMarginMm ?? null,
+                palmOverHand: placed?.palmOverHand ?? null,
+              },
+            );
         }
       }
+      // V3.3 WP3a (candidate): the cue on screen, with the hand's soft hint
+      // when the hints are on (only with ?debug=1 for now). Words only: the
+      // ring and the F14 wait above read `nextCue`. Off, it IS `nextCue`.
+      const shownCandidate = placementHintsOn(debugOnRef.current)
+        ? pickCue(
+            {
+              ...cueInput,
+              placement: placementCueInput(placementHysteresisRef.current, {
+                nowMs: now,
+                detectorReady: isHandLandmarkerReady(),
+              }),
+            },
+            "paper-edge",
+            localeRef.current,
+          )
+        : nextCue;
       const hand = liveHandSignal({
         previous: handReadingsRef.current.previous,
         latest: handReadingsRef.current.latest,
@@ -2489,15 +2656,15 @@ export default function EasyScanCamera({
       // only when the debounce says so.
       cueDebounceRef.current = advanceCueDebounce(
         cueDebounceRef.current,
-        nextCue.code,
+        shownCandidate.code,
         now,
       );
       const shownCode = cueDebounceRef.current.shown;
       if (shownCode !== null && shownCode !== lastCueCodeRef.current) {
         lastCueCodeRef.current = shownCode;
         const shownCue =
-          shownCode === nextCue.code
-            ? nextCue
+          shownCode === shownCandidate.code
+            ? shownCandidate
             : cueFromCode(shownCode, "paper-edge", localeRef.current);
         setCue(shownCue);
         setAnnounced(
@@ -3418,7 +3585,7 @@ export default function EasyScanCamera({
             aria-hidden={liveChromeLeave.leaving || undefined}
           >
             <div
-              className={`cameraCue${cue?.allPass && !captureFailureHint ? " perfect" : ""}`}
+              className={`cameraCue${cue?.allPass && !captureFailureHint ? " perfect" : ""}${cue && !captureFailureHint && isPlacementCueCode(cue.code) ? " cameraCueSoftHint" : ""}`}
               aria-live="polite"
               data-testid="camera-cue"
               data-capture-failure={captureFailureHint ? "true" : undefined}
@@ -3609,6 +3776,23 @@ export default function EasyScanCamera({
         >
           {sheetResult.kind === "measured" ? (
             <>
+              {/* V3.3 WP3b (candidate): the post-shot banner, at most one,
+                  over the photo above this sheet (SoftHintBannerView.tsx). */}
+              {softHintLeave.shown && (
+                <SoftHintBanner
+                  key={softHintLeave.shown.at}
+                  text={softHintBannerText(softHintLeave.shown.code, locale)}
+                  dismissLabel={cameraCuesCopy(locale).softHint.dismiss}
+                  leaving={softHintLeave.leaving}
+                  sheetRef={sheetDialogRef}
+                  onDismiss={() => {
+                    const shown = softHintLeave.shown;
+                    if (!shown) return;
+                    setSoftHintClosedAt(shown.at);
+                    noteSoftHintOutcome(shown.at, { dismissed: true });
+                  }}
+                />
+              )}
               <p className="easySheetTitle" ref={sheetTitleRef} tabIndex={-1}>
                 <CheckIcon width={20} height={20} /> {common.handMeasured}
               </p>
@@ -3664,7 +3848,14 @@ export default function EasyScanCamera({
                     className="primaryButton"
                     ref={continueRef}
                     data-testid="answers-continue-button"
-                    onClick={() => dispatchAnswers({ type: "open" })}
+                    onClick={() => {
+                      // V3.3 WP3b: going on after a banner (no-op without one).
+                      if (sheetResult.softHint)
+                        noteSoftHintOutcome(sheetResult.softHint.at, {
+                          after: "continue",
+                        });
+                      dispatchAnswers({ type: "open" });
+                    }}
                   >
                     {scanAnswersCopy(locale).sheetContinue}
                   </button>

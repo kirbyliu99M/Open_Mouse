@@ -104,7 +104,11 @@ describe("EasyScanCamera wires WP1b (log only)", () => {
   });
 
   it("no analytics call carries any WP1b field", () => {
-    const calls = source.match(/track\("[a-z_]+",[\s\S]*?\}\);/g) ?? [];
+    // V3.3 WP3: a call whose payload is a plain variable
+    // (`track("scan_quality", quality);`) ends at its own `);`, not at the
+    // next `});` further down the source (that span reached the WP3 banner).
+    const calls =
+      source.match(/track\("[a-z_]+",\s*(?:[A-Za-z_]+\)|[\s\S]*?\}\));/g) ?? [];
     expect(calls.length).toBeGreaterThan(0);
     for (const call of calls)
       expect(call).not.toMatch(
