@@ -1,7 +1,8 @@
 /**
  * The site description used by the page metadata and both share cards, per
- * locale. Both sentences and the home title are CANDIDATES (未拍板), Claude's wording
- * (2026-10-26, replacing the "in development" line), until Kirby has read them.
+ * locale. Kirby approved both descriptions on 2026-10-26 (Claude's wording,
+ * shaped on a product-page description). The home title is still a CANDIDATE
+ * (未拍板).
  */
 import type { Locale } from "../contracts/locale";
 import { pickCopy } from "../i18n/copy";
