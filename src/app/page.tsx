@@ -1,12 +1,12 @@
 import { HomeCtaLink } from "@/components/home/HomeCtaLink";
 import { ParticleStage } from "@/components/home/ParticleStage";
 import { AccountNavLink } from "@/components/nav/AccountNavLink";
+import { BrandLockup } from "@/components/nav/BrandLockup";
 import { NavMenu } from "@/components/nav/NavMenu";
 import { FINALE_HEADLINE, homeCopy } from "@/lib/copy/home";
 import { navCopy } from "@/lib/copy/nav";
 import { homeStoryNotes } from "@/lib/copy/home-story";
 import { handSheetFrame } from "@/lib/particles/template-hand";
-import { SITE_NAME } from "@/lib/site";
 import type { Locale } from "@/lib/contracts/locale";
 import { getLocale } from "@/server/i18n/getLocale";
 import "./home.css";
@@ -31,7 +31,7 @@ export default async function HomePage() {
   return (
     <main className="home-main landing-page">
       <nav className="home-nav" aria-label={navCopy(locale).primaryNavLabel}>
-        <span className="home-wordmark">{SITE_NAME}</span>
+        <BrandLockup className="home-wordmark" />
         <div className="home-nav-actions">
           <AccountNavLink />
           <NavMenu />

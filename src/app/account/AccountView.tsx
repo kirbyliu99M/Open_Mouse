@@ -10,6 +10,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { useLocale } from "@/client/i18n/LocaleProvider";
+import { useBlankTap } from "@/components/dialog/useBlankTap";
 import { Presence, usePresence } from "@/components/motion/Presence";
 import { Avatar } from "@/components/nav/Avatar";
 import { SURVEY_PATH, resultsPagePath } from "@/lib/contracts/routes";
@@ -199,6 +200,12 @@ export function AccountView({
   // stays open for leaveMs("fade") after `confirmOpen` turns false, and only
   // then closes and gives focus back to its trigger.
   const confirm = usePresence(confirmOpen, "fade");
+  // A tap on the dimmed page beside the card cancels, as 取消 does (Kirby
+  // 2026-10-26, candidate / 未拍板); not while it is deleting.
+  const confirmBlankTap = useBlankTap(() => setConfirmOpen(false), {
+    panel: "self",
+    enabled: !confirm.leaving && deleteStatus !== "working",
+  });
   useEffect(() => {
     if (!confirm.mounted) return;
     const dialog = dialogRef.current;
@@ -432,6 +439,7 @@ export function AccountView({
         <dialog
           ref={dialogRef}
           onClose={() => setConfirmOpen(false)}
+          {...confirmBlankTap}
           onCancel={(event) => {
             // Esc: fade out like Cancel, not the browser's instant close.
             event.preventDefault();

@@ -29,6 +29,7 @@ import { cardMotion, TOGGLE_MOTION } from "@/lib/results/shapeToggle";
 import { Avatar } from "@/components/nav/Avatar";
 import { accountCopy } from "@/lib/copy/account";
 import { cropToSquareBlob } from "./avatar-crop";
+import { useBlankTap } from "@/components/dialog/useBlankTap";
 import { useModalDialog } from "./modal";
 import { NICKNAME_MAX, canSaveNickname, nicknameLength } from "./profile-model";
 
@@ -95,6 +96,9 @@ export function ProfileSheet({
   const modal = useModalDialog({ onClose, initialFocus, returnFocusTo });
   // Its owner keeps it for the slide down (`<Presence kind="sheet">`).
   const leaving = useLeaving();
+  // A tap on the dimmed page above the sheet cancels, as 取消 does (Kirby
+  // 2026-10-26, candidate / 未拍板). A full-page step has no page around it.
+  const blankTap = useBlankTap(onClose, { panel: "self", enabled: !leaving });
 
   // A new step: its content comes in, before it is painted.
   const shownKey = useRef(swapKey);
@@ -137,6 +141,7 @@ export function ProfileSheet({
       aria-labelledby={labelledBy ?? titleId}
       onClose={modal.onClose}
       onCancel={modal.onCancel}
+      {...blankTap}
     >
       <div className="profile-sheet-head">
         {variant !== "page" && (

@@ -1,56 +1,63 @@
 import Link from "next/link";
 import type { MouseEvent } from "react";
+import { BrandLockup } from "@/components/nav/BrandLockup";
+import { NavMenu } from "@/components/nav/NavMenu";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import type { Locale } from "@/lib/contracts/locale";
-import type { FitResponse } from "@/lib/contracts/fit";
-import { SITE_NAME } from "@/lib/site";
-import { ShareCardButton } from "./share/ShareCardButton";
-import type { SharePick } from "./share/input";
-import type { ShareOutcome } from "./share/shareDecision";
 import { SurveyReminderLink } from "./SurveyReminderLink";
 
 /**
- * Top bar of every results page: the way back to a new scan on the left, the
- * site name in the centre (wide screens only), and on the right the
- * questionnaire reminder (a link to the profile page, candidate) and the small
- * share link. The share card is about the top pick, whichever page this is:
- * the overall #1, or the filter's #1 when that is another mouse (F24).
+ * Top bar of every results page, laid out as the landing page's nav (Kirby
+ * 2026-10-26, candidate / 未拍板): the mark and "Palmate" on the left, a link
+ * home; on the right the questionnaire reminder (a link to the profile page)
+ * and the site menu. 重新掃描 moved to the end of the page
+ * (`ResultsRescanLink`), and the share link went: the page has its own share
+ * button.
  */
 export function ResultsTopBar({
-  fit,
   language,
-  sharePick = null,
-  onRetake,
   onSurveyReminderClick,
-  onShareStarted,
-  onShareFinished,
-  onBack,
 }: {
-  fit: FitResponse;
   language: Locale;
-  /** The filter's #1 the share card is about, when it is not the overall #1 (V3.2 F24). */
-  sharePick?: SharePick | null;
-  /** The four callbacks are analytics only; the bar behaves the same without them. */
-  onRetake?: () => void;
+  /** Analytics only; the bar behaves the same without it. */
   onSurveyReminderClick?: (unanswered: boolean) => void;
-  onShareStarted?: () => void;
-  onShareFinished?: (outcome: ShareOutcome) => void;
-  /**
-   * V3.2 F11: may take the back link over (`preventDefault`) to go back in
-   * history to the scan page when it is right behind the results, so it does
-   * what the browser's back does (`topBarBack` in resultsHistory.ts).
-   */
-  onBack?: (event: MouseEvent<HTMLAnchorElement>) => void;
 }) {
   const copy = RESULTS_PAGE_COPY[language];
   return (
     <nav className="results-topBar" aria-label={copy.topBarLabel}>
+      <BrandLockup href="/" className="results-topBar-brand" />
+      <div className="results-topBar-actions">
+        <SurveyReminderLink
+          language={language}
+          onClick={onSurveyReminderClick}
+        />
+        <NavMenu />
+      </div>
+    </nav>
+  );
+}
+
+/**
+ * 重新掃描 at the end of the results (moved from the top bar, 2026-10-26). It
+ * keeps what the top-bar link did: the analytics event, and V3.2 F11's way
+ * back in history to the scan page when it is right behind the results
+ * (`onBack` may `preventDefault`, `topBarBack` in resultsHistory.ts).
+ */
+export function ResultsRescanLink({
+  language,
+  onRetake,
+  onBack,
+}: {
+  language: Locale;
+  onRetake?: () => void;
+  onBack?: (event: MouseEvent<HTMLAnchorElement>) => void;
+}) {
+  const copy = RESULTS_PAGE_COPY[language];
+  return (
+    <div className="results-rescan">
       <Link
         href="/scan/easy"
-        className="results-topBar-back"
-        // The accessible name is the destination alone, as the shared TopBar
-        // does (`backLinkName`): the chevron stays decorative.
-        aria-label={copy.backTo(copy.scanAgain)}
+        className="button-secondary results-rescan-link"
         onClick={
           onRetake || onBack
             ? (event) => {
@@ -60,28 +67,8 @@ export function ResultsTopBar({
             : undefined
         }
       >
-        <span aria-hidden="true">‹</span>
-        <span>{copy.scanAgain}</span>
+        {copy.scanAgain}
       </Link>
-      <Link href="/" className="results-topBar-name">
-        {SITE_NAME}
-      </Link>
-      <div className="results-topBar-actions">
-        <SurveyReminderLink
-          language={language}
-          onClick={onSurveyReminderClick}
-        />
-        <div className="results-topBar-share" data-share-position="top">
-          <ShareCardButton
-            fit={fit}
-            lang={language}
-            variant="link"
-            pick={sharePick}
-            onShareStarted={onShareStarted}
-            onShareFinished={onShareFinished}
-          />
-        </div>
-      </div>
-    </nav>
+    </div>
   );
 }

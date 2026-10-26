@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useLocale } from "@/client/i18n/LocaleProvider";
+import { useBlankTap } from "@/components/dialog/useBlankTap";
 import { usePresence } from "@/components/motion/Presence";
 import { resultsScreensCopy } from "@/lib/copy/results-screens";
 import { deleteScan } from "./fetchResults";
@@ -61,6 +62,12 @@ export function DeleteScanAction({
     setStatus("idle");
     triggerRef.current?.focus();
   }
+  // A tap on the dimmed page around the card cancels, as 取消 does (Kirby
+  // 2026-10-26, candidate / 未拍板); not while it is deleting.
+  const blankTap = useBlankTap(close, {
+    panel: "child",
+    enabled: open && shown !== "deleting",
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -105,6 +112,7 @@ export function DeleteScanAction({
         <div
           className="dialog-backdrop"
           role="presentation"
+          {...blankTap}
           data-leaving={presence.leaving ? "true" : undefined}
           // On its way out it is already closed: out of the accessibility
           // tree and the tab order, as it was when it unmounted at once.

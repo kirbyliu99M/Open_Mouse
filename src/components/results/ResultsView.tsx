@@ -2,7 +2,6 @@ import { useRef, useState, type MouseEvent } from "react";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { manualEntryCopy } from "@/lib/copy/manualEntry";
-import { scanCommonCopy } from "@/lib/copy/scan-common";
 import { formatCentimetres } from "@/lib/scan/manualEntry";
 import { en as enBands, zhTW as zhBands } from "@/lib/copy/fit-bands";
 import { bandOf } from "@/lib/fit/bands";
@@ -52,7 +51,7 @@ import { OfficialLink } from "./OfficialLink";
 import { PurchaseSlot } from "./PurchaseSlot";
 import { ResultFeedbackSheet } from "./ResultFeedbackSheet";
 import { ResultsDetails } from "./ResultsDetails";
-import { ResultsTopBar } from "./ResultsTopBar";
+import { ResultsRescanLink, ResultsTopBar } from "./ResultsTopBar";
 import { ShareCardButton } from "./share/ShareCardButton";
 import type { SharePick } from "./share/input";
 import { SimilarHands } from "./SimilarHands";
@@ -462,17 +461,8 @@ export function ResultsView({
               <WhyList entry={entry} language={language} />
 
               {/* Cautions about how the scan was made come before any link to a shop. */}
-              {/* V3.2 F15 (candidate): moved here from the scan's result
-                  sheet, so the sheet shows only its numbers. Not for numbers
-                  the person typed in (nothing was measured). */}
-              {enteredManual === null && (
-                <p
-                  className="results-measureNote"
-                  data-testid="results-unverified-note"
-                >
-                  {scanCommonCopy(language).unverifiedNote}
-                </p>
-              )}
+              {/* 「測量數值仍在驗證中。」 is gone (Kirby 2026-10-26: the
+                  measurements have been through validation tests). */}
               {enteredLengthMm !== null && (
                 <p className="results-handNotice">
                   {copy.enteredLengthNotice(enteredLengthMm)}
@@ -691,6 +681,12 @@ export function ResultsView({
         />
       </div>
 
+      <ResultsRescanLink
+        language={language}
+        onRetake={analytics ? () => emit("rescan_clicked", {}) : undefined}
+        onBack={navigation?.onBack}
+      />
+
       {/* The feedback sheet: the main page of a real scan only (the demo has
           no scan id). It waits 20 s of the tab being visible and the end of
           the list or Details, or 45 s after a real scroll, and comes at most
@@ -720,17 +716,12 @@ export function ResultsView({
       {/* Decorative haze behind the hero: see .results-glow in results.css. */}
       <div className="results-glow" aria-hidden="true" />
       <ResultsTopBar
-        fit={response}
         language={language}
-        sharePick={sharePick}
-        onRetake={analytics ? () => emit("rescan_clicked", {}) : undefined}
         onSurveyReminderClick={
           analytics
             ? (unanswered) => emit("survey_reminder_clicked", { unanswered })
             : undefined
         }
-        {...shareHandlers("top", false)}
-        onBack={navigation?.onBack}
       />
       {/* A detail page has no filter controls: it says which filter it is
           under and how to get back to the list. */}

@@ -406,6 +406,7 @@ test.describe("/results/demo", () => {
         ".results-others",
         ".results-otherMice",
         ".results-share-bottom",
+        ".results-rescan",
       ];
       const nodes = selectors.map((s) => document.querySelector(s));
       return selectors.map((s, i) => {
@@ -427,20 +428,20 @@ test.describe("/results/demo", () => {
       expect(inOrder, `${selector} comes after the one before it`).toBe(true);
   });
 
-  test("has a share button in the top bar and a primary one, beside the purchase spot or under Other mice", async ({
+  test("has one share button, beside the purchase spot or under Other mice, and none in the top bar", async ({
     page,
   }) => {
     await page.goto("/results/demo");
     const buttons = page.getByTestId("share-card-button");
-    // Three in the page, two shown at any width: the link in the top bar, and
-    // the primary one in the hero (wide) or under Other mice (phone).
-    await expect(buttons).toHaveCount(3);
+    // Two in the page, one shown at any width: in the hero (wide) or under
+    // Other mice (phone). The top bar has the menu instead (2026-10-26).
+    await expect(buttons).toHaveCount(2);
     await expect(
       page.locator('[data-testid="share-card-button"]:visible'),
-    ).toHaveCount(2);
+    ).toHaveCount(1);
     await expect(
       page.locator(".results-topBar [data-testid='share-card-button']"),
-    ).toBeVisible();
+    ).toHaveCount(0);
     const wide = (page.viewportSize()?.width ?? 0) >= 900;
     await expect(
       page.locator(
@@ -537,12 +538,16 @@ test.describe("/results/demo in a Chinese browser", () => {
     await expect(page.locator(".results-otherMice summary")).toContainText(
       "其他滑鼠（共 5 款）",
     );
-    await expect(page.locator(".results-topBar-back")).toContainText(
-      "重新掃描",
-    );
-    // The accessible name leaves the chevron out, as the shared TopBar does.
+    // 2026-10-26: the mark and Palmate (a link home) and the menu in the
+    // top bar; 重新掃描 at the end of the page.
     await expect(
-      page.getByRole("link", { name: "返回重新掃描" }),
+      page.locator(".results-topBar").getByRole("link", { name: "Palmate" }),
+    ).toHaveAttribute("href", "/");
+    await expect(
+      page.locator(".results-topBar").getByRole("button", { name: "開啟選單" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "重新掃描", exact: true }),
     ).toHaveAttribute("href", "/scan/easy");
   });
 });

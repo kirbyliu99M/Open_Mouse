@@ -38,6 +38,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/client/i18n/LocaleProvider";
+import { useBlankTap } from "@/components/dialog/useBlankTap";
 import { cameraCuesCopy } from "../../lib/copy/camera-cues";
 import { easyScanCopy } from "../../lib/copy/easy-scan";
 import { scanCommonCopy } from "../../lib/copy/scan-common";
@@ -1074,6 +1075,13 @@ export default function EasyScanCamera({
     // pointed at — native <dialog> close() already restores focus to
     // whatever had it before showModal(), which is enough here.
   }, []);
+
+  // A tap on the dimmed camera above the tip closes it, as 知道了 does (Kirby
+  // 2026-10-26, candidate / 未拍板).
+  const tipBlankTap = useBlankTap(dismissTip, {
+    panel: "self",
+    enabled: !tipLeave.leaving,
+  });
 
   const openTip = useCallback(() => setTipOpen(true), []);
 
@@ -3658,6 +3666,7 @@ export default function EasyScanCamera({
         data-leaving={tipLeave.leaving ? "true" : undefined}
         inert={tipLeave.leaving}
         aria-hidden={tipLeave.leaving || undefined}
+        {...tipBlankTap}
         onCancel={(e) => {
           e.preventDefault();
           dismissTip();

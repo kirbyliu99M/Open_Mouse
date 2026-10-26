@@ -11,7 +11,10 @@
 import type { Locale } from "../../../lib/contracts/locale";
 import type { HandType } from "../../../lib/contracts/fit";
 import { shareCardCopy } from "../../../lib/copy/share-card";
-import { palmateMarkInkEdges } from "../../../lib/brand/palmate-mark";
+import {
+  MAIN_LOGO_SIZE,
+  mainLogoHandEdges,
+} from "../../../lib/brand/palmate-main-logo";
 import { SITE_NAME, SITE_URL } from "../../../lib/site";
 import {
   DEFAULT_QR_STYLE,
@@ -35,12 +38,16 @@ export const CONTENT_WIDTH = CARD_WIDTH - 2 * CARD_PADDING;
 
 /** The QR box's side in pixels (5 px module step for the site URL). A layout parameter; 176 is Kirby's pick of 2026-10-10 (the first size he saw was 216). */
 export const DEFAULT_QR_SIZE = 176;
-/** The mark's drawing box is square; its ink is a little smaller (see `PALMATE_MARK_INK`). */
-export const MARK_SIZE = 120;
+/**
+ * The Main Palmate Logo's box (its glow), square; the hand inside it is
+ * 160 x 170 (Kirby 2026-10-26, candidate / 未拍板; it was the 120 px line
+ * mark).
+ */
+export const MARK_SIZE = MAIN_LOGO_SIZE;
 /** Quiet zone the QR panel keeps around the code, in modules, at the least. */
 export const QR_MIN_QUIET_MODULES = 2;
-/** Gap between the mark and the name and tagline. */
-const MARK_GAP = 36;
+/** Gap between the hand's box and the name and tagline (the glow's own 30 px plus 28, as in Pencil). */
+const MARK_GAP = 58;
 export const PHOTO_RADIUS = 48;
 /** The photo frame is never shorter than this; the layout is built so it never has to be. */
 export const MIN_PHOTO_HEIGHT = 300;
@@ -77,7 +84,7 @@ export type DrawOp =
   /** A neutral mouse outline, shown when there is no photo. */
   | { kind: "silhouette"; box: Box }
   | { kind: "qr"; box: Box; text: string; style: QrStyle }
-  /** The Palmate mark, drawn from `palmate-mark.ts` scaled to the box. */
+  /** The Main Palmate Logo, drawn from `palmate-main-logo.ts` scaled to the box. */
   | { kind: "mark"; box: Box };
 
 export interface ShareCardInput {
@@ -237,13 +244,14 @@ export function layoutShareCard(
   }
   const headerBottom = cursor;
 
-  // Footer: the lockup (mark, name, tagline) at the left and the QR at the
-  // right, both resting on the bottom margin. The mark is placed by its INK, not
-  // its viewBox (the hand does not fill the box): the ink's left edge is on the
-  // content margin and its bottom edge is on the QR box's bottom edge. The name
-  // and tagline are centred on the ink's height.
+  // Footer: the lockup (the Main Palmate Logo, then the name and tagline on its
+  // right, Kirby 2026-10-26) at the left and the QR at the right, both resting
+  // on the bottom margin. The logo is placed by its HAND's box, not by its
+  // glow (which fades out around it): the hand's left edge is on the content
+  // margin and its bottom edge is on the QR box's bottom edge. The name and
+  // tagline are centred on the hand's height. ("ink" below is that box.)
   const footerBottom = CARD_HEIGHT - CARD_PADDING;
-  const inkAtOrigin = palmateMarkInkEdges({ x: 0, y: 0, w: MARK_SIZE });
+  const inkAtOrigin = mainLogoHandEdges({ x: 0, y: 0, w: MARK_SIZE });
   const inkHeight = inkAtOrigin.bottom - inkAtOrigin.top;
   const footerH = Math.max(qrSide, inkHeight);
   const footerTop = footerBottom - footerH;
@@ -259,7 +267,7 @@ export function layoutShareCard(
     w: qrSide,
     h: qrSide,
   };
-  const ink = palmateMarkInkEdges(markBox);
+  const ink = mainLogoHandEdges(markBox);
   const textX = ink.right + MARK_GAP;
   const footerTextWidth = qrBox.x - textX - 36;
   const nameFont = NAME_FONT;

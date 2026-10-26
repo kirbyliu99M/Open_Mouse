@@ -18,8 +18,8 @@ import { RESULT_FEEDBACK_MIN_DWELL_MS } from "../../src/lib/results/resultFeedba
  * the only browser check of "the stamp survives router.refresh" (the logic is
  * unit-tested in tests/unit/results-f11.test.ts, "F11-8: resolveStamp"), and
  * its selectors (`language-switcher` .last(), aria-pressed="false") and the
- * headless share resolving at once are unconfirmed. The top-bar "‹ 重新掃描"
- * history back is not driven here at all; its handoff wiring is unit-tested in
+ * headless share resolving at once are unconfirmed. The 重新掃描 link's
+ * history back (at the end of the page since 2026-10-26) is not driven here at all; its handoff wiring is unit-tested in
  * tests/unit/use-scan-submit-handoff.test.ts.
  */
 

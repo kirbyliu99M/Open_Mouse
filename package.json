@@ -23,6 +23,7 @@
     "db:check": "drizzle-kit check",
     "db:migrate": "tsx scripts/migrate.ts",
     "rubric:validate": "tsx scripts/validate-rubric.ts",
+    "brand:main-logo": "tsx scripts/write-main-logo-svg.ts",
     "seed:fetch-logitech": "tsx scripts/fetch-logitech-specs.ts",
     "db:seed": "tsx scripts/seed.ts",
     "m2:evaluate": "tsx scripts/m2-evaluate.ts",

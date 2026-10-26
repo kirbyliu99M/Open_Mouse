@@ -42,11 +42,6 @@ export interface ScanCommonCopy {
     palmWidth: string;
     entered: boolean;
   }) => string;
-  /**
-   * Under /scan's numbers, and (V3.2 F15) on the results page's notes about
-   * how the scan was made; no longer on the easy scan's result sheet.
-   */
-  unverifiedNote: string;
   /** "Enter a hand length between 135 and 265 mm." */
   lengthRange: (min: number, max: number) => string;
   submitSending: string;
@@ -103,7 +98,6 @@ export const zhTW: ScanCommonCopy = {
   gripFingertip: "指握",
   measuredNumbers: ({ handLength, palmWidth, entered }) =>
     `${entered ? `手長 ${handLength}${NBSP}mm（自行輸入）` : `手長 ${handLength}${NBSP}mm`} · 掌寬 ${palmWidth}${NBSP}mm`,
-  unverifiedNote: "測量數值仍在驗證中。",
   lengthRange: (min, max) => `請輸入 ${min} 到 ${max}${NBSP}mm 之間的手長。`,
   submitSending: "正在傳送你的測量數值…",
   submitSuccessStatus: "測量完成，正在開啟你的結果…",
@@ -164,7 +158,6 @@ export const en: ScanCommonCopy = {
   gripFingertip: "Fingertip",
   measuredNumbers: ({ handLength, palmWidth, entered }) =>
     `${entered ? `Hand length ${handLength}${NBSP}mm (entered)` : `Hand length ${handLength}${NBSP}mm`} · Palm width ${palmWidth}${NBSP}mm`,
-  unverifiedNote: "Measurements are still being validated.",
   lengthRange: (min, max) =>
     `Enter a hand length between ${min} and ${max}${NBSP}mm.`,
   submitSending: "Sending your measurements…",

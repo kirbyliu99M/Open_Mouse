@@ -1,9 +1,8 @@
 /**
- * Said next to every measured number on a scan screen. The measurements are
- * an estimate from a photo, and the screen says so instead of implying
- * otherwise. Wording decided by Kirby on 2026-10-03 (docs/STATUS.md, decisions
- * log): it does not mention a ruler or any accuracy figure, only that the
- * measurements are still being validated.
+ * The measured numbers a scan screen shows. Until 2026-10-26 a line beside
+ * them said the measurements were still being validated (Kirby, 2026-10-03);
+ * Kirby removed it on 2026-10-26 after the validation tests. The file keeps
+ * its old name.
  */
 import {
   engineScaleMeasurements,

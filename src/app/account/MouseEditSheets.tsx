@@ -2,6 +2,7 @@
 
 import { useId, useRef, useState, type RefObject } from "react";
 import { useLocale } from "@/client/i18n/LocaleProvider";
+import { useBlankTap } from "@/components/dialog/useBlankTap";
 import { useLeaving } from "@/components/motion/Presence";
 import {
   MAIN_USES,
@@ -409,6 +410,11 @@ export function RemoveConfirm({
   });
   // Its owner keeps it for the fade out (`<Presence kind="fade">`).
   const leaving = useLeaving();
+  // A tap on the dimmed page around the cards cancels (not while removing).
+  const blankTap = useBlankTap(onClose, {
+    panel: "child",
+    enabled: !leaving && !working,
+  });
 
   return (
     <dialog
@@ -423,10 +429,7 @@ export function RemoveConfirm({
       aria-describedby={bodyId}
       onClose={modal.onClose}
       onCancel={modal.onCancel}
-      onClick={(event) => {
-        // A tap on the backdrop (the dialog element itself) cancels.
-        if (event.target === modal.dialogRef.current) onClose();
-      }}
+      {...blankTap}
     >
       <div className="qn-confirm-card">
         <h2 id={titleId}>{copy.removeTitle}</h2>

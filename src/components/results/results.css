@@ -599,10 +599,7 @@
   }
 }
 
-/* F15: .results-measureNote ("still being validated", moved here from the
-   scan's sheet) looks like the other notes about how the scan was made. */
-.results-handNotice,
-.results-measureNote {
+.results-handNotice {
   line-height: 1.5;
 }
 
@@ -613,8 +610,7 @@
 
 .results-fitNotice,
 .results-coverageNotice,
-.results-handNotice,
-.results-measureNote {
+.results-handNotice {
   color: #b5b5bd;
 }
 
@@ -730,40 +726,20 @@
 }
 
 /* Top bar: back link, site name (wide only), share spot. */
+/* As the landing page's nav (candidate / 未拍板, 2026-10-26): the mark and
+   "Palmate" on the left, the questionnaire reminder and the menu on the
+   right. */
 .results-topBar {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  min-height: 3.25rem;
-}
-.results-topBar-back {
-  grid-column: 1;
-  justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  min-height: 2.75rem;
-  color: var(--accent-text);
-  text-decoration: none;
-}
-.results-topBar-name {
-  grid-column: 2;
-  display: none;
-  color: var(--text-primary);
-  /* Inter 700, spaced -0.3/18 em: the official wordmark (brand-font.ts). */
-  font-family: var(--font-brand), system-ui, sans-serif;
-  font-weight: 700;
-  letter-spacing: -0.0167em;
-  text-decoration: none;
-}
-/* The right of the bar: the questionnaire reminder, then the share link,
-   24 px apart (candidate, 2026-10-12). */
-.results-topBar-actions {
-  grid-column: 3;
-  justify-self: end;
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3.25rem;
+}
+.results-topBar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 /* A 44 x 44 hit area for the icon; the dot sits on its top right corner. */
 .results-topBar-reminder {
@@ -801,15 +777,29 @@
     outline: 1px solid currentColor;
   }
 }
-.results-topBar-share {
-  justify-self: end;
-}
-.results-topBar a:active {
+.results-topBar-reminder:active {
   opacity: 0.65;
 }
-.results-topBar a:focus-visible {
+.results-topBar-reminder:focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 3px;
+}
+/* 重新掃描, last on the page (moved from the top bar, 2026-10-26). */
+.results-rescan {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+.results-rescan-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  font-weight: 600;
+}
+.results-rescan-link:active {
+  opacity: 0.65;
 }
 /* The primary share button: under Other mice on a phone, beside the purchase
    links in the hero on a wide screen (the one not shown is display: none, so
@@ -1611,7 +1601,6 @@
 .results-disclosure-hint:lang(zh-TW),
 :lang(zh-TW) > .results-disclosure-hint,
 .results-handNotice:lang(zh-TW),
-.results-measureNote:lang(zh-TW),
 .results-coverageNotice:lang(zh-TW),
 .results-fitNotice:lang(zh-TW) {
   line-height: 1.6;
@@ -1646,9 +1635,6 @@
   }
   .resultsMain {
     padding-inline: 1.5rem;
-  }
-  .results-topBar-name {
-    display: inline-flex;
   }
   .results-hero {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1761,8 +1747,7 @@
   .results-sizeNotice,
   .results-fitNotice,
   .results-coverageNotice,
-  .results-handNotice,
-  .results-measureNote {
+  .results-handNotice {
     color: var(--text-secondary);
   }
 

@@ -415,13 +415,13 @@ describe("on the results page", () => {
       scanId: "scan-1",
     }),
   );
-  it("puts the reminder in the top bar, before the share link", () => {
+  it("puts the reminder in the top bar, before the menu button (2026-10-26)", () => {
     const bar = html.indexOf("results-topBar");
     const link = html.indexOf('href="/account"');
-    const share = html.indexOf('data-share-position="top"');
+    const menu = html.indexOf("navMenuTrigger");
     expect(bar).toBeGreaterThanOrEqual(0);
     expect(link).toBeGreaterThan(bar);
-    expect(link).toBeLessThan(share);
+    expect(link).toBeLessThan(menu);
   });
   it("shows no similar block before its answer arrives (nothing flashes)", () => {
     expect(html).not.toContain("results-similar");

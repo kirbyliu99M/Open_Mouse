@@ -1213,9 +1213,6 @@ export default function ScanClient({
                 </div>
               ))}
             </dl>
-            <p className="measureNote" data-testid="scan-unverified-note">
-              {common.unverifiedNote}
-            </p>
             <p className="feedbackCaption">
               {isPaperEdge
                 ? // No card, no manual-correction path in paper-edge mode

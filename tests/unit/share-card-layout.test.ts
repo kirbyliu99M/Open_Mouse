@@ -25,7 +25,7 @@ import {
 } from "../../src/components/results/share/text";
 import { DEFAULT_QR_STYLE } from "../../src/components/results/share/qrStyle";
 import { handTypeTitle, shareCardCopy } from "../../src/lib/copy/share-card";
-import { palmateMarkInkEdges } from "../../src/lib/brand/palmate-mark";
+import { mainLogoHandEdges } from "../../src/lib/brand/palmate-main-logo";
 import { SITE_NAME, SITE_URL } from "../../src/lib/site";
 
 /** A fake font: a CJK character is one em wide, anything else `latin` em. */
@@ -595,7 +595,7 @@ describe("the footer lockup and the QR", () => {
     for (const [name, input, m] of CASES) {
       const layout = layoutShareCard(input, m);
       const mark = findMark(layout);
-      const ink = palmateMarkInkEdges(mark.box);
+      const ink = mainLogoHandEdges(mark.box);
       expect(mark.box.w, name).toBe(MARK_SIZE);
       expect(mark.box.h, name).toBe(MARK_SIZE);
       // Ink left on the content margin, ink bottom on the QR box's bottom edge.
@@ -634,7 +634,7 @@ describe("the footer lockup and the QR", () => {
       expect(qr.box.h, name).toBe(185);
       expect(qr.style, name).toBe("frameless");
       expect(qr.box.y + qr.box.h, name).toBeCloseTo(
-        palmateMarkInkEdges(mark.box).bottom,
+        mainLogoHandEdges(mark.box).bottom,
         6,
       );
       expect(qr.box.x + qr.box.w, name).toBe(CARD_WIDTH - CARD_PADDING);
@@ -669,7 +669,7 @@ describe("the footer lockup and the QR", () => {
     for (const size of [144, 160, 176]) {
       for (const [name, input, m] of CASES) {
         const layout = layoutShareCard(input, m, { qrSize: size });
-        const inkEdges = palmateMarkInkEdges(findMark(layout).box);
+        const inkEdges = mainLogoHandEdges(findMark(layout).box);
         const mark: Box = {
           x: inkEdges.left,
           y: inkEdges.top,

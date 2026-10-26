@@ -164,9 +164,6 @@ describe("English stays byte-identical", () => {
     );
   });
   it("constants other code and tests import", () => {
-    expect(commonEn.unverifiedNote).toBe(
-      "Measurements are still being validated.",
-    );
     expect(DETECTOR_LOAD_FAILED_MESSAGE).toBe(
       "We couldn't load the hand detector. Check your connection and try again.",
     );

@@ -9,11 +9,13 @@
  *
  * Built on a native `<dialog>` (the same pattern AccountView's delete
  * confirmation already uses): `showModal()` gives us a top-layer focus trap
- * and Escape-to-close for free, and the backdrop click closes it too.
+ * and Escape-to-close for free. A tap on the dimmed page beside it closes it
+ * too (`useBlankTap`, Kirby 2026-10-26, candidate / 未拍板).
  */
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useLocale } from "@/client/i18n/LocaleProvider";
+import { useBlankTap } from "@/components/dialog/useBlankTap";
 import { usePresence } from "@/components/motion/Presence";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { navCopy } from "@/lib/copy/nav";
@@ -40,6 +42,10 @@ export function NavMenu({
   // stays open for leaveMs("sheet") after `open` turns false, and only then
   // closes and gives focus back to the trigger.
   const menu = usePresence(open, "sheet");
+  const blankTap = useBlankTap(() => setOpen(false), {
+    panel: "self",
+    enabled: !menu.leaving,
+  });
 
   useEffect(() => {
     if (!menu.mounted) return;
@@ -82,6 +88,7 @@ export function NavMenu({
           inert={menu.leaving}
           aria-hidden={menu.leaving ? true : undefined}
           onClose={() => setOpen(false)}
+          {...blankTap}
           onCancel={(event) => {
             // Esc: slide out like the close button, not the browser's
             // instant close.
