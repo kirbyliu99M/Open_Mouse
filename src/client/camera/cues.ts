@@ -18,8 +18,9 @@ import {
   computeQuadSkew,
   isQuadSkewed,
   computeQuadWidthFraction,
-  computeQuadSizeStatus,
+  computeQuadSizeStatusWithHysteresis,
   type Quad,
+  type QuadSizeStatus,
 } from "./quad";
 import { computeLightStatus, type LightStatus } from "./light";
 import type { LivePaperGate, PaperSide } from "./paperGate";
@@ -291,6 +292,12 @@ export interface CueInput {
    * mug as too_small). Omitted: treated as seen.
    */
   readonly sheetSeenYet?: boolean;
+  /**
+   * V3.3 WP4 (candidate): the distance status the previous sample got
+   * (`computeQuadSizeStatusWithHysteresis`). Omitted or `null`: the plain
+   * bounds, exactly as before.
+   */
+  readonly previousSizeStatus?: QuadSizeStatus | null;
 }
 
 /**
@@ -334,7 +341,12 @@ export function pickCue(
   if (isQuadSkewed(skew)) return cue("tilted", mode, locale);
 
   const widthFraction = computeQuadWidthFraction(input.quad, input.frameWidth);
-  const sizeStatus = computeQuadSizeStatus(widthFraction);
+  // V3.3 WP4 (candidate): with the last sample's status, a distance cue that
+  // is up waits until the fill is well back inside the range.
+  const sizeStatus = computeQuadSizeStatusWithHysteresis(
+    widthFraction,
+    input.previousSizeStatus,
+  );
   if (sizeStatus === "too-far") return cue("too-far", mode, locale);
   if (sizeStatus === "too-close") return cue("too-close", mode, locale);
 

@@ -96,10 +96,12 @@ import {
 } from "@/lib/observability/report";
 import {
   computeCoverRect,
+  computeQuadSizeStatusWithHysteresis,
   computeQuadWidthFraction,
   mapMediaPointToContainer,
   type Point,
   type Quad,
+  type QuadSizeStatus,
 } from "./quad";
 import { computeMeanLuma, computeClippedFraction } from "./light";
 import { computeMaxCornerMovement, isSteady } from "./steadiness";
@@ -685,6 +687,9 @@ export default function EasyScanCamera({
   const offscreenRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const prevSampleQuadRef = useRef<Quad | null>(null);
+  // V3.3 WP4 (candidate): the last sample's distance status, for the
+  // too-far / too-close hysteresis (quad.ts).
+  const sizeStatusRef = useRef<QuadSizeStatus | null>(null);
   const autoCaptureRef = useRef<AutoCaptureState>(INITIAL_AUTO_CAPTURE_STATE);
   // F14 (candidate): the second way the shutter fires by itself, when the
   // paper checks do not pass but a hand is held still (noSheetCapture.ts),
@@ -1192,6 +1197,7 @@ export default function EasyScanCamera({
     const fresh = freshLiveLoopSampling();
     lastSampleTimeRef.current = fresh.lastSampleAtMs;
     prevSampleQuadRef.current = fresh.prevQuad;
+    sizeStatusRef.current = null;
     autoCaptureRef.current = fresh.autoCapture;
     noSheetCaptureRef.current = INITIAL_NO_SHEET_CAPTURE_STATE;
     handReadingsRef.current = EMPTY_HAND_READINGS;
@@ -2306,6 +2312,15 @@ export default function EasyScanCamera({
       const msSinceLastDetection =
         detection.cornersSeen > 0 ? 0 : now - lastDetectionAtRef.current;
 
+      // V3.3 WP4 (candidate): this sample's distance status, with the last
+      // one's for the hysteresis; pickCue works out the same from the same
+      // two. A sample without the sheet keeps the last status.
+      const previousSizeStatus = sizeStatusRef.current;
+      if (sampleQuad)
+        sizeStatusRef.current = computeQuadSizeStatusWithHysteresis(
+          computeQuadWidthFraction(sampleQuad, width),
+          previousSizeStatus,
+        );
       const nextCue = pickCue(
         {
           cornersSeen: detection.cornersSeen,
@@ -2324,6 +2339,7 @@ export default function EasyScanCamera({
           // No stage cue before the sheet was ever found (cues.ts).
           sheetSeenYet: firstSheetSeenAtRef.current !== null,
           msSinceLastDetection,
+          previousSizeStatus,
         },
         "paper-edge",
         localeRef.current,

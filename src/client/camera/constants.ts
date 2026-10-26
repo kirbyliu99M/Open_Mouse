@@ -40,9 +40,24 @@ export const CAMERA_CONSTANTS = {
     maxAngleDeviationDeg: 12,
   },
   size: {
-    /** Paper quad width as a fraction of frame width (candidates). */
+    /**
+     * Paper quad width as a fraction of frame width (candidates). V3.3 WP4
+     * (Kirby 2026-10-26, candidate 未拍板; F20 design §3.2): the auto-capture
+     * range is 0.55-0.85 (was 0.55-0.95), for everyone. The top came down so
+     * the paper corners and the fingers stay clear of the picture's edge;
+     * the scale itself hardly depends on the distance (模擬). WP2's real
+     * scans may narrow it further.
+     */
     minWidthFraction: 0.55,
-    maxWidthFraction: 0.95,
+    maxWidthFraction: 0.85,
+    /**
+     * V3.3 WP4 (candidate, §3.2): a distance cue that is up goes only once
+     * the fill is this far back inside the range (too far: shown below 0.55,
+     * gone above 0.57; too close: shown above 0.85, gone below 0.83). From
+     * inside the range the cue still starts at the bounds themselves.
+     * `computeQuadSizeStatusWithHysteresis` (quad.ts).
+     */
+    hysteresis: 0.02,
   },
   light: {
     /** Mean luma (0-255) floor before "More light, please" (candidate). */

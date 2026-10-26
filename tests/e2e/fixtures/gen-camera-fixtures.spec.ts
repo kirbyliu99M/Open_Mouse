@@ -86,6 +86,10 @@ const HOMOGRAPHY: Homography = [
 // is 800 wide (it was 1000): the sheet is drawn 480 px wide (210 mm x 2.2857),
 // 60 % of the frame (above the 55 %), and 80 % of the 390 screen's share and 87 %
 // of the 360 screen's (below the 95 %). The frame's height, 1300, is unchanged.
+// V3.3 WP4 (candidate): the top bound is now 85 %. The 390 screen's 80 % is
+// still inside; a 360x844 screen's 87 % would read "Move back", and no camera
+// spec uses a screen that narrow for its height (narrower than 0.435 wide per
+// unit of height) today.
 // (Before the easy scan looked at the screen's part the sheet was 756 px in a
 // 1000 px frame: wider than the screen shows, and found only because the
 // detector looked at the whole frame.)

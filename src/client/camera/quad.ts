@@ -120,6 +120,40 @@ export function computeQuadSizeStatus(
   return "ok";
 }
 
+/**
+ * V3.3 WP4 (candidate 未拍板; F20 design §3.2): `computeQuadSizeStatus` with
+ * hysteresis. `previous` is the status the last sample got from this same
+ * function (`null`/`undefined` at the start: plain bounds). A distance cue
+ * that is up stays until the fill is `hysteresis` back inside the range
+ * (too far: until above min + h; too close: until below max - h); from
+ * inside the range the bounds themselves apply, so a value exactly on a
+ * bound is still "ok". Pure.
+ */
+export function computeQuadSizeStatusWithHysteresis(
+  widthFraction: number,
+  previous: QuadSizeStatus | null | undefined,
+  thresholds: {
+    minWidthFraction: number;
+    maxWidthFraction: number;
+    hysteresis: number;
+  } = CAMERA_CONSTANTS.size,
+): QuadSizeStatus {
+  const plain = computeQuadSizeStatus(widthFraction, thresholds);
+  if (plain !== "ok") return plain;
+  const h = Math.max(0, thresholds.hysteresis);
+  if (
+    previous === "too-far" &&
+    !(widthFraction > thresholds.minWidthFraction + h)
+  )
+    return "too-far";
+  if (
+    previous === "too-close" &&
+    !(widthFraction < thresholds.maxWidthFraction - h)
+  )
+    return "too-close";
+  return "ok";
+}
+
 export interface Rect {
   readonly x: number;
   readonly y: number;
