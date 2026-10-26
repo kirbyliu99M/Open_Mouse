@@ -3,6 +3,11 @@
 import { useState } from "react";
 import { describeAttempt } from "./attemptLog";
 import { debugSnapshotJson, type ScanDebugSnapshot } from "./debugStats";
+import {
+  EXPERIMENT_TAGS,
+  isExperimentTag,
+  type ExperimentTag,
+} from "./livePlacement";
 
 const fixed = (value: number | null, digits: number) =>
   value === null ? "–" : value.toFixed(digits);
@@ -17,8 +22,16 @@ const fixed = (value: number | null, digits: number) =>
  */
 export function ScanDebugPanel({
   snapshot,
+  experimentTag = null,
+  onExperimentTag,
 }: {
   readonly snapshot: ScanDebugSnapshot;
+  /**
+   * V3.3 WP1b (candidate): the experiment tag the next scan will carry, and
+   * how to set it. Without `onExperimentTag` the picker is not drawn.
+   */
+  readonly experimentTag?: ExperimentTag | null;
+  readonly onExperimentTag?: (tag: ExperimentTag | null) => void;
 }) {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "manual">(
     "idle",
@@ -154,6 +167,42 @@ export function ScanDebugPanel({
         <dd>
           {live.cueCode ?? "–"} (shown {live.cueShown ?? "–"})
         </dd>
+        <dt>Placement</dt>
+        <dd data-testid="debug-placement">
+          fill{" "}
+          {fixed(live.placement?.fill == null ? null : live.placement.fill, 3)}{" "}
+          · wrist {fixed(live.placement?.wristToEdgeMm ?? null, 1)} mm · axis{" "}
+          {fixed(live.placement?.handAxisDeg ?? null, 1)}° · age{" "}
+          {fixed(live.placement?.ageMs ?? null, 0)} ms · cost avg{" "}
+          {fixed(live.placement?.costMsAverage ?? null, 3)} / max{" "}
+          {fixed(live.placement?.costMsMax ?? null, 3)} ms
+        </dd>
+        {onExperimentTag && (
+          <>
+            <dt>
+              <label htmlFor="debug-experiment-tag">Experiment tag</label>
+            </dt>
+            <dd>
+              <select
+                id="debug-experiment-tag"
+                data-testid="debug-experiment-tag"
+                value={experimentTag ?? ""}
+                onChange={(e) => {
+                  const value = e.currentTarget.value;
+                  onExperimentTag(isExperimentTag(value) ? value : null);
+                }}
+              >
+                <option value="">none</option>
+                {EXPERIMENT_TAGS.map((tag) => (
+                  <option key={tag} value={tag}>
+                    {tag}
+                  </option>
+                ))}
+              </select>{" "}
+              (next scan only)
+            </dd>
+          </>
+        )}
         <dt>Ring</dt>
         <dd>
           {fixed(live.ringFraction * 100, 0)}% · failures in a row{" "}

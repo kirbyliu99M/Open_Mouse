@@ -56,8 +56,18 @@ import {
   getHandLandmarker,
   HandLandmarkerLoadError,
   isHandLandmarkerReady,
-  readLiveHandPoints,
+  readLiveHand,
 } from "../photo/landmarks";
+import {
+  liveNominalFocalPx,
+  liveReadingsAtShutter,
+  pushLivePlacement,
+  readLivePlacement,
+  shutterKindOf,
+  type ExperimentTag,
+  type LivePlacementReading,
+  type ShutterKind,
+} from "./livePlacement";
 import {
   runPhotoPipeline,
   type PhotoOverlay,
@@ -86,6 +96,7 @@ import {
 } from "@/lib/observability/report";
 import {
   computeCoverRect,
+  computeQuadWidthFraction,
   mapMediaPointToContainer,
   type Point,
   type Quad,
@@ -182,6 +193,7 @@ import { useLeaving } from "./useLeaving";
 import { useAnswerPageSwap } from "./useAnswerPageSwap";
 import { LeaveShield } from "./LeaveShield";
 import {
+  debugPlacement,
   mean,
   percentile,
   pushWindow,
@@ -209,6 +221,7 @@ import {
   buildAttemptRecord,
   readAttempts,
   recordAttempt,
+  softHintHistoryOf,
   type AttemptCapture,
   type AttemptCaptureSource,
   type AttemptOutcome,
@@ -367,6 +380,10 @@ interface DebugLive {
   movement: number | null;
   cornersSeen: number | null;
   cueCode: CueCode | null;
+  /** V3.3 WP1b: this sample's sheet fill (紙占寬), every sample. */
+  fill?: number | null;
+  /** V3.3 WP1b: what each live placement reading cost, ms (performance.now). */
+  placementMs?: number[];
 }
 interface DebugCapture {
   method: "takePhoto" | "canvas" | "upload" | null;
@@ -676,6 +693,19 @@ export default function EasyScanCamera({
     INITIAL_NO_SHEET_CAPTURE_STATE,
   );
   const handReadingsRef = useRef<HandReadings>(EMPTY_HAND_READINGS);
+  // V3.3 WP1b (log only): the last live placement readings (livePlacement.ts),
+  // the shutter the loop is about to fire, and the debug panel's experiment
+  // tag for the next scan. None of them changes anything on screen.
+  const livePlacementRef = useRef<readonly LivePlacementReading[]>([]);
+  const pendingShutterRef = useRef<ShutterKind | null>(null);
+  const experimentTagRef = useRef<ExperimentTag | null>(null);
+  const [experimentTag, setExperimentTagState] = useState<ExperimentTag | null>(
+    null,
+  );
+  const setExperimentTag = useCallback((tag: ExperimentTag | null) => {
+    experimentTagRef.current = tag;
+    setExperimentTagState(tag);
+  }, []);
   const lastSampleTimeRef = useRef(0);
   const lastDetectionAtRef = useRef(0);
   const cornerStatesRef = useRef<CornerStates>(INITIAL_CORNER_STATES);
@@ -1165,6 +1195,8 @@ export default function EasyScanCamera({
     autoCaptureRef.current = fresh.autoCapture;
     noSheetCaptureRef.current = INITIAL_NO_SHEET_CAPTURE_STATE;
     handReadingsRef.current = EMPTY_HAND_READINGS;
+    livePlacementRef.current = [];
+    pendingShutterRef.current = null;
     cornerStatesRef.current = INITIAL_CORNER_STATES;
     outlineRef.current = INITIAL_OUTLINE_HYSTERESIS_STATE;
     cueDebounceRef.current = INITIAL_CUE_DEBOUNCE_STATE;
@@ -1372,6 +1404,9 @@ export default function EasyScanCamera({
           photoKb: info?.photoKb ?? null,
           previewWidth: info?.previewWidth ?? null,
           previewHeight: info?.previewHeight ?? null,
+          // V3.3 WP1b (log only): absent for an upload.
+          ...(info?.guidance ? { guidance: info.guidance } : {}),
+          ...(info?.experimentTag ? { experimentTag: info.experimentTag } : {}),
         };
         attemptsRef.current = recordAttempt(
           getBrowserStorage(),
@@ -1380,6 +1415,7 @@ export default function EasyScanCamera({
             userAgent: shortUserAgent(navigator.userAgent),
             capture,
             outcome,
+            softHintHistory: softHintHistoryOf(attemptsRef.current),
           }),
           attemptsRef.current,
         );
@@ -1639,6 +1675,10 @@ export default function EasyScanCamera({
   );
 
   const captureNow = useCallback(async () => {
+    // V3.3 WP1b (log only): the loop names its shutter just before calling;
+    // any other call is the person's tap. Read once and cleared.
+    const shutter: ShutterKind = pendingShutterRef.current ?? "manual";
+    pendingShutterRef.current = null;
     if (capturingRef.current || manualActiveRef.current) return;
     const source: AttemptCaptureSource = captureSource();
     const video = videoRef.current;
@@ -1820,7 +1860,16 @@ export default function EasyScanCamera({
           source === "takePhoto" && streamSize && region
             ? { stream: streamSize, visibleInStream: region.visible }
             : undefined,
+        // V3.3 WP1b (log only): the shutter and the last live readings, aged
+        // at the shutter; the debug panel's tag goes with this one scan.
+        guidance: {
+          shutter,
+          // Readings older than LIVE_READING_MAX_AGE_MS are left out.
+          live: liveReadingsAtShutter(livePlacementRef.current, firedAt),
+        },
+        experimentTag: experimentTagRef.current,
       };
+      if (experimentTagRef.current !== null) setExperimentTag(null);
       debugCaptureRef.current = {
         method,
         source,
@@ -1849,7 +1898,7 @@ export default function EasyScanCamera({
         setShutterMeasuring(false);
       }
     }
-  }, [stopStream, runPipeline, noteCaptureOutcome]);
+  }, [stopStream, runPipeline, noteCaptureOutcome, setExperimentTag]);
 
   const onFilePicked = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2309,12 +2358,46 @@ export default function EasyScanCamera({
           nowMs: now,
         })
       ) {
-        const points = readLiveHandPoints(canvas, width, height);
-        if (points !== undefined)
+        // The same one detect() as before; V3.3 WP1b only also keeps the z
+        // and world landmarks it returns (nothing here reads them yet).
+        const reading = readLiveHand(canvas, width, height);
+        const points =
+          reading === undefined ? undefined : (reading?.points ?? null);
+        if (points !== undefined) {
           handReadingsRef.current = recordHandReading(handReadingsRef.current, {
             atMs: now,
             points,
           });
+          // V3.3 WP1b (log only): with a hand and the sheet's four corners in
+          // this sample, where the wrist and the hand axis lie on the sheet.
+          // Kept for the attempt log; no cue, ring or gate reads it.
+          if (reading && detection.corners) {
+            const placementStartedAt = performance.now();
+            const placed = readLivePlacement({
+              atMs: now,
+              points: reading.points,
+              corners: detection.corners,
+              paperSize: paperSizeRef.current,
+              focalPx: liveNominalFocalPx(
+                { width: video.videoWidth, height: video.videoHeight },
+                source.width,
+                width,
+              ),
+              width,
+              height,
+            });
+            if (placed)
+              livePlacementRef.current = pushLivePlacement(
+                livePlacementRef.current,
+                placed,
+              );
+            if (debugOnRef.current)
+              debugLiveRef.current.placementMs = pushWindow(
+                debugLiveRef.current.placementMs ?? [],
+                performance.now() - placementStartedAt,
+              );
+          }
+        }
       }
       const hand = liveHandSignal({
         previous: handReadingsRef.current.previous,
@@ -2347,6 +2430,10 @@ export default function EasyScanCamera({
             : null;
         live.cornersSeen = detection.cornersSeen;
         live.cueCode = nextCue.code;
+        // V3.3 WP1b: the sheet fill of every sample (the experiment's 紙占寬).
+        live.fill = sampleQuad
+          ? computeQuadWidthFraction(sampleQuad, width)
+          : null;
         live.visibleInStream = source;
         live.sample = { width, height };
         debugVideoSizeRef.current = {
@@ -2408,8 +2495,14 @@ export default function EasyScanCamera({
       if (
         (autoCaptureRef.current.fired || noSheetCaptureRef.current.fired) &&
         previewSettledRef.current
-      )
+      ) {
+        // V3.3 WP1b (log only): which of the two shutters fired.
+        pendingShutterRef.current = shutterKindOf({
+          autoCapture: autoCaptureRef.current.fired,
+          noSheet: noSheetCaptureRef.current.fired,
+        });
         void captureNow();
+      }
     }
 
     rafRef.current = requestAnimationFrame(tick);
@@ -2543,7 +2636,14 @@ export default function EasyScanCamera({
         cueShown: cueDebounceRef.current.shown,
         ringFraction: autoCaptureRingFraction(autoCaptureRef.current),
         consecutiveFailures: autoCaptureRef.current.failStreak,
+        placement: debugPlacement({
+          fill: live.fill,
+          readings: livePlacementRef.current,
+          costMs: live.placementMs,
+          nowMs: performance.now(),
+        }),
       },
+      experimentTag: experimentTagRef.current,
       capture: {
         method: capture.method,
         source: capture.source ?? captureSource(),
@@ -3616,7 +3716,11 @@ export default function EasyScanCamera({
           {debugOn && debugSnapshot && (
             <details className="easyDebugDetails">
               <summary>Debug</summary>
-              <ScanDebugPanel snapshot={debugSnapshot} />
+              <ScanDebugPanel
+                snapshot={debugSnapshot}
+                experimentTag={experimentTag}
+                onExperimentTag={setExperimentTag}
+              />
             </details>
           )}
         </dialog>
@@ -3740,7 +3844,11 @@ export default function EasyScanCamera({
         debugSnapshot &&
         result.kind !== "measured" &&
         result.kind !== "gateFailure" && (
-          <ScanDebugPanel snapshot={debugSnapshot} />
+          <ScanDebugPanel
+            snapshot={debugSnapshot}
+            experimentTag={experimentTag}
+            onExperimentTag={setExperimentTag}
+          />
         )}
     </main>
   );

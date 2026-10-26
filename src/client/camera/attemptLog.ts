@@ -31,6 +31,17 @@ import {
   type PaperDetectionStage,
 } from "../paper/detectionStage";
 import { ATTEMPT_LOG_KEY, type StorageLike } from "./easyScanPreferences";
+import {
+  isExperimentTag,
+  type ExperimentTag,
+  type ShutterKind,
+} from "./livePlacement";
+import {
+  pickSoftHint,
+  SOFT_HINT_CODES,
+  type SoftHintCode,
+} from "../photo/softHint";
+import type { PlacementDiagnostics } from "../photo/placementDiagnostics";
 import { aspectOfSize, compareFov } from "./previewConstraints";
 
 export { ATTEMPT_LOG_KEY };
@@ -297,7 +308,107 @@ export interface AttemptRecord {
    * on an attempt with a found sheet or a second call. Local only, never sent.
    */
   readonly paperEdgeFit?: AttemptPaperEdgeFit;
+  /**
+   * V3.3 WP1b (candidate, 未拍板; design F20 §5.1): where the hand lay on the
+   * sheet, from the same corrected points the measurement used
+   * (placementDiagnostics.ts). Present only on a measured paper-edge scan.
+   * Summary numbers only: no landmark list. Local only, never sent.
+   */
+  readonly placement?: AttemptPlacement;
+  /**
+   * V3.3 WP1b: the 3D readings of MediaPipe's world landmarks (handWorld.ts),
+   * present only where at least one could be worked out. No world point is
+   * kept. Local only, never sent.
+   */
+  readonly world?: AttemptWorld;
+  /**
+   * V3.3 WP1b: the live viewfinder's last placement readings before the
+   * shutter, and which shutter fired. Present only on a camera capture.
+   * Local only, never sent.
+   */
+  readonly guidance?: AttemptGuidance;
+  /**
+   * V3.3 WP1b: the post-shot soft hint (softHint.ts `pickSoftHint`) this
+   * photo WOULD get with today's candidate thresholds. Recorded only: it is
+   * not shown anywhere. Present with `placement`. Local only, never sent.
+   */
+  readonly softHint?: AttemptSoftHint;
+  /** V3.3 WP1b: the experiment tag picked in the debug panel for this scan (`?debug=1` only). */
+  readonly experimentTag?: ExperimentTag;
   readonly userAgent: string;
+}
+
+/** Four per-finger values (index, middle, ring, little), kept as named fields rather than a list. */
+export interface AttemptFingers {
+  readonly index: number;
+  readonly middle: number;
+  readonly ring: number;
+  readonly little: number;
+}
+
+export interface AttemptPlacement {
+  /** mm to 0.1, positive inside the sheet. */
+  readonly wristToEdgeMm: number | null;
+  readonly wristEdge: "near-bottom" | "near-top" | null;
+  /** Degrees to 0.1, signed. */
+  readonly handAxisDeg: number | null;
+  /** mm to 0.1. */
+  readonly minSideMarginMm: number | null;
+  readonly thumbOutside: boolean | null;
+  /** To 0.0001. */
+  readonly palmOverHand: number | null;
+  /** To 0.0001 each. */
+  readonly distalOverProximal: AttemptFingers | null;
+  /** Whether the points were parallax-corrected (else the plain homography projection). */
+  readonly corrected: boolean;
+  /** MediaPipe image z, wrist minus the knuckles' mean, to 0.0001. */
+  readonly zWristMinusMcp: number | null;
+  /** mm to 1. */
+  readonly camDistMm: number | null;
+  readonly camOffsetMm: number | null;
+  /** Non-thumb landmark nearest the picture's border: px to 0.1, and as a share of the short side to 0.0001. */
+  readonly frameEdgePx: number | null;
+  readonly frameEdgeFraction: number | null;
+  /** Research: ring luma ÷ sheet luma, to 0.001. */
+  readonly shadowRing: number | null;
+  /** ms to 0.01. */
+  readonly shadowRingMs: number | null;
+}
+
+export interface AttemptWorld {
+  /** Degrees to 0.1. */
+  readonly palmTiltDeg: number | null;
+  readonly fingerFlexDeg: AttemptFingers | null;
+  readonly fingerElevDeg: AttemptFingers | null;
+  /** mm to 0.01. */
+  readonly planarityRmsMm: number | null;
+}
+
+/** One live reading: how long before the shutter (ms to 1), the fill (0.0001), mm and degrees (0.1), ratio (0.0001). */
+export interface AttemptLiveReading {
+  readonly ageMs: number | null;
+  readonly fill: number | null;
+  readonly wristToEdgeMm: number | null;
+  readonly handAxisDeg: number | null;
+  readonly palmOverHand: number | null;
+}
+
+export interface AttemptGuidance {
+  readonly shutter: ShutterKind;
+  /** The last three live readings, newest first; `null` where there were fewer. Named fields, not a list. */
+  readonly live: {
+    readonly latest: AttemptLiveReading | null;
+    readonly previous: AttemptLiveReading | null;
+    readonly earlier: AttemptLiveReading | null;
+  };
+}
+
+export interface AttemptSoftHint {
+  /** The hint that would be shown, after the repeat throttle. */
+  readonly code: SoftHintCode | null;
+  /** The hint chosen before the throttle (the device history entry). */
+  readonly candidate: SoftHintCode | null;
+  readonly suppressed: boolean;
 }
 
 export interface AttemptPaperEdgeFit {
@@ -586,6 +697,14 @@ export function sanitizeAttempt(value: unknown): AttemptRecord | null {
     ...paperChoiceField(raw.paperChoice),
     // Only on an attempt F19 had something to say about; absent otherwise.
     ...paperEdgeFitField(raw.paperEdgeFit),
+    // V3.3 WP1b: each only where it was recorded; absent on every older record.
+    ...placementField(raw.placement),
+    ...worldField(raw.world),
+    ...guidanceField(raw.guidance),
+    ...softHintField(raw.softHint),
+    ...(isExperimentTag(raw.experimentTag)
+      ? { experimentTag: raw.experimentTag }
+      : {}),
     userAgent: cleanString(raw.userAgent, MAX_USER_AGENT_LENGTH) ?? "",
   };
 }
@@ -675,6 +794,201 @@ function notUsedField(value: unknown): {
       excludedPoints: cleanNumber(o.excludedPoints, 0),
       piecesJoined: cleanNumber(o.piecesJoined, 0),
     },
+  };
+}
+
+// ── V3.3 WP1b: placement, world, guidance, soft hint ──────────────────────
+
+/** Sizes beyond these are not a reading of a hand on a sheet and are dropped to `null`. */
+const MAX_PLACEMENT_MM = 2000;
+const MAX_CAMERA_MM = 10000;
+const MAX_FRAME_EDGE_PX = 20000;
+const MAX_AGE_MS = 60000;
+
+function cleanBounded(
+  value: unknown,
+  digits: number,
+  min: number,
+  max: number,
+): number | null {
+  const n = cleanNumber(value, digits);
+  return n !== null && n >= min && n <= max ? n : null;
+}
+
+/** Four finite per-finger values from a 4-list or from named fields, or `null` as a whole. */
+function cleanFingers(
+  value: unknown,
+  digits: number,
+  min: number,
+  max: number,
+): AttemptFingers | null {
+  let items: unknown[] | null = null;
+  if (Array.isArray(value)) items = value.length === 4 ? value : null;
+  else {
+    const o = asObject(value);
+    if (o) items = [o.index, o.middle, o.ring, o.little];
+  }
+  if (!items) return null;
+  const out: number[] = [];
+  for (const item of items) {
+    const n = cleanBounded(item, digits, min, max);
+    if (n === null) return null;
+    out.push(n);
+  }
+  return { index: out[0], middle: out[1], ring: out[2], little: out[3] };
+}
+
+/** The placement block, rebuilt field by field; left out unless an object. */
+function placementField(value: unknown): { placement?: AttemptPlacement } {
+  const o = asObject(value);
+  if (!o) return {};
+  return {
+    placement: {
+      wristToEdgeMm: cleanBounded(
+        o.wristToEdgeMm,
+        1,
+        -MAX_PLACEMENT_MM,
+        MAX_PLACEMENT_MM,
+      ),
+      wristEdge:
+        o.wristEdge === "near-bottom" || o.wristEdge === "near-top"
+          ? o.wristEdge
+          : null,
+      handAxisDeg: cleanBounded(o.handAxisDeg, 1, -180, 180),
+      minSideMarginMm: cleanBounded(
+        o.minSideMarginMm,
+        1,
+        -MAX_PLACEMENT_MM,
+        MAX_PLACEMENT_MM,
+      ),
+      thumbOutside: cleanBool(o.thumbOutside),
+      palmOverHand: cleanBounded(o.palmOverHand, 4, 0, 10),
+      distalOverProximal: cleanFingers(o.distalOverProximal, 4, 0, 100),
+      corrected: o.corrected === true,
+      zWristMinusMcp: cleanBounded(o.zWristMinusMcp, 4, -100, 100),
+      camDistMm: cleanBounded(o.camDistMm, 0, 0, MAX_CAMERA_MM),
+      camOffsetMm: cleanBounded(o.camOffsetMm, 0, 0, MAX_CAMERA_MM),
+      frameEdgePx: cleanBounded(
+        o.frameEdgePx,
+        1,
+        -MAX_FRAME_EDGE_PX,
+        MAX_FRAME_EDGE_PX,
+      ),
+      frameEdgeFraction: cleanBounded(o.frameEdgeFraction, 4, -100, 100),
+      shadowRing: cleanBounded(o.shadowRing, 3, 0, 1000),
+      shadowRingMs: cleanBounded(o.shadowRingMs, 2, 0, MAX_AGE_MS),
+    },
+  };
+}
+
+/** The world block, rebuilt field by field; left out unless an object with at least one value. */
+function worldField(value: unknown): { world?: AttemptWorld } {
+  const o = asObject(value);
+  if (!o) return {};
+  const world: AttemptWorld = {
+    palmTiltDeg: cleanBounded(o.palmTiltDeg, 1, 0, 90),
+    fingerFlexDeg: cleanFingers(o.fingerFlexDeg, 1, 0, 360),
+    fingerElevDeg: cleanFingers(o.fingerElevDeg, 1, 0, 90),
+    planarityRmsMm: cleanBounded(o.planarityRmsMm, 2, 0, MAX_PLACEMENT_MM),
+  };
+  const any =
+    world.palmTiltDeg !== null ||
+    world.fingerFlexDeg !== null ||
+    world.fingerElevDeg !== null ||
+    world.planarityRmsMm !== null;
+  return any ? { world } : {};
+}
+
+/**
+ * One live reading, or `null` as a whole when its age is missing or beyond
+ * `MAX_AGE_MS`: values without a known, recent age would read as the
+ * placement just before the shutter when they may be stale.
+ */
+function cleanLiveReading(value: unknown): AttemptLiveReading | null {
+  const o = asObject(value);
+  if (!o) return null;
+  const ageMs = cleanBounded(o.ageMs, 0, 0, MAX_AGE_MS);
+  if (ageMs === null) return null;
+  return {
+    ageMs,
+    fill: cleanBounded(o.fill, 4, 0, 10),
+    wristToEdgeMm: cleanBounded(
+      o.wristToEdgeMm,
+      1,
+      -MAX_PLACEMENT_MM,
+      MAX_PLACEMENT_MM,
+    ),
+    handAxisDeg: cleanBounded(o.handAxisDeg, 1, -180, 180),
+    palmOverHand: cleanBounded(o.palmOverHand, 4, 0, 10),
+  };
+}
+
+/** The guidance block; left out without a known shutter. */
+function guidanceField(value: unknown): { guidance?: AttemptGuidance } {
+  const o = asObject(value);
+  if (!o) return {};
+  const shutter = o.shutter;
+  if (shutter !== "auto" && shutter !== "manual" && shutter !== "no-sheet")
+    return {};
+  const live = asObject(o.live);
+  return {
+    guidance: {
+      shutter,
+      live: {
+        latest: cleanLiveReading(live?.latest),
+        previous: cleanLiveReading(live?.previous),
+        earlier: cleanLiveReading(live?.earlier),
+      },
+    },
+  };
+}
+
+const SOFT_HINTS: readonly string[] = SOFT_HINT_CODES;
+const cleanSoftHintCode = (value: unknown): SoftHintCode | null =>
+  typeof value === "string" && SOFT_HINTS.includes(value)
+    ? (value as SoftHintCode)
+    : null;
+
+/** The soft hint block; left out unless an object. */
+function softHintField(value: unknown): { softHint?: AttemptSoftHint } {
+  const o = asObject(value);
+  if (!o) return {};
+  return {
+    softHint: {
+      code: cleanSoftHintCode(o.code),
+      candidate: cleanSoftHintCode(o.candidate),
+      suppressed: o.suppressed === true,
+    },
+  };
+}
+
+/**
+ * This device's soft-hint history for the throttle (softHint.ts): the
+ * candidate of every earlier record that has one, oldest first. Records from
+ * before V3.3, or of runs without a placement, are not part of it. Pure.
+ */
+export function softHintHistoryOf(
+  records: readonly AttemptRecord[],
+): (SoftHintCode | null)[] {
+  const out: (SoftHintCode | null)[] = [];
+  for (const record of records) {
+    if (record.softHint) out.push(record.softHint.candidate);
+  }
+  return out;
+}
+
+/** The placement block's raw input, from the pipeline's diagnostics. */
+function placementRaw(p: PlacementDiagnostics): Record<string, unknown> {
+  return {
+    ...p.placement,
+    corrected: p.corrected,
+    zWristMinusMcp: p.zWristMinusMcp,
+    camDistMm: p.camDistMm,
+    camOffsetMm: p.camOffsetMm,
+    frameEdgePx: p.frameEdge?.minPx ?? null,
+    frameEdgeFraction: p.frameEdge?.fractionOfShortSide ?? null,
+    shadowRing: p.shadowRing,
+    shadowRingMs: p.shadowRingMs,
   };
 }
 
@@ -920,6 +1234,22 @@ export interface AttemptCapture {
   /** The live preview's frame at the moment of capture; `null` for an upload. */
   readonly previewWidth: number | null;
   readonly previewHeight: number | null;
+  /**
+   * V3.3 WP1b: which shutter fired and the live placement readings before it,
+   * newest last, each with its age at the shutter (ms). Absent for an upload.
+   */
+  readonly guidance?: {
+    readonly shutter: ShutterKind;
+    readonly live: readonly {
+      readonly ageMs: number | null;
+      readonly fill: number | null;
+      readonly wristToEdgeMm: number | null;
+      readonly handAxisDeg: number | null;
+      readonly palmOverHand: number | null;
+    }[];
+  } | null;
+  /** V3.3 WP1b: the debug panel's experiment tag for this scan; absent otherwise. */
+  readonly experimentTag?: string | null;
 }
 
 export type AttemptOutcome =
@@ -950,6 +1280,8 @@ export function buildAttemptRecord(input: {
   readonly userAgent: string;
   readonly capture: AttemptCapture;
   readonly outcome: AttemptOutcome;
+  /** V3.3 WP1b: this device's earlier soft-hint candidates (`softHintHistoryOf`), oldest first. */
+  readonly softHintHistory?: readonly (SoftHintCode | null)[];
 }): AttemptRecord {
   const { capture, outcome } = input;
   const at = input.at instanceof Date ? input.at.toISOString() : input.at;
@@ -1107,6 +1439,21 @@ export function buildAttemptRecord(input: {
           },
         }
       : {}),
+    // V3.3 WP1b (log only): the placement record, the soft hint it would
+    // give, the live guidance and the experiment tag; each only where known.
+    ...(diagnostics?.placement
+      ? {
+          placement: placementRaw(diagnostics.placement),
+          world: diagnostics.placement.world,
+          softHint: softHintOf(
+            diagnostics,
+            diagnostics.placement,
+            input.softHintHistory ?? [],
+          ),
+        }
+      : {}),
+    ...(capture.guidance ? { guidance: guidanceRaw(capture.guidance) } : {}),
+    ...(capture.experimentTag ? { experimentTag: capture.experimentTag } : {}),
     userAgent: input.userAgent,
   });
   // `result` and `at` are set above, so the record is always valid; the
@@ -1156,6 +1503,53 @@ export function buildAttemptRecord(input: {
 }
 
 type PipelineResultDiagnostics = NonNullable<PipelineResult["diagnostics"]>;
+
+/**
+ * The soft hint this photo would get (softHint.ts), with today's candidate
+ * thresholds and the device's history. Recorded only; never shown. A throw
+ * is no hint.
+ */
+function softHintOf(
+  diagnostics: PipelineResultDiagnostics,
+  placement: PlacementDiagnostics,
+  history: readonly (SoftHintCode | null)[],
+): AttemptSoftHint {
+  try {
+    const hint = pickSoftHint(
+      {
+        wristToEdgeMm: placement.placement.wristToEdgeMm,
+        handAxisDeg: placement.placement.handAxisDeg,
+        minSideMarginMm: placement.placement.minSideMarginMm,
+        palmOverHand: placement.placement.palmOverHand,
+        reachMean: diagnostics.hand?.flatness?.reachMean ?? null,
+        palmTiltDeg: placement.world.palmTiltDeg,
+        fingerFlexDeg: placement.world.fingerFlexDeg,
+        sharpness: diagnostics.laplacianVariance ?? null,
+        paperWidthFraction: diagnostics.paper?.widthFraction ?? null,
+      },
+      history,
+    );
+    return {
+      code: hint.code,
+      candidate: hint.candidate,
+      suppressed: hint.suppressed,
+    };
+  } catch {
+    return { code: null, candidate: null, suppressed: false };
+  }
+}
+
+/** The live readings as the record's named fields, newest first. */
+function guidanceRaw(
+  guidance: NonNullable<AttemptCapture["guidance"]>,
+): Record<string, unknown> {
+  const live = Array.isArray(guidance.live) ? guidance.live : [];
+  const at = (k: number) => live[live.length - 1 - k] ?? null;
+  return {
+    shutter: guidance.shutter,
+    live: { latest: at(0), previous: at(1), earlier: at(2) },
+  };
+}
 
 // ── For the debug panel ───────────────────────────────────────────────────
 
@@ -1247,5 +1641,11 @@ export function describeAttempt(record: AttemptRecord): string {
     parts.push(`len ${record.measured.handLengthMm.toFixed(1)} mm`);
   if (record.measured.palmWidthMm !== null)
     parts.push(`palm ${record.measured.palmWidthMm.toFixed(1)} mm`);
+  if (record.placement)
+    parts.push(
+      `wrist ${record.placement.wristToEdgeMm ?? "?"} mm · axis ${record.placement.handAxisDeg ?? "?"}°`,
+    );
+  if (record.guidance) parts.push(`shutter ${record.guidance.shutter}`);
+  if (record.experimentTag) parts.push(`tag ${record.experimentTag}`);
   return parts.join(" · ");
 }

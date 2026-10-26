@@ -15,6 +15,7 @@ import {
 } from "@mediapipe/tasks-vision";
 import { scanCommonCopy } from "../../lib/copy/scan-common";
 import type { Point2 } from "../geometry/homography";
+import type { Point3 } from "./handWorld";
 import { createModelReader } from "./model-download";
 
 const WASM_BASE_PATH = "/mediapipe/wasm";
@@ -149,6 +150,20 @@ export function isHandLandmarkerReady(): boolean {
 }
 
 /**
+ * V3.3 WP1b (candidate): one live reading of the hand. `points` are what
+ * `readLiveHandPoints` has always returned (image px of the sample); `z` is
+ * MediaPipe's per-point relative depth (wrist = 0, image-width units) and
+ * `world` the 21 world landmarks (metres, around the hand's centre), each
+ * `null` when MediaPipe gave none or not 21 finite values. Log only: nothing
+ * acts on `z` or `world`, and neither is ever stored as an array.
+ */
+export interface LiveHandReading {
+  readonly points: Point2[];
+  readonly z: number[] | null;
+  readonly world: Point3[] | null;
+}
+
+/**
  * V3.2 F14 (candidate): the hand's landmarks in one picture of the live
  * preview (`source`, `width` x `height` px), read synchronously with the
  * landmarker that is already loaded, or `undefined` while it is not loaded
@@ -162,16 +177,84 @@ export function readLiveHandPoints(
   width: number,
   height: number,
 ): Point2[] | null | undefined {
+  const reading = readLiveHand(source, width, height);
+  return reading ? reading.points : reading;
+}
+
+/**
+ * The same single `detect()` as `readLiveHandPoints`, with the per-point z
+ * and the world landmarks MediaPipe returns from it (V3.3 WP1b; no second
+ * inference). `undefined` while the landmarker is not loaded, `null` when no
+ * hand was found or the reading threw.
+ */
+export function readLiveHand(
+  source: HTMLCanvasElement | ImageData,
+  width: number,
+  height: number,
+): LiveHandReading | null | undefined {
   const landmarker = readyLandmarker;
   if (!landmarker) return undefined;
   try {
-    const landmarks = landmarker.detect(source).landmarks[0];
-    return landmarks && landmarks.length > 0
-      ? toPixelPoints(landmarks, width, height)
-      : null;
+    const result = landmarker.detect(source);
+    const landmarks = result.landmarks[0];
+    if (!landmarks || landmarks.length === 0) return null;
+    return {
+      points: toPixelPoints(landmarks, width, height),
+      z: landmarkDepths(landmarks),
+      world: toWorldPoints(result.worldLandmarks?.[0]),
+    };
   } catch {
     return null;
   }
+}
+
+/**
+ * MediaPipe's per-landmark `z` (relative depth, wrist = 0), or `null` unless
+ * there are exactly 21 finite values. Pure.
+ */
+export function landmarkDepths(
+  landmarks: readonly { readonly z?: unknown }[] | null | undefined,
+): number[] | null {
+  if (!Array.isArray(landmarks) || landmarks.length !== 21) return null;
+  const out: number[] = [];
+  for (const p of landmarks) {
+    const z = (p as { z?: unknown } | null)?.z;
+    if (typeof z !== "number" || !Number.isFinite(z)) return null;
+    out.push(z);
+  }
+  return out;
+}
+
+/**
+ * MediaPipe's 21 world landmarks (metres) as plain points, or `null` unless
+ * there are exactly 21 with finite x, y, z. Pure.
+ */
+export function toWorldPoints(
+  world:
+    | readonly {
+        readonly x?: unknown;
+        readonly y?: unknown;
+        readonly z?: unknown;
+      }[]
+    | null
+    | undefined,
+): Point3[] | null {
+  if (!Array.isArray(world) || world.length !== 21) return null;
+  const out: Point3[] = [];
+  for (const p of world) {
+    const q = (p ?? {}) as { x?: unknown; y?: unknown; z?: unknown };
+    if (
+      typeof q.x !== "number" ||
+      typeof q.y !== "number" ||
+      typeof q.z !== "number" ||
+      !Number.isFinite(q.x) ||
+      !Number.isFinite(q.y) ||
+      !Number.isFinite(q.z)
+    )
+      return null;
+    out.push({ x: q.x, y: q.y, z: q.z });
+  }
+  return out;
 }
 
 /**
@@ -212,6 +295,14 @@ export interface HandDetectionResult {
   readonly handedness: "left" | "right" | null;
   /** The handedness classifier's confidence — doubles as detection confidence (MediaPipe's IMAGE-mode HandLandmarkerResult has no separate per-hand score). */
   readonly confidence: number;
+  /**
+   * V3.3 WP1b (candidate, log only): MediaPipe's per-point relative depth
+   * (`landmarkDepths`) and its 21 world landmarks in metres
+   * (`toWorldPoints`), from the same `detect()`. Absent or `null` where
+   * MediaPipe gave none. Nothing measured reads them.
+   */
+  readonly landmarkZ?: readonly number[] | null;
+  readonly worldLandmarks?: readonly Point3[] | null;
 }
 
 /**
@@ -236,5 +327,7 @@ export async function detectHandLandmarks(
       ? normalizeHandedness(handedness[0].categoryName)
       : null,
     confidence: handedness?.[0]?.score ?? 0,
+    landmarkZ: landmarkDepths(landmarks),
+    worldLandmarks: toWorldPoints(result.worldLandmarks?.[0]),
   };
 }

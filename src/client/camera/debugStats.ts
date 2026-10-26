@@ -9,6 +9,7 @@
  */
 import type { AttemptRecord } from "./attemptLog";
 import type { CueCode } from "./cues";
+import type { LivePlacementReading } from "./livePlacement";
 
 /** How many of the latest samples the timing statistics look at. */
 export const DEBUG_WINDOW = 30;
@@ -157,7 +158,23 @@ export interface ScanDebugSnapshot {
     readonly cueShown: CueCode | null;
     readonly ringFraction: number;
     readonly consecutiveFailures: number;
+    /**
+     * V3.3 WP1b (candidate): the hand's placement on the sheet from the live
+     * viewfinder: this sample's sheet fill (紙占寬), and the latest live
+     * reading's wrist distance and hand axis with its age; what one reading
+     * cost (ms, average and max of the last 30). Absent before WP1b.
+     */
+    readonly placement?: {
+      readonly fill: number | null;
+      readonly wristToEdgeMm: number | null;
+      readonly handAxisDeg: number | null;
+      readonly ageMs: number | null;
+      readonly costMsAverage: number | null;
+      readonly costMsMax: number | null;
+    };
   };
+  /** V3.3 WP1b: the experiment tag the next scan will carry (debug panel only); absent before WP1b. */
+  readonly experimentTag?: string | null;
   readonly capture: {
     readonly method: "takePhoto" | "canvas" | "upload" | null;
     /** What the shutter takes: a frame of the video cut to the part on screen, the camera's photo, or (after a pick) an upload. */
@@ -171,6 +188,35 @@ export interface ScanDebugSnapshot {
   readonly preview: DebugPreviewInfo;
   /** The last 20 scan attempts kept on this device (attemptLog.ts), oldest first. Numbers and codes only. */
   readonly attempts: readonly AttemptRecord[];
+}
+
+/** The debug panel's placement row (V3.3 WP1b, log only). */
+export type DebugPlacement = NonNullable<
+  ScanDebugSnapshot["live"]["placement"]
+>;
+
+/**
+ * V3.3 WP1b: the debug panel's placement row from this sample's sheet fill,
+ * the kept live readings (the newest last) and what each reading cost (ms).
+ * Wrist distance and hand axis come from the newest reading; its age is
+ * `nowMs` minus its `atMs`.
+ */
+export function debugPlacement(input: {
+  readonly fill: number | null | undefined;
+  readonly readings: readonly LivePlacementReading[];
+  readonly costMs: readonly number[] | undefined;
+  readonly nowMs: number;
+}): DebugPlacement {
+  const latest = input.readings[input.readings.length - 1] ?? null;
+  const cost = input.costMs ?? [];
+  return {
+    fill: input.fill ?? null,
+    wristToEdgeMm: latest?.wristToEdgeMm ?? null,
+    handAxisDeg: latest?.handAxisDeg ?? null,
+    ageMs: latest ? input.nowMs - latest.atMs : null,
+    costMsAverage: mean(cost),
+    costMsMax: cost.length ? Math.max(...cost) : null,
+  };
 }
 
 /** The snapshot as pasted back: rounded, stable key order. */
@@ -206,6 +252,18 @@ export function debugSnapshotJson(snapshot: ScanDebugSnapshot): string {
           4,
         ),
         ringFraction: round(live.ringFraction, 2),
+        ...(live.placement
+          ? {
+              placement: {
+                fill: round(live.placement.fill, 4),
+                wristToEdgeMm: round(live.placement.wristToEdgeMm, 1),
+                handAxisDeg: round(live.placement.handAxisDeg, 1),
+                ageMs: round(live.placement.ageMs, 0),
+                costMsAverage: round(live.placement.costMsAverage, 3),
+                costMsMax: round(live.placement.costMsMax, 3),
+              },
+            }
+          : {}),
       },
       capture: {
         ...capture,

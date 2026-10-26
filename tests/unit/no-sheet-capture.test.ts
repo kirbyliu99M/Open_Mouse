@@ -497,13 +497,19 @@ describe("EasyScanCamera wires it (read from the source: the repo has no DOM tes
     expect(tick).toMatch(
       /handReadingsRef\.current = recordHandReading\(\s*handReadingsRef\.current,\s*\{\s*atMs: now,\s*points,?\s*\},?\s*\);/,
     );
-    expect(tick).toContain("readLiveHandPoints(canvas, width, height)");
+    // V3.3 WP1b: the same one detect(), read through readLiveHand (which also
+    // returns z and the world landmarks); its points are what is recorded.
+    expect(tick).toContain("readLiveHand(canvas, width, height)");
+    expect(tick).toMatch(
+      /const points =\s*reading === undefined \? undefined : \(reading\?\.points \?\? null\);/,
+    );
     expect(tick).toMatch(/liveHandSignal\(\{[\s\S]*?frameDiagonal,\s*\}\)/);
   });
 
   it("either way of firing takes the photo through the one captureNow, once the preview has settled", () => {
     expect(tick).toMatch(
-      /if \(\s*\(autoCaptureRef\.current\.fired \|\| noSheetCaptureRef\.current\.fired\) &&\s*previewSettledRef\.current\s*\)\s*void captureNow\(\);/,
+      // V3.3 WP1b: the block also names the shutter for the attempt log first.
+      /if \(\s*\(autoCaptureRef\.current\.fired \|\| noSheetCaptureRef\.current\.fired\) &&\s*previewSettledRef\.current\s*\)\s*\{[^}]*pendingShutterRef\.current = shutterKindOf\(\{[^}]*\}\);\s*void captureNow\(\);\s*\}/,
     );
     expect(tick.split("captureNow()").length - 1).toBe(1);
   });
