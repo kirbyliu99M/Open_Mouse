@@ -42,10 +42,22 @@ async function watchCue(page: Page) {
     });
   });
 }
+/**
+ * After the auto-capture the V3.2 flow shows the paper-frame check first
+ * ("Adjust the paper's frame"); confirming it opens the measured sheet.
+ */
+async function measuredSheet(page: Page) {
+  await page.getByTestId("paper-adjust-confirm").click({ timeout: 30_000 });
+  const sheet = page.getByRole("dialog", { name: "Hand measured" });
+  await expect(sheet).toBeVisible({ timeout: 20_000 });
+  return sheet;
+}
 const cueSeen = (page: Page) =>
   page.evaluate(
     () => (window as Window & { __cueSeen?: string[] }).__cueSeen ?? [],
   );
+
+test.describe.configure({ timeout: 60_000 });
 
 test("hints off (no ?debug=1): no hand hint and no banner, the photo is taken as before", async ({
   page,
@@ -53,9 +65,7 @@ test("hints off (no ?debug=1): no hand hint and no banner, the photo is taken as
   await watchCue(page);
   await page.goto(LIVE_DEMO);
   await page.getByRole("button", { name: "Got it" }).click();
-  await expect(page.getByRole("dialog", { name: "Hand measured" })).toBeVisible(
-    { timeout: 20_000 },
-  );
+  await measuredSheet(page);
   const seen = await cueSeen(page);
   for (const hint of HAND_HINTS) expect(seen).not.toContain(hint);
   await expect(page.locator(".cameraCueSoftHint")).toHaveCount(0);
@@ -68,8 +78,7 @@ test("hints on (?debug=1): the auto-capture still takes the photo by itself", as
   await watchCue(page);
   await page.goto(`${LIVE_DEMO}?debug=1`);
   await page.getByRole("button", { name: "Got it" }).click();
-  const sheet = page.getByRole("dialog", { name: "Hand measured" });
-  await expect(sheet).toBeVisible({ timeout: 30_000 });
+  const sheet = await measuredSheet(page);
   // Continue and retake are there whatever hint was shown.
   await expect(sheet.getByTestId("answers-continue-button")).toBeEnabled();
   await expect(
@@ -89,8 +98,7 @@ test("hints on: a banner, when one shows, closes with its button and leaves Cont
 }) => {
   await page.goto(`${LIVE_DEMO}?debug=1`);
   await page.getByRole("button", { name: "Got it" }).click();
-  const sheet = page.getByRole("dialog", { name: "Hand measured" });
-  await expect(sheet).toBeVisible({ timeout: 30_000 });
+  const sheet = await measuredSheet(page);
   const banner = page.getByTestId("easy-soft-hint");
   if ((await banner.count()) === 0) {
     test.info().annotations.push({
