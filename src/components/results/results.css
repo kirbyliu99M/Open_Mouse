@@ -682,8 +682,12 @@
 .results-page-handoff .results-page-handoffLoader {
   padding: 0;
 }
+/* The results arrive once the loader has filled and faded: they rise in
+   from below while they fade in (Kirby 2026-10-26, candidate / 未拍板; it
+   was a 200 ms fade in place), over --motion-sheet-in, the time a sheet takes
+   to come up. Transform and opacity only, no fill: nothing is held after. */
 .resultsMain.results-entered {
-  animation: results-enter 200ms ease-out;
+  animation: motion-rise-in var(--motion-sheet-in) var(--ease-out);
 }
 /* A results page that replaces another of the same scan (V3.2 motion pass #6,
    candidate / 未拍板): a fade and a --motion-shift along x over --motion-base,
@@ -704,17 +708,10 @@
   animation: motion-fade-in var(--motion-base) var(--ease-out);
 }
 @media (prefers-reduced-motion: reduce) {
+  .resultsMain.results-entered,
   .results-view[data-enter],
   .results-page-error {
     animation: motion-fade-in var(--motion-reduced) linear;
-  }
-}
-@keyframes results-enter {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
   }
 }
 @media print {

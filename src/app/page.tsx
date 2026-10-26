@@ -1,4 +1,5 @@
 import { HomeCtaLink } from "@/components/home/HomeCtaLink";
+import { DetectorWarmup } from "@/components/home/DetectorWarmup";
 import { ParticleStage } from "@/components/home/ParticleStage";
 import { AccountNavLink } from "@/components/nav/AccountNavLink";
 import { BrandLockup } from "@/components/nav/BrandLockup";
@@ -115,6 +116,8 @@ export default async function HomePage() {
           <ParticleStage />
         </div>
       </section>
+      {/* Warms the scan's hand detector once the page is idle (renders nothing). */}
+      <DetectorWarmup />
 
       <section className="home-final" data-testid="home-final">
         <HomeActions locale={locale} />

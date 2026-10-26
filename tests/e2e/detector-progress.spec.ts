@@ -8,100 +8,39 @@ import {
   slowModel,
   uploadGreyPhoto,
 } from "./fixtures/slow-model";
-import { leavingRecords, leftWith, recordLeaving } from "./fixtures/leaving";
 
-test("shows real progress while the model streams in, in coarse steps for assistive technology, then goes away", async ({
+// Kirby 2026-10-26 (candidate / 未拍板): the loading says nothing. The files
+// are warmed from the landing page (detector-warmup.spec.ts); a load still
+// going 2 s after the scan screen opened gets a faint bar with no words.
+test("a slow load shows only a faint bar, no words, after 2 s; it goes when the detector is ready; fetched once", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "mobile", "Runs in the mobile project.");
   await slowModel(page, "gated");
   await page.goto("/scan/easy");
-  await page.getByRole("button", { name: "Got it" }).click();
-
-  await expect(pill(page)).toBeVisible();
-  const bar = pill(page).getByRole("progressbar");
-  await expect(bar).toHaveAttribute("aria-valuenow", "0");
-  await expect(pill(page)).toContainText("Loading the hand detector");
-
-  await release(page, 3);
-  await expect(bar).toHaveAttribute("aria-valuenow", "30");
-  await expect(pill(page)).toContainText(/2\.\d of 7\.8 MB/);
-  // The bar is exact for the eye: 30% of the model is 3 of 10 chunks.
-  const transform = await pill(page)
-    .locator(".easyDetectorFill")
-    .evaluate((el) => (el as HTMLElement).style.transform);
-  expect(transform).toBe("scaleX(0.3)");
-
-  await release(page, 7);
-  await expect(bar).toHaveAttribute("aria-valuenow", "70");
-  await release(page, 10);
-  await expect(pill(page)).toHaveCount(0, { timeout: 15_000 });
-  expect(
-    await page.evaluate(
-      () => (window as Window & { __modelFetches?: number }).__modelFetches,
-    ),
-  ).toBe(1);
-});
-
-test("once the detector is ready the notice fades out (--motion-out), inert, instead of vanishing (V3.2 motion pass #18)", async ({
-  page,
-}, info) => {
-  test.skip(info.project.name !== "mobile", "Runs in the mobile project.");
-  await recordLeaving(page);
-  await slowModel(page, "gated");
-  await page.goto("/scan/easy");
-  await page.getByRole("button", { name: "Got it" }).click();
-  await expect(pill(page)).toBeVisible();
-  await release(page, 10);
-  await expect(pill(page)).toHaveCount(0, { timeout: 15_000 });
-  const record = leftWith(await leavingRecords(page), "easyDetectorProgress");
-  expect(record).toBeDefined();
-  expect([
-    record!.animationName,
-    record!.animationDuration,
-    record!.inert,
-  ]).toEqual(["easyFadeOut", "0.16s", true]);
-});
-
-test("a screen reader is offered a handful of values, not one per chunk", async ({
-  page,
-}, info) => {
-  test.skip(info.project.name !== "mobile", "Runs in the mobile project.");
-  await slowModel(page, "steady", 100);
-  await page.goto("/scan/easy");
-  await page.getByRole("button", { name: "Got it" }).click();
-  await expect(pill(page)).toBeVisible();
-  await expect(pill(page)).toHaveCount(0, { timeout: 30_000 });
-  const values = await page.evaluate(
-    () => (window as Window & { __progressValues?: string[] }).__progressValues,
-  );
-  const numeric = values!.filter((v) => v !== "indeterminate").map(Number);
-  // 100 chunks, so 100 visual updates; only multiples of 10, at most 11 values.
-  expect(numeric.every((v) => v % 10 === 0)).toBe(true);
-  expect(new Set(numeric).size).toBeLessThanOrEqual(11);
-  expect(numeric).toEqual([...numeric].sort((a, b) => a - b));
-  expect(numeric.length).toBeGreaterThan(3);
-});
-
-test("without a Content-Length the bar is indeterminate and still says how much has arrived", async ({
-  page,
-}, info) => {
-  test.skip(info.project.name !== "mobile", "Runs in the mobile project.");
-  await slowModel(page, "gated-no-length");
-  await page.goto("/scan/easy");
+  // Nothing at first.
+  await expect(pill(page)).toHaveCount(0);
   await page.getByRole("button", { name: "Got it" }).click();
   await release(page, 3);
-  const bar = pill(page).getByRole("progressbar");
-  await expect(pill(page)).toContainText(
-    /Loading the hand detector · \d\.\d MB/,
+  // Then the faint bar: a progress bar for screen readers, no visible words.
+  await expect(pill(page)).toHaveClass(/easyDetectorQuiet/, {
+    timeout: 10_000,
+  });
+  await expect(pill(page).getByRole("progressbar")).toHaveAttribute(
+    "aria-valuenow",
+    "30",
   );
-  await expect(pill(page)).not.toContainText(" of ");
-  await expect(bar).not.toHaveAttribute("aria-valuenow");
-  await expect(pill(page).locator(".easyDetectorFill")).toHaveClass(
-    /indeterminate/,
-  );
+  await expect(pill(page)).toHaveText("");
   await release(page, 10);
   await expect(pill(page)).toHaveCount(0, { timeout: 15_000 });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as Window & { __modelFetches?: number }).__modelFetches,
+      ),
+    )
+    .toBe(1);
+  await expect(pill(page)).toHaveCount(0);
 });
 
 test("if the app's own download fails, MediaPipe loads the same file by path and the detector really works", async ({
@@ -187,17 +126,19 @@ test("Try again on the notice loads the detector once the connection is back", a
   await expect(sheet).not.toContainText(LOAD_FAILED);
 });
 
-test("the progress pill is out of the way of assistive technology while the hand-length step covers it", async ({
+test("the failure notice is out of the way of assistive technology while the hand-length step covers it", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "mobile", "Runs in the mobile project.");
-  await slowModel(page, "gated");
+  await page.route(`**${MODEL_URL}`, (route) => route.abort());
   await page.goto("/scan/easy");
   const noPaper = page.getByRole("button", {
     name: "No paper? Use a ruler instead",
   });
   await expect(noPaper).toHaveCount(1);
-  await expect(pill(page)).toBeVisible();
+  await expect(pill(page)).toHaveAttribute("data-state", "failed", {
+    timeout: 30_000,
+  });
   await expect(pill(page)).not.toHaveAttribute("inert");
   await noPaper.click();
   await expect(
@@ -208,31 +149,10 @@ test("the progress pill is out of the way of assistive technology while the hand
   await expect(pill(page)).not.toHaveAttribute("inert");
 });
 
-for (const [motion, animation] of [
-  ["no-preference", "easyDetectorSlide"],
-  ["reduce", "easyDetectorPulse"],
-] as const) {
-  test(`the indeterminate bar ${motion === "reduce" ? "fades slowly instead of sitting full" : "slides"} with motion set to ${motion}`, async ({
-    page,
-  }, info) => {
-    test.skip(info.project.name !== "mobile", "Runs in the mobile project.");
-    await slowModel(page, "gated-no-length");
-    await page.emulateMedia({ reducedMotion: motion });
-    await page.goto("/scan/easy");
-    await page.getByRole("button", { name: "Got it" }).click();
-    const fill = pill(page).locator(".easyDetectorFill.indeterminate");
-    await release(page, 3);
-    await expect(fill).toBeVisible();
-    expect(
-      await fill.evaluate((el) => getComputedStyle(el).animationName),
-    ).toBe(animation);
-  });
-}
-
 // The notice is laid out in flow above a card that is itself in flow (the
 // camera was refused, or there is none), so the two cannot overlap at any text
-// size. Measured at the default size and at 150%, for the loading pill and for
-// the failure notice.
+// size. Measured at the default size and at 150%, for the failure notice (the
+// loading itself draws nothing since 2026-10-26).
 type Box = { top: number; bottom: number; left: number; right: number };
 const overlap = (a: Box, b: Box) =>
   a.left < b.right - 0.5 &&
@@ -241,7 +161,7 @@ const overlap = (a: Box, b: Box) =>
   b.top < a.bottom - 0.5;
 
 for (const scale of ["100%", "150%"]) {
-  for (const state of ["loading", "failed"] as const) {
+  for (const state of ["failed"] as const) {
     for (const screen of ["camera refused", "no camera"] as const) {
       test(`the ${state} notice does not overlap the ${screen} card at ${scale} text`, async ({
         page,
@@ -250,8 +170,7 @@ for (const scale of ["100%", "150%"]) {
           info.project.name !== "mobile",
           "Runs in the mobile project.",
         );
-        if (state === "loading") await slowModel(page, "gated");
-        else await page.route(`**${MODEL_URL}`, (route) => route.abort());
+        await page.route(`**${MODEL_URL}`, (route) => route.abort());
         if (screen === "no camera")
           await page.addInitScript(() => {
             Object.defineProperty(navigator, "mediaDevices", {
@@ -263,8 +182,7 @@ for (const scale of ["100%", "150%"]) {
         await page.addStyleTag({ content: `html { font-size: ${scale}; }` });
         const notice = pill(page);
         await expect(notice).toBeVisible({ timeout: 30_000 });
-        if (state === "failed")
-          await expect(notice).toHaveAttribute("data-state", "failed");
+        await expect(notice).toHaveAttribute("data-state", state);
         const card = page.locator(
           screen === "camera refused"
             ? ".cameraErrorCard"

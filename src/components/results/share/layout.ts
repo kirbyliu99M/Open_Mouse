@@ -272,25 +272,28 @@ export function layoutShareCard(
   const footerTextWidth = qrBox.x - textX - 36;
   const nameFont = NAME_FONT;
   const taglineFont = f(36, 400);
-  // The block runs from the name's cap height to the tagline's baseline.
-  const NAME_CAP = 36;
-  const BASELINE_GAP = 50;
+  // One call to action, the name merged in (Kirby 2026-10-26): the tagline
+  // ("Find Your Best") above, "Palmate" under it. The block runs from the
+  // tagline's cap height to the name's baseline, centred on the hand.
+  const TAGLINE_CAP = 27;
+  const BASELINE_GAP = 58;
   const markMid = (ink.top + ink.bottom) / 2;
-  const nameBaseline = markMid - (NAME_CAP + BASELINE_GAP) / 2 + NAME_CAP;
+  const taglineBaseline =
+    markMid - (TAGLINE_CAP + BASELINE_GAP) / 2 + TAGLINE_CAP;
   ops.push({ kind: "mark", box: markBox });
-  text(
-    fitLine(SITE_NAME, footerTextWidth, nameFont, measure),
-    textX,
-    nameBaseline,
-    nameFont,
-    "primary",
-  );
   text(
     fitLine(copy.tagline, footerTextWidth, taglineFont, measure),
     textX,
-    nameBaseline + BASELINE_GAP,
+    taglineBaseline,
     taglineFont,
     "secondary",
+  );
+  text(
+    fitLine(SITE_NAME, footerTextWidth, nameFont, measure),
+    textX,
+    taglineBaseline + BASELINE_GAP,
+    nameFont,
+    "primary",
   );
   ops.push({
     kind: "qr",

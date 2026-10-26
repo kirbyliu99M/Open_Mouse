@@ -431,8 +431,9 @@ describe("the scan flow's motion CSS (source pins)", () => {
     expect(source("src/client/camera/PaperAdjust.tsx")).toContain(
       "{leaving && <LeaveShield target={dialogRef} />}",
     );
+    // Since 2026-10-26 only a slow load's faint bar leaves.
     expect(source("src/client/camera/DetectorProgress.tsx")).toContain(
-      "{loading.leaving && <LeaveShield target={rootRef} />}",
+      "{quiet.leaving && <LeaveShield target={rootRef} />}",
     );
     // The tip: its scrim is the layer (it covers the screen, as the backdrop did).
     expect(camera).toContain(
@@ -570,7 +571,7 @@ describe("the wiring (source pins)", () => {
       "aria-hidden={leaving || undefined}",
     );
     expect(source("src/client/camera/DetectorProgress.tsx")).toContain(
-      "aria-hidden={loading.leaving || undefined}",
+      "aria-hidden={quiet.leaving || undefined}",
     );
   });
 

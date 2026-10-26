@@ -138,7 +138,7 @@ describe("layoutShareCard: the standard card", () => {
     expect(all).toContain("合手度分數");
     expect(all).toContain("適合你");
     expect(all).toContain(SITE_NAME);
-    expect(all).toContain("測測你的手型");
+    expect(all).toContain("找到你的最佳");
   });
 
   it("reads top to bottom: kicker, title, photo, pick, footer", () => {
@@ -611,10 +611,12 @@ describe("the footer lockup and the QR", () => {
       )!;
       expect(nameOp.x, name).toBeGreaterThanOrEqual(ink.right + MARK_GAP_MIN);
       expect(tagOp.x, name).toBe(nameOp.x);
-      // The text block (name's cap height to the tagline's baseline) is
-      // centred on the mark's ink, to within a few pixels, and inside its height.
-      const top = nameOp.baseline - nameOp.font.size * 0.75;
-      const bottom = tagOp.baseline;
+      // The tagline above the name (one call to action, Kirby 2026-10-26). The
+      // text block (the tagline's cap height to the name's baseline) is
+      // centred on the hand, to within a few pixels, and inside its height.
+      expect(tagOp.baseline, name).toBeLessThan(nameOp.baseline);
+      const top = tagOp.baseline - tagOp.font.size * 0.75;
+      const bottom = nameOp.baseline;
       const mid = (ink.top + ink.bottom) / 2;
       expect(Math.abs((top + bottom) / 2 - mid), name).toBeLessThanOrEqual(6);
       expect(top, name).toBeGreaterThanOrEqual(ink.top);

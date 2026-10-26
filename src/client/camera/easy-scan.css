@@ -777,9 +777,33 @@ main.easyScanShell {
     animation: easyDetectorPulse 2.4s ease-in-out infinite alternate;
   }
 }
+/* The faint bar of a slow load (Kirby 2026-10-26, "transparent loading",
+   candidate / 未拍板): no pill, no words, a thin see-through line where the
+   pill was, fading in over --motion-base. */
+.easyDetectorQuiet {
+  gap: 0;
+  width: min(8rem, calc(100% - 2rem));
+  padding: 0;
+  background: transparent;
+  animation: easyFadeIn var(--motion-base) var(--ease-out) backwards;
+}
+/* See-through by its colours, not by `opacity` (the fade animates that). */
+.easyDetectorQuiet .easyDetectorBar {
+  height: 0.1875rem;
+  background: rgba(255, 255, 255, 0.12);
+}
+.easyDetectorQuiet .easyDetectorFill {
+  background: rgba(255, 255, 255, 0.55);
+}
 @media (prefers-reduced-transparency: reduce) {
   .easyDetectorProgress {
     background: #000;
+  }
+  .easyDetectorQuiet {
+    background: transparent;
+  }
+  .easyDetectorQuiet .easyDetectorFill {
+    background: #fff;
   }
 }
 @media (prefers-contrast: more) {
