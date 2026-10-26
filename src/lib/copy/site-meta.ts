@@ -14,13 +14,13 @@ export interface SiteMetaCopy {
 
 export const zhTW: SiteMetaCopy = {
   description:
-    "只要一張空白 A4 紙和手機，量出你的手型，再比對電競滑鼠的尺寸與形狀，找到合手的滑鼠。",
+    "Palmate 是依手型挑選電競滑鼠的線上輔助工具。用手機和一張 A4 紙量出手的尺寸，與滑鼠規格對照，作為選購參考。",
   homeTitle: "Palmate・找到合手的滑鼠",
 };
 
 export const en: SiteMetaCopy = {
   description:
-    "Measure your hand with a blank sheet of A4 and your phone, then compare gaming mice by size and shape to find one that fits.",
+    "Palmate is an online tool that helps gamers choose a mouse by hand size. Measure your hand with a phone and a sheet of A4, then compare it against mouse dimensions.",
   homeTitle: "Palmate · Find the mouse that fits",
 };
 
