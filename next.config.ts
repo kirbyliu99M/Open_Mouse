@@ -1,5 +1,6 @@
 import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
+import { LEGACY_HOST, SITE_URL } from "./src/lib/site";
 
 /**
  * Security headers for every route (L1 hardening finding). Static, via
@@ -173,6 +174,16 @@ const nextConfig: NextConfig = {
   skipTrailingSlashRedirect: true,
   async redirects() {
     return [
+      // The first address, open-mouse.vercel.app, moves to SITE_URL for good
+      // (2026-10-26; one address for search engines). `/api` is left out so a
+      // cron call or an old API client on that host does not get a redirect;
+      // only this exact host matches, so Vercel previews are unaffected.
+      {
+        source: "/:path((?!api(?:/|$)).*)",
+        has: [{ type: "host", value: LEGACY_HOST }],
+        destination: `${SITE_URL}/:path`,
+        permanent: true,
+      },
       {
         source: "/:path((?!ingest(?:/|$)).+)/",
         destination: "/:path",
