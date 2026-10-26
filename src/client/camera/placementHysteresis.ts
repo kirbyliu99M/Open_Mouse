@@ -27,6 +27,7 @@ import { CAMERA_CONSTANTS } from "./constants";
 /** The live hand hints, in the order `pickCue` puts them (§4.1: on the paper → wrist / inside / direction → flat). */
 export const PLACEMENT_CUE_CODES = [
   "hand-missing",
+  "wrist-onto-paper",
   "wrist-align",
   "hand-inside",
   "hand-straight",
@@ -134,6 +135,7 @@ export const INITIAL_PLACEMENT_HYSTERESIS_STATE: PlacementHysteresisState = {
   latest: null,
   checks: {
     "hand-missing": IDLE,
+    "wrist-onto-paper": IDLE,
     "wrist-align": IDLE,
     "hand-inside": IDLE,
     "hand-straight": IDLE,
@@ -154,6 +156,7 @@ export function placementCheckOn(
   switch (code) {
     case "hand-missing":
       return t.live.handMissing;
+    case "wrist-onto-paper":
     case "wrist-align":
       return t.live.wristAlign;
     case "hand-inside":
@@ -180,13 +183,21 @@ export function placementVerdict(
   if (code === "hand-missing") return obs.handSeen ? "pass" : "fail";
   if (!obs.handSeen) return "unknown";
   switch (code) {
+    // The two sides of the wrist band, each its own hint (2026-10-26): past
+    // the edge (onto the paper again) and too far up (to the edge).
+    case "wrist-onto-paper": {
+      const v = obs.wristToEdgeMm;
+      if (!num(v)) return "unknown";
+      const w = t.wristToEdge;
+      if (active) return v >= w.clearMinMm ? "pass" : "fail";
+      return v < w.showMinMm ? "fail" : "pass";
+    }
     case "wrist-align": {
       const v = obs.wristToEdgeMm;
       if (!num(v)) return "unknown";
       const w = t.wristToEdge;
-      if (active)
-        return v >= w.clearMinMm && v <= w.clearMaxMm ? "pass" : "fail";
-      return v < w.showMinMm || v > w.showMaxMm ? "fail" : "pass";
+      if (active) return v <= w.clearMaxMm ? "pass" : "fail";
+      return v > w.showMaxMm ? "fail" : "pass";
     }
     case "hand-inside": {
       const v = obs.minSideMarginMm;

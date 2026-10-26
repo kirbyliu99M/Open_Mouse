@@ -38,6 +38,8 @@ export interface CameraCuesCopy {
      * with `?debug=1` until WP2). Live suggestions start with 請.
      */
     handMissing: string;
+    /** The wrist past the bottom edge (2026-10-26, candidate). */
+    wristOntoPaper: string;
     wristAlign: string;
     handInside: string;
     handStraight: string;
@@ -67,6 +69,8 @@ export interface CameraCuesCopy {
      * with `?debug=1` until WP2). Live suggestions start with 請.
      */
     handMissing: string;
+    /** The wrist past the bottom edge (2026-10-26, candidate). */
+    wristOntoPaper: string;
     wristAlign: string;
     handInside: string;
     handStraight: string;
@@ -120,6 +124,7 @@ export const zhTW: CameraCuesCopy = {
     outOfFocus: "等待畫面對焦清晰",
     perfect: "很好，請拿穩",
     handMissing: "請把手放在紙上",
+    wristOntoPaper: "請把手腕移回紙內一點",
     wristAlign: "請把手腕移到紙的下緣",
     handInside: "請把整隻手放進紙內",
     handStraight: "請讓手指朝向紙的上緣",
@@ -144,6 +149,7 @@ export const zhTW: CameraCuesCopy = {
     outOfFocus: "等待畫面對焦清晰",
     perfect: "很好，請拿穩",
     handMissing: "請把手放在校正表上",
+    wristOntoPaper: "請把手腕移回校正表內一點",
     wristAlign: "請把手腕移到校正表的下緣",
     handInside: "請把整隻手放進校正表內",
     handStraight: "請讓手指朝向校正表的上緣",
@@ -187,6 +193,7 @@ export const en: CameraCuesCopy = {
     outOfFocus: "Waiting for a sharp picture",
     perfect: "Perfect — hold still",
     handMissing: "Place your hand on the paper",
+    wristOntoPaper: "Move your wrist back onto the paper",
     wristAlign: "Move your wrist to the bottom edge",
     handInside: "Keep your hand inside the paper",
     handStraight: "Point your fingers to the top edge",
@@ -211,6 +218,7 @@ export const en: CameraCuesCopy = {
     outOfFocus: "Waiting for a sharp picture",
     perfect: "Perfect — hold still",
     handMissing: "Place your hand on the sheet",
+    wristOntoPaper: "Move your wrist back onto the sheet",
     wristAlign: "Move your wrist to the bottom edge",
     handInside: "Keep your hand inside the sheet",
     handStraight: "Point your fingers to the top edge",

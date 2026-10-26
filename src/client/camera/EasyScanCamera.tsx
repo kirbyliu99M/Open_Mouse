@@ -121,6 +121,7 @@ import {
   autoCaptureRingFraction,
   type AutoCaptureState,
 } from "./autoCapture";
+import { nextBestFrame, type BestFrameState } from "./bestFrame";
 import {
   EMPTY_HAND_READINGS,
   INITIAL_NO_SHEET_CAPTURE_STATE,
@@ -714,6 +715,12 @@ export default function EasyScanCamera({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const offscreenRef = useRef<HTMLCanvasElement | null>(null);
+  /**
+   * The sharpest frame of the ring's last second (bestFrame.ts, 2026-10-26):
+   * its numbers, and the full-resolution picture of it, drawn when kept.
+   */
+  const bestFrameRef = useRef<BestFrameState | null>(null);
+  const bestCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const prevSampleQuadRef = useRef<Quad | null>(null);
   // V3.3 WP4 (candidate): the last sample's distance status, for the
@@ -1247,6 +1254,7 @@ export default function EasyScanCamera({
     handReadingsRef.current = EMPTY_HAND_READINGS;
     livePlacementRef.current = [];
     placementHysteresisRef.current = INITIAL_PLACEMENT_HYSTERESIS_STATE;
+    bestFrameRef.current = null;
     pendingShutterRef.current = null;
     cornerStatesRef.current = INITIAL_CORNER_STATES;
     outlineRef.current = INITIAL_OUTLINE_HYSTERESIS_STATE;
@@ -1860,6 +1868,23 @@ export default function EasyScanCamera({
           : null;
       let file: File;
       let method: "takePhoto" | "canvas" = "takePhoto";
+      /** A JPEG of a canvas. */
+      const canvasFile = async (
+        canvas: HTMLCanvasElement,
+      ): Promise<File | null> => {
+        const blob = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob(
+            resolve,
+            "image/jpeg",
+            CAMERA_CONSTANTS.capture.jpegQuality,
+          ),
+        );
+        return blob
+          ? new File([blob], `capture-${Date.now()}.jpg`, {
+              type: "image/jpeg",
+            })
+          : null;
+      };
       /** Draws the video onto a canvas, cut to `rect` (or whole), and makes a JPEG of it. */
       const frameFile = async (
         rect: PixelRect | null,
@@ -1878,26 +1903,25 @@ export default function EasyScanCamera({
         const ctx = canvas.getContext("2d");
         if (!ctx) return null;
         ctx.drawImage(video, ...draw.source, ...draw.destination);
-        const blob = await new Promise<Blob | null>((resolve) =>
-          canvas.toBlob(
-            resolve,
-            "image/jpeg",
-            CAMERA_CONSTANTS.capture.jpegQuality,
-          ),
-        );
-        return blob
-          ? new File([blob], `capture-${Date.now()}.jpg`, {
-              type: "image/jpeg",
-            })
-          : null;
+        return canvasFile(canvas);
       };
       if (source === "frame") {
         // A frame of the video, cut to the part on screen, at the stream's own
         // resolution: the pixels the person saw and the detector approved.
         method = "canvas";
         let frame: File | null = null;
+        // The ring's shot (2026-10-26): the sharpest frame of its last second
+        // (bestFrame.ts), already drawn at full resolution with the same crop;
+        // the person's tap takes the frame of that moment.
+        const kept =
+          shutter === "auto" && bestFrameRef.current !== null
+            ? bestCanvasRef.current
+            : null;
+        bestFrameRef.current = null;
         try {
-          frame = await frameFile(region?.capture ?? null);
+          frame = kept
+            ? await canvasFile(kept)
+            : await frameFile(region?.capture ?? null);
         } catch {
           // A canvas that throws (out of memory, a lost context) is a frame
           // that was not made, like a missing context or a blob that is null.
@@ -2489,6 +2513,50 @@ export default function EasyScanCamera({
         dtMs,
       );
       setRingFraction(autoCaptureRingFraction(autoCaptureRef.current));
+
+      // 2026-10-26 (candidate): in the ring's last second, keep the sharpest
+      // frame at full resolution with the shutter's own crop (bestFrame.ts);
+      // the ring's shot uses it. An empty ring forgets it.
+      const bestStep = nextBestFrame(bestFrameRef.current, {
+        variance: laplacianVariance,
+        atMs: now,
+        passing: paperPassing,
+        ringElapsedMs: autoCaptureRef.current.elapsedMs,
+        ringDurationMs: CAMERA_CONSTANTS.autoCapture.durationMs,
+        windowMs: CAMERA_CONSTANTS.autoCapture.bestFrameWindowMs,
+      });
+      if (!bestStep.keepThis) {
+        bestFrameRef.current = bestStep.best;
+      } else {
+        const streamSize = readStreamSize(video, streamRef.current);
+        const crop =
+          streamSize && view
+            ? visibleRegionInStream(streamSize, {
+                width: view.box.width,
+                height: view.box.height,
+              })?.capture
+            : null;
+        if (crop) {
+          const draw = frameDrawArgs(crop);
+          let keep = bestCanvasRef.current;
+          if (!keep) {
+            keep = document.createElement("canvas");
+            bestCanvasRef.current = keep;
+          }
+          if (
+            keep.width !== draw.canvas.width ||
+            keep.height !== draw.canvas.height
+          ) {
+            keep.width = draw.canvas.width;
+            keep.height = draw.canvas.height;
+          }
+          const keepCtx = keep.getContext("2d");
+          if (keepCtx) {
+            keepCtx.drawImage(video, ...draw.source, ...draw.destination);
+            bestFrameRef.current = bestStep.best;
+          }
+        }
+      }
 
       // F14 (candidate): the sheet is not found (a light table: no sheet,
       // found only now and then, or a quad the gate turns back), but a hand

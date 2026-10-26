@@ -61,10 +61,9 @@ describe("the named wait (candidates)", () => {
     expect((2 * C.handSampleIntervalMs) / STEP_MS).toBeLessThan(
       C.maxConsecutiveMisses,
     );
-    // It is much longer than the paper ring: the sheet gets its chance first.
-    expect(C.waitMs).toBeGreaterThan(
-      4 * CAMERA_CONSTANTS.autoCapture.durationMs,
-    );
+    // It is longer than the paper ring (2.5 s since 2026-10-26; 4x the old
+    // 800 ms): the sheet gets its chance first.
+    expect(C.waitMs).toBeGreaterThan(CAMERA_CONSTANTS.autoCapture.durationMs);
   });
 });
 

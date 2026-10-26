@@ -94,8 +94,8 @@ describe("which banners are on by default", () => {
   });
   it("the switched-off bounds are opened, the rest are softHint.ts's", () => {
     const t = softHintBannerThresholds();
-    expect(t.wristToEdgeMinMm).toBe(-3);
-    expect(t.wristToEdgeMaxMm).toBe(18);
+    expect(t.wristToEdgeMinMm).toBe(-Infinity);
+    expect(t.wristToEdgeMaxMm).toBe(15);
     expect(t.minSharpness).toBe(null);
     expect(t.minPaperWidthFraction).toBe(-Infinity);
     expect(t.repeatLimit).toBe(3);

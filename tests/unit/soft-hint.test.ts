@@ -49,10 +49,11 @@ const ALL_BAD: SoftHintInput = {
 };
 
 describe("defaults", () => {
-  it("are the design's candidate values", () => {
+  it("are the candidate values (the wrist band from Kirby's S25 tests, 2026-10-26)", () => {
     expect(SOFT_HINT_THRESHOLDS).toMatchObject({
-      wristToEdgeMinMm: -3,
-      wristToEdgeMaxMm: 18,
+      wristToEdgeMinMm: -Infinity,
+      wristToEdgeMaxMm: 15,
+      fingerRatioMin: 0.35,
       handAxisMaxDeg: 20,
       minSideMarginMm: 3,
       palmOverHandMin: 0.44,
@@ -168,17 +169,10 @@ describe("decision points: both sides of every limit (on the limit = no hint)", 
       "hand-inside",
     ],
     [
-      "wrist −3 mm",
-      { wristToEdgeMm: -3.01 },
-      { wristToEdgeMm: -3 },
-      { wristToEdgeMm: -2.99 },
-      "wrist-align",
-    ],
-    [
-      "wrist +18 mm",
-      { wristToEdgeMm: 18.01 },
-      { wristToEdgeMm: 18 },
-      { wristToEdgeMm: 17.99 },
+      "wrist +15 mm",
+      { wristToEdgeMm: 15.01 },
+      { wristToEdgeMm: 15 },
+      { wristToEdgeMm: 14.99 },
       "wrist-align",
     ],
     [
@@ -322,5 +316,12 @@ describe("throttle: the same hint 3 times in a row, then not again", () => {
     expect(
       appendSoftHintHistory(["blurry", null, "hand-flat"], "wrist-align", 2),
     ).toEqual(["hand-flat", "wrist-align"]);
+  });
+});
+
+describe("the wrist past the edge after the shot (2026-10-26)", () => {
+  it("gets no banner: it hid the edge (the photo was refused) or measured fine", () => {
+    expect(pickSoftHint({ ...CLEAN, wristToEdgeMm: -7.3 }).code).toBeNull();
+    expect(pickSoftHint({ ...CLEAN, wristToEdgeMm: -40 }).code).toBeNull();
   });
 });

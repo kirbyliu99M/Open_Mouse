@@ -74,6 +74,7 @@ const SHEET_FOUND_BY_CUE: Readonly<Record<CueCode, boolean>> = {
   // The live loop asks this of the cue WITHOUT the hand (EasyScanCamera), so
   // the F14 wait is what it was; the entries are here for completeness.
   "hand-missing": true,
+  "wrist-onto-paper": true,
   "wrist-align": true,
   "hand-inside": true,
   "hand-straight": true,

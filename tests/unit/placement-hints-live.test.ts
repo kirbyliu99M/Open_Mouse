@@ -272,6 +272,7 @@ describe("pickCue with a hand — §4.1 order, one case per layer", () => {
   it("the order of PLACEMENT_CUE_CODES is §4.1's", () => {
     expect(PLACEMENT_CUE_CODES).toEqual([
       "hand-missing",
+      "wrist-onto-paper",
       "wrist-align",
       "hand-inside",
       "hand-straight",
@@ -419,7 +420,7 @@ describe("placementHysteresis (§4.4)", () => {
 
   it("readings alternating across the threshold 10 times: the text never changes (down stays down)", () => {
     const readings = Array.from({ length: 10 }, (_, i) => ({
-      wristToEdgeMm: i % 2 === 0 ? 19 : 17,
+      wristToEdgeMm: i % 2 === 0 ? 16 : 14,
     }));
     const s = feed(readings);
     expect(new Set(s.map((x) => shownHint(x)))).toEqual(new Set([null]));
@@ -443,11 +444,11 @@ describe("placementHysteresis (§4.4)", () => {
     let hyst = INITIAL_PLACEMENT_HYSTERESIS_STATE;
     let debounce = INITIAL_CUE_DEBOUNCE_STATE;
     const shown = new Set<CueCode | null>();
-    // 10 readings (500 ms apart) alternating across 18 mm, 4 samples each.
+    // 10 readings (500 ms apart) alternating across 15 mm, 4 samples each.
     for (let r = 0; r < 10; r++) {
       hyst = advancePlacementHysteresis(
         hyst,
-        obs({ atMs: r * 500, wristToEdgeMm: r % 2 === 0 ? 19 : 17 }),
+        obs({ atMs: r * 500, wristToEdgeMm: r % 2 === 0 ? 16 : 14 }),
       );
       for (let k = 0; k < 4; k++) {
         const now = r * 500 + k * 125;
@@ -476,18 +477,42 @@ describe("placementHysteresis (§4.4)", () => {
     expect(shownHint(s)).toBe(null);
   });
 
-  it("the bands: wrist 18 / 15 and -3 / 0 mm", () => {
+  it("the bands (Kirby's S25 tests 2026-10-26): too far up 15 / 12 mm, past the edge 0 / 3 mm", () => {
     const t = PLACEMENT_LIVE_THRESHOLDS;
-    const v = (x: number, active: boolean) =>
+    const up = (x: number, active: boolean) =>
       placementVerdict("wrist-align", obs({ wristToEdgeMm: x }), active, t);
-    expect(v(18, false)).toBe("pass");
-    expect(v(18.1, false)).toBe("fail");
-    expect(v(-3, false)).toBe("pass");
-    expect(v(-3.1, false)).toBe("fail");
-    expect(v(15.1, true)).toBe("fail");
-    expect(v(15, true)).toBe("pass");
-    expect(v(-0.1, true)).toBe("fail");
-    expect(v(0, true)).toBe("pass");
+    expect(up(15, false)).toBe("pass");
+    expect(up(15.1, false)).toBe("fail");
+    expect(up(-20, false)).toBe("pass");
+    expect(up(12.1, true)).toBe("fail");
+    expect(up(12, true)).toBe("pass");
+    const onto = (x: number, active: boolean) =>
+      placementVerdict(
+        "wrist-onto-paper",
+        obs({ wristToEdgeMm: x }),
+        active,
+        t,
+      );
+    expect(onto(0, false)).toBe("pass");
+    expect(onto(-0.1, false)).toBe("fail");
+    expect(onto(40, false)).toBe("pass");
+    expect(onto(2.9, true)).toBe("fail");
+    expect(onto(3, true)).toBe("pass");
+  });
+
+  it("his scans: on the edge (-3 to +3 mm) gets 請把手腕移回紙內一點 only below 0; slightly above (+10 to +13) gets nothing; +20 gets 請把手腕移到紙的下緣", () => {
+    expect(
+      shownHint(feed([{ wristToEdgeMm: 1.2 }, { wristToEdgeMm: 3.2 }])[1]),
+    ).toBe(null);
+    expect(
+      shownHint(feed([{ wristToEdgeMm: -3.1 }, { wristToEdgeMm: -1.7 }])[1]),
+    ).toBe("wrist-onto-paper");
+    expect(
+      shownHint(feed([{ wristToEdgeMm: 11 }, { wristToEdgeMm: 13.4 }])[1]),
+    ).toBe(null);
+    expect(
+      shownHint(feed([{ wristToEdgeMm: 20 }, { wristToEdgeMm: 22 }])[1]),
+    ).toBe("wrist-align");
   });
 
   it("the bands: side margin 3 / 5 mm, axis 20 / 17°, palm ratio 0.44-0.56 / 0.46-0.54", () => {
@@ -576,7 +601,8 @@ describe("hints never gate the auto-capture", () => {
     let ring = INITIAL_AUTO_CAPTURE_STATE;
     let hyst = INITIAL_PLACEMENT_HYSTERESIS_STATE;
     const shown: CueCode[] = [];
-    for (let i = 0; i < 16 && !ring.fired; i++) {
+    // 2.5 s of samples at 8 Hz (the ring's 2026-10-26 fill), and some spare.
+    for (let i = 0; i < 40 && !ring.fired; i++) {
       const now = i * 125;
       if (i % 4 === 0)
         hyst = advancePlacementHysteresis(
@@ -612,6 +638,10 @@ describe("copy: both locales, live hints start with 請", () => {
   it("every hand hint has words in zh-TW and English, paper and printed sheet", () => {
     const expected: Record<PlacementCueCode, [string, string]> = {
       "hand-missing": ["請把手放在紙上", "Place your hand on the paper"],
+      "wrist-onto-paper": [
+        "請把手腕移回紙內一點",
+        "Move your wrist back onto the paper",
+      ],
       "wrist-align": [
         "請把手腕移到紙的下緣",
         "Move your wrist to the bottom edge",

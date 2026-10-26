@@ -112,9 +112,12 @@ export interface SoftHintThresholds {
  * reminder is shown, never a gate. WP2's real scans replace them.
  */
 export const SOFT_HINT_THRESHOLDS: SoftHintThresholds = Object.freeze({
-  // §1.1: −3 to +18 mm (推估; the wrist crease is ~5–9 mm proximal of landmark 0).
-  wristToEdgeMinMm: -3,
-  wristToEdgeMaxMm: 18,
+  // Kirby's S25 tests 2026-10-26 (實測): on the edge -3 to +3 mm, slightly
+  // above +10 to +13 mm. The banner is only for "too far up" (> 15 mm); a
+  // wrist past the edge either hides the edge (the photo is refused with its
+  // own message) or measured fine, so no banner below. 候選.
+  wristToEdgeMinMm: -Infinity,
+  wristToEdgeMaxMm: 15,
   // §1.1: ≤ 20° (推估).
   handAxisMaxDeg: 20,
   // §1.1: ≥ 3 mm (推估).

@@ -93,8 +93,19 @@ export const CAMERA_CONSTANTS = {
     minLiveLaplacianVariance: 15,
   },
   autoCapture: {
-    /** Ring-fill duration of passing samples (spec: 800 ms, not a candidate). */
-    durationMs: 800,
+    /**
+     * Ring-fill duration of passing samples. 800 ms until 2026-10-26; Kirby's
+     * S25 test: too quick to react to a hint (a hint needs two readings,
+     * ~1 s), and every photo came out under the sharpness floor (28-34
+     * against 50). 2.5 s (his 2-4 s), and the sharpest frame of the fill is
+     * the one kept (bestFrame.ts). 候選, 未拍板.
+     */
+    durationMs: 2500,
+    /**
+     * The photo is the sharpest frame of the ring's last this many ms
+     * (bestFrame.ts): after a hint the person may just have moved. 候選.
+     */
+    bestFrameWindowMs: 1000,
     /** navigator.vibrate() duration on auto-capture (spec: 30 ms). */
     vibrateMs: 30,
     /**
@@ -267,15 +278,20 @@ export const CAMERA_CONSTANTS = {
     /** ...and that pass before it goes. */
     clearAfterReadings: 2,
     /**
-     * Wrist to its short edge, sheet mm, positive inside (§1.1, 推估). The
-     * hint shows below `showMinMm` or above `showMaxMm`, and goes again only
-     * within `clearMinMm`-`clearMaxMm` (a 3 mm band on each side).
+     * Wrist to its short edge, sheet mm, positive inside. Kirby's S25 tests
+     * of 2026-10-26 (實測): "right on the edge" read -3 to +3 mm, "slightly
+     * above" +10 to +13 mm, and a wrist ON the edge hid the bottom edge
+     * (PAPER_EDGE_HIDDEN, 32.5 % seen). So the target is the wrist just
+     * inside the paper: below `showMinMm` 請把手腕移回紙內一點
+     * (`wrist-onto-paper`), above `showMaxMm` 請把手腕移到紙的下緣
+     * (`wrist-align`); each goes again only within `clearMinMm`-`clearMaxMm`
+     * (3 mm bands). 候選.
      */
     wristToEdge: {
-      showMinMm: -3,
-      showMaxMm: 18,
-      clearMinMm: 0,
-      clearMaxMm: 15,
+      showMinMm: 0,
+      showMaxMm: 15,
+      clearMinMm: 3,
+      clearMaxMm: 12,
     },
     /** Smallest margin of the wrist and fingers to the sides and the far edge (§1.1): shows below 3 mm, goes at 5 mm. */
     sideMargin: { showBelowMm: 3, clearFromMm: 5 },

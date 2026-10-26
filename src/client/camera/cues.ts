@@ -95,6 +95,7 @@ const CUE_KEYS: Record<
   perfect: "perfect",
   // V3.3 WP3a (candidate): the live hand hints (placementHysteresis.ts).
   "hand-missing": "handMissing",
+  "wrist-onto-paper": "wristOntoPaper",
   "wrist-align": "wristAlign",
   "hand-inside": "handInside",
   "hand-straight": "handStraight",

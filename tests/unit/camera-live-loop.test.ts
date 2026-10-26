@@ -70,7 +70,7 @@ describe("resuming the loop after the first-run tip", () => {
 
   it("would fire on the first sample if the old ring were carried over (why the reset exists)", () => {
     const carriedOver: AutoCaptureState = {
-      elapsedMs: 700,
+      elapsedMs: CAMERA_CONSTANTS.autoCapture.durationMs - 100,
       failStreak: 0,
       fired: false,
     };
