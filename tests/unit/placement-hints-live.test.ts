@@ -882,6 +882,19 @@ describe("a hand across the sheet (Kirby's S25 test, 2026-10-27)", () => {
       ).not.toBe("too-far");
     }
   });
+  it("with the hand hints off (production), a miss out of range still says the distance and pauses the no-sheet shot (PR #228 review)", () => {
+    expect(
+      code(cut({ paperStage: "unknown", handSheetWidthFraction: 0.31 })),
+    ).toBe("too-far");
+    expect(
+      code(cut({ paperStage: "region_split", missGuessWidthFraction: 0.3 })),
+    ).toBe("too-far");
+    expect(
+      code(cut({ paperStage: "region_split", missGuessWidthFraction: 0.68 })),
+    ).not.toBe("too-far");
+    expect(sheetFoundByCue("too-far")).toBe(true);
+    expect(sheetFoundByCue("too-close")).toBe(true);
+  });
   it("the live loop holds the no-sheet shot while a distance cue is up", () => {
     const source = readFileSync("src/client/camera/EasyScanCamera.tsx", "utf8");
     expect(source).toContain('shownCandidate.code === "too-far" ||');

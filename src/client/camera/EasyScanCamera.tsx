@@ -2805,7 +2805,10 @@ export default function EasyScanCamera({
           );
           live.hiResFound = pushWindow(live.hiResFound ?? [], found ? 1 : 0);
         }
-        if (found)
+        // A sheet the live loop found after this frame stays (PR #228
+        // review: an older look must not move the outline back).
+        const carried = carriedSheetRef.current;
+        if (found && (carried === null || carried.atMs <= requestedAt))
           carriedSheetRef.current = {
             atMs: requestedAt,
             detection: scaleDetection(found, size.toSample),

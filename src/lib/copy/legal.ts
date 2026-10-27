@@ -43,7 +43,7 @@ export const zhTW: LegalCopy = {
         "手部照片：不蒐集。照片只在你的手機上分析，不會上傳；送到伺服器的只有測量數值，例如手長與手寬。",
         "測量數值與掃描結果：手部尺寸、你選擇的握法，以及據此算出的滑鼠排序。",
         "帳號資料（只有用 Google 登入時）：Google 提供的姓名、Email、大頭貼，以及登入所需的授權資料。",
-        "問卷與回饋（自願填寫）：你填的滑鼠使用經驗、評分與意見。問卷內容不會連回你的帳號。",
+        "問卷與回饋（自願填寫）：你填的滑鼠使用經驗、評分與意見。登入時送出的會連到你的帳號，可以在「帳號」頁查看與修改；未登入時送出的不含你的身分資料。",
         "使用統計：PostHog 記錄匿名的頁面使用情形，不使用 cookie、不記錄 IP、不錄製畫面。你同意 cookie 後，才會載入 Google Analytics。",
         "錯誤紀錄：網站出錯時，Sentry 會收到錯誤訊息；Email、IP 與測量數值會先被移除。",
       ],
@@ -65,7 +65,8 @@ export const zhTW: LegalCopy = {
       paragraphs: [
         "未登入時的掃描：建立後 24 小時內刪除。",
         "登入的帳號：90 天未使用，帳號與它的所有掃描會被刪除。",
-        "你可以隨時在「帳號」頁刪除帳號，所有相關資料會一併刪除。",
+        "你可以隨時在「帳號」頁刪除帳號，所有相關資料（包括登入時送出的問卷）會一併刪除。",
+        "未登入時送出的問卷回答會一直保留，用來改善推薦；因為不含你的身分資料，之後無法找回或撤回。",
       ],
     },
     {
@@ -138,7 +139,7 @@ export const en: LegalCopy = {
         "Hand photos: none. The photo is analysed on your phone and never uploaded; only the measurements (such as hand length and width) reach our server.",
         "Measurements and results: your hand sizes, the grip you chose, and the mice ranked from them.",
         "Account (only if you sign in with Google): the name, email and picture Google provides, and what sign-in needs.",
-        "Survey and feedback (optional): what you tell us about your mice. Survey answers are not linked back to your account.",
+        "Survey and feedback (optional): what you tell us about your mice. Answers sent while signed in are linked to your account, where you can see and change them; answers sent without an account carry nothing that identifies you.",
         "Usage statistics: PostHog records anonymous page use, with no cookies, no IP address and no screen recording. Google Analytics loads only after you accept cookies.",
         "Error reports: when something breaks, Sentry gets the error, with emails, IP addresses and measurements removed first.",
       ],
@@ -160,7 +161,8 @@ export const en: LegalCopy = {
       paragraphs: [
         "Scans without an account: deleted within 24 hours.",
         "Accounts: deleted, with all their scans, after 90 days without use.",
-        "You can delete your account on the Account page at any time; everything that belongs to it goes with it.",
+        "You can delete your account on the Account page at any time; everything that belongs to it, survey answers sent while signed in included, goes with it.",
+        "Survey answers sent without an account are kept to improve the rankings; since nothing in them identifies you, they can't be found or withdrawn later.",
       ],
     },
     {

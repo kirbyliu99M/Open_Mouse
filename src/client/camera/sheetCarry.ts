@@ -78,7 +78,11 @@ export function carrySheet(
     HAND_CUT_STAGES.includes(detection.failureStage);
   const shift =
     carry && state.detection.corners && detection.guessCorners
-      ? sheetShift(state.detection.corners, detection.guessCorners, input.followPx)
+      ? sheetShift(
+          state.detection.corners,
+          detection.guessCorners,
+          input.followPx,
+        )
       : null;
   if (!state || !shift) return { state, detection, carried: false };
   // The shift is kept in the state, its age is not: a carried sample never
@@ -128,7 +132,9 @@ function shiftDetection(
   return {
     ...detection,
     corners: detection.corners
-      ? (detection.corners.map(move) as unknown as SheetQuadDetection["corners"])
+      ? (detection.corners.map(
+          move,
+        ) as unknown as SheetQuadDetection["corners"])
       : null,
     partialCorners: detection.partialCorners.map((p) =>
       p ? move(p) : null,

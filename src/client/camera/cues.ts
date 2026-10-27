@@ -383,20 +383,14 @@ export function pickCue(
   // the range only; with no hand reading either, the last sheet found.
   // The wrist words come only when nothing says the distance is wrong.
   // Kirby, the next test (64 cm, candidate): "超過一個高度就一律要求 move
-  // closer，除非用戶自己 shutter". Any sample without the sheet and with a
-  // hand says the distance when the rough quad or the hand's length puts
-  // it out of range, whatever the stage; the live loop then holds the
-  // no-sheet shot (noSheetCapture.ts) while it is up.
+  // closer，除非用戶自己 shutter". The rough quad and the hand's length
+  // say it in the paper's own cue (pickPaperCue, hints on or off); here
+  // only the last sheet found is added, for the hand-cut stages.
   if (input.cornersSeen <= 0 && placement.handSeen) {
     const handCut =
       input.paperStage != null && HAND_CUT_STAGES.includes(input.paperStage);
-    const distance = isFiniteNumber(input.missGuessWidthFraction)
-      ? computeQuadSizeStatus(input.missGuessWidthFraction)
-      : isFiniteNumber(input.handSheetWidthFraction)
-        ? handDistanceStatus(input.handSheetWidthFraction)
-        : handCut
-          ? input.previousSizeStatus
-          : null;
+    const distance =
+      missDistanceStatus(input) ?? (handCut ? input.previousSizeStatus : null);
     if (distance === "too-far" || distance === "too-close")
       return cue(distance, mode, locale);
     if (handCut) return cue("wrist-align", mode, locale);
@@ -422,6 +416,14 @@ function pickPaperCue(
   locale: Locale,
 ): Cue {
   if (input.cornersSeen <= 0) {
+    // Kirby 2026-10-28 (candidate): out of the distance range by the miss's
+    // rough quad or the hand's length → the distance, before any stage
+    // words. The paper's cue, so it holds for every user (the hand hints
+    // are debug-only, PR #228 review) and the no-sheet shot waits on it
+    // (`sheetFoundByCue`: too far / too close pause it).
+    const distance = missDistanceStatus(input);
+    if (distance === "too-far" || distance === "too-close")
+      return cue(distance, mode, locale);
     // Where the detector stopped, when that step has words of its own; the
     // "point the camera" cues otherwise.
     // Candidate order (未拍板, scan S2 review): no stage cue before a sheet
@@ -524,6 +526,19 @@ export { CAMERA_CONSTANTS };
 
 const isFiniteNumber = (v: number | null | undefined): v is number =>
   typeof v === "number" && Number.isFinite(v);
+
+/**
+ * The distance a sample without the sheet gives: the rough quad's width
+ * first, else the hand's estimate (out of range only by the margin); null
+ * with neither.
+ */
+function missDistanceStatus(input: CueInput): QuadSizeStatus | null {
+  if (isFiniteNumber(input.missGuessWidthFraction))
+    return computeQuadSizeStatus(input.missGuessWidthFraction);
+  if (isFiniteNumber(input.handSheetWidthFraction))
+    return handDistanceStatus(input.handSheetWidthFraction);
+  return null;
+}
 
 /** The distance from the hand's estimate: out of range only by `handEstimateMargin`. */
 function handDistanceStatus(widthFraction: number): QuadSizeStatus {
