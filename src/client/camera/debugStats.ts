@@ -158,6 +158,8 @@ export interface ScanDebugSnapshot {
     readonly cueShown: CueCode | null;
     readonly ringFraction: number;
     readonly consecutiveFailures: number;
+    /** Share of the last samples that carried the last sheet (sheetCarry.ts, candidate). */
+    readonly sheetCarriedShare?: number | null;
     /**
      * V3.3 WP1b (candidate): the hand's placement on the sheet from the live
      * viewfinder: this sample's sheet fill (紙占寬), and the latest live

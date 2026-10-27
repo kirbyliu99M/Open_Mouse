@@ -112,6 +112,12 @@ export const CAMERA_CONSTANTS = {
      * live number alone picked photos under the floor). 候選.
      */
     bestFrameKeep: 3,
+    /**
+     * A sample that misses the sheet where the forearm cuts it takes the
+     * last sheet found with four corners, at most this old, while the hand
+     * is seen and still (sheetCarry.ts, Kirby 2026-10-27). 候選.
+     */
+    sheetCarryMs: 1500,
     /** navigator.vibrate() duration on auto-capture (spec: 30 ms). */
     vibrateMs: 30,
     /**

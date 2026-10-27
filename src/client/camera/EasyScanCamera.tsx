@@ -262,6 +262,7 @@ import {
   type SheetQuadSource,
 } from "./quad-source";
 import { evaluateLivePaperGate } from "./paperGate";
+import { carrySheet, type CarriedSheet } from "./sheetCarry";
 import {
   INITIAL_HAND_CHIP_STATE,
   applyDetectedHandedness,
@@ -412,6 +413,8 @@ interface DebugLive {
   fill?: number | null;
   /** V3.3 WP1b: what each live placement reading cost, ms (performance.now). */
   placementMs?: number[];
+  /** 1 for a sample that carried the last sheet (sheetCarry.ts), else 0. */
+  carried?: number[];
 }
 interface DebugCapture {
   method: "takePhoto" | "canvas" | "upload" | null;
@@ -801,6 +804,8 @@ export default function EasyScanCamera({
   }, []);
   const lastSampleTimeRef = useRef(0);
   const lastDetectionAtRef = useRef(0);
+  /** The last live sheet with four corners (sheetCarry.ts, candidate). */
+  const carriedSheetRef = useRef<CarriedSheet | null>(null);
   const cornerStatesRef = useRef<CornerStates>(INITIAL_CORNER_STATES);
   // V3.2 F16: the outline's hysteresis, in front of the corner smoother.
   const outlineRef = useRef<OutlineHysteresisState>(
@@ -1308,6 +1313,7 @@ export default function EasyScanCamera({
     const fresh = freshLiveLoopSampling();
     lastSampleTimeRef.current = fresh.lastSampleAtMs;
     prevSampleQuadRef.current = fresh.prevQuad;
+    carriedSheetRef.current = null;
     sizeStatusRef.current = null;
     autoCaptureRef.current = fresh.autoCapture;
     noSheetCaptureRef.current = INITIAL_NO_SHEET_CAPTURE_STATE;
@@ -2534,6 +2540,24 @@ export default function EasyScanCamera({
         detection = NO_QUAD_DETECTION;
       }
       const detectMs = performance.now() - detectStartedAt;
+      // Kirby 2026-10-27 (candidate): a miss where the forearm cuts the
+      // sheet, with the hand seen and still, takes the sheet found at most
+      // `sheetCarryMs` ago; the cue and the ring then do not flip on it.
+      const carryHand = liveHandSignal({
+        previous: handReadingsRef.current.previous,
+        latest: handReadingsRef.current.latest,
+        nowMs: now,
+        frameDiagonal: Math.hypot(width, height),
+      });
+      const carry = carrySheet(carriedSheetRef.current, {
+        nowMs: now,
+        detection,
+        handSeen: carryHand.seen,
+        handSteady: carryHand.steady,
+        carryMs: CAMERA_CONSTANTS.autoCapture.sheetCarryMs,
+      });
+      carriedSheetRef.current = carry.state;
+      detection = carry.detection;
       const sampleQuad: Quad | null = detection.corners
         ? {
             topLeft: detection.corners[0],
@@ -2799,6 +2823,7 @@ export default function EasyScanCamera({
               frameDiagonal
             : null;
         live.cornersSeen = detection.cornersSeen;
+        live.carried = pushWindow(live.carried ?? [], carry.carried ? 1 : 0);
         live.cueCode = nextCue.code;
         // V3.3 WP1b: the sheet fill of every sample (the experiment's 紙占寬).
         live.fill = sampleQuad
@@ -3006,6 +3031,7 @@ export default function EasyScanCamera({
         cueShown: cueDebounceRef.current.shown,
         ringFraction: autoCaptureRingFraction(autoCaptureRef.current),
         consecutiveFailures: autoCaptureRef.current.failStreak,
+        sheetCarriedShare: mean(live.carried ?? []),
         placement: debugPlacement({
           fill: live.fill,
           readings: livePlacementRef.current,

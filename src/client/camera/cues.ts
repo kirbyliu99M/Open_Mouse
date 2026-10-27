@@ -23,6 +23,7 @@ import {
   type QuadSizeStatus,
 } from "./quad";
 import { computeLightStatus, type LightStatus } from "./light";
+import { HAND_CUT_STAGES } from "./sheetCarry";
 import type { LivePaperGate, PaperSide } from "./paperGate";
 import {
   paperStageLines,
@@ -320,11 +321,6 @@ export interface CueInput {
 }
 
 /** The cues that say the paper itself passed (only the phone is left to hold or focus). */
-/** The detector stages a forearm across the sheet ends in (detect.ts RETRY_STAGES). */
-const HAND_CUT_STAGES: readonly PaperDetectionStage[] = [
-  "region_split",
-  "aspect_mismatch",
-];
 
 const PAPER_PASSED_CODES: readonly CueCode[] = [
   "perfect",
