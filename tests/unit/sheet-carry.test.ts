@@ -16,16 +16,31 @@ const found: SheetQuadDetection = {
   cornersSeen: 4,
   cornersFound: [true, true, true, true],
 };
+// The miss's rough quad: three corners on the sheet, the cut side off.
 const cut: SheetQuadDetection = {
   ...NO_QUAD_DETECTION,
   failureStage: "aspect_mismatch",
+  guessCorners: [
+    { x: 20, y: 151 },
+    { x: 291, y: 150 },
+    { x: 289, y: 491 },
+    { x: 51, y: 489 },
+  ],
 };
+const shifted = (dx: number, dy: number): SheetQuadDetection => ({
+  ...cut,
+  guessCorners: cut.guessCorners!.map((p) => ({
+    x: p.x + dx,
+    y: p.y + dy,
+  })) as unknown as SheetQuadDetection["guessCorners"],
+});
 const input = (over: Partial<Parameters<typeof carrySheet>[1]>) => ({
   nowMs: 1000,
   detection: cut,
   handSeen: true,
   handSteady: true,
   carryMs: 1500,
+  followPx: 8,
   ...over,
 });
 
@@ -39,7 +54,11 @@ describe("the last sheet carried through the forearm's misses (Kirby's S25 test,
     expect(first.carried).toBe(false);
     const next = carrySheet(first.state, input({ nowMs: 1400 }));
     expect(next.carried).toBe(true);
-    expect(next.detection).toBe(found);
+    // Moved by the three best-agreeing corners' mean shift (well under a pixel).
+    next.detection.corners!.forEach((p, i) => {
+      expect(p.x).toBeCloseTo(found.corners![i].x, 0);
+      expect(p.y).toBeCloseTo(found.corners![i].y, 0);
+    });
     // A carried sample does not make the sheet newer.
     expect(next.state?.atMs).toBe(0);
   });
@@ -60,6 +79,34 @@ describe("the last sheet carried through the forearm's misses (Kirby's S25 test,
     expect(carrySheet(null, input({})).carried).toBe(false);
   });
 
+  it("the carried sheet follows the paper (Kirby: the outline did not keep up)", () => {
+    expect(CAMERA_CONSTANTS.autoCapture.sheetCarryFollowFraction).toBe(0.01);
+    const { state } = carrySheet(null, input({ nowMs: 0, detection: found }));
+    const panned = carrySheet(state, input({ detection: shifted(30, -12) }));
+    expect(panned.carried).toBe(true);
+    expect(panned.detection.corners![0].x).toBeCloseTo(80, 0);
+    expect(panned.detection.corners![2].y).toBeCloseTo(478, 0);
+    // The moved sheet is kept, not its age.
+    expect(panned.state?.detection.corners![0].x).toBeCloseTo(80, 0);
+    expect(panned.state?.atMs).toBe(0);
+    // No rough quad, or one whose corners do not agree on a shift (closer,
+    // tilted): not carried.
+    expect(
+      carrySheet(state, input({ detection: { ...cut, guessCorners: null } }))
+        .carried,
+    ).toBe(false);
+    const closer: SheetQuadDetection = {
+      ...cut,
+      guessCorners: [
+        { x: 30, y: 130 },
+        { x: 310, y: 130 },
+        { x: 310, y: 510 },
+        { x: 30, y: 510 },
+      ],
+    };
+    expect(carrySheet(state, input({ detection: closer })).carried).toBe(false);
+  });
+
   it("the live loop carries before the cue and the ring read the detection", () => {
     const source = readFileSync("src/client/camera/EasyScanCamera.tsx", "utf8");
     const carryAt = source.indexOf("detection = carry.detection;");
@@ -68,5 +115,7 @@ describe("the last sheet carried through the forearm's misses (Kirby's S25 test,
       carryAt,
     );
     expect(source).toContain("carriedSheetRef.current = null;");
+    // The live detector returns a miss's rough quad for the carry to follow.
+    expect(source).toContain("failureGuess: true,");
   });
 });

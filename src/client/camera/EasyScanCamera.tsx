@@ -429,6 +429,8 @@ interface DebugLive {
   /** The higher-resolution looks (hiResSheet.ts): what each took, ms, and 1 where it found the sheet. */
   hiResMs?: number[];
   hiResFound?: number[];
+  /** The gaps between the ring's drawn frames, ms (smoothRing.ts). */
+  ringFrameGapMs?: number[];
 }
 interface DebugCapture {
   method: "takePhoto" | "canvas" | "upload" | null;
@@ -748,14 +750,19 @@ export default function EasyScanCamera({
   });
   const ringShownRef = useRef({ shown: 0, shownTarget: 0 });
   const ringCircleRef = useRef<SVGCircleElement | null>(null);
-  const aimRing = useCallback((fraction: number, advancing: boolean) => {
-    ringTargetRef.current = {
-      fraction,
-      atMs: performance.now(),
-      advancing,
-    };
-    setRingFraction(fraction);
-  }, []);
+  // `atMs` is when the fill was true: the sample's own time, not when its
+  // detection finished (that varies, and the ring stepped with it).
+  const aimRing = useCallback(
+    (
+      fraction: number,
+      advancing: boolean,
+      atMs: number = performance.now(),
+    ) => {
+      ringTargetRef.current = { fraction, atMs, advancing };
+      setRingFraction(fraction);
+    },
+    [],
+  );
   const paintRing = useCallback((circle: SVGCircleElement) => {
     const target = ringTargetRef.current;
     const last = ringShownRef.current;
@@ -781,8 +788,18 @@ export default function EasyScanCamera({
     [paintRing],
   );
   useEffect(() => {
-    let frame = requestAnimationFrame(function draw() {
+    let lastAt: number | null = null;
+    let frame = requestAnimationFrame(function draw(at) {
       frame = requestAnimationFrame(draw);
+      // With ?debug=1: the gaps between drawn frames (a busy main thread
+      // shows here as the ring standing still).
+      if (debugOnRef.current && lastAt !== null)
+        debugLiveRef.current.ringFrameGapMs = pushWindow(
+          debugLiveRef.current.ringFrameGapMs ?? [],
+          at - lastAt,
+          120,
+        );
+      lastAt = at;
       if (ringCircleRef.current) paintRing(ringCircleRef.current);
     });
     return () => cancelAnimationFrame(frame);
@@ -2865,6 +2882,8 @@ export default function EasyScanCamera({
           ),
           ...(palm ? { palmPointsPx: palm } : {}),
           ...(handLandmarks ? { handLandmarksPx: handLandmarks } : {}),
+          // A miss's rough quad: the carried sheet follows it (sheetCarry.ts).
+          failureGuess: true,
         });
       } catch {
         detection = NO_QUAD_DETECTION;
@@ -2885,6 +2904,9 @@ export default function EasyScanCamera({
         handSeen: carryHand.seen,
         handSteady: carryHand.steady,
         carryMs: CAMERA_CONSTANTS.autoCapture.sheetCarryMs,
+        followPx:
+          CAMERA_CONSTANTS.autoCapture.sheetCarryFollowFraction *
+          Math.hypot(width, height),
       });
       carriedSheetRef.current = carry.state;
       liveSampleSizeRef.current = { width, height };
@@ -2989,9 +3011,13 @@ export default function EasyScanCamera({
         paperPassing,
         dtMs,
       );
+      // The ring's clock keeps going through a sample or two that fail (they
+      // only pause it, autoCapture.ts); drawn, it is held `RING_LEAD_MS` at
+      // most ahead, and an emptied ring is drawn empty at once.
       aimRing(
         autoCaptureRingFraction(autoCaptureRef.current),
-        paperPassing && !autoCaptureRef.current.fired,
+        autoCaptureRef.current.elapsedMs > 0 && !autoCaptureRef.current.fired,
+        now,
       );
 
       // 2026-10-26 (candidate): in the ring's last second, keep the sharpest
@@ -3388,6 +3414,14 @@ export default function EasyScanCamera({
         ringFraction: autoCaptureRingFraction(autoCaptureRef.current),
         consecutiveFailures: autoCaptureRef.current.failStreak,
         sheetCarriedShare: mean(live.carried ?? []),
+        ringFrameGapMs: {
+          average: mean(live.ringFrameGapMs ?? []),
+          p95: percentile(live.ringFrameGapMs ?? [], 95),
+          max:
+            (live.ringFrameGapMs ?? []).length > 0
+              ? Math.max(...(live.ringFrameGapMs ?? []))
+              : null,
+        },
         hiResLook: {
           count: (live.hiResFound ?? []).length,
           foundShare: mean(live.hiResFound ?? []),

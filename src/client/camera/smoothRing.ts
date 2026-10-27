@@ -6,9 +6,10 @@
  * only at each live sample (about 7 a second, not evenly spaced: the
  * detector's time varies). Drawn at the samples, with a 120 ms transition,
  * it moved in steps. Between two samples that pass, the fill grows with
- * time as the ring's own clock does; it runs at most `leadMs` ahead of the
- * last sample, so a sample that then fails leaves it at most that much
- * ahead, where it holds (never back) until the ring goes on or empties. An
+ * time as the ring's own clock does, timed from each sample's own moment
+ * (not when its detection finished). It runs at most `leadMs` ahead of the
+ * last sample, also through a sample or two that fail (they only pause the
+ * ring), and holds there (never back) until the ring goes on or empties. An
  * emptied ring (a lower fill than the last sample's) is drawn empty at
  * once. With reduced motion the samples' own fill only.
  *
@@ -19,7 +20,7 @@ export interface RingTarget {
   readonly fraction: number;
   /** performance.now() of that sample. */
   readonly atMs: number;
-  /** Whether that sample passed (the ring's clock is running). */
+  /** Whether the ring is filling (started, not yet fired): drawn ahead of the sample. */
   readonly advancing: boolean;
 }
 

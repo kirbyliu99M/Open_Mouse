@@ -119,6 +119,14 @@ export const CAMERA_CONSTANTS = {
      */
     sheetCarryMs: 1500,
     /**
+     * The carried sheet follows the miss's rough quad (sheetCarry.ts,
+     * Kirby 2026-10-27: the outline did not keep up with the paper): its
+     * three best-agreeing corners must be within this fraction
+     * of the frame diagonal. Kirby's photos: 1-3 px apart at rest on a
+     * 342 x 641 sample, the shift itself when panned. 候選.
+     */
+    sheetCarryFollowFraction: 0.01,
+    /**
      * While the live sample misses the sheet where the forearm or a bright
      * neighbour cuts it, one frame at this long edge (px) goes to the
      * analysis worker at most every `hiResIntervalMs` (hiResSheet.ts,

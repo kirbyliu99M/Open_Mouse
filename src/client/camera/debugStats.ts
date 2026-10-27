@@ -160,6 +160,12 @@ export interface ScanDebugSnapshot {
     readonly consecutiveFailures: number;
     /** Share of the last samples that carried the last sheet (sheetCarry.ts, candidate). */
     readonly sheetCarriedShare?: number | null;
+    /** The gaps between the ring's drawn frames over the last 120, ms (smoothRing.ts). */
+    readonly ringFrameGapMs?: {
+      readonly average: number | null;
+      readonly p95: number | null;
+      readonly max: number | null;
+    };
     /** The higher-resolution looks over the last samples (hiResSheet.ts, candidate). */
     readonly hiResLook?: {
       readonly count: number;
