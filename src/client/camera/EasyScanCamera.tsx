@@ -263,6 +263,7 @@ import {
 } from "./quad-source";
 import { evaluateLivePaperGate } from "./paperGate";
 import { carrySheet, type CarriedSheet } from "./sheetCarry";
+import { smoothRingFraction, type RingTarget } from "./smoothRing";
 import {
   cornersToSize,
   hiResSize,
@@ -602,6 +603,11 @@ function releaseBitmaps(bitmaps: Map<number, ImageBitmap>): void {
  * (sharpness.ts, the same the LOW_SHARPNESS warning reads), drawn on `canvas`.
  * `NaN` where it cannot be read.
  */
+/** The shutter ring's circumference (r = 40 in its 96 px viewBox). */
+const RING_CIRCUMFERENCE = 2 * Math.PI * 40;
+/** How far the drawn ring may run ahead of the last sample, ms (smoothRing.ts). 候選. */
+const RING_LEAD_MS = 250;
+
 /** How old the live loop's last sheet may be to start the frame the person adjusts (hiResSheet.ts). 候選. */
 const KNOWN_SHEET_MAX_AGE_MS = 3000;
 
@@ -733,6 +739,54 @@ export default function EasyScanCamera({
     INITIAL_CORNER_STATES,
   );
   const [ringFraction, setRingFraction] = useState(0);
+  // Kirby 2026-10-27 (candidate): the ring is drawn every animation frame
+  // from the last sample's fill (smoothRing.ts), not at the samples.
+  const ringTargetRef = useRef<RingTarget>({
+    fraction: 0,
+    atMs: 0,
+    advancing: false,
+  });
+  const ringShownRef = useRef({ shown: 0, shownTarget: 0 });
+  const ringCircleRef = useRef<SVGCircleElement | null>(null);
+  const aimRing = useCallback((fraction: number, advancing: boolean) => {
+    ringTargetRef.current = {
+      fraction,
+      atMs: performance.now(),
+      advancing,
+    };
+    setRingFraction(fraction);
+  }, []);
+  const paintRing = useCallback((circle: SVGCircleElement) => {
+    const target = ringTargetRef.current;
+    const last = ringShownRef.current;
+    const shown = smoothRingFraction({
+      target,
+      shown: last.shown,
+      shownTarget: last.shownTarget,
+      nowMs: performance.now(),
+      durationMs: CAMERA_CONSTANTS.autoCapture.durationMs,
+      leadMs: RING_LEAD_MS,
+      reducedMotion: reducedMotionRef.current,
+    });
+    ringShownRef.current = { shown, shownTarget: target.fraction };
+    const offset = String(RING_CIRCUMFERENCE * (1 - shown));
+    if (circle.getAttribute("stroke-dashoffset") !== offset)
+      circle.setAttribute("stroke-dashoffset", offset);
+  }, []);
+  const drawRingCircle = useCallback(
+    (circle: SVGCircleElement | null) => {
+      ringCircleRef.current = circle;
+      if (circle) paintRing(circle);
+    },
+    [paintRing],
+  );
+  useEffect(() => {
+    let frame = requestAnimationFrame(function draw() {
+      frame = requestAnimationFrame(draw);
+      if (ringCircleRef.current) paintRing(ringCircleRef.current);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [paintRing]);
   const [flashKey, setFlashKey] = useState(0);
   const [announced, setAnnounced] = useState("");
   // Consecutive failed frame captures (captureFailure.ts): the number lives in
@@ -1385,13 +1439,13 @@ export default function EasyScanCamera({
     lastCueCodeRef.current = null;
     firstSheetSeenAtRef.current = null;
     setCornerStates(INITIAL_CORNER_STATES);
-    setRingFraction(0);
+    aimRing(0, false);
     setCue(null);
     // What a screen reader was last told ("Photo taken", the last cue) is not
     // true of a camera that is starting again.
     setAnnounced("");
     noteCaptureOutcome("reset");
-  }, [noteCaptureOutcome]);
+  }, [noteCaptureOutcome, aimRing]);
 
   const startCamera = useCallback(async () => {
     const requestId = ++requestIdRef.current;
@@ -2204,7 +2258,7 @@ export default function EasyScanCamera({
           noteCaptureOutcome("failure");
           autoCaptureRef.current = resetAutoCapture();
           noSheetCaptureRef.current = INITIAL_NO_SHEET_CAPTURE_STATE;
-          setRingFraction(0);
+          aimRing(0, false);
           return;
         }
         if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
@@ -2330,6 +2384,7 @@ export default function EasyScanCamera({
     setExperimentTag,
     liveSheetOnPhoto,
     precheckFrames,
+    aimRing,
   ]);
 
   const onFilePicked = useCallback(
@@ -2934,7 +2989,10 @@ export default function EasyScanCamera({
         paperPassing,
         dtMs,
       );
-      setRingFraction(autoCaptureRingFraction(autoCaptureRef.current));
+      aimRing(
+        autoCaptureRingFraction(autoCaptureRef.current),
+        paperPassing && !autoCaptureRef.current.fired,
+      );
 
       // 2026-10-26 (candidate): in the ring's last second, keep the sharpest
       // frame at full resolution with the shutter's own crop (bestFrame.ts);
@@ -3196,7 +3254,14 @@ export default function EasyScanCamera({
       cancelled = true;
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     };
-  }, [camState.kind, captureNow, tipOpen, manualActive, resetLoopState]);
+  }, [
+    camState.kind,
+    captureNow,
+    tipOpen,
+    manualActive,
+    resetLoopState,
+    aimRing,
+  ]);
 
   // The stage exists on the phone's camera screen and behind the bottom
   // sheet; it is never resized (scan v2), only measured.
@@ -4163,8 +4228,8 @@ export default function EasyScanCamera({
                       cx="48"
                       cy="48"
                       r={40}
-                      strokeDasharray={2 * Math.PI * 40}
-                      strokeDashoffset={2 * Math.PI * 40 * (1 - ringFraction)}
+                      ref={drawRingCircle}
+                      strokeDasharray={RING_CIRCUMFERENCE}
                     />
                   </svg>
                 )}

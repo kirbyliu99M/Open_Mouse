@@ -355,7 +355,7 @@
   stroke-linecap: round;
   transform: rotate(-90deg);
   transform-origin: 50% 50%;
-  transition: stroke-dashoffset 120ms linear;
+  /* Drawn every animation frame (smoothRing.ts): no transition. */
 }
 
 .cameraResumeCard {
