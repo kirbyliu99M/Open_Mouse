@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { HomeCtaLink } from "@/components/home/HomeCtaLink";
 import { DetectorWarmup } from "@/components/home/DetectorWarmup";
 import { ParticleStage } from "@/components/home/ParticleStage";
@@ -7,10 +8,15 @@ import { NavMenu } from "@/components/nav/NavMenu";
 import { FINALE_HEADLINE, homeCopy } from "@/lib/copy/home";
 import { navCopy } from "@/lib/copy/nav";
 import { homeStoryNotes } from "@/lib/copy/home-story";
+import { siteMetaCopy } from "@/lib/copy/site-meta";
 import { handSheetFrame } from "@/lib/particles/template-hand";
 import type { Locale } from "@/lib/contracts/locale";
 import { getLocale } from "@/server/i18n/getLocale";
 import "./home.css";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: { absolute: siteMetaCopy(await getLocale()).homeTitle } };
+}
 
 /**
  * Home v3 (docs/design/home-v3-2026-10-03/README.md, "Page structure"). The
