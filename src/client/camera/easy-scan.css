@@ -2124,8 +2124,8 @@ main.easyScanShell {
   }
 }
 
-/* V3.3 WP3b (candidate 未拍板): the post-shot soft hint, a glass line over the
-   photo just above the measured sheet (SoftHintBannerView.tsx). The glass is the
+/* V3.3 WP3b (candidate 未拍板): the post-shot soft hint, a glass line at the
+   top of the measured sheet, never over the photo (SoftHintBannerView.tsx). The glass is the
    share preview's (share.css --sp-*): a faint accent glow on a thin line. It
    fades in (--motion-base) and out (--motion-out); with reduced motion both
    are the short --motion-reduced fade. */
@@ -2149,16 +2149,6 @@ main.easyScanShell {
   font-size: 0.9375rem;
   line-height: 1.35;
   animation: easyFadeIn var(--motion-base) var(--ease-out) backwards;
-}
-/* In the top layer (Popover API): placed by the viewport, above the sheet. */
-.easySoftHint:popover-open {
-  position: fixed;
-  inset: auto 16px calc(var(--soft-hint-sheet, 40vh) + 12px) 16px;
-  width: auto;
-  max-width: 28rem;
-  height: auto;
-  margin: 0 auto;
-  overflow: visible;
 }
 .easySoftHint[data-leaving="true"] {
   animation: easyFadeOut var(--motion-out) var(--ease-in) forwards;

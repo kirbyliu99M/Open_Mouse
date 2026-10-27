@@ -63,7 +63,7 @@ function baseInput(overrides: Partial<CueInput> = {}): CueInput {
 const hint = (
   code: PlacementCueCode | null,
   wristNearBottomEdge = false,
-): PlacementCueInput => ({ hint: code, wristNearBottomEdge });
+): PlacementCueInput => ({ hint: code, wristNearBottomEdge, handSeen: true });
 
 const code = (input: CueInput) => pickCue(input, "paper-edge", "en").code;
 
@@ -338,7 +338,11 @@ describe("§4.3: the wrist on the bottom edge", () => {
       nowMs: 600,
       detectorReady: true,
     });
-    expect(p).toEqual({ hint: null, wristNearBottomEdge: true });
+    expect(p).toEqual({
+      hint: null,
+      wristNearBottomEdge: true,
+      handSeen: true,
+    });
     const c = pickCue(
       baseInput({ paperGate: coveredBottom, placement: p }),
       "paper-edge",
@@ -477,7 +481,7 @@ describe("placementHysteresis (§4.4)", () => {
     expect(shownHint(s)).toBe(null);
   });
 
-  it("the bands (Kirby's S25 tests 2026-10-26): too far up 15 / 12 mm, past the edge 0 / 3 mm", () => {
+  it("the bands (Kirby's S25 tests 2026-10-26/27): too far up 15 / 12 mm, past the edge -10 / -6 mm", () => {
     const t = PLACEMENT_LIVE_THRESHOLDS;
     const up = (x: number, active: boolean) =>
       placementVerdict("wrist-align", obs({ wristToEdgeMm: x }), active, t);
@@ -493,19 +497,31 @@ describe("placementHysteresis (§4.4)", () => {
         active,
         t,
       );
-    expect(onto(0, false)).toBe("pass");
-    expect(onto(-0.1, false)).toBe("fail");
+    expect(onto(-10, false)).toBe("pass");
+    expect(onto(-10.1, false)).toBe("fail");
     expect(onto(40, false)).toBe("pass");
-    expect(onto(2.9, true)).toBe("fail");
-    expect(onto(3, true)).toBe("pass");
+    expect(onto(-6.1, true)).toBe("fail");
+    expect(onto(-6, true)).toBe("pass");
   });
 
-  it("his scans: on the edge (-3 to +3 mm) gets 請把手腕移回紙內一點 only below 0; slightly above (+10 to +13) gets nothing; +20 gets 請把手腕移到紙的下緣", () => {
+  it("his scans: on the edge or a little past it (-5 to +5 mm) gets nothing; -12 gets 請把手腕移回紙內一點; slightly above (+10 to +13) nothing; +20 請把手腕移到紙的下緣", () => {
     expect(
       shownHint(feed([{ wristToEdgeMm: 1.2 }, { wristToEdgeMm: 3.2 }])[1]),
     ).toBe(null);
     expect(
       shownHint(feed([{ wristToEdgeMm: -3.1 }, { wristToEdgeMm: -1.7 }])[1]),
+    ).toBe(null);
+    expect(
+      shownHint(
+        feed([
+          { wristToEdgeMm: -5.3 },
+          { wristToEdgeMm: -3.8 },
+          { wristToEdgeMm: -4.8 },
+        ])[2],
+      ),
+    ).toBe(null);
+    expect(
+      shownHint(feed([{ wristToEdgeMm: -12 }, { wristToEdgeMm: -11 }])[1]),
     ).toBe("wrist-onto-paper");
     expect(
       shownHint(feed([{ wristToEdgeMm: 11 }, { wristToEdgeMm: 13.4 }])[1]),
@@ -596,8 +612,8 @@ describe("placementHysteresis (§4.4)", () => {
   });
 });
 
-describe("hints never gate the auto-capture", () => {
-  it("the ring, fed the paper's cue as the live loop does, completes while a hand hint is on screen", () => {
+describe("a hand hint on screen holds the auto-capture (Kirby 2026-10-27)", () => {
+  it("the ring, fed as the live loop does (the paper passing AND no hand hint), does not fire while a hand hint is on screen", () => {
     let ring = INITIAL_AUTO_CAPTURE_STATE;
     let hyst = INITIAL_PLACEMENT_HYSTERESIS_STATE;
     const shown: CueCode[] = [];
@@ -623,9 +639,12 @@ describe("hints never gate the auto-capture", () => {
         "en",
       );
       shown.push(display.code);
-      ring = advanceAutoCapture(ring, paper.allPass, 125);
+      const hint =
+        placementCueInput(hyst, { nowMs: now, detectorReady: true })?.hint ??
+        null;
+      ring = advanceAutoCapture(ring, paper.allPass && hint === null, 125);
     }
-    expect(ring.fired).toBe(true);
+    expect(ring.fired).toBe(false);
     expect(shown).toContain("wrist-align");
   });
 
@@ -716,5 +735,54 @@ describe("the finger curl (Kirby's S25 test, 2026-10-26)", () => {
     for (let i = 1; i <= 4; i++)
       s = advancePlacementHysteresis(s, obs(i, null));
     expect(s.checks["hand-flat"].active).toBe(false);
+  });
+});
+
+describe("a hand across the sheet (Kirby's S25 test, 2026-10-27)", () => {
+  const cut = (overrides: Partial<CueInput>) =>
+    baseInput({
+      cornersSeen: 0,
+      quad: null,
+      sheetSeenYet: false,
+      msSinceLastDetection: 10_000,
+      ...overrides,
+    });
+  it("the sheet cut in two or the wrong shape, a hand seen → where the wrist goes", () => {
+    for (const paperStage of ["region_split", "aspect_mismatch"] as const)
+      expect(code(cut({ paperStage, placement: hint(null) }))).toBe(
+        "wrist-align",
+      );
+  });
+  it("no hand, the hints off, or another stage → the paper's words as before", () => {
+    expect(
+      code(
+        cut({
+          paperStage: "region_split",
+          placement: { ...hint(null), handSeen: false },
+        }),
+      ),
+    ).toBe("place-paper");
+    expect(code(cut({ paperStage: "region_split" }))).toBe("place-paper");
+    expect(code(cut({ paperStage: "too_small", placement: hint(null) }))).toBe(
+      "place-paper",
+    );
+  });
+  it("placementCueInput says whether the newest reading had a hand", () => {
+    const seen = advancePlacementHysteresis(
+      INITIAL_PLACEMENT_HYSTERESIS_STATE,
+      {
+        atMs: 0,
+        handSeen: true,
+        wristToEdgeMm: null,
+        wristEdge: null,
+        handAxisDeg: null,
+        minSideMarginMm: null,
+        palmOverHand: null,
+        fingerRatioMean: null,
+      },
+    );
+    expect(
+      placementCueInput(seen, { nowMs: 100, detectorReady: true })?.handSeen,
+    ).toBe(true);
   });
 });

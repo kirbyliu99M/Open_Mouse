@@ -23,12 +23,16 @@ const run = source.slice(
 );
 
 describe("live hints (WP3a)", () => {
-  it("the ring and the F14 wait read the paper's cue, built without the hand", () => {
+  it("the ring and the F14 wait read the paper's cue, built without the hand; with the hints on, a hand hint on screen holds the ring (Kirby 2026-10-27)", () => {
     expect(tick).toContain(
       'const nextCue = pickCue(cueInput, "paper-edge", localeRef.current);',
     );
+    // Hints off: `handHint` is null, so the ring is what it was before WP3.
     expect(tick).toMatch(
-      /const paperPassing = nextCue\.allPass && previewSettledRef\.current;/,
+      /const handHint = placementHintsOn\(hintsDebugRef\.current\)\s*\?\s*\(placementCueInput\(placementHysteresisRef\.current, \{[\s\S]*?\}\)\?\.hint \?\? null\)\s*:\s*null;/,
+    );
+    expect(tick).toMatch(
+      /const paperPassing =\s*nextCue\.allPass && previewSettledRef\.current && handHint === null;/,
     );
     expect(tick).toContain("const sheetFound = sheetFoundByCue(nextCue.code);");
     // The cue input itself has no hand in it.
@@ -41,7 +45,7 @@ describe("live hints (WP3a)", () => {
 
   it("hints off: the cue on screen is the paper's cue", () => {
     expect(tick).toMatch(
-      /const shownCandidate = placementHintsOn\(debugOnRef\.current\)\s*\?\s*pickCue\(\s*\{\s*\.\.\.cueInput,\s*placement: placementCueInput\(placementHysteresisRef\.current, \{\s*nowMs: now,\s*detectorReady: isHandLandmarkerReady\(\),\s*\}\),\s*\},[\s\S]*?\)\s*:\s*nextCue;/,
+      /const shownCandidate = placementHintsOn\(hintsDebugRef\.current\)\s*\?\s*pickCue\(\s*\{\s*\.\.\.cueInput,\s*placement: placementCueInput\(placementHysteresisRef\.current, \{\s*nowMs: now,\s*detectorReady: isHandLandmarkerReady\(\),\s*\}\),\s*\},[\s\S]*?\)\s*:\s*nextCue;/,
     );
     expect(tick).toMatch(
       /advanceCueDebounce\(\s*cueDebounceRef\.current,\s*shownCandidate\.code,\s*now,\s*\)/,
@@ -50,7 +54,7 @@ describe("live hints (WP3a)", () => {
 
   it("the hysteresis is fed once per hand reading, only with the hints on", () => {
     expect(tick).toMatch(
-      /if \(placementHintsOn\(debugOnRef\.current\)\)\s*placementHysteresisRef\.current = advancePlacementHysteresis\(/,
+      /if \(placementHintsOn\(hintsDebugRef\.current\)\)\s*placementHysteresisRef\.current = advancePlacementHysteresis\(/,
     );
     expect(tick.match(/advancePlacementHysteresis\(/g)).toHaveLength(1);
     const reset = source.slice(
@@ -73,7 +77,7 @@ describe("live hints (WP3a)", () => {
 describe("post-shot banner (WP3b)", () => {
   it("is worked out only with the hints on, for a measured photo with a placement", () => {
     expect(run).toMatch(
-      /if \(\s*placementHintsOn\(debugOnRef\.current\) &&\s*pipelineResult\.status === "ok" &&\s*pipelineResult\.diagnostics\?\.placement\s*\)/,
+      /if \(\s*placementHintsOn\(hintsDebugRef\.current\) &&\s*pipelineResult\.status === "ok" &&\s*pipelineResult\.diagnostics\?\.placement\s*\)/,
     );
     expect(source.match(/pickSoftHintBanner\(/g)).toHaveLength(1);
     // Off, nothing reaches the record or the result.

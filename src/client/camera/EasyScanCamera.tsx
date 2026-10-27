@@ -121,7 +121,11 @@ import {
   autoCaptureRingFraction,
   type AutoCaptureState,
 } from "./autoCapture";
-import { nextBestFrame, type BestFrameState } from "./bestFrame";
+import {
+  nextBestFrame,
+  pickSharpestScore,
+  type BestFrameState,
+} from "./bestFrame";
 import {
   EMPTY_HAND_READINGS,
   INITIAL_NO_SHEET_CAPTURE_STATE,
@@ -249,6 +253,7 @@ import {
   type SoftHintBannerCode,
 } from "./softHintBanner";
 import { SoftHintBanner } from "./SoftHintBannerView";
+import { uploadDebugPhoto } from "./debugPhotoUpload";
 import type { SoftHintCode } from "../photo/softHint";
 import {
   createPaperEdgeQuadSource,
@@ -570,6 +575,35 @@ export interface EasyScanCameraProps {
   readonly forceTipOpen?: boolean;
 }
 
+/** Closes every bitmap of the map and empties it. */
+function releaseBitmaps(bitmaps: Map<number, ImageBitmap>): void {
+  for (const bitmap of bitmaps.values()) bitmap.close();
+  bitmaps.clear();
+}
+
+/**
+ * A kept frame's sharpness at full size: the photo's own measure
+ * (sharpness.ts, the same the LOW_SHARPNESS warning reads), drawn on `canvas`.
+ * `NaN` where it cannot be read.
+ */
+function fullScore(canvas: HTMLCanvasElement, bitmap: ImageBitmap): number {
+  try {
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return Number.NaN;
+    ctx.drawImage(bitmap, 0, 0);
+    const { data } = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
+    return computeLaplacianVariance(
+      rgbaToGrayscale(data, bitmap.width * bitmap.height),
+      bitmap.width,
+      bitmap.height,
+    );
+  } catch {
+    return Number.NaN;
+  }
+}
+
 export default function EasyScanCamera({
   runPhotoPipelineImpl = runPhotoPipeline,
   demoMeasured,
@@ -716,11 +750,25 @@ export default function EasyScanCamera({
   const streamRef = useRef<MediaStream | null>(null);
   const offscreenRef = useRef<HTMLCanvasElement | null>(null);
   /**
-   * The sharpest frame of the ring's last second (bestFrame.ts, 2026-10-26):
-   * its numbers, and the full-resolution picture of it, drawn when kept.
+   * The sharpest frames of the ring's last second (bestFrame.ts, 2026-10-26
+   * and 27): their live numbers, and the full-resolution pictures of them as
+   * ImageBitmaps, by `atMs`. The bitmaps are made asynchronously
+   * (createImageBitmap): drawing the full frame onto a canvas in the loop
+   * dropped the S25 from ~7 to 2.9 samples a second and made the ring jerky
+   * (Kirby's test, 2026-10-26).
    */
-  const bestFrameRef = useRef<BestFrameState | null>(null);
-  const bestCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const bestFramesRef = useRef<readonly BestFrameState[]>([]);
+  const bestBitmapsRef = useRef(new Map<number, ImageBitmap>());
+  /** Goes up whenever the kept frames are forgotten, so a late bitmap is closed. */
+  const bestGenerationRef = useRef(0);
+  /** The last photo taken here, for the debug photos (`?debug=1`, previews only). */
+  const debugPhotoRef = useRef<File | null>(null);
+  /** The last ring shot's scores, for the debug photo record. */
+  const bestScoresRef = useRef<{
+    readonly live: readonly number[];
+    readonly full: readonly number[];
+    readonly chosen: number | null;
+  } | null>(null);
   const rafRef = useRef<number | null>(null);
   const prevSampleQuadRef = useRef<Quad | null>(null);
   // V3.3 WP4 (candidate): the last sample's distance status, for the
@@ -770,6 +818,18 @@ export default function EasyScanCamera({
   const reticleTimerRef = useRef<number | null>(null);
   const reticleCountRef = useRef(0);
   const debugOnRef = useRef(false);
+  /**
+   * The soft hints follow the debug panel (`?debug=1`, until WP2), except
+   * with `&hints=0`: the panel without the hints, for the panel's own tests
+   * (a hand hint now holds the ring, and their camera has no real hand).
+   */
+  const hintsDebugRef = useRef(false);
+  /**
+   * Debug photos (Kirby 2026-10-27, candidate): only with `?debug=1&photos=1`
+   * does a photo leave the device (debugPhotoUpload.ts; kept on previews
+   * only). `?debug=1` alone still sends nothing anywhere.
+   */
+  const photosDebugRef = useRef(false);
   const debugLiveRef = useRef<DebugLive>({
     visibleInStream: null,
     sample: null,
@@ -1254,7 +1314,9 @@ export default function EasyScanCamera({
     handReadingsRef.current = EMPTY_HAND_READINGS;
     livePlacementRef.current = [];
     placementHysteresisRef.current = INITIAL_PLACEMENT_HYSTERESIS_STATE;
-    bestFrameRef.current = null;
+    bestFramesRef.current = [];
+    bestGenerationRef.current += 1;
+    releaseBitmaps(bestBitmapsRef.current);
     pendingShutterRef.current = null;
     cornerStatesRef.current = INITIAL_CORNER_STATES;
     outlineRef.current = INITIAL_OUTLINE_HYSTERESIS_STATE;
@@ -1479,18 +1541,27 @@ export default function EasyScanCamera({
           ...(info?.guidance ? { guidance: info.guidance } : {}),
           ...(info?.experimentTag ? { experimentTag: info.experimentTag } : {}),
         };
+        const record = buildAttemptRecord({
+          at: banner?.at ?? new Date(),
+          userAgent: shortUserAgent(navigator.userAgent),
+          capture,
+          outcome,
+          softHintHistory: softHintHistoryOf(attemptsRef.current),
+          ...(banner ? { softHintBanner: banner.result } : {}),
+        });
         attemptsRef.current = recordAttempt(
           getBrowserStorage(),
-          buildAttemptRecord({
-            at: banner?.at ?? new Date(),
-            userAgent: shortUserAgent(navigator.userAgent),
-            capture,
-            outcome,
-            softHintHistory: softHintHistoryOf(attemptsRef.current),
-            ...(banner ? { softHintBanner: banner.result } : {}),
-          }),
+          record,
           attemptsRef.current,
         );
+        // Kirby 2026-10-27 (candidate): with ?debug=1&photos=1, the photo and
+        // this record also go to the preview's private debug store (a 404 on
+        // production stops it); the local log above is unchanged.
+        if (photosDebugRef.current)
+          uploadDebugPhoto(debugPhotoRef.current, {
+            record,
+            bestFrame: bestScoresRef.current,
+          });
       } catch {
         // The log is a convenience: it must never break a scan.
       }
@@ -1625,7 +1696,7 @@ export default function EasyScanCamera({
           suppressed: boolean;
         } | null = null;
         if (
-          placementHintsOn(debugOnRef.current) &&
+          placementHintsOn(hintsDebugRef.current) &&
           pipelineResult.status === "ok" &&
           pipelineResult.diagnostics?.placement
         ) {
@@ -1910,22 +1981,45 @@ export default function EasyScanCamera({
         // resolution: the pixels the person saw and the detector approved.
         method = "canvas";
         let frame: File | null = null;
-        // The ring's shot (2026-10-26): the sharpest frame of its last second
-        // (bestFrame.ts), already drawn at full resolution with the same crop;
-        // the person's tap takes the frame of that moment.
+        // The ring's shot (2026-10-26/27): the sharpest of the frames kept in
+        // its last second (bestFrame.ts), already cut with the same crop at
+        // full resolution, each scored again at full size here; the person's
+        // tap takes the frame of that moment.
+        const bitmaps = bestBitmapsRef.current;
+        const live = bestFramesRef.current.filter((k) => bitmaps.has(k.atMs));
         const kept =
-          shutter === "auto" && bestFrameRef.current !== null
-            ? bestCanvasRef.current
-            : null;
-        bestFrameRef.current = null;
+          shutter === "auto"
+            ? live.map((k) => bitmaps.get(k.atMs) as ImageBitmap)
+            : [];
+        bestFramesRef.current = [];
+        bestGenerationRef.current += 1;
+        bestBitmapsRef.current = new Map();
+        bestScoresRef.current = null;
         try {
-          frame = kept
-            ? await canvasFile(kept)
-            : await frameFile(region?.capture ?? null);
+          if (kept.length > 0) {
+            const canvas = document.createElement("canvas");
+            const full =
+              kept.length > 1 ? kept.map((b) => fullScore(canvas, b)) : [];
+            const chosen = kept.length > 1 ? pickSharpestScore(full) : 0;
+            const pick = kept[chosen ?? 0] as ImageBitmap;
+            bestScoresRef.current = {
+              live: live.map((k) => k.variance),
+              full,
+              chosen,
+            };
+            canvas.width = pick.width;
+            canvas.height = pick.height;
+            canvas.getContext("2d")?.drawImage(pick, 0, 0);
+            frame = await canvasFile(canvas);
+          } else {
+            frame = await frameFile(region?.capture ?? null);
+          }
         } catch {
           // A canvas that throws (out of memory, a lost context) is a frame
           // that was not made, like a missing context or a blob that is null.
           frame = null;
+        } finally {
+          releaseBitmaps(bitmaps);
         }
         if (!frame) {
           // No frame: the loop was not stopped and is still running, the busy
@@ -1995,6 +2089,7 @@ export default function EasyScanCamera({
             }
           : null,
       );
+      debugPhotoRef.current = file;
       captureInfoRef.current = {
         method,
         captureSource: source,
@@ -2063,6 +2158,7 @@ export default function EasyScanCamera({
       if (!file || manualActiveRef.current) return;
       stopStream();
       fileRef.current = file;
+      debugPhotoRef.current = file;
       const previewUrl = URL.createObjectURL(file);
       setPhotoInfo(null);
       debugCaptureRef.current = {
@@ -2506,7 +2602,18 @@ export default function EasyScanCamera({
 
       // The ring reads the raw sample: one or two failures pause it, the
       // third in a row empties it (autoCapture.ts).
-      const paperPassing = nextCue.allPass && previewSettledRef.current;
+      // Kirby 2026-10-27 (candidate): while a hand hint is on screen the ring
+      // does not fill ("if it will not pass, do not start the auto scan; a
+      // person who waits will press the shutter"). Only with the hints on;
+      // the shutter button always works. The paper's own cue is unchanged.
+      const handHint = placementHintsOn(hintsDebugRef.current)
+        ? (placementCueInput(placementHysteresisRef.current, {
+            nowMs: now,
+            detectorReady: isHandLandmarkerReady(),
+          })?.hint ?? null)
+        : null;
+      const paperPassing =
+        nextCue.allPass && previewSettledRef.current && handHint === null;
       autoCaptureRef.current = advanceAutoCapture(
         autoCaptureRef.current,
         paperPassing,
@@ -2517,17 +2624,23 @@ export default function EasyScanCamera({
       // 2026-10-26 (candidate): in the ring's last second, keep the sharpest
       // frame at full resolution with the shutter's own crop (bestFrame.ts);
       // the ring's shot uses it. An empty ring forgets it.
-      const bestStep = nextBestFrame(bestFrameRef.current, {
+      const bestStep = nextBestFrame(bestFramesRef.current, {
         variance: laplacianVariance,
         atMs: now,
         passing: paperPassing,
         ringElapsedMs: autoCaptureRef.current.elapsedMs,
         ringDurationMs: CAMERA_CONSTANTS.autoCapture.durationMs,
         windowMs: CAMERA_CONSTANTS.autoCapture.bestFrameWindowMs,
+        keep: CAMERA_CONSTANTS.autoCapture.bestFrameKeep,
       });
-      if (!bestStep.keepThis) {
-        bestFrameRef.current = bestStep.best;
-      } else {
+      for (const atMs of bestStep.dropped) {
+        bestBitmapsRef.current.get(atMs)?.close();
+        bestBitmapsRef.current.delete(atMs);
+      }
+      if (bestStep.kept.length === 0 && bestFramesRef.current.length > 0)
+        bestGenerationRef.current += 1;
+      bestFramesRef.current = bestStep.kept;
+      if (bestStep.keepThis && typeof createImageBitmap === "function") {
         const streamSize = readStreamSize(video, streamRef.current);
         const crop =
           streamSize && view
@@ -2537,24 +2650,24 @@ export default function EasyScanCamera({
               })?.capture
             : null;
         if (crop) {
-          const draw = frameDrawArgs(crop);
-          let keep = bestCanvasRef.current;
-          if (!keep) {
-            keep = document.createElement("canvas");
-            bestCanvasRef.current = keep;
-          }
-          if (
-            keep.width !== draw.canvas.width ||
-            keep.height !== draw.canvas.height
-          ) {
-            keep.width = draw.canvas.width;
-            keep.height = draw.canvas.height;
-          }
-          const keepCtx = keep.getContext("2d");
-          if (keepCtx) {
-            keepCtx.drawImage(video, ...draw.source, ...draw.destination);
-            bestFrameRef.current = bestStep.best;
-          }
+          // A frame counts for the shot only once its bitmap exists; with
+          // none, the shot takes the frame of that moment, as before.
+          const generation = bestGenerationRef.current;
+          createImageBitmap(video, crop.x, crop.y, crop.width, crop.height)
+            .then((bitmap) => {
+              const stillKept =
+                generation === bestGenerationRef.current &&
+                bestFramesRef.current.some((k) => k.atMs === now);
+              if (!stillKept) {
+                bitmap.close();
+                return;
+              }
+              bestBitmapsRef.current.get(now)?.close();
+              bestBitmapsRef.current.set(now, bitmap);
+            })
+            .catch(() => {
+              // No bitmap: this frame is not a candidate.
+            });
         }
       }
 
@@ -2619,7 +2732,7 @@ export default function EasyScanCamera({
           }
           // V3.3 WP3a (candidate): each hand reading is counted once by the
           // hints' hysteresis, only while the hints are on.
-          if (placementHintsOn(debugOnRef.current))
+          if (placementHintsOn(hintsDebugRef.current))
             placementHysteresisRef.current = advancePlacementHysteresis(
               placementHysteresisRef.current,
               {
@@ -2638,7 +2751,7 @@ export default function EasyScanCamera({
       // V3.3 WP3a (candidate): the cue on screen, with the hand's soft hint
       // when the hints are on (only with ?debug=1 for now). Words only: the
       // ring and the F14 wait above read `nextCue`. Off, it IS `nextCue`.
-      const shownCandidate = placementHintsOn(debugOnRef.current)
+      const shownCandidate = placementHintsOn(hintsDebugRef.current)
         ? pickCue(
             {
               ...cueInput,
@@ -2660,7 +2773,12 @@ export default function EasyScanCamera({
       noSheetCaptureRef.current = advanceNoSheetCapture(
         noSheetCaptureRef.current,
         {
-          sheetFound,
+          // A hand hint on screen pauses the wait too (Kirby 2026-10-27:
+          // no automatic shot while a hint says it will not pass).
+          sheetFound:
+            sheetFound ||
+            (shownCandidate.code !== nextCue.code &&
+              isPlacementCueCode(shownCandidate.code)),
           handSeen: hand.seen,
           handSteady: hand.steady,
           sharp: sharpEnough,
@@ -2926,8 +3044,11 @@ export default function EasyScanCamera({
     };
   }, []);
   useEffect(() => {
-    const on = new URLSearchParams(window.location.search).get("debug") === "1";
+    const params = new URLSearchParams(window.location.search);
+    const on = params.get("debug") === "1";
     debugOnRef.current = on;
+    hintsDebugRef.current = on && params.get("hints") !== "0";
+    photosDebugRef.current = on && params.get("photos") === "1";
     setDebugOn(on);
     if (!on) return;
     setDebugSnapshot(buildDebugSnapshot());
@@ -3846,14 +3967,13 @@ export default function EasyScanCamera({
           {sheetResult.kind === "measured" ? (
             <>
               {/* V3.3 WP3b (candidate): the post-shot banner, at most one,
-                  over the photo above this sheet (SoftHintBannerView.tsx). */}
+                  at the top of this sheet (SoftHintBannerView.tsx). */}
               {softHintLeave.shown && (
                 <SoftHintBanner
                   key={softHintLeave.shown.at}
                   text={softHintBannerText(softHintLeave.shown.code, locale)}
                   dismissLabel={cameraCuesCopy(locale).softHint.dismiss}
                   leaving={softHintLeave.leaving}
-                  sheetRef={sheetDialogRef}
                   onDismiss={() => {
                     const shown = softHintLeave.shown;
                     if (!shown) return;

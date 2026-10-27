@@ -106,6 +106,12 @@ export const CAMERA_CONSTANTS = {
      * (bestFrame.ts): after a hint the person may just have moved. 候選.
      */
     bestFrameWindowMs: 1000,
+    /**
+     * How many of the window's sharpest frames (by the live sample) are kept
+     * and scored again at full size when the ring fills (2026-10-27: the
+     * live number alone picked photos under the floor). 候選.
+     */
+    bestFrameKeep: 3,
     /** navigator.vibrate() duration on auto-capture (spec: 30 ms). */
     vibrateMs: 30,
     /**
@@ -282,15 +288,17 @@ export const CAMERA_CONSTANTS = {
      * of 2026-10-26 (實測): "right on the edge" read -3 to +3 mm, "slightly
      * above" +10 to +13 mm, and a wrist ON the edge hid the bottom edge
      * (PAPER_EDGE_HIDDEN, 32.5 % seen). So the target is the wrist just
-     * inside the paper: below `showMinMm` 請把手腕移回紙內一點
+     * inside the paper. 2026-10-27: wrists 4-5 mm past the edge measured fine
+     * (the edge 60-67.5 % seen), and Kirby: "when it is not sure, do not keep
+     * flashing", so past the edge needs -10 mm: below `showMinMm` 請把手腕移回紙內一點
      * (`wrist-onto-paper`), above `showMaxMm` 請把手腕移到紙的下緣
      * (`wrist-align`); each goes again only within `clearMinMm`-`clearMaxMm`
      * (3 mm bands). 候選.
      */
     wristToEdge: {
-      showMinMm: 0,
+      showMinMm: -10,
       showMaxMm: 15,
-      clearMinMm: 3,
+      clearMinMm: -6,
       clearMaxMm: 12,
     },
     /** Smallest margin of the wrist and fingers to the sides and the far edge (§1.1): shows below 3 mm, goes at 5 mm. */

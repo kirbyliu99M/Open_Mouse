@@ -292,6 +292,11 @@ export interface PlacementCueInput {
    * the hand meant to be there, and is not said.
    */
   readonly wristNearBottomEdge: boolean;
+  /**
+   * The newest reading found a hand, sheet or not (2026-10-27): with the
+   * sheet cut in two or the wrong shape, the hand is the likely cause.
+   */
+  readonly handSeen: boolean;
 }
 
 /**
@@ -326,5 +331,5 @@ export function placementCueInput(
     latest.wristEdge === "near-bottom" &&
     num(latest.wristToEdgeMm) &&
     Math.abs(latest.wristToEdgeMm) <= t.bottomEdgeWristMm;
-  return { hint, wristNearBottomEdge };
+  return { hint, wristNearBottomEdge, handSeen: latest.handSeen };
 }

@@ -43,6 +43,7 @@
     "@neondatabase/serverless": "1.1.0",
     "@next/env": "15.5.27",
     "@sentry/nextjs": "11.4.0",
+    "@vercel/blob": "2.8.1",
     "drizzle-orm": "0.45.2",
     "js-aruco2": "2.0.0",
     "jsqr": "1.4.0",

@@ -265,13 +265,13 @@ describe("SoftHintBanner (the view)", () => {
       dismissLabel: "關閉提示",
       onDismiss: () => {},
       leaving: false,
-      sheetRef: { current: null },
     }),
   );
   it("one line of words and a close button with a name", () => {
     expect(html).toContain("手腕沒貼齊下緣，建議重拍");
     expect(html).toMatch(/<button[^>]*aria-label="關閉提示"/);
-    expect(html).toContain('popover="manual"');
+    // In the sheet, not a popover over the photo (Kirby 2026-10-27).
+    expect(html).not.toContain("popover");
     expect(html).toContain('role="status"');
   });
   it("its close button is a 44 px target (CSS)", () => {

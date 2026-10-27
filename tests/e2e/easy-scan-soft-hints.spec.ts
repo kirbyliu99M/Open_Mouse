@@ -72,12 +72,24 @@ test("hints off (no ?debug=1): no hand hint and no banner, the photo is taken as
   await expect(page.getByTestId("easy-soft-hint")).toHaveCount(0);
 });
 
-test("hints on (?debug=1): the auto-capture still takes the photo by itself", async ({
+test("hints on (?debug=1): a hand hint holds the auto-capture (Kirby 2026-10-27), and the shutter still takes the photo", async ({
   page,
 }) => {
   await watchCue(page);
   await page.goto(`${LIVE_DEMO}?debug=1`);
   await page.getByRole("button", { name: "Got it" }).click();
+  // The fixture's "hand" is a skin-tone blob: the detector finds no hand, so
+  // 「請把手放在紙上」 shows and the ring does not fill.
+  await expect(page.locator(".cameraCueSoftHint")).toHaveText(
+    "Place your hand on the paper",
+    { timeout: 30_000 },
+  );
+  await page.waitForTimeout(4_000);
+  await expect(page.getByTestId("paper-adjust-confirm")).toHaveCount(0);
+  // The person's own press always works.
+  // The debug panel lies over the shutter at this test size: send the
+  // click to the button itself.
+  await page.getByRole("button", { name: "Take photo" }).dispatchEvent("click");
   const sheet = await measuredSheet(page);
   // Continue and retake are there whatever hint was shown.
   await expect(sheet.getByTestId("answers-continue-button")).toBeEnabled();
@@ -98,6 +110,13 @@ test("hints on: a banner, when one shows, closes with its button and leaves Cont
 }) => {
   await page.goto(`${LIVE_DEMO}?debug=1`);
   await page.getByRole("button", { name: "Got it" }).click();
+  // With the hints on the ring waits for a hand (see above): press the shutter.
+  await expect(page.locator(".cameraCueSoftHint")).toBeVisible({
+    timeout: 30_000,
+  });
+  // The debug panel lies over the shutter at this test size: send the
+  // click to the button itself.
+  await page.getByRole("button", { name: "Take photo" }).dispatchEvent("click");
   const sheet = await measuredSheet(page);
   const banner = page.getByTestId("easy-soft-hint");
   if ((await banner.count()) === 0) {

@@ -189,7 +189,7 @@ test.describe("AC6: the debug panel", () => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await holdPipeline(page);
     // Let the hand detector's one same-origin download finish first.
-    await page.goto(`${LIVE_DEMO}?debug=1`);
+    await page.goto(`${LIVE_DEMO}?debug=1&hints=0`);
     await page.waitForResponse((res) =>
       res.url().includes("/mediapipe/models/hand_landmarker.task"),
     );
@@ -284,7 +284,7 @@ test.describe("AC6: the debug panel", () => {
     // test above, and the capture is waited for: the panel is where it will
     // stay for as long as the test takes.
     await holdPipeline(page);
-    await openLive(page, `${LIVE_DEMO}?debug=1`);
+    await openLive(page, `${LIVE_DEMO}?debug=1&hints=0`);
     await expect(page.locator(".easyStage")).toHaveAttribute(
       "data-phase",
       "processing",
@@ -708,7 +708,7 @@ test.describe("AC3 and AC4: focus", () => {
     });
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(String(error)));
-    await page.goto("/scan/easy?debug=1");
+    await page.goto("/scan/easy?debug=1&hints=0");
     await page.getByRole("button", { name: "Got it" }).click();
     await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
     await expect(page.getByTestId("scan-debug-panel")).toContainText(
@@ -825,7 +825,7 @@ test.describe("AC6: the debug panel once a sheet is open", () => {
   }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await holdPipeline(page);
-    await openLive(page, `${LIVE_DEMO}?debug=1`);
+    await openLive(page, `${LIVE_DEMO}?debug=1&hints=0`);
     await expect(page.locator(".easyStage")).toHaveAttribute(
       "data-phase",
       "processing",
@@ -1273,7 +1273,7 @@ test.describe("fix round 1: a browser whose getSettings throws", () => {
     });
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(String(error)));
-    await page.goto("/scan/easy?debug=1");
+    await page.goto("/scan/easy?debug=1&hints=0");
     await page.getByRole("button", { name: "Got it" }).click();
     await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
     await expect(page.getByTestId("scan-debug-panel")).toBeVisible();

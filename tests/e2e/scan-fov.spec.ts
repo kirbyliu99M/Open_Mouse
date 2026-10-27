@@ -155,7 +155,7 @@ test.describe("frame capture: the shutter takes the part of the video that is on
         w.__release = resolve;
       });
     });
-    await page.goto("/scan/easy/live-measured-demo?debug=1");
+    await page.goto("/scan/easy/live-measured-demo?debug=1&hints=0");
     await page.getByRole("button", { name: "Got it" }).click();
 
     // The fake camera's frame is 800x1300 (paper-edge-full.y4m); the 390x844
@@ -248,7 +248,7 @@ test.describe("frame capture: the shutter takes the part of the video that is on
       (window as unknown as { ImageCapture: unknown }).ImageCapture =
         StubImageCapture;
     });
-    await page.goto("/scan/easy?debug=1");
+    await page.goto("/scan/easy?debug=1&hints=0");
     await page.getByRole("button", { name: "Got it" }).click();
     await expect
       .poll(async () => (await storedAttempts(page))?.length, {
@@ -342,7 +342,7 @@ test.describe("frame capture: the shutter takes the part of the video that is on
     });
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
-    await page.goto("/scan/easy?debug=1");
+    await page.goto("/scan/easy?debug=1&hints=0");
     await page.getByRole("button", { name: "Got it" }).click();
     // The scene is perfect from the first second, so the auto-shutter fires, is
     // let down twice, and fires again after a refilled ring.
@@ -488,7 +488,7 @@ test.describe("the attempt log", () => {
       if (/\/__nextjs_|__next_hmr|webpack-hmr|_next\/static/.test(url)) return;
       requests.push(`${req.method()} ${url}`);
     });
-    await page.goto("/scan/easy?debug=1");
+    await page.goto("/scan/easy?debug=1&hints=0");
     await page.getByRole("button", { name: "Got it" }).click();
     expect(await storedAttempts(page)).toEqual([]);
 
@@ -571,7 +571,7 @@ test.describe("the attempt log", () => {
   test("a second attempt is added after the first, newest first in the panel", async ({
     page,
   }) => {
-    await page.goto("/scan/easy?debug=1");
+    await page.goto("/scan/easy?debug=1&hints=0");
     await page.getByRole("button", { name: "Got it" }).click();
     await uploadSyntheticPhoto(page);
     await expect
@@ -619,7 +619,7 @@ test.describe("the attempt log", () => {
         throw new TypeError("offline");
       };
     });
-    await page.goto("/scan/easy?debug=1");
+    await page.goto("/scan/easy?debug=1&hints=0");
     await page.getByRole("button", { name: "Got it" }).click();
     await uploadSyntheticPhoto(page, "first.png", {
       width: 1500,
@@ -665,7 +665,7 @@ test.describe("the attempt log", () => {
         configurable: true,
       });
     });
-    await page.goto("/scan/easy?debug=1");
+    await page.goto("/scan/easy?debug=1&hints=0");
     await page
       .getByRole("button", { name: "Got it" })
       .click({ timeout: 15_000 });

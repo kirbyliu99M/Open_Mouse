@@ -76,7 +76,7 @@ async function runStep(
   png: Buffer,
   mimeType: string,
 ): Promise<Row> {
-  await page.goto("/scan/easy?debug=1");
+  await page.goto("/scan/easy?debug=1&hints=0");
   const gotIt = page.getByRole("button", { name: "Got it" });
   if (await gotIt.isVisible().catch(() => false)) await gotIt.click();
   // The log keeps 20, so each step starts from an empty one.

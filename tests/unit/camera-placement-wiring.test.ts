@@ -124,7 +124,11 @@ describe("EasyScanCamera wires WP1b (log only)", () => {
       expect(before).toMatch(/debugOn &&/);
     }
     expect(source).toMatch(
-      /const on = new URLSearchParams\(window\.location\.search\)\.get\("debug"\) === "1";/,
+      /const params = new URLSearchParams\(window\.location\.search\);\s*const on = params\.get\("debug"\) === "1";/,
+    );
+    // The soft hints follow it, except with &hints=0 (the panel's own tests).
+    expect(source).toContain(
+      'hintsDebugRef.current = on && params.get("hints") !== "0";',
     );
   });
 });

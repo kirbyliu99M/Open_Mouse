@@ -320,6 +320,12 @@ export interface CueInput {
 }
 
 /** The cues that say the paper itself passed (only the phone is left to hold or focus). */
+/** The detector stages a forearm across the sheet ends in (detect.ts RETRY_STAGES). */
+const HAND_CUT_STAGES: readonly PaperDetectionStage[] = [
+  "region_split",
+  "aspect_mismatch",
+];
+
 const PAPER_PASSED_CODES: readonly CueCode[] = [
   "perfect",
   "hold-still",
@@ -352,6 +358,18 @@ export function pickCue(
   const paper = pickPaperCue(input, mode, locale);
   const placement = input.placement;
   if (!placement) return paper;
+  // Kirby's S25 test 2026-10-27 (candidate 未拍板): a hand laid in the
+  // middle of the sheet puts the forearm across it, and the detector finds
+  // the sheet cut in two or the wrong shape; no corners, so no hand hint
+  // could be worked out, and the paper's words ("place a blank sheet") were
+  // wrong. With a hand seen, those stages say where the wrist goes instead.
+  if (
+    input.cornersSeen <= 0 &&
+    placement.handSeen &&
+    input.paperStage != null &&
+    HAND_CUT_STAGES.includes(input.paperStage)
+  )
+    return cue("wrist-align", mode, locale);
   if (PAPER_PASSED_CODES.includes(paper.code))
     return placement.hint ? cue(placement.hint, mode, locale) : paper;
   if (paper.code === "edge-covered-bottom" && placement.wristNearBottomEdge) {
