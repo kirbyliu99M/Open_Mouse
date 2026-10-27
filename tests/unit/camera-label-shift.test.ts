@@ -241,8 +241,12 @@ describe("advanceCorners across a relabel", () => {
     })) as unknown as Four<Point>;
     const states = advanceCorners(tracking(), moved, 125);
     const point = cornerDrawPoint(states[0], SHEET[0]);
-    expect(point.x).toBeCloseTo(30 + 0.35 * 12, 6);
-    expect(point.y).toBeCloseTo(166 - 0.35 * 8, 6);
+    // Filtered: part of the way, the same share on both axes (the weight is
+    // the speed-adaptive filter's, cornerSmoother.ts; 0.35 until 2026-10-28).
+    const share = (point.x - 30) / 12;
+    expect(share).toBeGreaterThan(0.2);
+    expect(share).toBeLessThan(1);
+    expect((166 - point.y) / 8).toBeCloseTo(share, 9);
   });
 
   it("the outline does not collapse with the labels flipping back and forth around the boundary", () => {

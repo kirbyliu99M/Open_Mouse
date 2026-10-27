@@ -25,8 +25,11 @@ import {
 } from "../../src/client/camera/cues";
 import {
   advanceOutline,
+  continuesMotion,
   INITIAL_OUTLINE_HYSTERESIS_STATE,
   largestCornerGap,
+  oneStepBack,
+  predictOutline,
   type OutlineHysteresisState,
   type OutlineObservation,
 } from "../../src/client/camera/outlineHysteresis";
@@ -96,7 +99,12 @@ describe("the live outline's hysteresis (pure)", () => {
       jumpFraction: 0.03,
       switchSamples: 2,
       lostSamples: 3,
+      continueFraction: 0.025,
     });
+    // A still outline predicts itself, so no jump may fit it.
+    expect(CAMERA_CONSTANTS.outlineHysteresis.continueFraction).toBeLessThan(
+      CAMERA_CONSTANTS.outlineHysteresis.jumpFraction,
+    );
   });
 
   it("the problem: two quads 40 px apart that alternate make the dots swing every sample (without the hysteresis)", () => {
@@ -129,6 +137,120 @@ describe("the live outline's hysteresis (pure)", () => {
     expect(shown[3]).toEqual(A);
     expect(shown[4]).toEqual(moved);
     expect(shown[6]).toEqual(moved);
+  });
+
+  it("a phone that keeps moving is followed at EVERY sample after the first (2026-10-28; it was every other one)", () => {
+    const step = 0.06 * DIAGONAL; // twice the jump threshold per sample
+    const obs = [
+      A,
+      A,
+      ...Array.from({ length: 10 }, (_, k) => quad((k + 1) * step)),
+    ];
+    let state = INITIAL_OUTLINE_HYSTERESIS_STATE;
+    const shown: OutlineObservation[] = [];
+    for (const o of obs) {
+      const s = advanceOutline(state, o, DIAGONAL);
+      state = s.state;
+      shown.push(s.shown);
+    }
+    // The first jump is held (it could be a second quad)...
+    expect(shown[2]).toEqual(A);
+    // ...the second is followed, and from then on every sample.
+    for (let k = 3; k < obs.length; k++) expect(shown[k]).toEqual(obs[k]);
+  });
+
+  it("...with the detector's jitter on it too (3 px per corner)", () => {
+    const step = 0.05 * DIAGONAL;
+    const wobble = (k: number) => (k % 2 === 0 ? 3 : -3);
+    const obs = [
+      A,
+      A,
+      ...Array.from({ length: 12 }, (_, k) =>
+        quad((k + 1) * step + wobble(k), wobble(k + 1)),
+      ),
+    ];
+    let state = INITIAL_OUTLINE_HYSTERESIS_STATE;
+    let followed = 0;
+    obs.forEach((o, k) => {
+      const s = advanceOutline(state, o, DIAGONAL);
+      state = s.state;
+      if (k >= 3 && largestCornerGap(s.shown, o) === 0) followed += 1;
+    });
+    expect(followed).toBe(obs.length - 3);
+  });
+
+  it("the old rule, for comparison: following every other sample is what a reset streak did", () => {
+    const step = 0.06 * DIAGONAL;
+    const obs = [
+      A,
+      A,
+      ...Array.from({ length: 10 }, (_, k) => quad((k + 1) * step)),
+    ];
+    let state = INITIAL_OUTLINE_HYSTERESIS_STATE;
+    let held = 0;
+    for (const o of obs) {
+      const s = advanceOutline(state, o, DIAGONAL, {
+        ...CAMERA_CONSTANTS.outlineHysteresis,
+        continueFraction: Infinity, // not under jumpFraction: never continues
+      });
+      state = s.state;
+      if (largestCornerGap(s.shown, o) !== 0) held += 1;
+    }
+    expect(held).toBe(5);
+  });
+
+  it("two quads alternating during a move are still held: a second quad is not where the move was heading", () => {
+    const step = 0.06 * DIAGONAL;
+    const moving = [A, A, quad(step), quad(2 * step), quad(3 * step)];
+    let state = INITIAL_OUTLINE_HYSTERESIS_STATE;
+    for (const o of moving) state = advanceOutline(state, o, DIAGONAL).state;
+    // The sheet stops at 3 steps; a shadow's quad 40 px wider alternates with it.
+    const stop = quad(3 * step);
+    const shadow: OutlineObservation = [
+      stop[0],
+      { x: stop[1]!.x + 40, y: stop[1]!.y },
+      { x: stop[2]!.x + 40, y: stop[2]!.y },
+      stop[3],
+    ];
+    const shown: OutlineObservation[] = [];
+    for (const o of alternate(shadow, stop, 20)) {
+      const s = advanceOutline(state, o, DIAGONAL);
+      state = s.state;
+      shown.push(s.shown);
+    }
+    expect(
+      shown.every((q) => q === stop || largestCornerGap(q, stop) === 0),
+    ).toBe(true);
+  });
+
+  it("the A/B alternation from rest is held exactly as before", () => {
+    let state = INITIAL_OUTLINE_HYSTERESIS_STATE;
+    for (const o of alternate(A, B, 40)) {
+      const s = advanceOutline(state, o, DIAGONAL);
+      state = s.state;
+      expect(largestCornerGap(s.shown, A)).toBe(0);
+    }
+  });
+
+  it("predictOutline and oneStepBack: the last step made again, per corner both have", () => {
+    expect(predictOutline(quad(10), quad(0))).toEqual(quad(20));
+    expect(
+      predictOutline([A[0], null, A[2], A[3]], [A[0], A[1], null, A[3]]),
+    ).toEqual([A[0], null, null, A[3]]);
+    expect(oneStepBack(quad(0), quad(30), 3)).toEqual(quad(20));
+    expect(oneStepBack(quad(0), quad(30), 0)).toEqual(quad(0));
+  });
+
+  it("continuesMotion needs two corners: one is no safe match", () => {
+    const state: OutlineHysteresisState = {
+      ...INITIAL_OUTLINE_HYSTERESIS_STATE,
+      held: quad(10),
+      previous: [quad(0)[0], null, null, null],
+    };
+    expect(continuesMotion(state, quad(20), DIAGONAL)).toBe(false);
+    expect(
+      continuesMotion({ ...state, previous: quad(0) }, quad(20), DIAGONAL),
+    ).toBe(true);
   });
 
   it("small movement (under 3 % of the diagonal) passes straight through", () => {

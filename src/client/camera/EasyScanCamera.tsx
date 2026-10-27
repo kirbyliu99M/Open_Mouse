@@ -93,6 +93,7 @@ import {
   cueFromCode,
   easyCueText,
   easyHintText,
+  handSheetWidthFraction,
   pickCue,
   type Cue,
   type CueCode,
@@ -179,7 +180,11 @@ import {
 } from "./photoLayout";
 import { problemAreaFor } from "./problemArea";
 import { FrozenPhoto, type DimensionSpec } from "./FrozenPhoto";
-import { EasyCorners } from "./EasyCorners";
+import {
+  createCornerStore,
+  LiveEasyCorners,
+  type CornerStore,
+} from "./EasyCorners";
 import {
   advanceOutline,
   INITIAL_OUTLINE_HYSTERESIS_STATE,
@@ -431,6 +436,10 @@ interface DebugLive {
   hiResFound?: number[];
   /** The gaps between the ring's drawn frames, ms (smoothRing.ts). */
   ringFrameGapMs?: number[];
+  /** While the ring fills: how far each frame moved it, in ms of fill (0 = stood still). */
+  ringAdvanceMs?: number[];
+  /** What each whole live sample cost on the main thread, ms (the frame it ran in waits for it). */
+  sampleWorkMs?: number[];
 }
 interface DebugCapture {
   method: "takePhoto" | "canvas" | "upload" | null;
@@ -737,9 +746,13 @@ export default function EasyScanCamera({
   manualActiveRef.current = manualActive;
   const [tipOpen, setTipOpen] = useState(Boolean(forceTipOpen));
   const [cue, setCue] = useState<Cue | null>(null);
-  const [cornerStates, setCornerStates] = useState<CornerStates>(
-    INITIAL_CORNER_STATES,
-  );
+  // The dots' states live in a small store that only the dots read
+  // (EasyCorners.tsx, 2026-10-28): a sample re-renders four dots, not the
+  // camera screen.
+  const cornerStoreRef = useRef<CornerStore | null>(null);
+  if (cornerStoreRef.current === null)
+    cornerStoreRef.current = createCornerStore(INITIAL_CORNER_STATES);
+  const cornerStore = cornerStoreRef.current;
   const [ringFraction, setRingFraction] = useState(0);
   // Kirby 2026-10-27 (candidate): the ring is drawn every animation frame
   // from the last sample's fill (smoothRing.ts), not at the samples.
@@ -748,10 +761,17 @@ export default function EasyScanCamera({
     atMs: 0,
     advancing: false,
   });
-  const ringShownRef = useRef({ shown: 0, shownTarget: 0 });
+  const ringShownRef = useRef<{
+    shown: number;
+    shownTarget: number;
+    atMs: number | undefined;
+  }>({ shown: 0, shownTarget: 0, atMs: undefined });
   const ringCircleRef = useRef<SVGCircleElement | null>(null);
   // `atMs` is when the fill was true: the sample's own time, not when its
   // detection finished (that varies, and the ring stepped with it).
+  // The camera's state holds the fill only for the hint line, which reads
+  // whether it is above zero: it is set only when that changes, so the
+  // ring's samples do not re-render the camera (2026-10-28).
   const aimRing = useCallback(
     (
       fraction: number,
@@ -759,27 +779,55 @@ export default function EasyScanCamera({
       atMs: number = performance.now(),
     ) => {
       ringTargetRef.current = { fraction, atMs, advancing };
-      setRingFraction(fraction);
+      setRingFraction((before) =>
+        before > 0 === fraction > 0 ? before : fraction,
+      );
     },
     [],
   );
-  const paintRing = useCallback((circle: SVGCircleElement) => {
-    const target = ringTargetRef.current;
-    const last = ringShownRef.current;
-    const shown = smoothRingFraction({
-      target,
-      shown: last.shown,
-      shownTarget: last.shownTarget,
-      nowMs: performance.now(),
-      durationMs: CAMERA_CONSTANTS.autoCapture.durationMs,
-      leadMs: RING_LEAD_MS,
-      reducedMotion: reducedMotionRef.current,
-    });
-    ringShownRef.current = { shown, shownTarget: target.fraction };
-    const offset = String(RING_CIRCUMFERENCE * (1 - shown));
-    if (circle.getAttribute("stroke-dashoffset") !== offset)
-      circle.setAttribute("stroke-dashoffset", offset);
-  }, []);
+  // `nowMs` is the frame's own time (the requestAnimationFrame timestamp, the
+  // clock the samples' `atMs` is on), so every frame steps the ring by one
+  // frame's worth however late in the frame it is drawn (2026-10-28).
+  const paintRing = useCallback(
+    (circle: SVGCircleElement, nowMs: number = performance.now()) => {
+      const target = ringTargetRef.current;
+      const last = ringShownRef.current;
+      const shown = smoothRingFraction({
+        target,
+        shown: last.shown,
+        shownTarget: last.shownTarget,
+        nowMs,
+        durationMs: CAMERA_CONSTANTS.autoCapture.durationMs,
+        leadMs: RING_LEAD_MS,
+        reducedMotion: reducedMotionRef.current,
+        shownAtMs: last.atMs,
+        aheadRate: CAMERA_CONSTANTS.autoCapture.ringAheadRate,
+      });
+      // With ?debug=1: how far each frame moved the ring while it filled, in
+      // ms of fill (0 = a frame it stood still: a hitch, whatever the cause).
+      if (
+        debugOnRef.current &&
+        target.advancing &&
+        last.atMs !== undefined &&
+        target.fraction >= last.shownTarget &&
+        shown < 1
+      )
+        debugLiveRef.current.ringAdvanceMs = pushWindow(
+          debugLiveRef.current.ringAdvanceMs ?? [],
+          (shown - last.shown) * CAMERA_CONSTANTS.autoCapture.durationMs,
+          120,
+        );
+      ringShownRef.current = {
+        shown,
+        shownTarget: target.fraction,
+        atMs: nowMs,
+      };
+      const offset = String(RING_CIRCUMFERENCE * (1 - shown));
+      if (circle.getAttribute("stroke-dashoffset") !== offset)
+        circle.setAttribute("stroke-dashoffset", offset);
+    },
+    [],
+  );
   const drawRingCircle = useCallback(
     (circle: SVGCircleElement | null) => {
       ringCircleRef.current = circle;
@@ -800,7 +848,7 @@ export default function EasyScanCamera({
           120,
         );
       lastAt = at;
-      if (ringCircleRef.current) paintRing(ringCircleRef.current);
+      if (ringCircleRef.current) paintRing(ringCircleRef.current, at);
     });
     return () => cancelAnimationFrame(frame);
   }, [paintRing]);
@@ -1455,14 +1503,14 @@ export default function EasyScanCamera({
     cueDebounceRef.current = INITIAL_CUE_DEBOUNCE_STATE;
     lastCueCodeRef.current = null;
     firstSheetSeenAtRef.current = null;
-    setCornerStates(INITIAL_CORNER_STATES);
+    cornerStore.set(INITIAL_CORNER_STATES);
     aimRing(0, false);
     setCue(null);
     // What a screen reader was last told ("Photo taken", the last cue) is not
     // true of a camera that is starting again.
     setAnnounced("");
     noteCaptureOutcome("reset");
-  }, [noteCaptureOutcome, aimRing]);
+  }, [noteCaptureOutcome, aimRing, cornerStore]);
 
   const startCamera = useCallback(async () => {
     const requestId = ++requestIdRef.current;
@@ -2798,6 +2846,7 @@ export default function EasyScanCamera({
         minIntervalMs,
       );
       lastSampleTimeRef.current = now;
+      const sampleStartedAt = performance.now();
 
       const view = readVisible();
       const source: PixelRect = view?.visible ?? {
@@ -2987,6 +3036,29 @@ export default function EasyScanCamera({
         sheetSeenYet: firstSheetSeenAtRef.current !== null,
         msSinceLastDetection,
         previousSizeStatus,
+        // A miss's rough quad: how far the phone is when no sample finds
+        // the sheet (cues.ts).
+        missGuessWidthFraction: detection.guessCorners
+          ? computeQuadWidthFraction(
+              {
+                topLeft: detection.guessCorners[0],
+                topRight: detection.guessCorners[1],
+                bottomRight: detection.guessCorners[2],
+                bottomLeft: detection.guessCorners[3],
+              },
+              width,
+            )
+          : null,
+        // Neither: the hand's length in the picture (cues.ts).
+        handSheetWidthFraction: handSheetWidthFraction(
+          liveHandHint({
+            latest: handReadingsRef.current.latest,
+            nowMs: now,
+            width,
+            height,
+          }),
+          width,
+        ),
       };
       // The paper's cue, without the hand: the ring, the F14 wait and the
       // auto-capture read this one (V3.3 WP3: the hand hints never gate).
@@ -3173,11 +3245,15 @@ export default function EasyScanCamera({
         noSheetCaptureRef.current,
         {
           // A hand hint on screen pauses the wait too (Kirby 2026-10-27:
-          // no automatic shot while a hint says it will not pass).
+          // no automatic shot while a hint says it will not pass), and so
+          // does a distance cue the hand's side put up (Kirby 2026-10-28:
+          // too high, no shot unless the user takes it).
           sheetFound:
             sheetFound ||
             (shownCandidate.code !== nextCue.code &&
-              isPlacementCueCode(shownCandidate.code)),
+              (isPlacementCueCode(shownCandidate.code) ||
+                shownCandidate.code === "too-far" ||
+                shownCandidate.code === "too-close")),
           handSeen: hand.seen,
           handSteady: hand.steady,
           sharp: sharpEnough,
@@ -3225,18 +3301,24 @@ export default function EasyScanCamera({
         };
         // V3.2 F16: two quads that alternate (conflicting side lines) do not
         // make the outline jump or blink (outlineHysteresis.ts); display only.
+        // 2026-10-28 (candidate): a jump that continues the move on screen
+        // is followed at once, and the dots' filter follows a moving corner
+        // closely and damps a still one as before (cornerSmoother.ts).
+        const outlineDiagonal = Math.hypot(coverRect.width, coverRect.height);
         const outline = advanceOutline(
           outlineRef.current,
           [observe(0), observe(1), observe(2), observe(3)],
-          Math.hypot(coverRect.width, coverRect.height),
+          outlineDiagonal,
         );
         outlineRef.current = outline.state;
         cornerStatesRef.current = advanceCorners(
           cornerStatesRef.current,
           outline.shown,
           dtMs,
+          CAMERA_CONSTANTS.corners,
+          outlineDiagonal,
         );
-        setCornerStates(cornerStatesRef.current);
+        cornerStore.set(cornerStatesRef.current);
       }
 
       // The words are debounced (cueDebounce.ts): the cue on screen changes
@@ -3261,6 +3343,12 @@ export default function EasyScanCamera({
           }),
         );
       }
+
+      if (debugOnRef.current)
+        debugLiveRef.current.sampleWorkMs = pushWindow(
+          debugLiveRef.current.sampleWorkMs ?? [],
+          performance.now() - sampleStartedAt,
+        );
 
       if (
         (autoCaptureRef.current.fired || noSheetCaptureRef.current.fired) &&
@@ -3287,6 +3375,7 @@ export default function EasyScanCamera({
     manualActive,
     resetLoopState,
     aimRing,
+    cornerStore,
   ]);
 
   // The stage exists on the phone's camera screen and behind the bottom
@@ -3420,6 +3509,25 @@ export default function EasyScanCamera({
           max:
             (live.ringFrameGapMs ?? []).length > 0
               ? Math.max(...(live.ringFrameGapMs ?? []))
+              : null,
+        },
+        ringAdvanceMs: {
+          frames: (live.ringAdvanceMs ?? []).length,
+          stillShare: mean(
+            (live.ringAdvanceMs ?? []).map((ms) => (ms <= 0 ? 1 : 0)),
+          ),
+          average: mean(live.ringAdvanceMs ?? []),
+          min:
+            (live.ringAdvanceMs ?? []).length > 0
+              ? Math.min(...(live.ringAdvanceMs ?? []))
+              : null,
+        },
+        sampleWorkMs: {
+          average: mean(live.sampleWorkMs ?? []),
+          p95: percentile(live.sampleWorkMs ?? [], 95),
+          max:
+            (live.sampleWorkMs ?? []).length > 0
+              ? Math.max(...(live.sampleWorkMs ?? []))
               : null,
         },
         hiResLook: {
@@ -3909,8 +4017,8 @@ export default function EasyScanCamera({
             )}
             {showCorners && guide && (
               <div className="cameraOverlay">
-                <EasyCorners
-                  states={cornerStates}
+                <LiveEasyCorners
+                  store={cornerStore}
                   guide={guide}
                   hidden={
                     (result.kind === "measured" ||

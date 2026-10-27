@@ -166,6 +166,24 @@ export interface ScanDebugSnapshot {
       readonly p95: number | null;
       readonly max: number | null;
     };
+    /**
+     * While the ring filled, over the last 120 frames: how far each frame
+     * moved it in ms of fill (one frame at 60 fps should be about 16.7), the
+     * share of frames it stood still, the average and the smallest step
+     * (smoothRing.ts, 2026-10-28).
+     */
+    readonly ringAdvanceMs?: {
+      readonly frames: number;
+      readonly stillShare: number | null;
+      readonly average: number | null;
+      readonly min: number | null;
+    };
+    /** What each whole live sample cost on the main thread, ms (2026-10-28). */
+    readonly sampleWorkMs?: {
+      readonly average: number | null;
+      readonly p95: number | null;
+      readonly max: number | null;
+    };
     /** The higher-resolution looks over the last samples (hiResSheet.ts, candidate). */
     readonly hiResLook?: {
       readonly count: number;

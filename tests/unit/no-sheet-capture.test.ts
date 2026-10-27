@@ -479,12 +479,13 @@ describe("EasyScanCamera wires it (read from the source: the repo has no DOM tes
 
   it("each live sample advances the wait with the sheet, the hand, sharpness and the settled preview", () => {
     expect(tick).toMatch(
-      /noSheetCaptureRef\.current = advanceNoSheetCapture\(\s*noSheetCaptureRef\.current,\s*\{[^}]*?sheetFound:\s*sheetFound \|\|\s*\(shownCandidate\.code !== nextCue\.code &&\s*isPlacementCueCode\(shownCandidate\.code\)\),\s*handSeen: hand\.seen,\s*handSteady: hand\.steady,\s*sharp: sharpEnough,\s*settled: previewSettledRef\.current,\s*\},\s*dtMs,\s*\);/,
+      /noSheetCaptureRef\.current = advanceNoSheetCapture\(\s*noSheetCaptureRef\.current,\s*\{[^}]*?sheetFound:\s*sheetFound \|\|\s*\(shownCandidate\.code !== nextCue\.code &&\s*\(isPlacementCueCode\(shownCandidate\.code\) \|\|\s*shownCandidate\.code === "too-far" \|\|\s*shownCandidate\.code === "too-close"\)\),\s*handSeen: hand\.seen,\s*handSteady: hand\.steady,\s*sharp: sharpEnough,\s*settled: previewSettledRef\.current,\s*\},\s*dtMs,\s*\);/,
     );
     // The ring fills on the cue's allPass (and, with the hints on, no hand
     // hint on screen: Kirby 2026-10-27); the wait goes by the same cue,
-    // paused while the sheet is found (sheetFoundByCue) or a hand hint is
-    // on screen (Kirby 2026-10-27).
+    // paused while the sheet is found (sheetFoundByCue), a hand hint is on
+    // screen (Kirby 2026-10-27) or a distance cue from the hand's side is
+    // (Kirby 2026-10-28).
     expect(tick).toMatch(
       /const paperPassing =\s*nextCue\.allPass && previewSettledRef\.current && handHint === null;\s*autoCaptureRef\.current = advanceAutoCapture\(\s*autoCaptureRef\.current,\s*paperPassing,\s*dtMs,\s*\);/,
     );

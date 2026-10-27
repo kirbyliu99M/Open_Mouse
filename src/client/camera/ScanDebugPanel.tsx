@@ -209,6 +209,26 @@ export function ScanDebugPanel({
           {fixed(live.ringFraction * 100, 0)}% · failures in a row{" "}
           {live.consecutiveFailures}
         </dd>
+        <dt>Ring frames</dt>
+        <dd data-testid="debug-ring-frames">
+          gap p95 {fixed(live.ringFrameGapMs?.p95 ?? null, 1)} / max{" "}
+          {fixed(live.ringFrameGapMs?.max ?? null, 1)} ms · filling:{" "}
+          {live.ringAdvanceMs?.frames ?? 0} frames, still{" "}
+          {fixed(
+            live.ringAdvanceMs?.stillShare == null
+              ? null
+              : live.ringAdvanceMs.stillShare * 100,
+            0,
+          )}
+          %, step avg {fixed(live.ringAdvanceMs?.average ?? null, 1)} / min{" "}
+          {fixed(live.ringAdvanceMs?.min ?? null, 1)} ms
+        </dd>
+        <dt>Sample work</dt>
+        <dd data-testid="debug-sample-work">
+          avg {fixed(live.sampleWorkMs?.average ?? null, 1)} · p95{" "}
+          {fixed(live.sampleWorkMs?.p95 ?? null, 1)} · max{" "}
+          {fixed(live.sampleWorkMs?.max ?? null, 1)} ms
+        </dd>
         <dt>Capture</dt>
         <dd>
           {capture.method ?? "–"}

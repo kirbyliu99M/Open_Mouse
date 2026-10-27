@@ -4,9 +4,11 @@
  * switches, the §4.3 bottom-edge rule, and that the ring never waits on a
  * hand hint. Design: F20 DESIGN-placement-guidance §4.1, §4.3, §4.4.
  */
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   pickCue,
+  handSheetWidthFraction,
   cueMessage,
   type CueCode,
   type CueInput,
@@ -752,6 +754,137 @@ describe("a hand across the sheet (Kirby's S25 test, 2026-10-27)", () => {
       expect(code(cut({ paperStage, placement: hint(null) }))).toBe(
         "wrist-align",
       );
+  });
+  it("the same miss while the last sheet found was out of range → the distance (Kirby 2026-10-28)", () => {
+    for (const previousSizeStatus of ["too-far", "too-close"] as const)
+      expect(
+        code(
+          cut({
+            paperStage: "aspect_mismatch",
+            placement: hint(null),
+            previousSizeStatus,
+          }),
+        ),
+      ).toBe(previousSizeStatus);
+    expect(
+      code(
+        cut({
+          paperStage: "region_split",
+          placement: hint(null),
+          previousSizeStatus: "ok",
+        }),
+      ),
+    ).toBe("wrist-align");
+  });
+  it("the miss's own rough quad out of range → the distance, whatever the last sheet said (Kirby 2026-10-28, 68 cm)", () => {
+    expect(
+      code(
+        cut({
+          paperStage: "aspect_mismatch",
+          placement: hint(null),
+          previousSizeStatus: "ok",
+          missGuessWidthFraction: 0.3,
+        }),
+      ),
+    ).toBe("too-far");
+    expect(
+      code(
+        cut({
+          paperStage: "region_split",
+          placement: hint(null),
+          missGuessWidthFraction: 0.95,
+        }),
+      ),
+    ).toBe("too-close");
+    // In range: the wrist, even if the last sheet found was too far.
+    expect(
+      code(
+        cut({
+          paperStage: "region_split",
+          placement: hint(null),
+          previousSizeStatus: "too-far",
+          missGuessWidthFraction: 0.68,
+        }),
+      ),
+    ).toBe("wrist-align");
+  });
+  it("no rough quad either → the hand's length says the distance, well outside the range only (Kirby 2026-10-28)", () => {
+    expect(CAMERA_CONSTANTS.size.assumedHandLengthMm).toBe(185);
+    expect(CAMERA_CONSTANTS.size.handEstimateMargin).toBe(0.1);
+    // A 185 mm hand 100 px long on a 342 px wide sample: a sheet of 0.33.
+    const hand = (lengthPx: number) => {
+      const points = Array.from({ length: 21 }, () => ({ x: 171, y: 500 }));
+      points[12] = { x: 171, y: 500 - lengthPx };
+      return points;
+    };
+    expect(handSheetWidthFraction(hand(100), 342)).toBeCloseTo(0.332, 2);
+    expect(handSheetWidthFraction(null, 342)).toBeNull();
+    const at = (handSheetWidthFraction: number) =>
+      code(
+        cut({
+          paperStage: "region_split",
+          placement: hint(null),
+          previousSizeStatus: "ok",
+          missGuessWidthFraction: null,
+          handSheetWidthFraction,
+        }),
+      );
+    expect(at(0.33)).toBe("too-far");
+    expect(at(0.5)).toBe("wrist-align"); // under 0.55, inside the margin
+    expect(at(0.7)).toBe("wrist-align");
+    expect(at(0.99)).toBe("too-close");
+    // The rough quad, when there is one, goes first.
+    expect(
+      code(
+        cut({
+          paperStage: "region_split",
+          placement: hint(null),
+          missGuessWidthFraction: 0.68,
+          handSheetWidthFraction: 0.33,
+        }),
+      ),
+    ).toBe("wrist-align");
+  });
+  it("any stage without the sheet: out of range by the rough quad or the hand → the distance (Kirby 2026-10-28, 64 cm)", () => {
+    for (const paperStage of [
+      "unknown",
+      "no_bright_region",
+      "too_small",
+    ] as const) {
+      expect(
+        code(
+          cut({
+            paperStage,
+            placement: hint(null),
+            handSheetWidthFraction: 0.33,
+          }),
+        ),
+      ).toBe("too-far");
+      // In range: the stage's own words, as before (no wrist words).
+      expect(
+        code(
+          cut({
+            paperStage,
+            placement: hint(null),
+            handSheetWidthFraction: 0.7,
+          }),
+        ),
+      ).not.toBe("wrist-align");
+      // The last sheet found is read for the hand-cut stages only.
+      expect(
+        code(
+          cut({
+            paperStage,
+            placement: hint(null),
+            previousSizeStatus: "too-far",
+          }),
+        ),
+      ).not.toBe("too-far");
+    }
+  });
+  it("the live loop holds the no-sheet shot while a distance cue is up", () => {
+    const source = readFileSync("src/client/camera/EasyScanCamera.tsx", "utf8");
+    expect(source).toContain('shownCandidate.code === "too-far" ||');
   });
   it("no hand, the hints off, or another stage → the paper's words as before", () => {
     expect(

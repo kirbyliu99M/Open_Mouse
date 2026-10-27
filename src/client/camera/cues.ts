@@ -18,6 +18,7 @@ import {
   computeQuadSkew,
   isQuadSkewed,
   computeQuadWidthFraction,
+  computeQuadSizeStatus,
   computeQuadSizeStatusWithHysteresis,
   type Quad,
   type QuadSizeStatus,
@@ -312,6 +313,17 @@ export interface CueInput {
    */
   readonly previousSizeStatus?: QuadSizeStatus | null;
   /**
+   * The width fraction of this miss's rough quad (`guessCorners`, the
+   * detector's `failureGuess`), when the sheet was not found. Omitted or
+   * `null`: no rough quad.
+   */
+  readonly missGuessWidthFraction?: number | null;
+  /**
+   * The sheet's width fraction as the hand's length in the picture puts it
+   * (`handSheetWidthFraction`). Omitted or `null`: no hand reading.
+   */
+  readonly handSheetWidthFraction?: number | null;
+  /**
    * V3.3 WP3a (candidate 未拍板): the hand's settled live state
    * (placementHysteresis.ts `placementCueInput`). Omitted or `null` (the
    * hints are off, the hand detector is not loaded, the reading is stale):
@@ -359,13 +371,36 @@ export function pickCue(
   // the sheet cut in two or the wrong shape; no corners, so no hand hint
   // could be worked out, and the paper's words ("place a blank sheet") were
   // wrong. With a hand seen, those stages say where the wrist goes instead.
-  if (
-    input.cornersSeen <= 0 &&
-    placement.handSeen &&
-    input.paperStage != null &&
-    HAND_CUT_STAGES.includes(input.paperStage)
-  )
-    return cue("wrist-align", mode, locale);
+  // Kirby's test at the phone's highest (2026-10-28, candidate 未拍板): most
+  // samples there miss the sheet this way, and the few that find it say
+  // "move closer"; the wrist words drowned that out, so the ring never
+  // started. Higher still (68 cm, the same night) no sample found the sheet
+  // at all, so the last status found was the closer scan's "ok". Those
+  // stages say the distance instead when the miss's own rough quad is out
+  // of the distance range (its cut side is off, the width it gives is
+  // close enough to tell 0.30 from 0.55). With no rough quad (the next
+  // test: none at that height), the hand's length says it, well outside
+  // the range only; with no hand reading either, the last sheet found.
+  // The wrist words come only when nothing says the distance is wrong.
+  // Kirby, the next test (64 cm, candidate): "超過一個高度就一律要求 move
+  // closer，除非用戶自己 shutter". Any sample without the sheet and with a
+  // hand says the distance when the rough quad or the hand's length puts
+  // it out of range, whatever the stage; the live loop then holds the
+  // no-sheet shot (noSheetCapture.ts) while it is up.
+  if (input.cornersSeen <= 0 && placement.handSeen) {
+    const handCut =
+      input.paperStage != null && HAND_CUT_STAGES.includes(input.paperStage);
+    const distance = isFiniteNumber(input.missGuessWidthFraction)
+      ? computeQuadSizeStatus(input.missGuessWidthFraction)
+      : isFiniteNumber(input.handSheetWidthFraction)
+        ? handDistanceStatus(input.handSheetWidthFraction)
+        : handCut
+          ? input.previousSizeStatus
+          : null;
+    if (distance === "too-far" || distance === "too-close")
+      return cue(distance, mode, locale);
+    if (handCut) return cue("wrist-align", mode, locale);
+  }
   if (PAPER_PASSED_CODES.includes(paper.code))
     return placement.hint ? cue(placement.hint, mode, locale) : paper;
   if (paper.code === "edge-covered-bottom" && placement.wristNearBottomEdge) {
@@ -486,3 +521,36 @@ export function computeStatusChips(
 }
 
 export { CAMERA_CONSTANTS };
+
+const isFiniteNumber = (v: number | null | undefined): v is number =>
+  typeof v === "number" && Number.isFinite(v);
+
+/** The distance from the hand's estimate: out of range only by `handEstimateMargin`. */
+function handDistanceStatus(widthFraction: number): QuadSizeStatus {
+  const { minWidthFraction, maxWidthFraction, handEstimateMargin } =
+    CAMERA_CONSTANTS.size;
+  return computeQuadSizeStatus(widthFraction, {
+    minWidthFraction: minWidthFraction - handEstimateMargin,
+    maxWidthFraction: maxWidthFraction + handEstimateMargin,
+  });
+}
+
+/**
+ * The sheet's width fraction as the hand's length (wrist to the middle
+ * fingertip, landmarks 0 and 12, in the sample's pixels) puts it, taking a
+ * hand `assumedHandLengthMm` long on a sheet 210 mm wide. `null` without
+ * those landmarks.
+ */
+export function handSheetWidthFraction(
+  landmarks:
+    readonly { readonly x: number; readonly y: number }[] | null | undefined,
+  frameWidth: number,
+): number | null {
+  const wrist = landmarks?.[0];
+  const tip = landmarks?.[12];
+  if (!wrist || !tip || !(frameWidth > 0)) return null;
+  const handPx = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
+  return (
+    ((handPx / frameWidth) * 210) / CAMERA_CONSTANTS.size.assumedHandLengthMm
+  );
+}

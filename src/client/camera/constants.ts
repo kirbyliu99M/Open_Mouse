@@ -58,6 +58,15 @@ export const CAMERA_CONSTANTS = {
      * `computeQuadSizeStatusWithHysteresis` (quad.ts).
      */
     hysteresis: 0.02,
+    /**
+     * Kirby 2026-10-28 (candidate 未拍板): with neither the sheet nor its
+     * rough quad, the hand's length in the picture says how far the phone
+     * is (cues.ts). A hand this long is taken (a sheet 210 mm wide), and the
+     * estimate must be this far outside the range to count, for hands 15 %
+     * shorter or longer.
+     */
+    assumedHandLengthMm: 185,
+    handEstimateMargin: 0.1,
   },
   light: {
     /** Mean luma (0-255) floor before "More light, please" (candidate). */
@@ -134,6 +143,14 @@ export const CAMERA_CONSTANTS = {
      */
     hiResLongEdgePx: 1280,
     hiResIntervalMs: 500,
+    /**
+     * 2026-10-28 (Kirby: the ring still hitched slightly; 候選, 未拍板): a
+     * ring drawn ahead of its samples (one failed) goes on at this share of
+     * its speed instead of standing still until they catch up (smoothRing.ts).
+     * 0 brings back the stop. A failed sample at 6.6 samples a second was a
+     * 150 ms stop; at 0.5 it is 300 ms at half speed.
+     */
+    ringAheadRate: 0.5,
     /** navigator.vibrate() duration on auto-capture (spec: 30 ms). */
     vibrateMs: 30,
     /**
@@ -198,8 +215,22 @@ export const CAMERA_CONSTANTS = {
   },
   /** The easy scan's corner dots (scan v2, candidates). */
   corners: {
-    /** Exponential low-pass weight of a new sample, per sample. */
-    filterAlpha: 0.35,
+    /**
+     * 2026-10-28 (Kirby's S25 test: the outline followed the sheet too
+     * slowly; every number 候選, 未拍板): the dots' speed-adaptive filter
+     * (cornerSmoother.ts). Until then a fixed weight of 0.35 per sample.
+     * At rest: a cut-off of 0.6 Hz, a weight of 0.35 at 141 ms (7.1 samples
+     * a second), as before, so a sheet held still is damped as before.
+     */
+    minCutoffHz: 0.6,
+    /**
+     * The cut-off rises by this many Hz per picture diagonal per second of
+     * the corner's filtered speed: a sheet panned at a third of the diagonal
+     * a second (300 px/s on a phone) is followed with a weight near 0.8.
+     */
+    speedCutoffGain: 12,
+    /** Cut-off of the filter on the corner's velocity (the 1 euro filter's usual 1 Hz). */
+    velocityCutoffHz: 1,
     /** A corner lost this long eases back to the guide. */
     returnToGuideAfterMs: 1000,
     /** A corner found again within this long of being lost does not pop in again. */
@@ -220,6 +251,16 @@ export const CAMERA_CONSTANTS = {
     switchSamples: 2,
     /** Samples in a row a corner on screen must be missing before its dot goes hollow. */
     lostSamples: 3,
+    /**
+     * 2026-10-28 (候選, 未拍板): a jump within this share of the diagonal of
+     * where the outline's last step leads is the sheet still moving and is
+     * followed at once (outlineHysteresis.ts). Must stay under
+     * `jumpFraction`, or a still outline could be pulled to a second quad.
+     * 0.02 dropped 3 of 11 samples of a pan with 3 px of jitter per corner
+     * (the unit test); 0.025 (20 px on a phone) keeps them all and still
+     * turns back a quad 40 px off.
+     */
+    continueFraction: 0.025,
   },
   /**
    * The preview stream's shape (scan v2 field-of-view fix, candidates). The
