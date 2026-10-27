@@ -160,6 +160,13 @@ export interface ScanDebugSnapshot {
     readonly consecutiveFailures: number;
     /** Share of the last samples that carried the last sheet (sheetCarry.ts, candidate). */
     readonly sheetCarriedShare?: number | null;
+    /** The higher-resolution looks over the last samples (hiResSheet.ts, candidate). */
+    readonly hiResLook?: {
+      readonly count: number;
+      readonly foundShare: number | null;
+      readonly msAverage: number | null;
+      readonly msP95: number | null;
+    };
     /**
      * V3.3 WP1b (candidate): the hand's placement on the sheet from the live
      * viewfinder: this sample's sheet fill (紙占寬), and the latest live

@@ -266,6 +266,15 @@ export interface RunPhotoPipelineInput {
    * automatic path.
    */
   readonly reusedFocal?: ReusedFocal | null;
+  /**
+   * Kirby 2026-10-27 (candidate 未拍板, hiResSheet.ts): a sheet with all four
+   * corners that the live viewfinder or the shutter's own check found on
+   * this very frame, in the WHOLE decoded photo's pixels. Read only when the
+   * detector here does not find the sheet, and then ONLY as where the frame
+   * the person adjusts starts (in place of the rough `paperGuessCorners`);
+   * nothing is measured from it.
+   */
+  readonly knownSheetCorners?: Quad4 | null;
 }
 
 /** The steps `onStage` reports. */
@@ -1055,15 +1064,18 @@ async function runPaperEdgePipeline(
       const partial = quad.paperRegionFound
         ? quad.partialCorners.map((p) => (p ? toFullFrame(p, crop) : null))
         : null;
-      // ...and the rough quad around the bright region (F10), a start only.
-      const guess = quad.guessCorners
-        ? (quad.guessCorners.map((p) => toFullFrame(p, crop)) as unknown as [
-            Point2,
-            Point2,
-            Point2,
-            Point2,
-          ])
-        : null;
+      // ...and the rough quad around the bright region (F10), a start only;
+      // a sheet already found on this frame comes first (hiResSheet.ts).
+      const guess = input.knownSheetCorners
+        ? input.knownSheetCorners
+        : quad.guessCorners
+          ? (quad.guessCorners.map((p) => toFullFrame(p, crop)) as unknown as [
+              Point2,
+              Point2,
+              Point2,
+              Point2,
+            ])
+          : null;
       return {
         status: "error",
         errors: [failure],

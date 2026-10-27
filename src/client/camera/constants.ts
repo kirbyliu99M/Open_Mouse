@@ -118,6 +118,14 @@ export const CAMERA_CONSTANTS = {
      * is seen and still (sheetCarry.ts, Kirby 2026-10-27). 候選.
      */
     sheetCarryMs: 1500,
+    /**
+     * While the live sample misses the sheet where the forearm or a bright
+     * neighbour cuts it, one frame at this long edge (px) goes to the
+     * analysis worker at most every `hiResIntervalMs` (hiResSheet.ts,
+     * Kirby 2026-10-27: both of his photos were found at 1280). 候選.
+     */
+    hiResLongEdgePx: 1280,
+    hiResIntervalMs: 500,
     /** navigator.vibrate() duration on auto-capture (spec: 30 ms). */
     vibrateMs: 30,
     /**

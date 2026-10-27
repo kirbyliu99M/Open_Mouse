@@ -264,6 +264,16 @@ import {
 import { evaluateLivePaperGate } from "./paperGate";
 import { carrySheet, type CarriedSheet } from "./sheetCarry";
 import {
+  cornersToSize,
+  hiResSize,
+  precheckOrder,
+  scaleDetection,
+  sheetPasses,
+  shouldConfirmHiRes,
+} from "./hiResSheet";
+import { getAnalysisRunner } from "../photo/analysisWorkerClient";
+import type { Quad4 } from "../paper/manualQuad";
+import {
   INITIAL_HAND_CHIP_STATE,
   applyDetectedHandedness,
   canToggleHandChip,
@@ -415,6 +425,9 @@ interface DebugLive {
   placementMs?: number[];
   /** 1 for a sample that carried the last sheet (sheetCarry.ts), else 0. */
   carried?: number[];
+  /** The higher-resolution looks (hiResSheet.ts): what each took, ms, and 1 where it found the sheet. */
+  hiResMs?: number[];
+  hiResFound?: number[];
 }
 interface DebugCapture {
   method: "takePhoto" | "canvas" | "upload" | null;
@@ -589,6 +602,21 @@ function releaseBitmaps(bitmaps: Map<number, ImageBitmap>): void {
  * (sharpness.ts, the same the LOW_SHARPNESS warning reads), drawn on `canvas`.
  * `NaN` where it cannot be read.
  */
+/** How old the live loop's last sheet may be to start the frame the person adjusts (hiResSheet.ts). 候選. */
+const KNOWN_SHEET_MAX_AGE_MS = 3000;
+
+/** Points from a picture of `from`'s size to one of `to`'s. */
+function cornersToSizeAll(
+  points: readonly { readonly x: number; readonly y: number }[],
+  from: { readonly width: number; readonly height: number },
+  to: { readonly width: number; readonly height: number },
+) {
+  return points.map((p) => ({
+    x: (p.x * to.width) / from.width,
+    y: (p.y * to.height) / from.height,
+  }));
+}
+
 function fullScore(canvas: HTMLCanvasElement, bitmap: ImageBitmap): number {
   try {
     canvas.width = bitmap.width;
@@ -771,6 +799,11 @@ export default function EasyScanCamera({
     readonly live: readonly number[];
     readonly full: readonly number[];
     readonly chosen: number | null;
+    /** The shutter's paper check (hiResSheet.ts): each frame tried, in order, and whether it passed; its time. */
+    readonly precheck?: {
+      readonly tried: readonly { index: number; passed: boolean }[];
+      readonly ms: number;
+    };
   } | null>(null);
   const rafRef = useRef<number | null>(null);
   const prevSampleQuadRef = useRef<Quad | null>(null);
@@ -806,6 +839,23 @@ export default function EasyScanCamera({
   const lastDetectionAtRef = useRef(0);
   /** The last live sheet with four corners (sheetCarry.ts, candidate). */
   const carriedSheetRef = useRef<CarriedSheet | null>(null);
+  /** The higher-resolution look of the live loop (hiResSheet.ts, candidate). */
+  const hiResRef = useRef<{
+    inFlight: boolean;
+    lastAtMs: number | null;
+    generation: number;
+  }>({ inFlight: false, lastAtMs: null, generation: 0 });
+  const hiResCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  /** The live sample's size, for the corners the shutter hands on. */
+  const liveSampleSizeRef = useRef<{ width: number; height: number } | null>(
+    null,
+  );
+  /**
+   * A sheet with four corners found on the photo the shutter just took, in
+   * its pixels (hiResSheet.ts): the start of the frame the person adjusts
+   * when the analysis does not find it. Read once by the next analysis.
+   */
+  const knownSheetRef = useRef<Quad4 | null>(null);
   const cornerStatesRef = useRef<CornerStates>(INITIAL_CORNER_STATES);
   // V3.2 F16: the outline's hysteresis, in front of the corner smoother.
   const outlineRef = useRef<OutlineHysteresisState>(
@@ -1314,6 +1364,11 @@ export default function EasyScanCamera({
     lastSampleTimeRef.current = fresh.lastSampleAtMs;
     prevSampleQuadRef.current = fresh.prevQuad;
     carriedSheetRef.current = null;
+    hiResRef.current = {
+      inFlight: false,
+      lastAtMs: null,
+      generation: hiResRef.current.generation + 1,
+    };
     sizeStatusRef.current = null;
     autoCaptureRef.current = fresh.autoCapture;
     noSheetCaptureRef.current = INITIAL_NO_SHEET_CAPTURE_STATE;
@@ -1616,6 +1671,10 @@ export default function EasyScanCamera({
       }
       const runId = ++runIdRef.current;
       attemptCountRef.current += 1;
+      // The sheet found on this photo before it was analysed (hiResSheet.ts),
+      // read once; a placed frame's run does not use it.
+      const knownSheet = knownSheetRef.current;
+      knownSheetRef.current = null;
       // Read now: a typed length chosen while the photo is analysed must not
       // change it. One reading gives both what the pipeline is told about the
       // paper (with the placed frame, if any) and what the event records.
@@ -1630,6 +1689,9 @@ export default function EasyScanCamera({
       // It also forgets that the last photo's sheet was curled (F13).
       if (!paperInput.pipeline.manualPaperCorners)
         curledBeforeRef.current = false;
+      const knownSheetCorners = paperInput.pipeline.manualPaperCorners
+        ? null
+        : knownSheet;
       const reusedFocal = reusedFocalFor({
         placedFrame: Boolean(paperInput.pipeline.manualPaperCorners),
         file,
@@ -1664,6 +1726,7 @@ export default function EasyScanCamera({
           // length has no sheet to frame): `pipelinePaperInput`, read above.
           ...paperInput.pipeline,
           ...(reusedFocal ? { reusedFocal } : {}),
+          ...(knownSheetCorners ? { knownSheetCorners } : {}),
           // A frame of the video is already the part the person saw on
           // screen, so nothing is cropped (no previewView). The camera's own
           // photo (takePhoto, off by default) is cut down to that part before
@@ -1891,6 +1954,96 @@ export default function EasyScanCamera({
     [runPhotoPipelineImpl, logAttempt],
   );
 
+  // Kirby 2026-10-27 (candidate, hiResSheet.ts): the sheet the live loop
+  // last found with four corners (by itself or at the higher resolution), at
+  // most `KNOWN_SHEET_MAX_AGE_MS` old, moved onto a photo of `photo`'s size (the
+  // same region of the stream). `null` without one.
+  const liveSheetOnPhoto = useCallback(
+    (photo: { readonly width: number; readonly height: number }) => {
+      const carried = carriedSheetRef.current;
+      const sample = liveSampleSizeRef.current;
+      if (!carried?.detection.corners || !sample) return null;
+      if (performance.now() - carried.atMs > KNOWN_SHEET_MAX_AGE_MS)
+        return null;
+      return cornersToSize(carried.detection.corners, sample, photo);
+    },
+    [],
+  );
+
+  // The shutter's paper check (hiResSheet.ts): each kept frame in `order`,
+  // through the photo's own detector (the analysis worker) and paper gate,
+  // with the live hand; the first that passes, its corners on that frame.
+  const precheckFrames = useCallback(
+    async (
+      bitmaps: readonly ImageBitmap[],
+      order: readonly number[],
+      capture: PixelRect | null,
+    ) => {
+      const startedAt = performance.now();
+      const tried: { index: number; passed: boolean }[] = [];
+      const paperSize = paperSizeRef.current;
+      const video = videoRef.current;
+      const sample = liveSampleSizeRef.current;
+      const hand = sample
+        ? liveHandHint({
+            latest: handReadingsRef.current.latest,
+            nowMs: performance.now(),
+            width: sample.width,
+            height: sample.height,
+          })
+        : undefined;
+      const log = () => ({ tried, ms: performance.now() - startedAt });
+      for (const index of order) {
+        const bitmap = bitmaps[index];
+        if (!bitmap) continue;
+        const canvas = document.createElement("canvas");
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (!ctx) break;
+        let quad: SheetQuadDetection | null = null;
+        try {
+          ctx.drawImage(bitmap, 0, 0);
+          const image = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
+          const size = { width: bitmap.width, height: bitmap.height };
+          const ran = await getAnalysisRunner().run(
+            {
+              kind: "paper",
+              paperSize,
+              options: {
+                ...(video && capture
+                  ? {
+                      focalPxHint: assumedSampleFocalPx(
+                        { width: video.videoWidth, height: video.videoHeight },
+                        capture,
+                        size,
+                      ),
+                    }
+                  : {}),
+                ...(hand && sample
+                  ? {
+                      handLandmarksPx: cornersToSizeAll(hand, sample, size),
+                    }
+                  : {}),
+              },
+            },
+            image,
+            () => ctx.getImageData(0, 0, bitmap.width, bitmap.height),
+          );
+          quad = ran.outcome.quad;
+        } catch {
+          quad = null;
+        }
+        const passed = quad !== null && sheetPasses(quad, paperSize);
+        tried.push({ index, passed });
+        if (passed && quad?.corners)
+          return { index, corners: quad.corners, log: log() };
+      }
+      return { index: null, corners: null, log: log() };
+    },
+    [],
+  );
+
   const captureNow = useCallback(async () => {
     // V3.3 WP1b (log only): the loop names its shutter just before calling;
     // any other call is the person's tap. Read once and cleared.
@@ -2006,19 +2159,33 @@ export default function EasyScanCamera({
             const canvas = document.createElement("canvas");
             const full =
               kept.length > 1 ? kept.map((b) => fullScore(canvas, b)) : [];
-            const chosen = kept.length > 1 ? pickSharpestScore(full) : 0;
+            const sharpest = kept.length > 1 ? pickSharpestScore(full) : 0;
+            // Kirby 2026-10-27 (candidate): "it must work the first time".
+            // The kept frames are checked sharpest first with the photo's own
+            // paper gate, and the first that passes is the photo; none
+            // passes, the sharpest, as before (hiResSheet.ts).
+            const checked = await precheckFrames(
+              kept,
+              kept.length > 1 ? precheckOrder(full) : [0],
+              region?.capture ?? null,
+            );
+            const chosen = checked.index ?? sharpest;
             const pick = kept[chosen ?? 0] as ImageBitmap;
             bestScoresRef.current = {
               live: live.map((k) => k.variance),
               full,
               chosen,
+              precheck: checked.log,
             };
+            knownSheetRef.current = checked.corners ?? liveSheetOnPhoto(pick);
             canvas.width = pick.width;
             canvas.height = pick.height;
             canvas.getContext("2d")?.drawImage(pick, 0, 0);
             frame = await canvasFile(canvas);
           } else {
-            frame = await frameFile(region?.capture ?? null);
+            const capture = region?.capture ?? null;
+            knownSheetRef.current = capture ? liveSheetOnPhoto(capture) : null;
+            frame = await frameFile(capture);
           }
         } catch {
           // A canvas that throws (out of memory, a lost context) is a frame
@@ -2028,6 +2195,7 @@ export default function EasyScanCamera({
           releaseBitmaps(bitmaps);
         }
         if (!frame) {
+          knownSheetRef.current = null;
           // No frame: the loop was not stopped and is still running, the busy
           // flag is reset by the `finally` below, and the ring starts over so
           // that the auto-shutter tries again after a full fill, not on every
@@ -2155,7 +2323,14 @@ export default function EasyScanCamera({
         setShutterMeasuring(false);
       }
     }
-  }, [stopStream, runPipeline, noteCaptureOutcome, setExperimentTag]);
+  }, [
+    stopStream,
+    runPipeline,
+    noteCaptureOutcome,
+    setExperimentTag,
+    liveSheetOnPhoto,
+    precheckFrames,
+  ]);
 
   const onFilePicked = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2440,6 +2615,106 @@ export default function EasyScanCamera({
       return region ? { box, visible: region.visible } : null;
     }
 
+    /** One frame at the higher resolution to the analysis worker (hiResSheet.ts). */
+    function lookAgainAtHiRes(
+      source: PixelRect,
+      sample: { width: number; height: number },
+      requestedAt: number,
+    ) {
+      if (!video) return;
+      const size = hiResSize(
+        sample,
+        CAMERA_CONSTANTS.autoCapture.hiResLongEdgePx,
+      );
+      let hiCanvas = hiResCanvasRef.current;
+      if (!hiCanvas) {
+        hiCanvas = document.createElement("canvas");
+        hiResCanvasRef.current = hiCanvas;
+      }
+      if (hiCanvas.width !== size.width || hiCanvas.height !== size.height) {
+        hiCanvas.width = size.width;
+        hiCanvas.height = size.height;
+      }
+      const hiCtx = hiCanvas.getContext("2d", { willReadFrequently: true });
+      if (!hiCtx) return;
+      let image: ImageData;
+      try {
+        hiCtx.drawImage(
+          video,
+          source.x,
+          source.y,
+          source.width,
+          source.height,
+          0,
+          0,
+          size.width,
+          size.height,
+        );
+        image = hiCtx.getImageData(0, 0, size.width, size.height);
+      } catch {
+        return;
+      }
+      const hand = liveHandHint({
+        latest: handReadingsRef.current.latest,
+        nowMs: requestedAt,
+        width: sample.width,
+        height: sample.height,
+      });
+      const generation = hiResRef.current.generation;
+      hiResRef.current = {
+        inFlight: true,
+        lastAtMs: requestedAt,
+        generation,
+      };
+      const paperSize = paperSizeRef.current;
+      const startedAt = performance.now();
+      const done = (found: SheetQuadDetection | null) => {
+        if (generation !== hiResRef.current.generation) return;
+        hiResRef.current = { ...hiResRef.current, inFlight: false };
+        if (debugOnRef.current) {
+          const live = debugLiveRef.current;
+          live.hiResMs = pushWindow(
+            live.hiResMs ?? [],
+            performance.now() - startedAt,
+          );
+          live.hiResFound = pushWindow(live.hiResFound ?? [], found ? 1 : 0);
+        }
+        if (found)
+          carriedSheetRef.current = {
+            atMs: requestedAt,
+            detection: scaleDetection(found, size.toSample),
+          };
+      };
+      getAnalysisRunner()
+        .run(
+          {
+            kind: "paper",
+            paperSize,
+            options: {
+              focalPxHint: assumedSampleFocalPx(
+                { width: video.videoWidth, height: video.videoHeight },
+                source,
+                { width: size.width, height: size.height },
+              ),
+              ...(hand
+                ? {
+                    handLandmarksPx: hand.map((p) => ({
+                      x: p.x / size.toSample,
+                      y: p.y / size.toSample,
+                    })),
+                  }
+                : {}),
+            },
+          },
+          image,
+          () => hiCtx.getImageData(0, 0, size.width, size.height),
+        )
+        .then((r) =>
+          done(sheetPasses(r.outcome.quad, paperSize) ? r.outcome.quad : null),
+        )
+        .catch(() => done(null));
+    }
+
     function tick(now: number) {
       if (cancelled) return;
       rafRef.current = requestAnimationFrame(tick);
@@ -2557,6 +2832,22 @@ export default function EasyScanCamera({
         carryMs: CAMERA_CONSTANTS.autoCapture.sheetCarryMs,
       });
       carriedSheetRef.current = carry.state;
+      liveSampleSizeRef.current = { width, height };
+      // Kirby 2026-10-27 (candidate): the same miss, with the hand seen, also
+      // sends this frame at `hiResLongEdgePx` to the analysis worker (at most
+      // every `hiResIntervalMs`); a sheet it finds that passes the photo's
+      // paper gates is carried as if this sample had found it.
+      if (
+        shouldConfirmHiRes({
+          detection,
+          handSeen: carryHand.seen,
+          inFlight: hiResRef.current.inFlight,
+          lastAtMs: hiResRef.current.lastAtMs,
+          nowMs: now,
+          intervalMs: CAMERA_CONSTANTS.autoCapture.hiResIntervalMs,
+        })
+      )
+        lookAgainAtHiRes(source, { width, height }, now);
       detection = carry.detection;
       const sampleQuad: Quad | null = detection.corners
         ? {
@@ -3032,6 +3323,12 @@ export default function EasyScanCamera({
         ringFraction: autoCaptureRingFraction(autoCaptureRef.current),
         consecutiveFailures: autoCaptureRef.current.failStreak,
         sheetCarriedShare: mean(live.carried ?? []),
+        hiResLook: {
+          count: (live.hiResFound ?? []).length,
+          foundShare: mean(live.hiResFound ?? []),
+          msAverage: mean(live.hiResMs ?? []),
+          msP95: percentile(live.hiResMs ?? [], 95),
+        },
         placement: debugPlacement({
           fill: live.fill,
           readings: livePlacementRef.current,
