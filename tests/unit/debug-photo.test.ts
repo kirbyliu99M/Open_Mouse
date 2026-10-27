@@ -108,14 +108,20 @@ describe("debug photos on a preview (Kirby 2026-10-27)", () => {
     expect(bodies).toHaveLength(3);
   });
 
-  it("the scan page sends them only with ?debug=1&photos=1", async () => {
+  it("the scan page sends them only with ?debug=1&photos=1, on a preview build", async () => {
     const { readFileSync } = await import("node:fs");
     const source = readFileSync("src/client/camera/EasyScanCamera.tsx", "utf8");
     expect(source).toMatch(
       /if \(photosDebugRef\.current\)\s*uploadDebugPhoto\(debugPhotoRef\.current, \{/,
     );
-    expect(source).toContain(
-      'photosDebugRef.current = on && params.get("photos") === "1";',
+    // Pre-launch audit 2026-10-28: the query string alone never sends them.
+    expect(source).toMatch(
+      /photosDebugRef\.current =\s*debugPhotosAllowed && on && params\.get\("photos"\) === "1";/,
+    );
+    expect(source).toContain("debugPhotosAllowed = false,");
+    const page = readFileSync("src/app/scan/easy/page.tsx", "utf8");
+    expect(page).toContain(
+      'debugPhotosAllowed={process.env.VERCEL_ENV === "preview"}',
     );
   });
 });

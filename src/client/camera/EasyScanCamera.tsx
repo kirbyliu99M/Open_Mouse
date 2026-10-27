@@ -598,6 +598,11 @@ export interface EasyScanCameraProps {
    * the pre-mount placeholder the colour of the screen that will replace it.
    */
   readonly deviceHint?: DeviceFit;
+  /**
+   * Whether `?debug=1&photos=1` may send the photo (the server's
+   * `VERCEL_ENV === "preview"`). Omitted: never, whatever the URL says.
+   */
+  readonly debugPhotosAllowed?: boolean;
   /** Forces the first-run tip open regardless of localStorage — for
    * `/scan/easy/tip-demo` (screenshot only). */
   readonly forceTipOpen?: boolean;
@@ -656,6 +661,7 @@ export default function EasyScanCamera({
   runPhotoPipelineImpl = runPhotoPipeline,
   demoMeasured,
   deviceHint,
+  debugPhotosAllowed = false,
   forceTipOpen,
 }: EasyScanCameraProps) {
   const router = useRouter();
@@ -3578,7 +3584,8 @@ export default function EasyScanCamera({
     const on = params.get("debug") === "1";
     debugOnRef.current = on;
     hintsDebugRef.current = on && params.get("hints") !== "0";
-    photosDebugRef.current = on && params.get("photos") === "1";
+    photosDebugRef.current =
+      debugPhotosAllowed && on && params.get("photos") === "1";
     setDebugOn(on);
     if (!on) return;
     setDebugSnapshot(buildDebugSnapshot());
@@ -3587,7 +3594,7 @@ export default function EasyScanCamera({
       400,
     );
     return () => window.clearInterval(timer);
-  }, [buildDebugSnapshot]);
+  }, [buildDebugSnapshot, debugPhotosAllowed]);
 
   const exitToHome = useCallback(() => {
     stopStream();

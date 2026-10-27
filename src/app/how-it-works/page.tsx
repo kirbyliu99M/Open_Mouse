@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import logitechCatalogue from "@/db/seed/logitech.json";
 import { howItWorksCopy } from "@/lib/copy/how-it-works";
 import { privacyCopy } from "@/lib/copy/privacy";
+import { getMiceList } from "@/server/catalogue/list-mice";
 import { getLocale } from "@/server/i18n/getLocale";
 import "../home.css";
 
@@ -14,7 +14,10 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function HowItWorksPage() {
   const locale = await getLocale();
   const copy = howItWorksCopy(locale);
-  const mouseCount = logitechCatalogue.length;
+  // The listed catalogue, every brand (pre-launch audit 2026-10-28: the
+  // sentence said Logitech's seed count); no number when it cannot be read.
+  const list = await getMiceList();
+  const mouseCount = list.status === "ok" ? list.rows.length : null;
 
   return (
     <main className="home-main home-how-page">
@@ -110,7 +113,7 @@ export default async function HowItWorksPage() {
       </div>
 
       <p className="home-privacy-link">
-        {copy.questions} <Link href="#privacy">{copy.privacyLink}</Link>
+        {copy.questions} <Link href="/privacy">{copy.privacyLink}</Link>
       </p>
     </main>
   );

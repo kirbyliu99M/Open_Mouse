@@ -416,8 +416,8 @@ describe("text that looks sensitive is scrubbed under any field name", () => {
     ["a measurement without a space", "palm 96mm wide", "96mm"],
     [
       "a long API key",
-      "key AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q",
-      "AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q",
+      "key AIzaFAKE_TEST_KEY_NOT_REAL_000000000000",
+      "AIzaFAKE_TEST_KEY_NOT_REAL_000000000000",
     ],
   ])("%s", (_name, input, mustNotSurvive) => {
     const printed = text({ note: input, nested: { list: [input] } });

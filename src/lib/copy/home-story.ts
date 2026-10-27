@@ -43,7 +43,7 @@ export type HomeStoryCopy = Readonly<Record<HomeStoryNoteKey, HomeStoryNote>>;
 export const en: HomeStoryCopy = {
   length: {
     title: "Hand length",
-    why: "The right length can reduce hand fatigue.",
+    why: "A length that fits your whole hand.",
   },
   width: {
     title: "Palm width",
@@ -51,11 +51,11 @@ export const en: HomeStoryCopy = {
   },
   knuckles: {
     title: "Knuckles",
-    why: "A pressing force at the best intensity reduces stiff fingers.",
+    why: "Support under your knuckles, so the buttons are easy to press.",
   },
   fingertips: {
     title: "Fingertips",
-    why: "Easier clicking, with less strain.",
+    why: "Easy clicks, fingers rest where they fall.",
   },
   thumb: {
     title: "Thumb",
@@ -66,7 +66,7 @@ export const en: HomeStoryCopy = {
 export const zhTW: HomeStoryCopy = {
   length: {
     title: "手長",
-    why: "長度剛好，降低手部疲勞",
+    why: "長度剛好，手掌放得完整",
   },
   width: {
     title: "掌寬",
@@ -74,11 +74,11 @@ export const zhTW: HomeStoryCopy = {
   },
   knuckles: {
     title: "指根關節",
-    why: "正確發力，遠離手指僵硬",
+    why: "指根有支撐，按鍵好施力",
   },
   fingertips: {
     title: "指尖",
-    why: "輕鬆點擊，毫無負擔",
+    why: "輕鬆點擊，手指自然落位",
   },
   thumb: {
     title: "拇指",

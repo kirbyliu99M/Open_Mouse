@@ -63,9 +63,11 @@ describe("English stays what it was", () => {
   });
 
   it("the number sentences read as before", () => {
+    // Every brand since the multi-brand catalogue (pre-launch audit 2026-10-28).
     expect(how.en.step3Body(12)).toBe(
-      "12 Logitech mice ranked by how they fit your hand.",
+      "12 mice ranked by how they fit your hand.",
     );
+    expect(how.zhTW.step3Body(null)).toBe("依合手度為收錄的滑鼠排序。");
     expect(learn.en.printPages(1)).toBe("Print 1 page");
     expect(learn.en.printPages(3)).toBe("Print 3 pages");
     expect(account.en.deleteBody(0)).toBe(

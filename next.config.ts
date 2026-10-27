@@ -240,6 +240,9 @@ export default withSentryConfig(nextConfig, {
   authToken: process.env.SENTRY_AUTH_TOKEN,
   silent: !process.env.CI,
   widenClientFileUpload: true,
+  // Pre-launch audit 2026-10-28: no .map file is served, said outright
+  // rather than left to the plugin's default.
+  sourcemaps: { deleteSourcemapsAfterUpload: true },
   webpack: {
     treeshake: { removeDebugLogging: true },
   },
