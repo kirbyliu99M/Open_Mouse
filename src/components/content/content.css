@@ -1,0 +1,151 @@
+/*
+ * The article pages (FAQ, guides, mouse and comparison pages; SEO task
+ * 2026-10-28, candidate / 未拍板). They sit in the how-it-works column
+ * (`.home-main.home-how-page`) and add only what an article needs: lists of
+ * questions, spec tables and link lists. Tokens only; no new colour.
+ */
+.home-main.content-page {
+  max-width: 42rem;
+}
+.content-page h1 {
+  font-size: clamp(2rem, 7vw, 3rem);
+  line-height: 1.15;
+}
+.content-page h2 {
+  margin: 2.25rem 0 0.75rem;
+  font-size: 1.35rem;
+  line-height: 1.3;
+}
+.content-page h3 {
+  margin: 1.5rem 0 0.4rem;
+  font-size: 1.05rem;
+  line-height: 1.4;
+}
+.content-page p,
+.content-page li {
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+.content-page .content-lead {
+  color: var(--text-primary);
+  font-size: 1.1rem;
+}
+.content-page .content-note {
+  color: var(--text-tertiary);
+  font-size: 0.9rem;
+}
+.content-page a:not(.home-cta) {
+  color: var(--accent-text);
+  text-decoration: none;
+}
+.content-page a:not(.home-cta):hover {
+  text-decoration: underline;
+}
+
+/* Questions: a hairline between each, the answer under its question. */
+.content-faq {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.content-faq > li {
+  padding: 0.25rem 0 0.75rem;
+  border-bottom: 1px solid var(--hairline);
+}
+
+/* Spec and chart tables: tabular figures, the measurement motif's hairlines. */
+.content-table-wrap {
+  overflow-x: auto;
+  margin: 0.75rem 0 1rem;
+}
+.content-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.content-table caption {
+  margin-bottom: 0.5rem;
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
+  text-align: left;
+}
+.content-table th,
+.content-table td {
+  padding: 0.6rem 0.5rem;
+  border-bottom: 1px solid var(--hairline);
+  text-align: left;
+  vertical-align: top;
+}
+.content-table thead th {
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.content-table tbody th {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.content-table td {
+  color: var(--text-primary);
+}
+
+/* Lists of links (similar mice, comparisons, guides): 44 px targets. */
+.content-links {
+  margin: 0.5rem 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+.content-links li {
+  border-bottom: 1px solid var(--hairline);
+}
+.content-links a {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.35rem 0;
+}
+.content-links .content-meta {
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.content-photo {
+  display: block;
+  width: min(100%, 20rem);
+  height: auto;
+  margin: 0.5rem 0 1.25rem;
+}
+.content-cta {
+  margin: 2rem 0 1rem;
+}
+.content-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+}
+.content-breadcrumb li + li::before {
+  content: "›";
+  margin-right: 0.4rem;
+  color: var(--text-tertiary);
+}
+.content-breadcrumb a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--accent-text);
+  text-decoration: none;
+}
+.content-breadcrumb [aria-current="page"] {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--text-tertiary);
+}

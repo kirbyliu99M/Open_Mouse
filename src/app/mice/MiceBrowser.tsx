@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { localizedPath } from "@/lib/i18n/localePath";
 import {
   useCallback,
   useEffect,
@@ -286,8 +288,10 @@ export function MiceBrowser({
               {shownRows.map((row, i) => (
                 <tr key={row.slug} data-row-index={i} tabIndex={-1}>
                   <th scope="row" className="mice-name">
-                    <span className="mice-brand">{row.brand}</span>{" "}
-                    <span className="mice-model">{row.model}</span>
+                    <Link href={localizedPath(`/mice/${row.slug}`, language)}>
+                      <span className="mice-brand">{row.brand}</span>{" "}
+                      <span className="mice-model">{row.model}</span>
+                    </Link>
                   </th>
                   <td>{filterCopy.size[row.size]}</td>
                   <td>
@@ -320,7 +324,11 @@ export function MiceBrowser({
                 tabIndex={-1}
               >
                 <p className="mice-brand">{row.brand}</p>
-                <p className="mice-model">{row.model}</p>
+                <p className="mice-model">
+                  <Link href={localizedPath(`/mice/${row.slug}`, language)}>
+                    {row.model}
+                  </Link>
+                </p>
                 <ul className="mice-tags">
                   {tags.map((tag) => (
                     <li key={tag}>{tag}</li>

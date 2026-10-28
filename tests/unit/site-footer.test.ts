@@ -35,7 +35,7 @@ function render(at: string | null, locale: Locale = "en"): string {
 }
 
 describe("SiteFooter", () => {
-  it("renders in English for the en locale, with the name, the headline and the six links in three groups", () => {
+  it("renders in English for the en locale, with the name, the headline and the nine links in three groups", () => {
     const html = render("/");
     expect(html).toContain(SITE_NAME);
     expect(html).toContain("Ready to Find Yours?");
@@ -48,7 +48,10 @@ describe("SiteFooter", () => {
       ["/en/scan/easy", "Scan"],
       ["/en/learn", "Learn"],
       ["/en/mice", "All mice"],
+      ["/en/compare", "Compare mice"],
+      ["/en/guides", "Guides"],
       ["/en/how-it-works", "How it works"],
+      ["/en/faq", "FAQ"],
       ["/en/privacy", "Privacy"],
       [GITHUB_URL, "GitHub"],
     ]);

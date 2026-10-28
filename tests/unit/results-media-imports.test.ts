@@ -107,6 +107,8 @@ describe("the page code does not import the data files", () => {
     expect(readers).toEqual([
       "src/app/api/mice/[slug]/links/route.ts",
       "src/server/fit/core.ts",
+      // The public mouse pages' photo and official link (SEO task 2026-10-28).
+      "src/server/seo/catalogue.ts",
     ]);
   });
 });

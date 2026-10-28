@@ -46,6 +46,21 @@ export const LLMS_SECTIONS: readonly LlmsSection[] = [
         path: "/learn",
         note: "Hand length and palm width, grip style, palm thickness, size and shape.",
       },
+      {
+        title: "Mouse size chart by hand length",
+        path: "/guides/mouse-size-for-hand-size",
+        note: "The ideal mouse length for each hand length and grip, how to measure a hand, and how small, medium and large mice are told apart.",
+      },
+      {
+        title: "Symmetrical vs ergonomic mice",
+        path: "/guides/symmetrical-vs-ergonomic",
+        note: "How the two shapes differ, how they relate to grip, and median sizes and weights in the catalogue.",
+      },
+      {
+        title: "FAQ",
+        path: "/faq",
+        note: "Short, self-contained answers about measuring, grips, scoring and privacy.",
+      },
     ],
   },
   {
@@ -55,6 +70,11 @@ export const LLMS_SECTIONS: readonly LlmsSection[] = [
         title: "All mice",
         path: "/mice",
         note: "Every gaming mouse Palmate compares, with length, width, height, weight, shape and connection.",
+      },
+      {
+        title: "Mouse comparisons",
+        path: "/compare",
+        note: "Popular mice side by side. Each mouse has its own page at /mice/<slug> and each pair at /compare/<slug>-vs-<slug>.",
       },
     ],
   },

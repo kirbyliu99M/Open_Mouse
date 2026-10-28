@@ -114,10 +114,18 @@ describe("guardDevOnlyRoute (the demo routes and the learning kit: local `next d
 const PRODUCT_ROUTES = [
   "/",
   "/account",
+  // The public content pages (SEO task, 2026-10-28).
+  "/compare",
+  "/compare/[pair]",
+  "/faq",
+  "/guides",
+  "/guides/mouse-size-for-hand-size",
+  "/guides/symmetrical-vs-ergonomic",
   "/how-it-works",
   // The public "How to choose a mouse that fits" page (the kit moved to /learn/kit).
   "/learn",
   "/mice",
+  "/mice/[slug]",
   // The privacy notice and the terms (pre-launch audit 2026-10-28).
   "/privacy",
   "/results/[scanId]",
