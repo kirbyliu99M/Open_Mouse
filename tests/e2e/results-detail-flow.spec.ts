@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { openAnalysisLine } from "./fixtures/analysis-line";
 
 /**
  * The path through the results pages: main page, a detail page for rank 2,
@@ -79,6 +80,8 @@ async function openDetails(page: Page) {
   const details = page.locator(".results-details");
   await details.locator("summary").click();
   await expect(details).toHaveAttribute("open", "");
+  // The analysis these tests reach for is behind its own line now.
+  await openAnalysisLine(page);
 }
 
 test.describe("results: main page and rank 2 to 5 detail pages", () => {

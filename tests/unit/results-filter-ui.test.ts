@@ -287,12 +287,13 @@ describe("the results page under a filter", () => {
   };
   const razer = f({ brand: ["Razer"], order: ["brand"] });
 
-  it("no filter: nothing of the filter's page changes (no badge, no collapsed analysis, the primary share button)", () => {
+  it("no filter: no badge, the primary share button, and the analysis as its one closed line (Kirby 2026-10-28)", () => {
     const html = render(response(), emptyFilters(), { analysisState: READY });
     expect(html).not.toContain("results-badge");
-    expect(html).not.toContain("results-analysisLine");
+    expect(html).toContain("AI 分析是針對總排名第 1 的 Zowie A1");
     expect(html).toContain("第 1 名 · Zowie");
-    expect(html).toContain("Why text.");
+    // Closed, and no longer in Details either.
+    expect(html).not.toContain("Why text.");
     expect(html).not.toContain("share-filter-note");
   });
 
@@ -317,14 +318,14 @@ describe("the results page under a filter", () => {
     expect(html).not.toContain("Why text.");
   });
 
-  it("when the overall #1 still matches nothing changes: no badge, the analysis stays in Details", () => {
+  it("when the overall #1 still matches: no badge, the analysis is the same one closed line", () => {
     const html = render(response(), f({ size: ["medium"], order: ["size"] }), {
       analysisState: READY,
     });
     expect(html).not.toContain("results-badge");
-    expect(html).not.toContain("AI 分析是針對");
+    expect(html).toContain("AI 分析是針對總排名第 1 的 Zowie A1");
     expect(html).toContain("第 1 名 · Zowie");
-    expect(html).toContain("Why text.");
+    expect(html).not.toContain("Why text.");
   });
 
   it("when the overall #1 still leads, the share button is exactly the unfiltered one (Kirby, 2026-10-11)", () => {

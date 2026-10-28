@@ -6,6 +6,7 @@ import {
   measureOverPicture,
   scanForUnlisted,
 } from "./fixtures/live-picture";
+import { openAnalysisLine } from "./fixtures/analysis-line";
 import { installLoopFreeze, loopFrozen } from "./fixtures/freeze-loop";
 import {
   LOAD_FAILED,
@@ -424,8 +425,11 @@ for (const [path, name] of PAGES) {
         );
         while ((await closed.count()) > 0) await closed.first().click();
       }
-      if (path.includes("presentation"))
+      if (path.includes("presentation")) {
+        // The analysis is behind its line (Kirby 2026-10-28); audit it open.
+        await openAnalysisLine(page);
         await expect(page.locator(".results-analysis")).toBeVisible();
+      }
       if (path === "/scan/measured-demo")
         await expect(page.getByTestId("scan-measurements")).toBeVisible();
       await audit(page, info, name);

@@ -27,10 +27,10 @@ function Sparkle() {
 }
 
 /**
- * While the results are filtered and the large card is not the overall #1, the
- * written analysis (which is about the overall #1 and never uses the filter)
- * collapses to this one line, with 「看分析」 expanding it in place (FILTER-1,
- * candidate). `name` is the overall #1's brand and model.
+ * The written analysis (which is about the overall #1 and never uses the
+ * filter) as one line, with 「看分析」 expanding it in place (FILTER-1,
+ * candidate). Only the 「綜合」 page shows it (Kirby 2026-10-28 hotfix); the
+ * shape pages have no analysis. `name` is the overall #1's brand and model.
  */
 export function FilteredAnalysisLine({
   name,

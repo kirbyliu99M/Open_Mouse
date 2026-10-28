@@ -8,6 +8,7 @@ import {
   type Route,
 } from "@playwright/test";
 import { LOCALE_COOKIE } from "../../src/lib/contracts/locale";
+import { openAnalysisLine } from "./fixtures/analysis-line";
 
 /**
  * The results experience in zh-TW: the demo page, a mocked real results page
@@ -89,6 +90,8 @@ async function openDetails(page: Page) {
   const details = page.locator(".results-details");
   await details.locator("summary").click();
   await expect(details).toHaveAttribute("open", "");
+  // The analysis these tests reach for is behind its own line now.
+  await openAnalysisLine(page);
 }
 
 test.describe("results in zh-TW", () => {
@@ -113,6 +116,7 @@ test.describe("results in zh-TW", () => {
     expect(shareTexts).toContain("製作我的分享圖");
     // Written-analysis states, in the demo's own switcher.
     await page.getByRole("button", { name: "Loading" }).click();
+    await openAnalysisLine(page);
     await expect(page.getByText("正在準備你的文字分析…")).toBeVisible();
     await page.getByRole("button", { name: "Error", exact: true }).click();
     await expect(page.getByRole("button", { name: "再試一次" })).toBeVisible();
