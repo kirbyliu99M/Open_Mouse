@@ -546,6 +546,7 @@ test.describe("the attempt log", () => {
       "attempts",
       "capabilities",
       "capture",
+      "experimentTag",
       "focusApplied",
       "live",
       "preview",

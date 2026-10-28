@@ -717,7 +717,9 @@
 @media print {
   .resultsMain.results-entered,
   .results-view[data-enter],
-  .results-page-error {
+  .results-page-error,
+  .results-analysis-ready,
+  .results-analysis-error {
     animation: none;
   }
 }
