@@ -45,11 +45,11 @@ describe("SiteFooter", () => {
       ),
     ].map((m) => [m[1], m[2]]);
     expect(links).toEqual([
-      ["/scan/easy", "Scan"],
-      ["/learn", "Learn"],
-      ["/mice", "All mice"],
-      ["/how-it-works", "How it works"],
-      ["/privacy", "Privacy"],
+      ["/en/scan/easy", "Scan"],
+      ["/en/learn", "Learn"],
+      ["/en/mice", "All mice"],
+      ["/en/how-it-works", "How it works"],
+      ["/en/privacy", "Privacy"],
       [GITHUB_URL, "GitHub"],
     ]);
     const titles = [...html.matchAll(/<h2[^>]*>([^<]+)<\/h2>/g)].map(
@@ -148,6 +148,8 @@ describe("SiteFooter", () => {
       "/scan",
       "/scan/easy",
       "/scan/share-card-demo",
+      "/en/scan/easy",
+      "/en/sheet",
     ]) {
       expect(showsSiteFooter(p), p).toBe(false);
       expect(render(p), p).toBe("");
@@ -164,6 +166,8 @@ describe("SiteFooter", () => {
       "/sheets",
       "/scanner",
       "/no-such-page",
+      "/en",
+      "/en/mice",
     ]) {
       expect(showsSiteFooter(p), p).toBe(true);
     }

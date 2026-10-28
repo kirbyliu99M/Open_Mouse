@@ -1,13 +1,19 @@
 import type { Metadata } from "next";
+import { requestPageMetadata } from "@/server/seo/pageMetadata";
 import { headers } from "next/headers";
 import EasyScanCamera from "@/client/camera/EasyScanCamera";
 import { detectDeviceFit } from "@/client/camera/deviceFit";
 import { easyScanCopy } from "@/lib/copy/easy-scan";
-import { getLocale } from "@/server/i18n/getLocale";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const copy = easyScanCopy(await getLocale());
-  return { title: copy.metaTitle, description: copy.metaDescription };
+  return requestPageMetadata((locale) => {
+    const copy = easyScanCopy(locale);
+    return {
+      path: "/scan/easy",
+      title: copy.metaTitle,
+      description: copy.metaDescription,
+    };
+  });
 }
 
 /**

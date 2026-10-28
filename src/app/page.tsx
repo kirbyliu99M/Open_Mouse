@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { requestPageMetadata } from "@/server/seo/pageMetadata";
 import { HomeCtaLink } from "@/components/home/HomeCtaLink";
 import { DetectorWarmup } from "@/components/home/DetectorWarmup";
 import { ParticleStage } from "@/components/home/ParticleStage";
@@ -13,9 +14,24 @@ import { handSheetFrame } from "@/lib/particles/template-hand";
 import type { Locale } from "@/lib/contracts/locale";
 import { getLocale } from "@/server/i18n/getLocale";
 import "./home.css";
+import { localizedPath } from "@/lib/i18n/localePath";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { SITE_NAME } from "@/lib/site";
+import {
+  organizationLd,
+  webApplicationLd,
+  websiteLd,
+} from "@/lib/structured-data";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return { title: { absolute: siteMetaCopy(await getLocale()).homeTitle } };
+  return requestPageMetadata((locale) => {
+    const meta = siteMetaCopy(locale);
+    return {
+      path: "/",
+      absoluteTitle: meta.homeTitle,
+      description: meta.description,
+    };
+  });
 }
 
 /**
@@ -37,6 +53,17 @@ export default async function HomePage() {
   const frame = handSheetFrame();
   return (
     <main className="home-main landing-page">
+      <JsonLd
+        data={[
+          organizationLd(),
+          websiteLd(siteMetaCopy(locale).description),
+          webApplicationLd({
+            locale,
+            name: SITE_NAME,
+            description: siteMetaCopy(locale).description,
+          }),
+        ]}
+      />
       <nav className="home-nav" aria-label={navCopy(locale).primaryNavLabel}>
         <BrandLockup className="home-wordmark" />
         <div className="home-nav-actions">
@@ -137,7 +164,11 @@ function HomeActions({ locale }: { locale: Locale }) {
   const copy = homeCopy(locale);
   return (
     <div className="home-actions">
-      <HomeCtaLink cta="scan" className="home-cta" href="/scan/easy">
+      <HomeCtaLink
+        cta="scan"
+        className="home-cta"
+        href={localizedPath("/scan/easy", locale)}
+      >
         <svg
           viewBox="0 0 24 24"
           width="20"
@@ -166,7 +197,7 @@ function HomeActions({ locale }: { locale: Locale }) {
       <HomeCtaLink
         cta="how_it_works"
         className="home-cta-secondary"
-        href="/how-it-works"
+        href={localizedPath("/how-it-works", locale)}
       >
         {copy.howItWorks}
       </HomeCtaLink>

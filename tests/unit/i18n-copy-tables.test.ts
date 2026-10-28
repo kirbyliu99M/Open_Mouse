@@ -30,6 +30,7 @@ const EXPECTED_MODULES = [
   "manualEntry.ts",
   "mice-page.ts",
   "nav.ts",
+  "page-meta.ts",
   "paper-adjust.ts",
   "paper-stage.ts",
   "privacy.ts",

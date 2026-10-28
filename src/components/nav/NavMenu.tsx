@@ -21,6 +21,7 @@ import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { navCopy } from "@/lib/copy/nav";
 import { UnansweredMarker } from "./UnansweredMarker";
 import "./nav-menu.css";
+import { localizedPath } from "@/lib/i18n/localePath";
 
 export function NavMenu({
   profileUnanswered = false,
@@ -32,7 +33,8 @@ export function NavMenu({
    */
   profileUnanswered?: boolean;
 }) {
-  const copy = navCopy(useLocale());
+  const locale = useLocale();
+  const copy = navCopy(locale);
   const [open, setOpen] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -111,22 +113,34 @@ export function NavMenu({
           <nav aria-label={copy.menuMainLabel}>
             <ul className="navMenuList">
               <li>
-                <Link href="/" onClick={() => setOpen(false)}>
+                <Link
+                  href={localizedPath("/", locale)}
+                  onClick={() => setOpen(false)}
+                >
                   {copy.home}
                 </Link>
               </li>
               <li>
-                <Link href="/scan/easy" onClick={() => setOpen(false)}>
+                <Link
+                  href={localizedPath("/scan/easy", locale)}
+                  onClick={() => setOpen(false)}
+                >
                   {copy.scanMyHand}
                 </Link>
               </li>
               <li>
-                <Link href="/how-it-works" onClick={() => setOpen(false)}>
+                <Link
+                  href={localizedPath("/how-it-works", locale)}
+                  onClick={() => setOpen(false)}
+                >
                   {copy.howItWorks}
                 </Link>
               </li>
               <li>
-                <Link href="/account" onClick={() => setOpen(false)}>
+                <Link
+                  href={localizedPath("/account", locale)}
+                  onClick={() => setOpen(false)}
+                >
                   {copy.account}
                   {profileUnanswered && <UnansweredMarker />}
                 </Link>

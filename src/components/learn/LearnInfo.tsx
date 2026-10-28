@@ -8,6 +8,8 @@ import {
   SHAPE_SKETCHES,
 } from "@/lib/learn/shape-sketches";
 import { weightBars } from "@/lib/learn/weight-bars";
+import type { Locale } from "@/lib/contracts/locale";
+import { localizedPath } from "@/lib/i18n/localePath";
 
 /**
  * The body of /learn: six cards, then the primary button. A plain component
@@ -19,8 +21,14 @@ import { weightBars } from "@/lib/learn/weight-bars";
  * layout (learn-info.css) places each card in a grid area by its id, so a new
  * card also needs a `.learn-card--<id>` area there.
  */
-export function LearnInfo({ copy }: { copy: LearnPageCopy }) {
-  const list = cards(copy);
+export function LearnInfo({
+  copy,
+  locale,
+}: {
+  copy: LearnPageCopy;
+  locale: Locale;
+}) {
+  const list = cards(copy, locale);
   return (
     <>
       <header className="learn-info-header">
@@ -47,7 +55,10 @@ export function LearnInfo({ copy }: { copy: LearnPageCopy }) {
         ))}
       </ol>
 
-      <Link className="learn-info-cta" href="/scan/easy">
+      <Link
+        className="learn-info-cta"
+        href={localizedPath("/scan/easy", locale)}
+      >
         {copy.scanButton}
       </Link>
     </>
@@ -60,7 +71,7 @@ interface Card {
   children: ReactNode;
 }
 
-function cards(copy: LearnPageCopy): Card[] {
+function cards(copy: LearnPageCopy, locale: Locale): Card[] {
   return [
     {
       id: "hand",
@@ -80,7 +91,10 @@ function cards(copy: LearnPageCopy): Card[] {
               decoding="async"
             />
           </div>
-          <Link className="learn-link" href="/scan/easy">
+          <Link
+            className="learn-link"
+            href={localizedPath("/scan/easy", locale)}
+          >
             {copy.scanLink} <span aria-hidden="true">›</span>
           </Link>
         </>
@@ -273,7 +287,10 @@ function cards(copy: LearnPageCopy): Card[] {
             </ol>
             <p className="learn-chart-note">{copy.score.barsNote}</p>
           </div>
-          <Link className="learn-link" href="/how-it-works">
+          <Link
+            className="learn-link"
+            href={localizedPath("/how-it-works", locale)}
+          >
             {copy.howItWorksLink} <span aria-hidden="true">›</span>
           </Link>
         </>

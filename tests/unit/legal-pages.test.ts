@@ -35,11 +35,12 @@ describe("the privacy notice and the terms", () => {
   });
 
   it("the footer and how-it-works link to /privacy, and /privacy to /terms", () => {
+    // Both localize the link (`/en/privacy` on an English page).
     expect(readFileSync("src/components/SiteFooter.tsx", "utf8")).toContain(
-      '<Link href="/privacy">',
+      '<Link href={localizedPath("/privacy", locale)}>',
     );
     expect(readFileSync("src/app/how-it-works/page.tsx", "utf8")).toContain(
-      '<Link href="/privacy">',
+      '<Link href={localizedPath("/privacy", locale)}>',
     );
     expect(readFileSync("src/app/privacy/page.tsx", "utf8")).toContain(
       'href: "/terms"',

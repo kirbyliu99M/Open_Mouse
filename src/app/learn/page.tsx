@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { requestPageMetadata } from "@/server/seo/pageMetadata";
+import { pageMetaCopy } from "@/lib/copy/page-meta";
 import { AccountNavLink } from "@/components/nav/AccountNavLink";
 import { BrandLockup } from "@/components/nav/BrandLockup";
 import { NavMenu } from "@/components/nav/NavMenu";
@@ -8,9 +10,17 @@ import { navCopy } from "@/lib/copy/nav";
 import { getLocale } from "@/server/i18n/getLocale";
 import "../home.css";
 import "./learn-info.css";
+import { localizedPath } from "@/lib/i18n/localePath";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { articleLd, breadcrumbLd } from "@/lib/structured-data";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return { title: learnPageCopy(await getLocale()).title };
+  return requestPageMetadata((locale) => ({
+    path: "/learn",
+    title: learnPageCopy(locale).title,
+    description: pageMetaCopy(locale).learn,
+    ogType: "article",
+  }));
 }
 
 /**
@@ -21,16 +31,36 @@ export async function generateMetadata(): Promise<Metadata> {
  */
 export default async function LearnPage() {
   const locale = await getLocale();
+  const copy = learnPageCopy(locale);
   return (
     <main className="learn-info">
+      <JsonLd
+        data={[
+          articleLd({
+            locale,
+            path: "/learn",
+            headline: copy.title,
+            description: pageMetaCopy(locale).learn,
+            datePublished: "2026-10-12",
+            dateModified: "2026-10-28",
+          }),
+          breadcrumbLd(locale, [
+            [navCopy(locale).home, "/"],
+            [copy.title, "/learn"],
+          ]),
+        ]}
+      />
       <nav className="home-nav" aria-label={navCopy(locale).primaryNavLabel}>
-        <BrandLockup className="home-wordmark learn-info-wordmark" href="/" />
+        <BrandLockup
+          className="home-wordmark learn-info-wordmark"
+          href={localizedPath("/", locale)}
+        />
         <div className="home-nav-actions">
           <AccountNavLink />
           <NavMenu />
         </div>
       </nav>
-      <LearnInfo copy={learnPageCopy(locale)} />
+      <LearnInfo copy={copy} locale={locale} />
     </main>
   );
 }
