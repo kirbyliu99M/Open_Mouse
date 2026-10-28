@@ -1,4 +1,5 @@
 import { devices, expect, test } from "@playwright/test";
+import { en as siteMetaEn } from "../../src/lib/copy/site-meta";
 import { SITE_NAME } from "../../src/lib/site";
 import { contrast } from "./fixtures/contrast";
 import { installLoopFreeze, loopFrozen } from "./fixtures/freeze-loop";
@@ -6,7 +7,8 @@ import { installLoopFreeze, loopFrozen } from "./fixtures/freeze-loop";
 // ── Page titles: each page names itself; the template adds the site ────────
 
 const TITLES: readonly (readonly [string, string])[] = [
-  ["/", SITE_NAME],
+  // The home page names the site and what it does (SEO, #227).
+  ["/", siteMetaEn.homeTitle],
   ["/scan/easy", `Scan your hand · ${SITE_NAME}`],
   ["/scan", `Scan on a printed sheet · ${SITE_NAME}`],
   ["/sheet", `Calibration sheet · ${SITE_NAME}`],
