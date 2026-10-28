@@ -1556,7 +1556,9 @@ describe(".github/workflows/ci.yml shape", () => {
       },
       {
         command: "npm run test:e2e",
-        match: /^ {8}run: npm run test:e2e\s*$/m,
+        // Run as one shard of four (V3.3, PR #228).
+        match:
+          /^ {8}run: npm run test:e2e -- --shard=\$\{\{ matrix\.shard \}\}\/4\s*$/m,
         gate: E2E,
       },
       {

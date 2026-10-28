@@ -138,25 +138,14 @@ describe("the results page line", () => {
     );
   });
 
-  it("F15: says the numbers are still being validated (moved from the scan's sheet), once, in both languages; not for numbers typed in", () => {
+  it("no longer says the numbers are still being validated (Kirby 2026-10-26), in either language", () => {
     const zh = render({}, "zh-TW");
-    expect(zh.split("測量數值仍在驗證中。").length - 1).toBe(1);
-    expect(zh).toContain('data-testid="results-unverified-note"');
-    expect(
-      render({}, "en").split("Measurements are still being validated.").length -
-        1,
-    ).toBe(1);
-    // Beside the adjusted-frame line, each said once.
+    expect(zh).not.toContain("驗證中");
+    expect(zh).not.toContain("results-unverified-note");
+    expect(render({}, "en")).not.toMatch(/still being validated/i);
+    // The adjusted-frame line is still said, once.
     const both = render({ paperAdjusted: true }, "zh-TW");
-    expect(both.split("測量數值仍在驗證中。").length - 1).toBe(1);
     expect(both.split("紙張邊框是手動調整的。").length - 1).toBe(1);
-    // A manual entry measured nothing.
-    expect(
-      render(
-        { enteredManual: { handLengthMm: 186, handWidthMm: 82 } },
-        "zh-TW",
-      ),
-    ).not.toContain("results-unverified-note");
   });
 });
 

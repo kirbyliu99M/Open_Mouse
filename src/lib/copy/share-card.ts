@@ -27,6 +27,11 @@ export interface ShareCardCopy {
    */
   closestPickLabel: string;
   scoreLabel: string;
+  /**
+   * The line ABOVE "Palmate" on the card's footer, read as one call to action
+   * with the name under it: "Find Your Best / Palmate" (Kirby 2026-10-26; the
+   * zh-TW wording is Claude's candidate, 未拍板).
+   */
   tagline: string;
   /** Alt/accessible name of the silhouette is not needed: it is drawn on a canvas. */
   buttonLink: string;
@@ -77,7 +82,7 @@ export const zhTW: ShareCardCopy = {
   topPickLabel: "最適合我的滑鼠",
   closestPickLabel: "目錄中最接近我的滑鼠",
   scoreLabel: "合手度分數",
-  tagline: "測測你的手型",
+  tagline: "找到你的最佳",
   buttonLink: "分享",
   buttonPrimary: "製作我的分享圖",
   busy: "製作中…",
@@ -102,7 +107,7 @@ export const en: ShareCardCopy = {
   topPickLabel: "My best-fit mouse",
   closestPickLabel: "My closest mouse in the catalogue",
   scoreLabel: "Fit score",
-  tagline: "Find your mouse type",
+  tagline: "Find Your Best",
   buttonLink: "Share",
   buttonPrimary: "Make my share card",
   busy: "Making…",

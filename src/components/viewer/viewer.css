@@ -100,6 +100,11 @@
   }
 }
 
+/* The model is there: the stand-in fades out over --motion-out (V3.2 motion
+   pass #33, candidate / 未拍板). ViewerRegion reads the opacity the breathing
+   has reached, stops it and fades from that value with Web Animations, so
+   no CSS rule is needed here. */
+
 @media (prefers-reduced-motion: reduce) {
   .viewer-skeleton {
     animation: none;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEBUG_WINDOW,
+  debugPlacement,
   debugSnapshotJson,
   mean,
   percentile,
@@ -274,5 +275,165 @@ describe("debugSnapshotJson", () => {
     expect(parsed.track).toBeNull();
     expect(parsed.live.detectionMsP95).toBeNull();
     expect(parsed.capture.ringCompleteToFrozenMs).toBeNull();
+  });
+});
+
+describe("debugPlacement (V3.3 WP1b, log only)", () => {
+  const reading = (
+    atMs: number,
+    wrist: number | null,
+    axis: number | null,
+  ) => ({
+    atMs,
+    fill: 0.6,
+    wristToEdgeMm: wrist,
+    handAxisDeg: axis,
+    palmOverHand: 0.5,
+    minSideMarginMm: 20,
+    wristEdge: "near-bottom" as const,
+    fingerRatioMean: null,
+  });
+
+  it("takes the fill as given and wrist, axis and age from the newest reading", () => {
+    expect(
+      debugPlacement({
+        fill: 0.65,
+        readings: [reading(100, 3, 1), reading(400, 7.25, -2.04)],
+        costMs: [0.02, 0.06, 0.04],
+        nowMs: 700,
+      }),
+    ).toEqual({
+      fill: 0.65,
+      wristToEdgeMm: 7.25,
+      handAxisDeg: -2.04,
+      fingerRatioMean: null,
+      ageMs: 300,
+      costMsAverage: expect.closeTo(0.04, 10),
+      costMsMax: 0.06,
+    });
+  });
+
+  it("is all null with no fill, no readings and no cost window", () => {
+    expect(
+      debugPlacement({
+        fill: undefined,
+        readings: [],
+        costMs: undefined,
+        nowMs: 700,
+      }),
+    ).toEqual({
+      fill: null,
+      wristToEdgeMm: null,
+      handAxisDeg: null,
+      fingerRatioMean: null,
+      ageMs: null,
+      costMsAverage: null,
+      costMsMax: null,
+    });
+  });
+});
+
+describe("debugSnapshotJson placement block", () => {
+  const base: ScanDebugSnapshot = {
+    userAgent: "test",
+    track: null,
+    capabilities: null,
+    focusApplied: { continuous: null, lastTap: null },
+    live: {
+      visibleInStream: null,
+      sample: null,
+      samplesPerSecond: null,
+      detectionMsAverage: null,
+      detectionMsP95: null,
+      laplacianVariance: null,
+      laplacianFloor: 0,
+      steady: null,
+      maxCornerMovementFractionOfDiagonal: null,
+      cornersSeen: null,
+      cueCode: null,
+      cueShown: null,
+      ringFraction: 0,
+      consecutiveFailures: 0,
+    },
+    capture: {
+      method: null,
+      source: null,
+      stillWidth: null,
+      stillHeight: null,
+      stillKb: null,
+      ringCompleteToFrozenMs: null,
+    },
+    preview: {
+      requested: null,
+      stillAspect: null,
+      stillAspectSource: null,
+      photoMax: null,
+      previewAspect: null,
+      aspectDiff: null,
+      fovMismatch: null,
+      reapplied: null,
+      settleTimedOut: null,
+      orientationRetry: null,
+    },
+    attempts: [],
+  };
+
+  it("rounds each placement number to its own places", () => {
+    const parsed = JSON.parse(
+      debugSnapshotJson({
+        ...base,
+        live: {
+          ...base.live,
+          placement: {
+            fill: 0.654321,
+            wristToEdgeMm: 7.26,
+            handAxisDeg: -2.04,
+            ageMs: 300.6,
+            costMsAverage: 0.04216,
+            costMsMax: 0.09049,
+          },
+        },
+      }),
+    );
+    expect(parsed.live.placement).toEqual({
+      fill: 0.6543,
+      wristToEdgeMm: 7.3,
+      handAxisDeg: -2,
+      fingerRatioMean: null,
+      ageMs: 301,
+      costMsAverage: 0.042,
+      costMsMax: 0.09,
+    });
+  });
+
+  it("keeps nulls inside the block", () => {
+    const parsed = JSON.parse(
+      debugSnapshotJson({
+        ...base,
+        live: {
+          ...base.live,
+          placement: debugPlacement({
+            fill: null,
+            readings: [],
+            costMs: [],
+            nowMs: 0,
+          }),
+        },
+      }),
+    );
+    expect(parsed.live.placement).toEqual({
+      fill: null,
+      wristToEdgeMm: null,
+      handAxisDeg: null,
+      fingerRatioMean: null,
+      ageMs: null,
+      costMsAverage: null,
+      costMsMax: null,
+    });
+  });
+
+  it("leaves the key out when the snapshot has no placement", () => {
+    const parsed = JSON.parse(debugSnapshotJson(base));
+    expect(Object.keys(parsed.live)).not.toContain("placement");
   });
 });

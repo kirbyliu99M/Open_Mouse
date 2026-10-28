@@ -23,20 +23,29 @@ main.errorScreen {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  /* Everything centred under the logo (Kirby 2026-10-26, candidate). */
+  align-items: center;
+  text-align: center;
 }
 
+/* The Main Palmate Logo, large. px, not rem: at 200 % text it should not
+   double. Its glow fades to nothing at the box edge, so no margin is needed
+   for it; the negative bottom margin pulls the code up into the glow. */
 .errorScreen-mark {
   display: block;
-  /* px, not rem: at 200 % text the mark should not double. */
-  width: 44px;
-  height: 44px;
-  margin: 0 0 1.25rem;
+  width: min(220px, 60vw);
+  height: auto;
+  aspect-ratio: 1;
+  margin: 0 0 -0.5rem;
 }
 
+/* The code: 「錯誤 404」, 「發生問題」. */
 .errorScreen-eyebrow {
-  margin: 0 0 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 600;
+  margin: 0 0 0.75rem;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
 }
 
 main.errorScreen h1 {
@@ -71,6 +80,7 @@ main.errorScreen h1:focus {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  align-self: stretch;
 }
 
 .errorAction {
@@ -135,6 +145,7 @@ main.errorScreen h1:focus {
   .errorScreen-actions {
     flex-direction: row;
     flex-wrap: wrap;
+    justify-content: center;
   }
   .errorAction {
     min-width: 10rem;
@@ -167,7 +178,7 @@ main.errorScreen h1:focus {
    imports itself), and the filled primary button is a dark label with an
    outline, since Chrome prints no backgrounds unless the user asks for them. */
 @media print {
-  /* Blue line art meant for the dark page. */
+  /* Light line art and glow meant for the dark page. */
   .errorScreen-mark {
     display: none;
   }

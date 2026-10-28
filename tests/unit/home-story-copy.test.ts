@@ -78,12 +78,13 @@ describe("the home story's annotation copy", () => {
       "Fingertips",
       "Thumb",
     ]);
-    // The small lines Kirby confirmed (spelling and grammar only touched).
+    // The small lines Kirby confirmed; three reworded without health
+    // effects (pre-launch audit, Kirby OK 2026-10-28).
     expect(homeStoryNotes("en").map((note) => note.why)).toEqual([
-      "The right length can reduce hand fatigue.",
+      "A length that fits your whole hand.",
       "A close match with the palm means a better grip.",
-      "A pressing force at the best intensity reduces stiff fingers.",
-      "Easier clicking, with less strain.",
+      "Support under your knuckles, so the buttons are easy to press.",
+      "Easy clicks, fingers rest where they fall.",
       "Better control and grip.",
     ]);
     expect(homeStoryNotes("zh-TW").map((note) => note.title)).toEqual([

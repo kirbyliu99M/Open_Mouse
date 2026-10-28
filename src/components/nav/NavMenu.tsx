@@ -9,11 +9,14 @@
  *
  * Built on a native `<dialog>` (the same pattern AccountView's delete
  * confirmation already uses): `showModal()` gives us a top-layer focus trap
- * and Escape-to-close for free, and the backdrop click closes it too.
+ * and Escape-to-close for free. A tap on the dimmed page beside it closes it
+ * too (`useBlankTap`, Kirby 2026-10-26, candidate / 未拍板).
  */
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useLocale } from "@/client/i18n/LocaleProvider";
+import { useBlankTap } from "@/components/dialog/useBlankTap";
+import { usePresence } from "@/components/motion/Presence";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { navCopy } from "@/lib/copy/nav";
 import { UnansweredMarker } from "./UnansweredMarker";
@@ -35,8 +38,17 @@ export function NavMenu({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
+  // Closing slides the menu back out to the right (V3.2 motion pass #14): it
+  // stays open for leaveMs("sheet") after `open` turns false, and only then
+  // closes and gives focus back to the trigger.
+  const menu = usePresence(open, "sheet");
+  const blankTap = useBlankTap(() => setOpen(false), {
+    panel: "self",
+    enabled: !menu.leaving,
+  });
+
   useEffect(() => {
-    if (!open) return;
+    if (!menu.mounted) return;
     const dialog = dialogRef.current;
     const trigger = triggerRef.current;
     dialog?.showModal();
@@ -45,7 +57,7 @@ export function NavMenu({
       dialog?.close();
       trigger?.focus();
     };
-  }, [open]);
+  }, [menu.mounted]);
 
   return (
     <>
@@ -67,13 +79,22 @@ export function NavMenu({
           />
         </svg>
       </button>
-      {open && (
+      {menu.mounted && (
         <dialog
           ref={dialogRef}
           className="navMenu"
           aria-label={copy.menuDialogLabel}
+          data-leaving={menu.leaving ? "true" : undefined}
+          inert={menu.leaving}
+          aria-hidden={menu.leaving ? true : undefined}
           onClose={() => setOpen(false)}
-          onCancel={() => setOpen(false)}
+          {...blankTap}
+          onCancel={(event) => {
+            // Esc: slide out like the close button, not the browser's
+            // instant close.
+            event.preventDefault();
+            setOpen(false);
+          }}
         >
           <div className="navMenuHeader">
             <span className="navMenuTitle">{copy.menuTitle}</span>

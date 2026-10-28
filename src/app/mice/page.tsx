@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { AccountNavLink } from "@/components/nav/AccountNavLink";
+import { BrandLockup } from "@/components/nav/BrandLockup";
 import { NavMenu } from "@/components/nav/NavMenu";
 import { micePageCopy } from "@/lib/copy/mice-page";
 import { navCopy } from "@/lib/copy/nav";
-import { SITE_NAME } from "@/lib/site";
 import { getMiceList } from "@/server/catalogue/list-mice";
 import { getLocale } from "@/server/i18n/getLocale";
 import "../home.css";
@@ -31,9 +30,7 @@ export default async function MicePage() {
   return (
     <main className="mice-page">
       <nav className="home-nav" aria-label={navCopy(locale).primaryNavLabel}>
-        <Link className="home-wordmark mice-wordmark" href="/">
-          {SITE_NAME}
-        </Link>
+        <BrandLockup className="home-wordmark mice-wordmark" href="/" />
         <div className="home-nav-actions">
           <AccountNavLink />
           <NavMenu />

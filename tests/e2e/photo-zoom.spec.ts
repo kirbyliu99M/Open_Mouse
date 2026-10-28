@@ -171,7 +171,9 @@ test.describe("click the big photo to enlarge it", () => {
     await area.dblclick();
     await expect.poll(() => scaleOf(page)).toBe(1);
     await area.hover();
-    await page.mouse.wheel(0, -300);
+    // The mobile project (Pixel 7, ratio 2.625) gets the delta in CSS px, so
+    // 300 arrived as about 114 (1.19x); 600 is 1.41x there, 2.46x on desktop.
+    await page.mouse.wheel(0, -600);
     await expect.poll(() => scaleOf(page)).toBeGreaterThan(1.2);
   });
 

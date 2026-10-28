@@ -248,6 +248,8 @@ button:disabled {
   justify-content: center;
   padding: 1.5rem;
   z-index: 10;
+  animation: motion-fade-in var(--motion-base) var(--ease-out) backwards;
+  transition: opacity var(--motion-out) var(--ease-in);
 }
 
 .dialog {
@@ -256,7 +258,12 @@ button:disabled {
   max-width: 26rem;
   width: 100%;
   box-shadow: 0 20px 60px rgb(0 0 0 / 25%);
-  animation: dialog-in 0.2s ease both;
+  /* Not `both`: a fill that outlived the animation would hold the leaving
+     transition below at scale(1). */
+  animation: dialog-in var(--motion-base) var(--ease-out) backwards;
+  transition:
+    opacity var(--motion-out) var(--ease-in),
+    transform var(--motion-out) var(--ease-in);
   background: #1d1d1f;
   color: #f5f5f7;
 }
@@ -278,16 +285,79 @@ button:disabled {
     transform: scale(1);
   }
 }
+
+/* Leaving (V3.2 motion pass #25/#26, candidate / 未拍板): the confirmation
+   goes the way it came, a fade and the same small scale, over --motion-out;
+   the dimmed page fades with it. The component keeps it mounted (or the native
+   dialog open) for leaveMs("fade") and sets data-leaving. A leaving dialog is
+   inert and aria-hidden, NOT pointer-events: none: a second tap (a double
+   tap on Cancel) stops on it and does nothing, rather than falling through to
+   a card or a link underneath. */
+.dialog-backdrop[data-leaving="true"],
+.dialog[data-leaving="true"],
+dialog.dialog[data-leaving="true"]::backdrop {
+  opacity: 0;
+}
+.dialog[data-leaving="true"] {
+  transform: scale(0.96);
+}
+dialog.dialog::backdrop {
+  animation: motion-fade-in var(--motion-base) var(--ease-out) backwards;
+  transition: opacity var(--motion-out) var(--ease-in);
+}
+
+/* The site's shared keyframes (V3.2 motion pass). Each says only where it
+   starts (or ends), so it runs from or to the element's own resting value. */
+@keyframes motion-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes motion-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes motion-sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+/* A page that rises into place from below as it fades in: two
+   --motion-shift steps (48 px) up. */
+@keyframes motion-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-shift) * 2));
+  }
+}
+/* Content that replaces other content in place: a fade, and a short shift
+   along x by --motion-enter-x (set by the rule that uses it; 0 = none). */
+@keyframes motion-shift-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--motion-enter-x, 0px));
+  }
+}
 .scan-card-header,
 .measurements dt {
   color: #b5b5bd;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  button,
-  .dialog {
+  button {
     transition: none;
     animation: none;
+  }
+  /* The confirmation and its dimmed page: a --motion-reduced fade, no scale. */
+  .dialog,
+  .dialog-backdrop,
+  dialog.dialog::backdrop {
+    animation: motion-fade-in var(--motion-reduced) linear backwards;
+    transition: opacity var(--motion-reduced) linear;
+  }
+  .dialog[data-leaving="true"] {
+    transform: none;
   }
 }
 

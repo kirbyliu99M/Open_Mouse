@@ -42,11 +42,10 @@ describe("measuredNumbersText", () => {
   });
 });
 
-describe("the unverified note", () => {
-  it("is one plain sentence", () => {
-    expect(scanCommonCopy("en").unverifiedNote).toBe(
-      "Measurements are still being validated.",
-    );
+describe("the still-being-validated note", () => {
+  it("is gone (Kirby 2026-10-26: the measurements passed validation tests)", () => {
+    expect(scanCommonCopy("en")).not.toHaveProperty("unverifiedNote");
+    expect(scanCommonCopy("zh-TW")).not.toHaveProperty("unverifiedNote");
   });
 });
 

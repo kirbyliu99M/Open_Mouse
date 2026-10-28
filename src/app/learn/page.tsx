@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { AccountNavLink } from "@/components/nav/AccountNavLink";
+import { BrandLockup } from "@/components/nav/BrandLockup";
 import { NavMenu } from "@/components/nav/NavMenu";
 import { LearnInfo } from "@/components/learn/LearnInfo";
 import { learnPageCopy } from "@/lib/copy/learn-page";
 import { navCopy } from "@/lib/copy/nav";
-import { SITE_NAME } from "@/lib/site";
 import { getLocale } from "@/server/i18n/getLocale";
 import "../home.css";
 import "./learn-info.css";
@@ -25,9 +24,7 @@ export default async function LearnPage() {
   return (
     <main className="learn-info">
       <nav className="home-nav" aria-label={navCopy(locale).primaryNavLabel}>
-        <Link className="home-wordmark learn-info-wordmark" href="/">
-          {SITE_NAME}
-        </Link>
+        <BrandLockup className="home-wordmark learn-info-wordmark" href="/" />
         <div className="home-nav-actions">
           <AccountNavLink />
           <NavMenu />

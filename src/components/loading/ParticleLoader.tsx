@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { usePrefersReducedMotion } from "@/client/camera/useReducedMotion";
 import { canvasScale, PALETTE } from "@/lib/particles/budget";
 import {
@@ -157,7 +157,12 @@ export function ParticleLoader({
   live.current = { input, reducedMotion };
   const wake = useRef<() => void>(() => {});
 
-  useEffect(() => {
+  // A layout effect, so the first frame is drawn before the browser paints
+  // (V3.2 F23 follow-up, Kirby's phone test 2026-10-26): with only the next
+  // animation frame, a new loader showed an empty canvas for one paint, and
+  // where it takes over from the send veil's (`loaderHandoff.ts`) the screen
+  // blinked at the page switch.
+  useLayoutEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d") ?? null;
     if (!canvas || !ctx) return;
@@ -218,7 +223,8 @@ export function ParticleLoader({
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
-    start();
+    // The first frame now, before the first paint; it asks for the next one.
+    frame(performance.now());
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       if (raf !== 0) cancelAnimationFrame(raf);

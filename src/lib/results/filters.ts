@@ -568,8 +568,9 @@ function variantsFor(entry: FitEntry, filters: Filters) {
 /**
  * The page's data under `filters`: the kept cards renumbered 1..n, the large
  * card, the other picks and the rest. With no filter it is the response as it
- * is. Excluded mice are hidden while filtering. The analysis and the share
- * image never read this: they read `overallTop`.
+ * is. Excluded mice are hidden while filtering. The analysis never reads
+ * this: it reads `overallTop`. The share image is about `large` when the view
+ * is `swapped` (V3.2 F24), else the overall #1.
  */
 export function filteredView(
   response: FitResponse,

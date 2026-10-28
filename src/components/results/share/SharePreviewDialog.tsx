@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
+import { useBlankTap } from "@/components/dialog/useBlankTap";
 import type { ShareCardCopy } from "@/lib/copy/share-card";
 import { lockModal, type ModalLock } from "@/lib/results/photoDialogControl";
 import { onPreviewCancel, type SharePreviewState } from "./sharePreview";
@@ -14,12 +15,18 @@ import { onPreviewCancel, type SharePreviewState } from "./sharePreview";
  */
 export function SharePreviewDialog({
   state,
+  leaving = false,
   copy,
   onClose,
   onShare,
   onDownload,
 }: {
   state: SharePreviewState;
+  /**
+   * On its way out (V3.2 motion pass #9): the owner keeps it mounted, and
+   * open, for leaveMs("fade") while it fades.
+   */
+  leaving?: boolean;
   copy: ShareCardCopy;
   onClose: () => void;
   onShare: () => void;
@@ -29,6 +36,10 @@ export function SharePreviewDialog({
   const closeRef = useRef<HTMLButtonElement>(null);
   const lock = useRef<ModalLock | null>(null);
   const titleId = useId();
+  // A tap beside the panel (a wide screen) or around the card (a phone, where
+  // the preview fills the screen) closes it, as × does (Kirby 2026-10-26,
+  // candidate / 未拍板).
+  const blankTap = useBlankTap(onClose, { panel: "child", enabled: !leaving });
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -54,7 +65,11 @@ export function SharePreviewDialog({
       aria-modal="true"
       aria-labelledby={titleId}
       data-testid="share-preview"
+      data-leaving={leaving ? "true" : undefined}
+      inert={leaving}
+      aria-hidden={leaving ? true : undefined}
       onCancel={(event) => onPreviewCancel(event, { close: onClose })}
+      {...blankTap}
       // Closed some other way (a form, the browser): tell the owner, unless it
       // is our own unmount or StrictMode's second mount (see `lockModal`).
       onClose={() => {
@@ -87,7 +102,7 @@ export function SharePreviewDialog({
           </button>
         </div>
 
-        <div className="sharePreview-stage">
+        <div className="sharePreview-stage" data-blank-tap="">
           <div
             className="sharePreview-card"
             data-phase={state.phase}

@@ -1,0 +1,35 @@
+/* The glass tile (36 px) and the wordmark (20 px) on one line, centred on
+   each other (Pencil board "Logo 套用", candidate / 未拍板, 2026-10-26). */
+.brandLockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 2.75rem;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+/* px, not rem: at 200 % text the tile should not double. The blue glow
+   under it is the tile's outer shadow in Pencil. */
+.brandLockup-mark {
+  display: block;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 8px;
+  box-shadow: 0 2.5px 10px rgb(36 99 235 / 25%);
+}
+.brandLockup-name {
+  /* Inter 700, spaced -0.3/18 em: the official wordmark (brand-font.ts). */
+  font-family: var(--font-brand), system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: -0.0167em;
+}
+a.brandLockup:active {
+  opacity: 0.65;
+}
+a.brandLockup:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+  border-radius: 0.375rem;
+}

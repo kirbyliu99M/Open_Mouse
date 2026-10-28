@@ -65,14 +65,14 @@ async function stubScan(page: Page) {
   return calls;
 }
 
-/** The share link in the top bar and the primary share button are both shown. */
+/** The primary share button is shown, and the top bar has none (2026-10-26). */
 async function expectShareButtons(page: Page) {
   await expect(
     page.locator('[data-testid="share-card-button"]:visible'),
-  ).toHaveCount(2);
+  ).toHaveCount(1);
   await expect(
     page.locator(".results-topBar [data-testid='share-card-button']"),
-  ).toBeVisible();
+  ).toHaveCount(0);
 }
 
 async function openDetails(page: Page) {

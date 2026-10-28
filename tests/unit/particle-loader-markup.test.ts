@@ -163,7 +163,9 @@ describe("the results page's loader appears at 300 ms while the fit is still out
 
   it("a timer set when the fit is asked for shows the loader after FIT_SHOW_AFTER_MS", () => {
     expect(effect.length).toBeGreaterThan(0);
-    expect(effect).toContain("setLoaderVisible(false);");
+    // Hidden at the start unless the send veil handed its loader over (F23,
+    // tests/unit/loader-handoff.test.ts).
+    expect(effect).toContain("setLoaderVisible(handed !== null);");
     expect(effect).toMatch(
       /const show = setTimeout\(\(\) => \{\s*if \(!cancelled\) setLoaderVisible\(true\);\s*\}, LOADING_TIMING\.FIT_SHOW_AFTER_MS\);/,
     );

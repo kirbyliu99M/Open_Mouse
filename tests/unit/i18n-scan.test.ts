@@ -164,9 +164,6 @@ describe("English stays byte-identical", () => {
     );
   });
   it("constants other code and tests import", () => {
-    expect(commonEn.unverifiedNote).toBe(
-      "Measurements are still being validated.",
-    );
     expect(DETECTOR_LOAD_FAILED_MESSAGE).toBe(
       "We couldn't load the hand detector. Check your connection and try again.",
     );
@@ -246,14 +243,14 @@ describe("cues in zh-TW", () => {
     for (const side of sides) {
       const code = `edge-covered-${side}` as const;
       expect(cueMessage(code, "paper-edge", "zh-TW")).toBe(
-        `紙的${zhSide[side]}緣被擋住，手往內移`,
+        `紙的${zhSide[side]}緣被擋住，請把手往內移`,
       );
       expect(cueMessage(code, "paper-edge", "en")).toBe(
         `The ${enSide[side]} edge is covered. Move your hand in.`,
       );
     }
     expect(cueMessage("edge-covered", "paper-edge", "zh-TW")).toBe(
-      "紙邊被擋住，手往內移",
+      "紙邊被擋住，請把手往內移",
     );
     expect(cueMessage("edge-covered", "paper-edge", "en")).toBe(
       "An edge is covered. Move your hand in.",

@@ -75,6 +75,10 @@ import {
   type PixelRect,
 } from "../camera/visibleView";
 import { finishPaperEdge } from "./paperEdgeFinish";
+import {
+  computeShadowRing,
+  type PlacementDiagnostics,
+} from "./placementDiagnostics";
 import { PALM_CHOICE, palmPointsOf, pointsInside } from "../paper/palmChoice";
 import { paperHandHint } from "../paper/handMask";
 import type { EdgeFitRecord } from "../paper/detect";
@@ -262,6 +266,15 @@ export interface RunPhotoPipelineInput {
    * automatic path.
    */
   readonly reusedFocal?: ReusedFocal | null;
+  /**
+   * Kirby 2026-10-27 (candidate 未拍板, hiResSheet.ts): a sheet with all four
+   * corners that the live viewfinder or the shutter's own check found on
+   * this very frame, in the WHOLE decoded photo's pixels. Read only when the
+   * detector here does not find the sheet, and then ONLY as where the frame
+   * the person adjusts starts (in place of the rough `paperGuessCorners`);
+   * nothing is measured from it.
+   */
+  readonly knownSheetCorners?: Quad4 | null;
 }
 
 /** The steps `onStage` reports. */
@@ -302,6 +315,8 @@ interface PipelineTrace {
   paperSecondLook: PaperSecondLookDiagnostics | null;
   /** V3.2 F19: how the sides of the sheet in the result were fitted, when one was found. */
   paperEdgeFit: EdgeFitRecord | null;
+  /** V3.3 WP1b (log only): the placement record of a measured paper-edge scan. */
+  placement: PlacementDiagnostics | null;
 }
 
 function newTrace(): PipelineTrace {
@@ -329,6 +344,7 @@ function newTrace(): PipelineTrace {
     paperChoice: null,
     paperSecondLook: null,
     paperEdgeFit: null,
+    placement: null,
   };
 }
 
@@ -498,6 +514,8 @@ export async function runPhotoPipeline(
           },
         }
       : {}),
+    // V3.3 WP1b: only on a measured paper-edge scan, so other records are as they were.
+    ...(trace.placement ? { placement: trace.placement } : {}),
   };
   return { ...result, diagnostics };
 }
@@ -1046,15 +1064,18 @@ async function runPaperEdgePipeline(
       const partial = quad.paperRegionFound
         ? quad.partialCorners.map((p) => (p ? toFullFrame(p, crop) : null))
         : null;
-      // ...and the rough quad around the bright region (F10), a start only.
-      const guess = quad.guessCorners
-        ? (quad.guessCorners.map((p) => toFullFrame(p, crop)) as unknown as [
-            Point2,
-            Point2,
-            Point2,
-            Point2,
-          ])
-        : null;
+      // ...and the rough quad around the bright region (F10), a start only;
+      // a sheet already found on this frame comes first (hiResSheet.ts).
+      const guess = input.knownSheetCorners
+        ? input.knownSheetCorners
+        : quad.guessCorners
+          ? (quad.guessCorners.map((p) => toFullFrame(p, crop)) as unknown as [
+              Point2,
+              Point2,
+              Point2,
+              Point2,
+            ])
+          : null;
       return {
         status: "error",
         errors: [failure],
@@ -1117,9 +1138,42 @@ async function runPaperEdgePipeline(
     trace.focal = finish.focal;
     trace.shadowPrior = finish.shadowPrior;
     trace.parallaxGuard = finish.parallaxGuard;
+    // V3.3 WP1b (log only): the placement record, with the research
+    // shadowRing read off this same analysed frame (the pixels are here).
+    trace.placement = withShadowRing(
+      finish.placement ?? null,
+      frame,
+      quad.corners,
+      hand.landmarksPx,
+    );
     return finish.result;
   } finally {
     if (bitmap !== decoded.bitmap) bitmap.close();
+  }
+}
+
+/**
+ * V3.3 WP1b (log only): `placement` with `shadowRing` and its time filled in
+ * (placementDiagnostics.ts `computeShadowRing`). A throw, or no placement,
+ * leaves it as it was; nothing here reaches the result.
+ */
+function withShadowRing(
+  placement: PlacementDiagnostics | null,
+  frame: AnalysisFrame,
+  corners: readonly Point2[] | null,
+  landmarksPx: readonly Point2[],
+): PlacementDiagnostics | null {
+  if (!placement) return null;
+  const startedAt = performance.now();
+  try {
+    const ring = computeShadowRing(frame, corners, landmarksPx);
+    return {
+      ...placement,
+      shadowRing: ring?.ratio ?? null,
+      shadowRingMs: performance.now() - startedAt,
+    };
+  } catch {
+    return placement;
   }
 }
 
@@ -1239,6 +1293,8 @@ async function finishManualPaper(args: {
   trace.focal = finish.focal;
   trace.shadowPrior = finish.shadowPrior;
   trace.parallaxGuard = finish.parallaxGuard;
+  // V3.3 WP1b (log only): no shadowRing on a placed frame (its pixels are not kept here).
+  trace.placement = finish.placement ?? null;
   return finish.result;
 }
 

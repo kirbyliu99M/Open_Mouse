@@ -19,14 +19,21 @@ import {
   isQuadSkewed,
   computeQuadWidthFraction,
   computeQuadSizeStatus,
+  computeQuadSizeStatusWithHysteresis,
   type Quad,
+  type QuadSizeStatus,
 } from "./quad";
 import { computeLightStatus, type LightStatus } from "./light";
+import { HAND_CUT_STAGES } from "./sheetCarry";
 import type { LivePaperGate, PaperSide } from "./paperGate";
 import {
   paperStageLines,
   type PaperDetectionStage,
 } from "../paper/detectionStage";
+import type {
+  PlacementCueCode,
+  PlacementCueInput,
+} from "./placementHysteresis";
 
 /**
  * The cue codes that name where the paper detector stopped (scan S2,
@@ -57,7 +64,8 @@ export type CueCode =
   | "hold-still"
   | "out-of-focus"
   | "perfect"
-  | PaperStageCueCode;
+  | PaperStageCueCode
+  | PlacementCueCode;
 
 export interface Cue {
   readonly code: CueCode;
@@ -87,6 +95,13 @@ const CUE_KEYS: Record<
   "hold-still": "holdStill",
   "out-of-focus": "outOfFocus",
   perfect: "perfect",
+  // V3.3 WP3a (candidate): the live hand hints (placementHysteresis.ts).
+  "hand-missing": "handMissing",
+  "wrist-onto-paper": "wristOntoPaper",
+  "wrist-align": "wristAlign",
+  "hand-inside": "handInside",
+  "hand-straight": "handStraight",
+  "hand-flat": "layHandFlat",
 };
 
 /**
@@ -291,20 +306,124 @@ export interface CueInput {
    * mug as too_small). Omitted: treated as seen.
    */
   readonly sheetSeenYet?: boolean;
+  /**
+   * V3.3 WP4 (candidate): the distance status the previous sample got
+   * (`computeQuadSizeStatusWithHysteresis`). Omitted or `null`: the plain
+   * bounds, exactly as before.
+   */
+  readonly previousSizeStatus?: QuadSizeStatus | null;
+  /**
+   * The width fraction of this miss's rough quad (`guessCorners`, the
+   * detector's `failureGuess`), when the sheet was not found. Omitted or
+   * `null`: no rough quad.
+   */
+  readonly missGuessWidthFraction?: number | null;
+  /**
+   * The sheet's width fraction as the hand's length in the picture puts it
+   * (`handSheetWidthFraction`). Omitted or `null`: no hand reading.
+   */
+  readonly handSheetWidthFraction?: number | null;
+  /**
+   * V3.3 WP3a (candidate 未拍板): the hand's settled live state
+   * (placementHysteresis.ts `placementCueInput`). Omitted or `null` (the
+   * hints are off, the hand detector is not loaded, the reading is stale):
+   * the cue is exactly what it was before WP3.
+   */
+  readonly placement?: PlacementCueInput | null;
 }
+
+/** The cues that say the paper itself passed (only the phone is left to hold or focus). */
+
+const PAPER_PASSED_CODES: readonly CueCode[] = [
+  "perfect",
+  "hold-still",
+  "out-of-focus",
+];
 
 /**
  * The one cue to show, per the spec's fixed priority order. Every input
  * after corner count is only consulted once 4/4 corners are found and a
  * quad exists — a partial corner set always short-circuits to
  * "some-corners".
+ *
+ * V3.3 WP3a (candidate 未拍板; F20 design §4.1): with `input.placement`, the
+ * hand's hint comes after the paper's own checks (corners, tilt, distance,
+ * light, edges) and before "hold still" and focus:
+ *   find the sheet → distance → light → edges → hand on the paper → wrist /
+ *   inside / direction → flat → hold still → focus → perfect.
+ * A hand hint is never "perfect" (`allPass` false). It is a HINT: the live
+ * loop fills the ring from the cue WITHOUT `placement` (EasyScanCamera), so
+ * the auto-capture is what it was. §4.3: with the wrist at the bottom edge,
+ * "the bottom edge is covered" is not said; the rest of the order is read
+ * as if the edges had passed, and where that would say "perfect" (the ring
+ * is not filling: the edge still fails) it says "hold still".
  */
 export function pickCue(
   input: CueInput,
   mode: CueCalibrationMode,
   locale: Locale,
 ): Cue {
+  const paper = pickPaperCue(input, mode, locale);
+  const placement = input.placement;
+  if (!placement) return paper;
+  // Kirby's S25 test 2026-10-27 (candidate 未拍板): a hand laid in the
+  // middle of the sheet puts the forearm across it, and the detector finds
+  // the sheet cut in two or the wrong shape; no corners, so no hand hint
+  // could be worked out, and the paper's words ("place a blank sheet") were
+  // wrong. With a hand seen, those stages say where the wrist goes instead.
+  // Kirby's test at the phone's highest (2026-10-28, candidate 未拍板): most
+  // samples there miss the sheet this way, and the few that find it say
+  // "move closer"; the wrist words drowned that out, so the ring never
+  // started. Higher still (68 cm, the same night) no sample found the sheet
+  // at all, so the last status found was the closer scan's "ok". Those
+  // stages say the distance instead when the miss's own rough quad is out
+  // of the distance range (its cut side is off, the width it gives is
+  // close enough to tell 0.30 from 0.55). With no rough quad (the next
+  // test: none at that height), the hand's length says it, well outside
+  // the range only; with no hand reading either, the last sheet found.
+  // The wrist words come only when nothing says the distance is wrong.
+  // Kirby, the next test (64 cm, candidate): "超過一個高度就一律要求 move
+  // closer，除非用戶自己 shutter". The rough quad and the hand's length
+  // say it in the paper's own cue (pickPaperCue, hints on or off); here
+  // only the last sheet found is added, for the hand-cut stages.
+  if (input.cornersSeen <= 0 && placement.handSeen) {
+    const handCut =
+      input.paperStage != null && HAND_CUT_STAGES.includes(input.paperStage);
+    const distance =
+      missDistanceStatus(input) ?? (handCut ? input.previousSizeStatus : null);
+    if (distance === "too-far" || distance === "too-close")
+      return cue(distance, mode, locale);
+    if (handCut) return cue("wrist-align", mode, locale);
+  }
+  if (PAPER_PASSED_CODES.includes(paper.code))
+    return placement.hint ? cue(placement.hint, mode, locale) : paper;
+  if (paper.code === "edge-covered-bottom" && placement.wristNearBottomEdge) {
+    if (placement.hint) return cue(placement.hint, mode, locale);
+    const rest = pickPaperCue(
+      { ...input, paperGate: { kind: "pass" } },
+      mode,
+      locale,
+    );
+    return rest.code === "perfect" ? cue("hold-still", mode, locale) : rest;
+  }
+  return paper;
+}
+
+/** `pickCue` without the hand: the paper's, the phone's and the light's checks only. */
+function pickPaperCue(
+  input: CueInput,
+  mode: CueCalibrationMode,
+  locale: Locale,
+): Cue {
   if (input.cornersSeen <= 0) {
+    // Kirby 2026-10-28 (candidate): out of the distance range by the miss's
+    // rough quad or the hand's length → the distance, before any stage
+    // words. The paper's cue, so it holds for every user (the hand hints
+    // are debug-only, PR #228 review) and the no-sheet shot waits on it
+    // (`sheetFoundByCue`: too far / too close pause it).
+    const distance = missDistanceStatus(input);
+    if (distance === "too-far" || distance === "too-close")
+      return cue(distance, mode, locale);
     // Where the detector stopped, when that step has words of its own; the
     // "point the camera" cues otherwise.
     // Candidate order (未拍板, scan S2 review): no stage cue before a sheet
@@ -334,7 +453,12 @@ export function pickCue(
   if (isQuadSkewed(skew)) return cue("tilted", mode, locale);
 
   const widthFraction = computeQuadWidthFraction(input.quad, input.frameWidth);
-  const sizeStatus = computeQuadSizeStatus(widthFraction);
+  // V3.3 WP4 (candidate): with the last sample's status, a distance cue that
+  // is up waits until the fill is well back inside the range.
+  const sizeStatus = computeQuadSizeStatusWithHysteresis(
+    widthFraction,
+    input.previousSizeStatus,
+  );
   if (sizeStatus === "too-far") return cue("too-far", mode, locale);
   if (sizeStatus === "too-close") return cue("too-close", mode, locale);
 
@@ -399,3 +523,49 @@ export function computeStatusChips(
 }
 
 export { CAMERA_CONSTANTS };
+
+const isFiniteNumber = (v: number | null | undefined): v is number =>
+  typeof v === "number" && Number.isFinite(v);
+
+/**
+ * The distance a sample without the sheet gives: the rough quad's width
+ * first, else the hand's estimate (out of range only by the margin); null
+ * with neither.
+ */
+function missDistanceStatus(input: CueInput): QuadSizeStatus | null {
+  if (isFiniteNumber(input.missGuessWidthFraction))
+    return computeQuadSizeStatus(input.missGuessWidthFraction);
+  if (isFiniteNumber(input.handSheetWidthFraction))
+    return handDistanceStatus(input.handSheetWidthFraction);
+  return null;
+}
+
+/** The distance from the hand's estimate: out of range only by `handEstimateMargin`. */
+function handDistanceStatus(widthFraction: number): QuadSizeStatus {
+  const { minWidthFraction, maxWidthFraction, handEstimateMargin } =
+    CAMERA_CONSTANTS.size;
+  return computeQuadSizeStatus(widthFraction, {
+    minWidthFraction: minWidthFraction - handEstimateMargin,
+    maxWidthFraction: maxWidthFraction + handEstimateMargin,
+  });
+}
+
+/**
+ * The sheet's width fraction as the hand's length (wrist to the middle
+ * fingertip, landmarks 0 and 12, in the sample's pixels) puts it, taking a
+ * hand `assumedHandLengthMm` long on a sheet 210 mm wide. `null` without
+ * those landmarks.
+ */
+export function handSheetWidthFraction(
+  landmarks:
+    readonly { readonly x: number; readonly y: number }[] | null | undefined,
+  frameWidth: number,
+): number | null {
+  const wrist = landmarks?.[0];
+  const tip = landmarks?.[12];
+  if (!wrist || !tip || !(frameWidth > 0)) return null;
+  const handPx = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
+  return (
+    ((handPx / frameWidth) * 210) / CAMERA_CONSTANTS.size.assumedHandLengthMm
+  );
+}

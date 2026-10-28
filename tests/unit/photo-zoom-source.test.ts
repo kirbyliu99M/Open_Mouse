@@ -71,6 +71,8 @@ describe("the enlarge-photo dialog has no dependency beyond React and the projec
     const found = specifiers(component);
     expect(found).toContain("react");
     expect(found.filter((spec) => spec !== "react").sort()).toEqual([
+      // The shared leave-then-close (V3.2 motion pass): React only.
+      "@/components/motion/Presence",
       "@/lib/results/photoDialogControl",
       "@/lib/results/photoPaths",
       "@/lib/results/photoZoom",
@@ -84,7 +86,10 @@ describe("the enlarge-photo dialog has no dependency beyond React and the projec
     // Not through mouseMedia.ts (which reads files with zod) either.
     expect([...files].some((f) => f.endsWith("mouseMedia.ts"))).toBe(false);
     expect([...files].map((f) => f.replaceAll("\\", "/")).sort()).toEqual([
+      "src/components/motion/Presence.tsx",
       COMPONENT,
+      "src/lib/motion.ts",
+      "src/lib/presence.ts",
       "src/lib/results/photoDialogControl.ts",
       "src/lib/results/photoPaths.ts",
       MATHS,
@@ -133,7 +138,20 @@ describe("the enlarge-photo dialog has no dependency beyond React and the projec
   it("the scrim closes on click, after a clean press, never on pointerdown", () => {
     expect(component).toMatch(/scrimPress\.current\.up\(/);
     expect(component).not.toMatch(/onPointerDown=\{[^}]*\.close\(\)/);
-    expect(component).toMatch(/onClick=\{\(event\) => \{[\s\S]*?\.close\(\)/);
+    // The click starts the fade out; `close()` follows it (V3.2 motion pass).
+    expect(component).toMatch(
+      /onClick=\{\(event\) => \{[\s\S]*?requestClose\(\)/,
+    );
+    expect(component).toMatch(
+      /useLeaveThenClose\(\s*\(\) => dialogRef\.current\?\.close\(\),\s*"fade",?\s*\)/,
+    );
+  });
+
+  it("Esc fades out through the same path, never the browser's instant close", () => {
+    expect(component).toMatch(
+      /onCancel=\{\(event\) => \{\s*event\.preventDefault\(\);\s*requestClose\(\);/,
+    );
+    expect(component).toMatch(/data-leaving=\{leaving \? "true" : undefined\}/);
   });
 
   it("the scrim press is told whether the target was the scrim itself, on down and on up", () => {
@@ -223,11 +241,20 @@ describe("the dialog's CSS", () => {
     expect(print.length).toBeGreaterThan(0);
   });
 
-  it("reduced motion turns the dialog and photo animations off", () => {
+  it("reduced motion makes the dialog and photo a short fade (V3.2 motion pass)", () => {
     const block = css.match(
-      /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.results-photoDialog\[open\],\s*\.results-photoDialog-area \{\s*animation:\s*none;/,
+      /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.results-photoDialog\[open\],\s*\.results-photoDialog-area \{\s*animation:\s*results-photoDialog-in var\(--motion-reduced\) linear;/,
     );
     expect(block).not.toBeNull();
+  });
+
+  it("closing fades the dialog out on opacity only", () => {
+    expect(rule(css, '.results-photoDialog[data-leaving="true"]')).toMatch(
+      /opacity:\s*0/,
+    );
+    expect(rule(css, ".results-photoDialog {\n  transition:")).toMatch(
+      /transition: opacity var\(--motion-out\) var\(--ease-in\)/,
+    );
   });
 
   it("a landscape phone gets the same height cap as a wide screen", () => {

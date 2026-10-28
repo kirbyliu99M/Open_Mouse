@@ -114,9 +114,12 @@ const PRODUCT_ROUTES = [
   // The public "How to choose a mouse that fits" page (the kit moved to /learn/kit).
   "/learn",
   "/mice",
+  // The privacy notice and the terms (pre-launch audit 2026-10-28).
+  "/privacy",
   "/results/[scanId]",
   "/results/[scanId]/m/[slug]",
   "/scan/easy",
+  "/terms",
 ];
 
 /**

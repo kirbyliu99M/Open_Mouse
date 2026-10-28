@@ -10,6 +10,8 @@ import {
 } from "react";
 import Link from "next/link";
 import { useLocale } from "@/client/i18n/LocaleProvider";
+import { useBlankTap } from "@/components/dialog/useBlankTap";
+import { Presence, usePresence } from "@/components/motion/Presence";
 import { Avatar } from "@/components/nav/Avatar";
 import { SURVEY_PATH, resultsPagePath } from "@/lib/contracts/routes";
 import {
@@ -194,8 +196,18 @@ export function AccountView({
     answers: answers.kind === "ready" ? answers.answers : null,
   };
 
+  // The confirmation fades out before it closes (V3.2 motion pass #26): it
+  // stays open for leaveMs("fade") after `confirmOpen` turns false, and only
+  // then closes and gives focus back to its trigger.
+  const confirm = usePresence(confirmOpen, "fade");
+  // A tap on the dimmed page beside the card cancels, as 取消 does (Kirby
+  // 2026-10-26, candidate / 未拍板); not while it is deleting.
+  const confirmBlankTap = useBlankTap(() => setConfirmOpen(false), {
+    panel: "self",
+    enabled: !confirm.leaving && deleteStatus !== "working",
+  });
   useEffect(() => {
-    if (!confirmOpen) return;
+    if (!confirm.mounted) return;
     const dialog = dialogRef.current;
     const trigger = triggerRef.current;
     dialog?.showModal();
@@ -204,7 +216,7 @@ export function AccountView({
       dialog?.close();
       trigger?.focus();
     };
-  }, [confirmOpen]);
+  }, [confirm.mounted]);
 
   // Reads the person's own answers. A re-read after an edit keeps what is on
   // screen until the new answer arrives; only a first read or a retry shows
@@ -397,27 +409,46 @@ export function AccountView({
         <div className="profile-signout">{signOut}</div>
       )}
 
-      {sheet === "nickname" && (
-        <NicknameSheet
-          saved={name ?? ""}
-          editing={editing}
-          onClose={closeSheet}
-          onSaved={setName}
-        />
-      )}
-      {sheet === "avatar" && (
-        <AvatarSheet
-          image={image}
-          editing={editing}
-          onClose={closeSheet}
-          onSaved={setImage}
-        />
-      )}
+      {/* Each sheet slides down before it unmounts (V3.2 motion pass #10);
+          the focus `closeSheet` gives back lands once it has gone. */}
+      <Presence
+        kind="sheet"
+        onExited={() => nicknameTriggerRef.current?.focus()}
+      >
+        {sheet === "nickname" && (
+          <NicknameSheet
+            saved={name ?? ""}
+            editing={editing}
+            onClose={closeSheet}
+            onSaved={setName}
+          />
+        )}
+      </Presence>
+      <Presence kind="sheet" onExited={() => avatarTriggerRef.current?.focus()}>
+        {sheet === "avatar" && (
+          <AvatarSheet
+            image={image}
+            editing={editing}
+            onClose={closeSheet}
+            onSaved={setImage}
+          />
+        )}
+      </Presence>
 
-      {confirmOpen && (
+      {confirm.mounted && (
         <dialog
           ref={dialogRef}
           onClose={() => setConfirmOpen(false)}
+          {...confirmBlankTap}
+          onCancel={(event) => {
+            // Esc: fade out like Cancel, not the browser's instant close.
+            event.preventDefault();
+            setConfirmOpen(false);
+          }}
+          data-leaving={confirm.leaving ? "true" : undefined}
+          // Leaving: no second 刪除全部 (DELETE) during the fade.
+          inert={confirm.leaving}
+          aria-hidden={confirm.leaving ? true : undefined}
           role="alertdialog"
           aria-labelledby="delete-all-title"
           aria-describedby="delete-all-body"

@@ -33,9 +33,12 @@ import {
   useReducer,
   useRef,
   useState,
+  type CSSProperties,
+  type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/client/i18n/LocaleProvider";
+import { useBlankTap } from "@/components/dialog/useBlankTap";
 import { cameraCuesCopy } from "../../lib/copy/camera-cues";
 import { easyScanCopy } from "../../lib/copy/easy-scan";
 import { scanCommonCopy } from "../../lib/copy/scan-common";
@@ -53,8 +56,26 @@ import {
   getHandLandmarker,
   HandLandmarkerLoadError,
   isHandLandmarkerReady,
-  readLiveHandPoints,
+  readLiveHand,
 } from "../photo/landmarks";
+import {
+  liveNominalFocalPx,
+  liveReadingsAtShutter,
+  pushLivePlacement,
+  readLivePlacement,
+  shutterKindOf,
+  type ExperimentTag,
+  type LivePlacementReading,
+  type ShutterKind,
+} from "./livePlacement";
+import {
+  INITIAL_PLACEMENT_HYSTERESIS_STATE,
+  advancePlacementHysteresis,
+  placementCueInput,
+  isPlacementCueCode,
+  placementHintsOn,
+  type PlacementHysteresisState,
+} from "./placementHysteresis";
 import {
   runPhotoPipeline,
   type PhotoOverlay,
@@ -72,9 +93,11 @@ import {
   cueFromCode,
   easyCueText,
   easyHintText,
+  handSheetWidthFraction,
   pickCue,
   type Cue,
   type CueCode,
+  type CueInput,
 } from "./cues";
 import { requestCameraStream } from "./requestStream";
 import {
@@ -83,9 +106,12 @@ import {
 } from "@/lib/observability/report";
 import {
   computeCoverRect,
+  computeQuadSizeStatusWithHysteresis,
+  computeQuadWidthFraction,
   mapMediaPointToContainer,
   type Point,
   type Quad,
+  type QuadSizeStatus,
 } from "./quad";
 import { computeMeanLuma, computeClippedFraction } from "./light";
 import { computeMaxCornerMovement, isSteady } from "./steadiness";
@@ -96,6 +122,11 @@ import {
   autoCaptureRingFraction,
   type AutoCaptureState,
 } from "./autoCapture";
+import {
+  nextBestFrame,
+  pickSharpestScore,
+  type BestFrameState,
+} from "./bestFrame";
 import {
   EMPTY_HAND_READINGS,
   INITIAL_NO_SHEET_CAPTURE_STATE,
@@ -149,7 +180,11 @@ import {
 } from "./photoLayout";
 import { problemAreaFor } from "./problemArea";
 import { FrozenPhoto, type DimensionSpec } from "./FrozenPhoto";
-import { EasyCorners } from "./EasyCorners";
+import {
+  createCornerStore,
+  LiveEasyCorners,
+  type CornerStore,
+} from "./EasyCorners";
 import {
   advanceOutline,
   INITIAL_OUTLINE_HYSTERESIS_STATE,
@@ -173,7 +208,13 @@ import {
 import { paperAdjustCopy } from "../../lib/copy/paper-adjust";
 import { ScanDebugPanel } from "./ScanDebugPanel";
 import { usePrefersReducedMotion } from "./useReducedMotion";
+import { leaveMs } from "../../lib/motion";
+import { closeAsIfRemoved, fadeMs } from "./scanMotion";
+import { useLeaving } from "./useLeaving";
+import { useAnswerPageSwap } from "./useAnswerPageSwap";
+import { LeaveShield } from "./LeaveShield";
 import {
+  debugPlacement,
   mean,
   percentile,
   pushWindow,
@@ -201,11 +242,24 @@ import {
   buildAttemptRecord,
   readAttempts,
   recordAttempt,
+  recordSoftHintBannerOutcome,
+  softHintBannerHistoryOf,
+  softHintHistoryOf,
+  softHintInputOf,
   type AttemptCapture,
   type AttemptCaptureSource,
   type AttemptOutcome,
   type AttemptRecord,
 } from "./attemptLog";
+import {
+  isSoftHintBannerCode,
+  pickSoftHintBanner,
+  softHintBannerText,
+  type SoftHintBannerCode,
+} from "./softHintBanner";
+import { SoftHintBanner } from "./SoftHintBannerView";
+import { uploadDebugPhoto } from "./debugPhotoUpload";
+import type { SoftHintCode } from "../photo/softHint";
 import {
   createPaperEdgeQuadSource,
   NO_QUAD_DETECTION,
@@ -213,6 +267,18 @@ import {
   type SheetQuadSource,
 } from "./quad-source";
 import { evaluateLivePaperGate } from "./paperGate";
+import { carrySheet, type CarriedSheet } from "./sheetCarry";
+import { smoothRingFraction, type RingTarget } from "./smoothRing";
+import {
+  cornersToSize,
+  hiResSize,
+  precheckOrder,
+  scaleDetection,
+  sheetPasses,
+  shouldConfirmHiRes,
+} from "./hiResSheet";
+import { getAnalysisRunner } from "../photo/analysisWorkerClient";
+import type { Quad4 } from "../paper/manualQuad";
 import {
   INITIAL_HAND_CHIP_STATE,
   applyDetectedHandedness,
@@ -359,6 +425,21 @@ interface DebugLive {
   movement: number | null;
   cornersSeen: number | null;
   cueCode: CueCode | null;
+  /** V3.3 WP1b: this sample's sheet fill (紙占寬), every sample. */
+  fill?: number | null;
+  /** V3.3 WP1b: what each live placement reading cost, ms (performance.now). */
+  placementMs?: number[];
+  /** 1 for a sample that carried the last sheet (sheetCarry.ts), else 0. */
+  carried?: number[];
+  /** The higher-resolution looks (hiResSheet.ts): what each took, ms, and 1 where it found the sheet. */
+  hiResMs?: number[];
+  hiResFound?: number[];
+  /** The gaps between the ring's drawn frames, ms (smoothRing.ts). */
+  ringFrameGapMs?: number[];
+  /** While the ring fills: how far each frame moved it, in ms of fill (0 = stood still). */
+  ringAdvanceMs?: number[];
+  /** What each whole live sample cost on the main thread, ms (the frame it ran in waits for it). */
+  sampleWorkMs?: number[];
 }
 interface DebugCapture {
   method: "takePhoto" | "canvas" | "upload" | null;
@@ -402,6 +483,15 @@ type ResultState =
       submission: ScanSubmission;
       imageWidth: number;
       imageHeight: number;
+      /**
+       * V3.3 WP3b (candidate): the post-shot banner of this photo and the
+       * time of its attempt record (for what happened next). Absent while
+       * the hints are off.
+       */
+      softHint?: {
+        readonly code: SoftHintBannerCode | null;
+        readonly at: string;
+      };
     }
   | {
       kind: "gateFailure";
@@ -508,15 +598,70 @@ export interface EasyScanCameraProps {
    * the pre-mount placeholder the colour of the screen that will replace it.
    */
   readonly deviceHint?: DeviceFit;
+  /**
+   * Whether `?debug=1&photos=1` may send the photo (the server's
+   * `VERCEL_ENV === "preview"`). Omitted: never, whatever the URL says.
+   */
+  readonly debugPhotosAllowed?: boolean;
   /** Forces the first-run tip open regardless of localStorage — for
    * `/scan/easy/tip-demo` (screenshot only). */
   readonly forceTipOpen?: boolean;
+}
+
+/** Closes every bitmap of the map and empties it. */
+function releaseBitmaps(bitmaps: Map<number, ImageBitmap>): void {
+  for (const bitmap of bitmaps.values()) bitmap.close();
+  bitmaps.clear();
+}
+
+/**
+ * A kept frame's sharpness at full size: the photo's own measure
+ * (sharpness.ts, the same the LOW_SHARPNESS warning reads), drawn on `canvas`.
+ * `NaN` where it cannot be read.
+ */
+/** The shutter ring's circumference (r = 40 in its 96 px viewBox). */
+const RING_CIRCUMFERENCE = 2 * Math.PI * 40;
+/** How far the drawn ring may run ahead of the last sample, ms (smoothRing.ts). 候選. */
+const RING_LEAD_MS = 250;
+
+/** How old the live loop's last sheet may be to start the frame the person adjusts (hiResSheet.ts). 候選. */
+const KNOWN_SHEET_MAX_AGE_MS = 3000;
+
+/** Points from a picture of `from`'s size to one of `to`'s. */
+function cornersToSizeAll(
+  points: readonly { readonly x: number; readonly y: number }[],
+  from: { readonly width: number; readonly height: number },
+  to: { readonly width: number; readonly height: number },
+) {
+  return points.map((p) => ({
+    x: (p.x * to.width) / from.width,
+    y: (p.y * to.height) / from.height,
+  }));
+}
+
+function fullScore(canvas: HTMLCanvasElement, bitmap: ImageBitmap): number {
+  try {
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return Number.NaN;
+    ctx.drawImage(bitmap, 0, 0);
+    const { data } = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
+    return computeLaplacianVariance(
+      rgbaToGrayscale(data, bitmap.width * bitmap.height),
+      bitmap.width,
+      bitmap.height,
+    );
+  } catch {
+    return Number.NaN;
+  }
 }
 
 export default function EasyScanCamera({
   runPhotoPipelineImpl = runPhotoPipeline,
   demoMeasured,
   deviceHint,
+  debugPhotosAllowed = false,
   forceTipOpen,
 }: EasyScanCameraProps) {
   const router = useRouter();
@@ -607,10 +752,112 @@ export default function EasyScanCamera({
   manualActiveRef.current = manualActive;
   const [tipOpen, setTipOpen] = useState(Boolean(forceTipOpen));
   const [cue, setCue] = useState<Cue | null>(null);
-  const [cornerStates, setCornerStates] = useState<CornerStates>(
-    INITIAL_CORNER_STATES,
-  );
+  // The dots' states live in a small store that only the dots read
+  // (EasyCorners.tsx, 2026-10-28): a sample re-renders four dots, not the
+  // camera screen.
+  const cornerStoreRef = useRef<CornerStore | null>(null);
+  if (cornerStoreRef.current === null)
+    cornerStoreRef.current = createCornerStore(INITIAL_CORNER_STATES);
+  const cornerStore = cornerStoreRef.current;
   const [ringFraction, setRingFraction] = useState(0);
+  // Kirby 2026-10-27 (candidate): the ring is drawn every animation frame
+  // from the last sample's fill (smoothRing.ts), not at the samples.
+  const ringTargetRef = useRef<RingTarget>({
+    fraction: 0,
+    atMs: 0,
+    advancing: false,
+  });
+  const ringShownRef = useRef<{
+    shown: number;
+    shownTarget: number;
+    atMs: number | undefined;
+  }>({ shown: 0, shownTarget: 0, atMs: undefined });
+  const ringCircleRef = useRef<SVGCircleElement | null>(null);
+  // `atMs` is when the fill was true: the sample's own time, not when its
+  // detection finished (that varies, and the ring stepped with it).
+  // The camera's state holds the fill only for the hint line, which reads
+  // whether it is above zero: it is set only when that changes, so the
+  // ring's samples do not re-render the camera (2026-10-28).
+  const aimRing = useCallback(
+    (
+      fraction: number,
+      advancing: boolean,
+      atMs: number = performance.now(),
+    ) => {
+      ringTargetRef.current = { fraction, atMs, advancing };
+      setRingFraction((before) =>
+        before > 0 === fraction > 0 ? before : fraction,
+      );
+    },
+    [],
+  );
+  // `nowMs` is the frame's own time (the requestAnimationFrame timestamp, the
+  // clock the samples' `atMs` is on), so every frame steps the ring by one
+  // frame's worth however late in the frame it is drawn (2026-10-28).
+  const paintRing = useCallback(
+    (circle: SVGCircleElement, nowMs: number = performance.now()) => {
+      const target = ringTargetRef.current;
+      const last = ringShownRef.current;
+      const shown = smoothRingFraction({
+        target,
+        shown: last.shown,
+        shownTarget: last.shownTarget,
+        nowMs,
+        durationMs: CAMERA_CONSTANTS.autoCapture.durationMs,
+        leadMs: RING_LEAD_MS,
+        reducedMotion: reducedMotionRef.current,
+        shownAtMs: last.atMs,
+        aheadRate: CAMERA_CONSTANTS.autoCapture.ringAheadRate,
+      });
+      // With ?debug=1: how far each frame moved the ring while it filled, in
+      // ms of fill (0 = a frame it stood still: a hitch, whatever the cause).
+      if (
+        debugOnRef.current &&
+        target.advancing &&
+        last.atMs !== undefined &&
+        target.fraction >= last.shownTarget &&
+        shown < 1
+      )
+        debugLiveRef.current.ringAdvanceMs = pushWindow(
+          debugLiveRef.current.ringAdvanceMs ?? [],
+          (shown - last.shown) * CAMERA_CONSTANTS.autoCapture.durationMs,
+          120,
+        );
+      ringShownRef.current = {
+        shown,
+        shownTarget: target.fraction,
+        atMs: nowMs,
+      };
+      const offset = String(RING_CIRCUMFERENCE * (1 - shown));
+      if (circle.getAttribute("stroke-dashoffset") !== offset)
+        circle.setAttribute("stroke-dashoffset", offset);
+    },
+    [],
+  );
+  const drawRingCircle = useCallback(
+    (circle: SVGCircleElement | null) => {
+      ringCircleRef.current = circle;
+      if (circle) paintRing(circle);
+    },
+    [paintRing],
+  );
+  useEffect(() => {
+    let lastAt: number | null = null;
+    let frame = requestAnimationFrame(function draw(at) {
+      frame = requestAnimationFrame(draw);
+      // With ?debug=1: the gaps between drawn frames (a busy main thread
+      // shows here as the ring standing still).
+      if (debugOnRef.current && lastAt !== null)
+        debugLiveRef.current.ringFrameGapMs = pushWindow(
+          debugLiveRef.current.ringFrameGapMs ?? [],
+          at - lastAt,
+          120,
+        );
+      lastAt = at;
+      if (ringCircleRef.current) paintRing(ringCircleRef.current, at);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [paintRing]);
   const [flashKey, setFlashKey] = useState(0);
   const [announced, setAnnounced] = useState("");
   // Consecutive failed frame captures (captureFailure.ts): the number lives in
@@ -658,8 +905,36 @@ export default function EasyScanCamera({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const offscreenRef = useRef<HTMLCanvasElement | null>(null);
+  /**
+   * The sharpest frames of the ring's last second (bestFrame.ts, 2026-10-26
+   * and 27): their live numbers, and the full-resolution pictures of them as
+   * ImageBitmaps, by `atMs`. The bitmaps are made asynchronously
+   * (createImageBitmap): drawing the full frame onto a canvas in the loop
+   * dropped the S25 from ~7 to 2.9 samples a second and made the ring jerky
+   * (Kirby's test, 2026-10-26).
+   */
+  const bestFramesRef = useRef<readonly BestFrameState[]>([]);
+  const bestBitmapsRef = useRef(new Map<number, ImageBitmap>());
+  /** Goes up whenever the kept frames are forgotten, so a late bitmap is closed. */
+  const bestGenerationRef = useRef(0);
+  /** The last photo taken here, for the debug photos (`?debug=1`, previews only). */
+  const debugPhotoRef = useRef<File | null>(null);
+  /** The last ring shot's scores, for the debug photo record. */
+  const bestScoresRef = useRef<{
+    readonly live: readonly number[];
+    readonly full: readonly number[];
+    readonly chosen: number | null;
+    /** The shutter's paper check (hiResSheet.ts): each frame tried, in order, and whether it passed; its time. */
+    readonly precheck?: {
+      readonly tried: readonly { index: number; passed: boolean }[];
+      readonly ms: number;
+    };
+  } | null>(null);
   const rafRef = useRef<number | null>(null);
   const prevSampleQuadRef = useRef<Quad | null>(null);
+  // V3.3 WP4 (candidate): the last sample's distance status, for the
+  // too-far / too-close hysteresis (quad.ts).
+  const sizeStatusRef = useRef<QuadSizeStatus | null>(null);
   const autoCaptureRef = useRef<AutoCaptureState>(INITIAL_AUTO_CAPTURE_STATE);
   // F14 (candidate): the second way the shutter fires by itself, when the
   // paper checks do not pass but a hand is held still (noSheetCapture.ts),
@@ -668,8 +943,44 @@ export default function EasyScanCamera({
     INITIAL_NO_SHEET_CAPTURE_STATE,
   );
   const handReadingsRef = useRef<HandReadings>(EMPTY_HAND_READINGS);
+  // V3.3 WP1b (log only): the last live placement readings (livePlacement.ts),
+  // the shutter the loop is about to fire, and the debug panel's experiment
+  // tag for the next scan. None of them changes anything on screen.
+  const livePlacementRef = useRef<readonly LivePlacementReading[]>([]);
+  // V3.3 WP3a (candidate): the live hand hints' per-reading hysteresis.
+  const placementHysteresisRef = useRef<PlacementHysteresisState>(
+    INITIAL_PLACEMENT_HYSTERESIS_STATE,
+  );
+  const pendingShutterRef = useRef<ShutterKind | null>(null);
+  const experimentTagRef = useRef<ExperimentTag | null>(null);
+  const [experimentTag, setExperimentTagState] = useState<ExperimentTag | null>(
+    null,
+  );
+  const setExperimentTag = useCallback((tag: ExperimentTag | null) => {
+    experimentTagRef.current = tag;
+    setExperimentTagState(tag);
+  }, []);
   const lastSampleTimeRef = useRef(0);
   const lastDetectionAtRef = useRef(0);
+  /** The last live sheet with four corners (sheetCarry.ts, candidate). */
+  const carriedSheetRef = useRef<CarriedSheet | null>(null);
+  /** The higher-resolution look of the live loop (hiResSheet.ts, candidate). */
+  const hiResRef = useRef<{
+    inFlight: boolean;
+    lastAtMs: number | null;
+    generation: number;
+  }>({ inFlight: false, lastAtMs: null, generation: 0 });
+  const hiResCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  /** The live sample's size, for the corners the shutter hands on. */
+  const liveSampleSizeRef = useRef<{ width: number; height: number } | null>(
+    null,
+  );
+  /**
+   * A sheet with four corners found on the photo the shutter just took, in
+   * its pixels (hiResSheet.ts): the start of the frame the person adjusts
+   * when the analysis does not find it. Read once by the next analysis.
+   */
+  const knownSheetRef = useRef<Quad4 | null>(null);
   const cornerStatesRef = useRef<CornerStates>(INITIAL_CORNER_STATES);
   // V3.2 F16: the outline's hysteresis, in front of the corner smoother.
   const outlineRef = useRef<OutlineHysteresisState>(
@@ -687,6 +998,18 @@ export default function EasyScanCamera({
   const reticleTimerRef = useRef<number | null>(null);
   const reticleCountRef = useRef(0);
   const debugOnRef = useRef(false);
+  /**
+   * The soft hints follow the debug panel (`?debug=1`, until WP2), except
+   * with `&hints=0`: the panel without the hints, for the panel's own tests
+   * (a hand hint now holds the ring, and their camera has no real hand).
+   */
+  const hintsDebugRef = useRef(false);
+  /**
+   * Debug photos (Kirby 2026-10-27, candidate): only with `?debug=1&photos=1`
+   * does a photo leave the device (debugPhotoUpload.ts; kept on previews
+   * only). `?debug=1` alone still sends nothing anywhere.
+   */
+  const photosDebugRef = useRef(false);
   const debugLiveRef = useRef<DebugLive>({
     visibleInStream: null,
     sample: null,
@@ -844,6 +1167,123 @@ export default function EasyScanCamera({
   const onSheet = answers.step === "sheet";
   const answersOpen = (result.kind === "measured" || manualMode) && !onSheet;
 
+  // V3.2 motion pass (candidate / 未拍板): what leaves the screen stays
+  // mounted, painted and inert while it goes the way it came (useLeaving).
+  // #1: the measured / failure sheet slides down when a retake, a question
+  // page or the paper adjustment takes its place, instead of a native close()
+  // or an unmount that made it vanish.
+  const sheetNow =
+    (result.kind === "measured" || result.kind === "gateFailure") &&
+    onSheet &&
+    !adjustOpen
+      ? result
+      : null;
+  const sheetLeave = useLeaving(sheetNow, leaveMs("sheet", reducedMotion));
+  const sheetResult = sheetLeave.shown;
+  // V3.3 WP3b (candidate): the post-shot banner over the photo, while the
+  // measured sheet is up and until it is closed; it fades in and out.
+  const [softHintClosedAt, setSoftHintClosedAt] = useState<string | null>(null);
+  const softHintNow =
+    sheetResult?.kind === "measured" &&
+    !sheetLeave.leaving &&
+    sheetResult.softHint?.code &&
+    sheetResult.softHint.at !== softHintClosedAt
+      ? { code: sheetResult.softHint.code, at: sheetResult.softHint.at }
+      : null;
+  const softHintLeave = useLeaving(softHintNow, leaveMs("fade", reducedMotion));
+  // #4: the question pages' dialog fades in and out (--motion-base), and
+  // keeps the page it showed while it fades out.
+  const answersLeave = useLeaving(
+    answersOpen ? answers.step : null,
+    fadeMs("base", reducedMotion),
+  );
+  // #21: the first-run tip slides down like the other sheets.
+  const tipLeave = useLeaving(
+    tipOpen && deviceFit === "phone" && !lengthStep ? true : null,
+    leaveMs("sheet", reducedMotion),
+  );
+  // #22: the paper adjustment fades out (--motion-out) over the sheet coming
+  // back, with the props it had (its key included, so it is not remounted).
+  // Each opening has a key of its own (fix round, review item 1): opened again
+  // during that fade, it is a new screen that opens as any does (showModal,
+  // focus on its title, the frame as it opens), not the closed one that was
+  // leaving. `adjustOpenings` counts the openings (state derived in render).
+  const [adjustOpenings, setAdjustOpenings] = useState({ open: false, n: 0 });
+  if ((adjustOpen !== null) !== adjustOpenings.open)
+    setAdjustOpenings((prev) => ({
+      open: adjustOpen !== null,
+      n: adjustOpen !== null ? prev.n + 1 : prev.n,
+    }));
+  const adjustLeave = useLeaving(
+    adjustOpen &&
+      (result.kind === "measured" || result.kind === "gateFailure") &&
+      result.overlay
+      ? {
+          key: `${adjustOpen}:${result.previewUrl}:${adjustOpenings.n}`,
+          entry: adjustOpen,
+          overlay: result.overlay,
+          previous:
+            result.kind === "gateFailure" ? (result.placedFrame ?? null) : null,
+          leave: adjustDirect ? ("retake" as const) : ("cancel" as const),
+          paperSize: paperSizeRef.current,
+          previewUrl: result.previewUrl,
+        }
+      : null,
+    leaveMs("fade", reducedMotion),
+  );
+  // #5: the typed-hand-length step fades in and out (--motion-base).
+  const lengthLeave = useLeaving(
+    lengthStep ? true : null,
+    fadeMs("base", reducedMotion),
+  );
+  // #3: the cue and the bottom dock of the live camera fade and slide out
+  // (--motion-fast) when a photo is taken, and back in (--motion-base).
+  const liveChromeLeave = useLeaving(
+    !lengthStep &&
+      (camState.kind === "live" || camState.kind === "requesting") &&
+      result.kind === "none"
+      ? true
+      : null,
+    fadeMs("fast", reducedMotion),
+  );
+  // #19: the 測量中… pill fades in and out (--motion-fast).
+  const measuringLeave = useLeaving(
+    measuringShown(result.kind, shutterMeasuring) ? true : null,
+    fadeMs("fast", reducedMotion),
+  );
+  // #2: the photo of a retake stays mounted and fades out (--motion-base)
+  // while the live picture fades in under it.
+  const photoLeave = useLeaving(
+    result.kind !== "none" ? result.previewUrl : null,
+    fadeMs("base", reducedMotion),
+  );
+  const lastPhotoRef = useRef<{
+    node: ReactNode;
+    style: CSSProperties | undefined;
+  } | null>(null);
+  // The leaving photo (#2) still draws from its object URL: a retake frees the
+  // URL once that fade is over, not before.
+  const revokeAfterFade = useCallback((url: string) => {
+    window.setTimeout(
+      () => URL.revokeObjectURL(url),
+      fadeMs("base", reducedMotionRef.current),
+    );
+  }, []);
+  // The pieces a tap-absorbing layer covers while they leave (LeaveShield).
+  const lengthStepRef = useRef<HTMLElement>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
+  const pillRef = useRef<HTMLParagraphElement>(null);
+  const { swap: swapAnswerPage, finish: finishAnswerPageSwap } =
+    useAnswerPageSwap(answerDialogRef, reducedMotion);
+  // What a page swap checks once its old page has faded (fix round, review
+  // item 2): still on the page it was pressed on, and nothing being sent.
+  const answersStepRef = useRef(answers.step);
+  answersStepRef.current = answers.step;
+  const submitBusyRef = useRef(submitBusy);
+  submitBusyRef.current = submitBusy;
+  const stillOnPage = (step: "grip" | "thickness") => () =>
+    answersStepRef.current === step && !submitBusyRef.current;
+
   // The measured / gate-failure bottom sheet: a native <dialog> for the
   // focus trap + Escape handling, opened the moment the pipeline settles
   // and closed again on retake. Focus goes to the sheet's own heading, not
@@ -864,23 +1304,23 @@ export default function EasyScanCamera({
       // move when 返回 opens it again.
       // The same while the paper frame is being adjusted (V3.2 F2): its own
       // full-screen modal is over the photo.
+      // V3.2 motion pass #1: closed at the same moment as before (so focus and
+      // the page's inertness are as they were), but still painted while it
+      // slides down (`sheetLeave`, `data-leaving`), and unmounted after it.
       if (!onSheet || adjustOpen) {
         sheetResumedRef.current = true;
         if (adjustOpen) adjustReturnRef.current = true;
         dialog?.close();
         return;
       }
-      // Coming back from a question page: the sheet does not slide in again
-      // (it was there a moment ago), and focus goes to the button that left.
+      // Coming back from a question page: focus goes to the button that left.
+      // The sheet rises again (V3.2 motion pass #1): it was seen sliding away,
+      // so it comes back the way it went.
       const resumed = sheetResumedRef.current;
       sheetResumedRef.current = false;
       const fromAdjust = adjustReturnRef.current;
       adjustReturnRef.current = false;
-      if (dialog) {
-        if (resumed) dialog.dataset.resumed = "true";
-        else delete dialog.dataset.resumed;
-      }
-      dialog?.showModal();
+      if (dialog && !dialog.open) dialog.showModal();
       (fromAdjust
         ? (adjustButtonRef.current ?? sheetTitleRef.current)
         : resumed
@@ -922,7 +1362,10 @@ export default function EasyScanCamera({
       if (topBarRef.current) observer.observe(topBarRef.current);
       return () => observer.disconnect();
     }
-    sheetDialogRef.current?.close();
+    // A retake (or a new photo): the sheet used to be unmounted here. It now
+    // stays painted while it slides down (V3.2 motion pass #1), closed with
+    // the focus outcome of that unmount.
+    closeAsIfRemoved(sheetDialogRef.current);
     setSheetHeight(null);
     setBarBottom(null);
   }, [result.kind, onSheet, adjustOpen]);
@@ -931,12 +1374,21 @@ export default function EasyScanCamera({
   // opened again if the browser closed it by itself while it should be open
   // (see onClose below). A page change starts at the top, so a short phone
   // does not keep the scroll position of the page before.
+  //
+  // V3.2 motion pass #4: once no page is wanted the dialog is closed at once
+  // (the sheet or the form under it is usable, focus as when it was
+  // unmounted) and fades out, still painted, before it is unmounted.
   useLayoutEffect(() => {
     const dialog = answerDialogRef.current;
-    if (!answersOpen || !dialog) return;
+    if (!dialog) return;
+    if (answersLeave.leaving) {
+      closeAsIfRemoved(dialog);
+      return;
+    }
+    if (!answersOpen) return;
     if (!dialog.open) dialog.showModal();
     dialog.scrollTop = 0;
-  }, [answersOpen, answers.step]);
+  }, [answersOpen, answers.step, answersLeave.leaving]);
 
   const dismissTip = useCallback(() => {
     setTipOpen(false);
@@ -949,6 +1401,13 @@ export default function EasyScanCamera({
     // pointed at — native <dialog> close() already restores focus to
     // whatever had it before showModal(), which is enough here.
   }, []);
+
+  // A tap on the dimmed camera above the tip closes it, as 知道了 does (Kirby
+  // 2026-10-26, candidate / 未拍板).
+  const tipBlankTap = useBlankTap(dismissTip, {
+    panel: "self",
+    enabled: !tipLeave.leaving,
+  });
 
   const openTip = useCallback(() => setTipOpen(true), []);
 
@@ -1029,22 +1488,35 @@ export default function EasyScanCamera({
     const fresh = freshLiveLoopSampling();
     lastSampleTimeRef.current = fresh.lastSampleAtMs;
     prevSampleQuadRef.current = fresh.prevQuad;
+    carriedSheetRef.current = null;
+    hiResRef.current = {
+      inFlight: false,
+      lastAtMs: null,
+      generation: hiResRef.current.generation + 1,
+    };
+    sizeStatusRef.current = null;
     autoCaptureRef.current = fresh.autoCapture;
     noSheetCaptureRef.current = INITIAL_NO_SHEET_CAPTURE_STATE;
     handReadingsRef.current = EMPTY_HAND_READINGS;
+    livePlacementRef.current = [];
+    placementHysteresisRef.current = INITIAL_PLACEMENT_HYSTERESIS_STATE;
+    bestFramesRef.current = [];
+    bestGenerationRef.current += 1;
+    releaseBitmaps(bestBitmapsRef.current);
+    pendingShutterRef.current = null;
     cornerStatesRef.current = INITIAL_CORNER_STATES;
     outlineRef.current = INITIAL_OUTLINE_HYSTERESIS_STATE;
     cueDebounceRef.current = INITIAL_CUE_DEBOUNCE_STATE;
     lastCueCodeRef.current = null;
     firstSheetSeenAtRef.current = null;
-    setCornerStates(INITIAL_CORNER_STATES);
-    setRingFraction(0);
+    cornerStore.set(INITIAL_CORNER_STATES);
+    aimRing(0, false);
     setCue(null);
     // What a screen reader was last told ("Photo taken", the last cue) is not
     // true of a camera that is starting again.
     setAnnounced("");
     noteCaptureOutcome("reset");
-  }, [noteCaptureOutcome]);
+  }, [noteCaptureOutcome, aimRing, cornerStore]);
 
   const startCamera = useCallback(async () => {
     const requestId = ++requestIdRef.current;
@@ -1225,7 +1697,19 @@ export default function EasyScanCamera({
   // ?debug=1: the record is the only trace a failed scan leaves, and what it
   // holds is the same few numbers the debug panel shows.
   const logAttempt = useCallback(
-    async (info: CaptureInfo | null, outcome: AttemptOutcome) => {
+    async (
+      info: CaptureInfo | null,
+      outcome: AttemptOutcome,
+      // V3.3 WP3b: the record's time and the banner it got (hints on only).
+      banner?: {
+        readonly at: Date;
+        readonly result: {
+          readonly code: SoftHintBannerCode | null;
+          readonly candidate: SoftHintCode | null;
+          readonly suppressed: boolean;
+        };
+      },
+    ) => {
       try {
         const size = info?.stillSize ? await info.stillSize : null;
         const capture: AttemptCapture = {
@@ -1239,15 +1723,53 @@ export default function EasyScanCamera({
           photoKb: info?.photoKb ?? null,
           previewWidth: info?.previewWidth ?? null,
           previewHeight: info?.previewHeight ?? null,
+          // V3.3 WP1b (log only): absent for an upload.
+          ...(info?.guidance ? { guidance: info.guidance } : {}),
+          ...(info?.experimentTag ? { experimentTag: info.experimentTag } : {}),
         };
+        const record = buildAttemptRecord({
+          at: banner?.at ?? new Date(),
+          userAgent: shortUserAgent(navigator.userAgent),
+          capture,
+          outcome,
+          softHintHistory: softHintHistoryOf(attemptsRef.current),
+          ...(banner ? { softHintBanner: banner.result } : {}),
+        });
         attemptsRef.current = recordAttempt(
           getBrowserStorage(),
-          buildAttemptRecord({
-            at: new Date(),
-            userAgent: shortUserAgent(navigator.userAgent),
-            capture,
-            outcome,
-          }),
+          record,
+          attemptsRef.current,
+        );
+        // Kirby 2026-10-27 (candidate): with ?debug=1&photos=1, the photo and
+        // this record also go to the preview's private debug store (a 404 on
+        // production stops it); the local log above is unchanged.
+        if (photosDebugRef.current)
+          uploadDebugPhoto(debugPhotoRef.current, {
+            record,
+            bestFrame: bestScoresRef.current,
+          });
+      } catch {
+        // The log is a convenience: it must never break a scan.
+      }
+    },
+    [],
+  );
+
+  // V3.3 WP3b (candidate): what happened after a banner (closed, retaken,
+  // continued), written into that photo's attempt record. Local only.
+  const noteSoftHintOutcome = useCallback(
+    (
+      at: string,
+      outcome: {
+        readonly dismissed?: boolean;
+        readonly after?: "retake" | "continue";
+      },
+    ) => {
+      try {
+        attemptsRef.current = recordSoftHintBannerOutcome(
+          getBrowserStorage(),
+          at,
+          outcome,
           attemptsRef.current,
         );
       } catch {
@@ -1274,6 +1796,10 @@ export default function EasyScanCamera({
       }
       const runId = ++runIdRef.current;
       attemptCountRef.current += 1;
+      // The sheet found on this photo before it was analysed (hiResSheet.ts),
+      // read once; a placed frame's run does not use it.
+      const knownSheet = knownSheetRef.current;
+      knownSheetRef.current = null;
       // Read now: a typed length chosen while the photo is analysed must not
       // change it. One reading gives both what the pipeline is told about the
       // paper (with the placed frame, if any) and what the event records.
@@ -1288,6 +1814,9 @@ export default function EasyScanCamera({
       // It also forgets that the last photo's sheet was curled (F13).
       if (!paperInput.pipeline.manualPaperCorners)
         curledBeforeRef.current = false;
+      const knownSheetCorners = paperInput.pipeline.manualPaperCorners
+        ? null
+        : knownSheet;
       const reusedFocal = reusedFocalFor({
         placedFrame: Boolean(paperInput.pipeline.manualPaperCorners),
         file,
@@ -1322,6 +1851,7 @@ export default function EasyScanCamera({
           // length has no sheet to frame): `pipelinePaperInput`, read above.
           ...paperInput.pipeline,
           ...(reusedFocal ? { reusedFocal } : {}),
+          ...(knownSheetCorners ? { knownSheetCorners } : {}),
           // A frame of the video is already the part the person saw on
           // screen, so nothing is cropped (no previewView). The camera's own
           // photo (takePhoto, off by default) is cut down to that part before
@@ -1349,7 +1879,43 @@ export default function EasyScanCamera({
           // known is its own stream.
           focalReferenceLongEdgePx: frameNominalReferenceLongEdgePx(info),
         });
-        void logAttempt(info, { kind: "result", result: pipelineResult });
+        // V3.3 WP3b (candidate): the post-shot banner, worked out once per
+        // measured photo while the hints are on (`?debug=1` for now), from
+        // the same readings the record-only hint uses and this device's
+        // banner history. It changes no number and gates nothing.
+        const bannerAt = new Date();
+        let banner: {
+          code: SoftHintBannerCode | null;
+          candidate: SoftHintCode | null;
+          suppressed: boolean;
+        } | null = null;
+        if (
+          placementHintsOn(hintsDebugRef.current) &&
+          pipelineResult.status === "ok" &&
+          pipelineResult.diagnostics?.placement
+        ) {
+          try {
+            const picked = pickSoftHintBanner(
+              softHintInputOf(
+                pipelineResult.diagnostics,
+                pipelineResult.diagnostics.placement,
+              ),
+              softHintBannerHistoryOf(attemptsRef.current),
+            );
+            banner = {
+              code: isSoftHintBannerCode(picked.code) ? picked.code : null,
+              candidate: picked.candidate,
+              suppressed: picked.suppressed,
+            };
+          } catch {
+            banner = null;
+          }
+        }
+        void logAttempt(
+          info,
+          { kind: "result", result: pipelineResult },
+          banner ? { at: bannerAt, result: banner } : undefined,
+        );
         if (runId !== runIdRef.current) return;
         if (manualActiveRef.current) {
           // The form opened while this was analysed: its result must not open
@@ -1391,6 +1957,14 @@ export default function EasyScanCamera({
             submission: pipelineResult.submission,
             imageWidth: pipelineResult.overlay.imageWidth,
             imageHeight: pipelineResult.overlay.imageHeight,
+            ...(banner
+              ? {
+                  softHint: {
+                    code: banner.code,
+                    at: bannerAt.toISOString(),
+                  },
+                }
+              : {}),
           };
           setResult(measured);
           // F15 (candidate): a photo measured from the detector's own four
@@ -1505,7 +2079,101 @@ export default function EasyScanCamera({
     [runPhotoPipelineImpl, logAttempt],
   );
 
+  // Kirby 2026-10-27 (candidate, hiResSheet.ts): the sheet the live loop
+  // last found with four corners (by itself or at the higher resolution), at
+  // most `KNOWN_SHEET_MAX_AGE_MS` old, moved onto a photo of `photo`'s size (the
+  // same region of the stream). `null` without one.
+  const liveSheetOnPhoto = useCallback(
+    (photo: { readonly width: number; readonly height: number }) => {
+      const carried = carriedSheetRef.current;
+      const sample = liveSampleSizeRef.current;
+      if (!carried?.detection.corners || !sample) return null;
+      if (performance.now() - carried.atMs > KNOWN_SHEET_MAX_AGE_MS)
+        return null;
+      return cornersToSize(carried.detection.corners, sample, photo);
+    },
+    [],
+  );
+
+  // The shutter's paper check (hiResSheet.ts): each kept frame in `order`,
+  // through the photo's own detector (the analysis worker) and paper gate,
+  // with the live hand; the first that passes, its corners on that frame.
+  const precheckFrames = useCallback(
+    async (
+      bitmaps: readonly ImageBitmap[],
+      order: readonly number[],
+      capture: PixelRect | null,
+    ) => {
+      const startedAt = performance.now();
+      const tried: { index: number; passed: boolean }[] = [];
+      const paperSize = paperSizeRef.current;
+      const video = videoRef.current;
+      const sample = liveSampleSizeRef.current;
+      const hand = sample
+        ? liveHandHint({
+            latest: handReadingsRef.current.latest,
+            nowMs: performance.now(),
+            width: sample.width,
+            height: sample.height,
+          })
+        : undefined;
+      const log = () => ({ tried, ms: performance.now() - startedAt });
+      for (const index of order) {
+        const bitmap = bitmaps[index];
+        if (!bitmap) continue;
+        const canvas = document.createElement("canvas");
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (!ctx) break;
+        let quad: SheetQuadDetection | null = null;
+        try {
+          ctx.drawImage(bitmap, 0, 0);
+          const image = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
+          const size = { width: bitmap.width, height: bitmap.height };
+          const ran = await getAnalysisRunner().run(
+            {
+              kind: "paper",
+              paperSize,
+              options: {
+                ...(video && capture
+                  ? {
+                      focalPxHint: assumedSampleFocalPx(
+                        { width: video.videoWidth, height: video.videoHeight },
+                        capture,
+                        size,
+                      ),
+                    }
+                  : {}),
+                ...(hand && sample
+                  ? {
+                      handLandmarksPx: cornersToSizeAll(hand, sample, size),
+                    }
+                  : {}),
+              },
+            },
+            image,
+            () => ctx.getImageData(0, 0, bitmap.width, bitmap.height),
+          );
+          quad = ran.outcome.quad;
+        } catch {
+          quad = null;
+        }
+        const passed = quad !== null && sheetPasses(quad, paperSize);
+        tried.push({ index, passed });
+        if (passed && quad?.corners)
+          return { index, corners: quad.corners, log: log() };
+      }
+      return { index: null, corners: null, log: log() };
+    },
+    [],
+  );
+
   const captureNow = useCallback(async () => {
+    // V3.3 WP1b (log only): the loop names its shutter just before calling;
+    // any other call is the person's tap. Read once and cleared.
+    const shutter: ShutterKind = pendingShutterRef.current ?? "manual";
+    pendingShutterRef.current = null;
     if (capturingRef.current || manualActiveRef.current) return;
     const source: AttemptCaptureSource = captureSource();
     const video = videoRef.current;
@@ -1555,6 +2223,23 @@ export default function EasyScanCamera({
           : null;
       let file: File;
       let method: "takePhoto" | "canvas" = "takePhoto";
+      /** A JPEG of a canvas. */
+      const canvasFile = async (
+        canvas: HTMLCanvasElement,
+      ): Promise<File | null> => {
+        const blob = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob(
+            resolve,
+            "image/jpeg",
+            CAMERA_CONSTANTS.capture.jpegQuality,
+          ),
+        );
+        return blob
+          ? new File([blob], `capture-${Date.now()}.jpg`, {
+              type: "image/jpeg",
+            })
+          : null;
+      };
       /** Draws the video onto a canvas, cut to `rect` (or whole), and makes a JPEG of it. */
       const frameFile = async (
         rect: PixelRect | null,
@@ -1573,32 +2258,69 @@ export default function EasyScanCamera({
         const ctx = canvas.getContext("2d");
         if (!ctx) return null;
         ctx.drawImage(video, ...draw.source, ...draw.destination);
-        const blob = await new Promise<Blob | null>((resolve) =>
-          canvas.toBlob(
-            resolve,
-            "image/jpeg",
-            CAMERA_CONSTANTS.capture.jpegQuality,
-          ),
-        );
-        return blob
-          ? new File([blob], `capture-${Date.now()}.jpg`, {
-              type: "image/jpeg",
-            })
-          : null;
+        return canvasFile(canvas);
       };
       if (source === "frame") {
         // A frame of the video, cut to the part on screen, at the stream's own
         // resolution: the pixels the person saw and the detector approved.
         method = "canvas";
         let frame: File | null = null;
+        // The ring's shot (2026-10-26/27): the sharpest of the frames kept in
+        // its last second (bestFrame.ts), already cut with the same crop at
+        // full resolution, each scored again at full size here; the person's
+        // tap takes the frame of that moment.
+        const bitmaps = bestBitmapsRef.current;
+        const live = bestFramesRef.current.filter((k) => bitmaps.has(k.atMs));
+        const kept =
+          shutter === "auto"
+            ? live.map((k) => bitmaps.get(k.atMs) as ImageBitmap)
+            : [];
+        bestFramesRef.current = [];
+        bestGenerationRef.current += 1;
+        bestBitmapsRef.current = new Map();
+        bestScoresRef.current = null;
         try {
-          frame = await frameFile(region?.capture ?? null);
+          if (kept.length > 0) {
+            const canvas = document.createElement("canvas");
+            const full =
+              kept.length > 1 ? kept.map((b) => fullScore(canvas, b)) : [];
+            const sharpest = kept.length > 1 ? pickSharpestScore(full) : 0;
+            // Kirby 2026-10-27 (candidate): "it must work the first time".
+            // The kept frames are checked sharpest first with the photo's own
+            // paper gate, and the first that passes is the photo; none
+            // passes, the sharpest, as before (hiResSheet.ts).
+            const checked = await precheckFrames(
+              kept,
+              kept.length > 1 ? precheckOrder(full) : [0],
+              region?.capture ?? null,
+            );
+            const chosen = checked.index ?? sharpest;
+            const pick = kept[chosen ?? 0] as ImageBitmap;
+            bestScoresRef.current = {
+              live: live.map((k) => k.variance),
+              full,
+              chosen,
+              precheck: checked.log,
+            };
+            knownSheetRef.current = checked.corners ?? liveSheetOnPhoto(pick);
+            canvas.width = pick.width;
+            canvas.height = pick.height;
+            canvas.getContext("2d")?.drawImage(pick, 0, 0);
+            frame = await canvasFile(canvas);
+          } else {
+            const capture = region?.capture ?? null;
+            knownSheetRef.current = capture ? liveSheetOnPhoto(capture) : null;
+            frame = await frameFile(capture);
+          }
         } catch {
           // A canvas that throws (out of memory, a lost context) is a frame
           // that was not made, like a missing context or a blob that is null.
           frame = null;
+        } finally {
+          releaseBitmaps(bitmaps);
         }
         if (!frame) {
+          knownSheetRef.current = null;
           // No frame: the loop was not stopped and is still running, the busy
           // flag is reset by the `finally` below, and the ring starts over so
           // that the auto-shutter tries again after a full fill, not on every
@@ -1607,7 +2329,7 @@ export default function EasyScanCamera({
           noteCaptureOutcome("failure");
           autoCaptureRef.current = resetAutoCapture();
           noSheetCaptureRef.current = INITIAL_NO_SHEET_CAPTURE_STATE;
-          setRingFraction(0);
+          aimRing(0, false);
           return;
         }
         if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
@@ -1666,6 +2388,7 @@ export default function EasyScanCamera({
             }
           : null,
       );
+      debugPhotoRef.current = file;
       captureInfoRef.current = {
         method,
         captureSource: source,
@@ -1687,7 +2410,16 @@ export default function EasyScanCamera({
           source === "takePhoto" && streamSize && region
             ? { stream: streamSize, visibleInStream: region.visible }
             : undefined,
+        // V3.3 WP1b (log only): the shutter and the last live readings, aged
+        // at the shutter; the debug panel's tag goes with this one scan.
+        guidance: {
+          shutter,
+          // Readings older than LIVE_READING_MAX_AGE_MS are left out.
+          live: liveReadingsAtShutter(livePlacementRef.current, firedAt),
+        },
+        experimentTag: experimentTagRef.current,
       };
+      if (experimentTagRef.current !== null) setExperimentTag(null);
       debugCaptureRef.current = {
         method,
         source,
@@ -1716,7 +2448,15 @@ export default function EasyScanCamera({
         setShutterMeasuring(false);
       }
     }
-  }, [stopStream, runPipeline, noteCaptureOutcome]);
+  }, [
+    stopStream,
+    runPipeline,
+    noteCaptureOutcome,
+    setExperimentTag,
+    liveSheetOnPhoto,
+    precheckFrames,
+    aimRing,
+  ]);
 
   const onFilePicked = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1725,6 +2465,7 @@ export default function EasyScanCamera({
       if (!file || manualActiveRef.current) return;
       stopStream();
       fileRef.current = file;
+      debugPhotoRef.current = file;
       const previewUrl = URL.createObjectURL(file);
       setPhotoInfo(null);
       debugCaptureRef.current = {
@@ -1755,7 +2496,10 @@ export default function EasyScanCamera({
   );
 
   const retake = useCallback(() => {
-    if (result.kind !== "none") URL.revokeObjectURL(result.previewUrl);
+    // V3.3 WP3b: a retake after a banner is what the banner asked for.
+    if (result.kind === "measured" && result.softHint)
+      noteSoftHintOutcome(result.softHint.at, { after: "retake" });
+    if (result.kind !== "none") revokeAfterFade(result.previewUrl);
     setResult({ kind: "none" });
     setAdjustOpen(null);
     setAdjustDirect(false);
@@ -1774,7 +2518,14 @@ export default function EasyScanCamera({
       window.isSecureContext &&
       typeof navigator.mediaDevices?.getUserMedia === "function";
     if (canUseCamera && deviceFit === "phone") void startCamera();
-  }, [result, startCamera, deviceFit, clearSubmitError]);
+  }, [
+    result,
+    startCamera,
+    deviceFit,
+    clearSubmitError,
+    revokeAfterFade,
+    noteSoftHintOutcome,
+  ]);
 
   // 手動調整邊框 (V3.2 F2, candidate). A button only on the failure sheet:
   // after any paper failure or a failure with a frame placed by hand (rescue,
@@ -1863,6 +2614,9 @@ export default function EasyScanCamera({
   // grip is mandatory (the grip page has no 跳過 then).
   const sendScan = useCallback(
     (final: Pick<typeof answers, "grip" | "thickness">) => {
+      // A page still sliding in ends where it rests first: the send veil
+      // (F23) is fixed to the viewport only while no transform is on the page.
+      finishAnswerPageSwap();
       if (manualValues) {
         // Cannot happen from the screen (the grip page is required and has no
         // 跳過); if it ever did, the person is taken back to choose rather than
@@ -1883,7 +2637,7 @@ export default function EasyScanCamera({
         }),
       });
     },
-    [submitScanNow, manualValues],
+    [submitScanNow, manualValues, finishAnswerPageSwap],
   );
 
   // The handle's press. Ignored while a photo is being taken or analysed, or
@@ -1987,6 +2741,109 @@ export default function EasyScanCamera({
       return region ? { box, visible: region.visible } : null;
     }
 
+    /** One frame at the higher resolution to the analysis worker (hiResSheet.ts). */
+    function lookAgainAtHiRes(
+      source: PixelRect,
+      sample: { width: number; height: number },
+      requestedAt: number,
+    ) {
+      if (!video) return;
+      const size = hiResSize(
+        sample,
+        CAMERA_CONSTANTS.autoCapture.hiResLongEdgePx,
+      );
+      let hiCanvas = hiResCanvasRef.current;
+      if (!hiCanvas) {
+        hiCanvas = document.createElement("canvas");
+        hiResCanvasRef.current = hiCanvas;
+      }
+      if (hiCanvas.width !== size.width || hiCanvas.height !== size.height) {
+        hiCanvas.width = size.width;
+        hiCanvas.height = size.height;
+      }
+      const hiCtx = hiCanvas.getContext("2d", { willReadFrequently: true });
+      if (!hiCtx) return;
+      let image: ImageData;
+      try {
+        hiCtx.drawImage(
+          video,
+          source.x,
+          source.y,
+          source.width,
+          source.height,
+          0,
+          0,
+          size.width,
+          size.height,
+        );
+        image = hiCtx.getImageData(0, 0, size.width, size.height);
+      } catch {
+        return;
+      }
+      const hand = liveHandHint({
+        latest: handReadingsRef.current.latest,
+        nowMs: requestedAt,
+        width: sample.width,
+        height: sample.height,
+      });
+      const generation = hiResRef.current.generation;
+      hiResRef.current = {
+        inFlight: true,
+        lastAtMs: requestedAt,
+        generation,
+      };
+      const paperSize = paperSizeRef.current;
+      const startedAt = performance.now();
+      const done = (found: SheetQuadDetection | null) => {
+        if (generation !== hiResRef.current.generation) return;
+        hiResRef.current = { ...hiResRef.current, inFlight: false };
+        if (debugOnRef.current) {
+          const live = debugLiveRef.current;
+          live.hiResMs = pushWindow(
+            live.hiResMs ?? [],
+            performance.now() - startedAt,
+          );
+          live.hiResFound = pushWindow(live.hiResFound ?? [], found ? 1 : 0);
+        }
+        // A sheet the live loop found after this frame stays (PR #228
+        // review: an older look must not move the outline back).
+        const carried = carriedSheetRef.current;
+        if (found && (carried === null || carried.atMs <= requestedAt))
+          carriedSheetRef.current = {
+            atMs: requestedAt,
+            detection: scaleDetection(found, size.toSample),
+          };
+      };
+      getAnalysisRunner()
+        .run(
+          {
+            kind: "paper",
+            paperSize,
+            options: {
+              focalPxHint: assumedSampleFocalPx(
+                { width: video.videoWidth, height: video.videoHeight },
+                source,
+                { width: size.width, height: size.height },
+              ),
+              ...(hand
+                ? {
+                    handLandmarksPx: hand.map((p) => ({
+                      x: p.x / size.toSample,
+                      y: p.y / size.toSample,
+                    })),
+                  }
+                : {}),
+            },
+          },
+          image,
+          () => hiCtx.getImageData(0, 0, size.width, size.height),
+        )
+        .then((r) =>
+          done(sheetPasses(r.outcome.quad, paperSize) ? r.outcome.quad : null),
+        )
+        .catch(() => done(null));
+    }
+
     function tick(now: number) {
       if (cancelled) return;
       rafRef.current = requestAnimationFrame(tick);
@@ -1998,6 +2855,7 @@ export default function EasyScanCamera({
         minIntervalMs,
       );
       lastSampleTimeRef.current = now;
+      const sampleStartedAt = performance.now();
 
       const view = readVisible();
       const source: PixelRect = view?.visible ?? {
@@ -2082,11 +2940,50 @@ export default function EasyScanCamera({
           ),
           ...(palm ? { palmPointsPx: palm } : {}),
           ...(handLandmarks ? { handLandmarksPx: handLandmarks } : {}),
+          // A miss's rough quad: the carried sheet follows it (sheetCarry.ts).
+          failureGuess: true,
         });
       } catch {
         detection = NO_QUAD_DETECTION;
       }
       const detectMs = performance.now() - detectStartedAt;
+      // Kirby 2026-10-27 (candidate): a miss where the forearm cuts the
+      // sheet, with the hand seen and still, takes the sheet found at most
+      // `sheetCarryMs` ago; the cue and the ring then do not flip on it.
+      const carryHand = liveHandSignal({
+        previous: handReadingsRef.current.previous,
+        latest: handReadingsRef.current.latest,
+        nowMs: now,
+        frameDiagonal: Math.hypot(width, height),
+      });
+      const carry = carrySheet(carriedSheetRef.current, {
+        nowMs: now,
+        detection,
+        handSeen: carryHand.seen,
+        handSteady: carryHand.steady,
+        carryMs: CAMERA_CONSTANTS.autoCapture.sheetCarryMs,
+        followPx:
+          CAMERA_CONSTANTS.autoCapture.sheetCarryFollowFraction *
+          Math.hypot(width, height),
+      });
+      carriedSheetRef.current = carry.state;
+      liveSampleSizeRef.current = { width, height };
+      // Kirby 2026-10-27 (candidate): the same miss, with the hand seen, also
+      // sends this frame at `hiResLongEdgePx` to the analysis worker (at most
+      // every `hiResIntervalMs`); a sheet it finds that passes the photo's
+      // paper gates is carried as if this sample had found it.
+      if (
+        shouldConfirmHiRes({
+          detection,
+          handSeen: carryHand.seen,
+          inFlight: hiResRef.current.inFlight,
+          lastAtMs: hiResRef.current.lastAtMs,
+          nowMs: now,
+          intervalMs: CAMERA_CONSTANTS.autoCapture.hiResIntervalMs,
+        })
+      )
+        lookAgainAtHiRes(source, { width, height }, now);
+      detection = carry.detection;
       const sampleQuad: Quad | null = detection.corners
         ? {
             topLeft: detection.corners[0],
@@ -2121,38 +3018,138 @@ export default function EasyScanCamera({
       const msSinceLastDetection =
         detection.cornersSeen > 0 ? 0 : now - lastDetectionAtRef.current;
 
-      const nextCue = pickCue(
-        {
-          cornersSeen: detection.cornersSeen,
-          quad: sampleQuad,
-          frameWidth: width,
-          meanLuma,
-          clippedFraction,
-          steady,
-          sharpEnough,
-          // The photo's own paper gate, on this detection: no second
-          // detector run (paperGate.ts).
-          paperGate: evaluateLivePaperGate(detection, paperSizeRef.current),
-          // Where the detector stopped, from the same detection (scan S2):
-          // nothing is computed again for it.
-          paperStage: detection.failureStage ?? null,
-          // No stage cue before the sheet was ever found (cues.ts).
-          sheetSeenYet: firstSheetSeenAtRef.current !== null,
-          msSinceLastDetection,
-        },
-        "paper-edge",
-        localeRef.current,
-      );
+      // V3.3 WP4 (candidate): this sample's distance status, with the last
+      // one's for the hysteresis; pickCue works out the same from the same
+      // two. A sample without the sheet keeps the last status.
+      const previousSizeStatus = sizeStatusRef.current;
+      if (sampleQuad)
+        sizeStatusRef.current = computeQuadSizeStatusWithHysteresis(
+          computeQuadWidthFraction(sampleQuad, width),
+          previousSizeStatus,
+        );
+      const cueInput: CueInput = {
+        cornersSeen: detection.cornersSeen,
+        quad: sampleQuad,
+        frameWidth: width,
+        meanLuma,
+        clippedFraction,
+        steady,
+        sharpEnough,
+        // The photo's own paper gate, on this detection: no second
+        // detector run (paperGate.ts).
+        paperGate: evaluateLivePaperGate(detection, paperSizeRef.current),
+        // Where the detector stopped, from the same detection (scan S2):
+        // nothing is computed again for it.
+        paperStage: detection.failureStage ?? null,
+        // No stage cue before the sheet was ever found (cues.ts).
+        sheetSeenYet: firstSheetSeenAtRef.current !== null,
+        msSinceLastDetection,
+        previousSizeStatus,
+        // A miss's rough quad: how far the phone is when no sample finds
+        // the sheet (cues.ts).
+        missGuessWidthFraction: detection.guessCorners
+          ? computeQuadWidthFraction(
+              {
+                topLeft: detection.guessCorners[0],
+                topRight: detection.guessCorners[1],
+                bottomRight: detection.guessCorners[2],
+                bottomLeft: detection.guessCorners[3],
+              },
+              width,
+            )
+          : null,
+        // Neither: the hand's length in the picture (cues.ts).
+        handSheetWidthFraction: handSheetWidthFraction(
+          liveHandHint({
+            latest: handReadingsRef.current.latest,
+            nowMs: now,
+            width,
+            height,
+          }),
+          width,
+        ),
+      };
+      // The paper's cue, without the hand: the ring, the F14 wait and the
+      // auto-capture read this one (V3.3 WP3: the hand hints never gate).
+      const nextCue = pickCue(cueInput, "paper-edge", localeRef.current);
 
       // The ring reads the raw sample: one or two failures pause it, the
       // third in a row empties it (autoCapture.ts).
-      const paperPassing = nextCue.allPass && previewSettledRef.current;
+      // Kirby 2026-10-27 (candidate): while a hand hint is on screen the ring
+      // does not fill ("if it will not pass, do not start the auto scan; a
+      // person who waits will press the shutter"). Only with the hints on;
+      // the shutter button always works. The paper's own cue is unchanged.
+      const handHint = placementHintsOn(hintsDebugRef.current)
+        ? (placementCueInput(placementHysteresisRef.current, {
+            nowMs: now,
+            detectorReady: isHandLandmarkerReady(),
+          })?.hint ?? null)
+        : null;
+      const paperPassing =
+        nextCue.allPass && previewSettledRef.current && handHint === null;
       autoCaptureRef.current = advanceAutoCapture(
         autoCaptureRef.current,
         paperPassing,
         dtMs,
       );
-      setRingFraction(autoCaptureRingFraction(autoCaptureRef.current));
+      // The ring's clock keeps going through a sample or two that fail (they
+      // only pause it, autoCapture.ts); drawn, it is held `RING_LEAD_MS` at
+      // most ahead, and an emptied ring is drawn empty at once.
+      aimRing(
+        autoCaptureRingFraction(autoCaptureRef.current),
+        autoCaptureRef.current.elapsedMs > 0 && !autoCaptureRef.current.fired,
+        now,
+      );
+
+      // 2026-10-26 (candidate): in the ring's last second, keep the sharpest
+      // frame at full resolution with the shutter's own crop (bestFrame.ts);
+      // the ring's shot uses it. An empty ring forgets it.
+      const bestStep = nextBestFrame(bestFramesRef.current, {
+        variance: laplacianVariance,
+        atMs: now,
+        passing: paperPassing,
+        ringElapsedMs: autoCaptureRef.current.elapsedMs,
+        ringDurationMs: CAMERA_CONSTANTS.autoCapture.durationMs,
+        windowMs: CAMERA_CONSTANTS.autoCapture.bestFrameWindowMs,
+        keep: CAMERA_CONSTANTS.autoCapture.bestFrameKeep,
+      });
+      for (const atMs of bestStep.dropped) {
+        bestBitmapsRef.current.get(atMs)?.close();
+        bestBitmapsRef.current.delete(atMs);
+      }
+      if (bestStep.kept.length === 0 && bestFramesRef.current.length > 0)
+        bestGenerationRef.current += 1;
+      bestFramesRef.current = bestStep.kept;
+      if (bestStep.keepThis && typeof createImageBitmap === "function") {
+        const streamSize = readStreamSize(video, streamRef.current);
+        const crop =
+          streamSize && view
+            ? visibleRegionInStream(streamSize, {
+                width: view.box.width,
+                height: view.box.height,
+              })?.capture
+            : null;
+        if (crop) {
+          // A frame counts for the shot only once its bitmap exists; with
+          // none, the shot takes the frame of that moment, as before.
+          const generation = bestGenerationRef.current;
+          createImageBitmap(video, crop.x, crop.y, crop.width, crop.height)
+            .then((bitmap) => {
+              const stillKept =
+                generation === bestGenerationRef.current &&
+                bestFramesRef.current.some((k) => k.atMs === now);
+              if (!stillKept) {
+                bitmap.close();
+                return;
+              }
+              bestBitmapsRef.current.get(now)?.close();
+              bestBitmapsRef.current.set(now, bitmap);
+            })
+            .catch(() => {
+              // No bitmap: this frame is not a candidate.
+            });
+        }
+      }
 
       // F14 (candidate): the sheet is not found (a light table: no sheet,
       // found only now and then, or a quad the gate turns back), but a hand
@@ -2173,13 +3170,80 @@ export default function EasyScanCamera({
           nowMs: now,
         })
       ) {
-        const points = readLiveHandPoints(canvas, width, height);
-        if (points !== undefined)
+        // The same one detect() as before; V3.3 WP1b only also keeps the z
+        // and world landmarks it returns (nothing here reads them yet).
+        const reading = readLiveHand(canvas, width, height);
+        const points =
+          reading === undefined ? undefined : (reading?.points ?? null);
+        if (points !== undefined) {
           handReadingsRef.current = recordHandReading(handReadingsRef.current, {
             atMs: now,
             points,
           });
+          // V3.3 WP1b (log only): with a hand and the sheet's four corners in
+          // this sample, where the wrist and the hand axis lie on the sheet.
+          // Kept for the attempt log; no cue, ring or gate reads it.
+          let placed: LivePlacementReading | null = null;
+          if (reading && detection.corners) {
+            const placementStartedAt = performance.now();
+            placed = readLivePlacement({
+              atMs: now,
+              points: reading.points,
+              corners: detection.corners,
+              paperSize: paperSizeRef.current,
+              focalPx: liveNominalFocalPx(
+                { width: video.videoWidth, height: video.videoHeight },
+                source.width,
+                width,
+              ),
+              width,
+              height,
+            });
+            if (placed)
+              livePlacementRef.current = pushLivePlacement(
+                livePlacementRef.current,
+                placed,
+              );
+            if (debugOnRef.current)
+              debugLiveRef.current.placementMs = pushWindow(
+                debugLiveRef.current.placementMs ?? [],
+                performance.now() - placementStartedAt,
+              );
+          }
+          // V3.3 WP3a (candidate): each hand reading is counted once by the
+          // hints' hysteresis, only while the hints are on.
+          if (placementHintsOn(hintsDebugRef.current))
+            placementHysteresisRef.current = advancePlacementHysteresis(
+              placementHysteresisRef.current,
+              {
+                atMs: now,
+                handSeen: points !== null,
+                wristToEdgeMm: placed?.wristToEdgeMm ?? null,
+                wristEdge: placed?.wristEdge ?? null,
+                handAxisDeg: placed?.handAxisDeg ?? null,
+                minSideMarginMm: placed?.minSideMarginMm ?? null,
+                palmOverHand: placed?.palmOverHand ?? null,
+                fingerRatioMean: placed?.fingerRatioMean ?? null,
+              },
+            );
+        }
       }
+      // V3.3 WP3a (candidate): the cue on screen, with the hand's soft hint
+      // when the hints are on (only with ?debug=1 for now). Words only: the
+      // ring and the F14 wait above read `nextCue`. Off, it IS `nextCue`.
+      const shownCandidate = placementHintsOn(hintsDebugRef.current)
+        ? pickCue(
+            {
+              ...cueInput,
+              placement: placementCueInput(placementHysteresisRef.current, {
+                nowMs: now,
+                detectorReady: isHandLandmarkerReady(),
+              }),
+            },
+            "paper-edge",
+            localeRef.current,
+          )
+        : nextCue;
       const hand = liveHandSignal({
         previous: handReadingsRef.current.previous,
         latest: handReadingsRef.current.latest,
@@ -2189,7 +3253,16 @@ export default function EasyScanCamera({
       noSheetCaptureRef.current = advanceNoSheetCapture(
         noSheetCaptureRef.current,
         {
-          sheetFound,
+          // A hand hint on screen pauses the wait too (Kirby 2026-10-27:
+          // no automatic shot while a hint says it will not pass), and so
+          // does a distance cue the hand's side put up (Kirby 2026-10-28:
+          // too high, no shot unless the user takes it).
+          sheetFound:
+            sheetFound ||
+            (shownCandidate.code !== nextCue.code &&
+              (isPlacementCueCode(shownCandidate.code) ||
+                shownCandidate.code === "too-far" ||
+                shownCandidate.code === "too-close")),
           handSeen: hand.seen,
           handSteady: hand.steady,
           sharp: sharpEnough,
@@ -2210,7 +3283,12 @@ export default function EasyScanCamera({
               frameDiagonal
             : null;
         live.cornersSeen = detection.cornersSeen;
+        live.carried = pushWindow(live.carried ?? [], carry.carried ? 1 : 0);
         live.cueCode = nextCue.code;
+        // V3.3 WP1b: the sheet fill of every sample (the experiment's 紙占寬).
+        live.fill = sampleQuad
+          ? computeQuadWidthFraction(sampleQuad, width)
+          : null;
         live.visibleInStream = source;
         live.sample = { width, height };
         debugVideoSizeRef.current = {
@@ -2232,33 +3310,39 @@ export default function EasyScanCamera({
         };
         // V3.2 F16: two quads that alternate (conflicting side lines) do not
         // make the outline jump or blink (outlineHysteresis.ts); display only.
+        // 2026-10-28 (candidate): a jump that continues the move on screen
+        // is followed at once, and the dots' filter follows a moving corner
+        // closely and damps a still one as before (cornerSmoother.ts).
+        const outlineDiagonal = Math.hypot(coverRect.width, coverRect.height);
         const outline = advanceOutline(
           outlineRef.current,
           [observe(0), observe(1), observe(2), observe(3)],
-          Math.hypot(coverRect.width, coverRect.height),
+          outlineDiagonal,
         );
         outlineRef.current = outline.state;
         cornerStatesRef.current = advanceCorners(
           cornerStatesRef.current,
           outline.shown,
           dtMs,
+          CAMERA_CONSTANTS.corners,
+          outlineDiagonal,
         );
-        setCornerStates(cornerStatesRef.current);
+        cornerStore.set(cornerStatesRef.current);
       }
 
       // The words are debounced (cueDebounce.ts): the cue on screen changes
       // only when the debounce says so.
       cueDebounceRef.current = advanceCueDebounce(
         cueDebounceRef.current,
-        nextCue.code,
+        shownCandidate.code,
         now,
       );
       const shownCode = cueDebounceRef.current.shown;
       if (shownCode !== null && shownCode !== lastCueCodeRef.current) {
         lastCueCodeRef.current = shownCode;
         const shownCue =
-          shownCode === nextCue.code
-            ? nextCue
+          shownCode === shownCandidate.code
+            ? shownCandidate
             : cueFromCode(shownCode, "paper-edge", localeRef.current);
         setCue(shownCue);
         setAnnounced(
@@ -2269,11 +3353,23 @@ export default function EasyScanCamera({
         );
       }
 
+      if (debugOnRef.current)
+        debugLiveRef.current.sampleWorkMs = pushWindow(
+          debugLiveRef.current.sampleWorkMs ?? [],
+          performance.now() - sampleStartedAt,
+        );
+
       if (
         (autoCaptureRef.current.fired || noSheetCaptureRef.current.fired) &&
         previewSettledRef.current
-      )
+      ) {
+        // V3.3 WP1b (log only): which of the two shutters fired.
+        pendingShutterRef.current = shutterKindOf({
+          autoCapture: autoCaptureRef.current.fired,
+          noSheet: noSheetCaptureRef.current.fired,
+        });
         void captureNow();
+      }
     }
 
     rafRef.current = requestAnimationFrame(tick);
@@ -2281,7 +3377,15 @@ export default function EasyScanCamera({
       cancelled = true;
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     };
-  }, [camState.kind, captureNow, tipOpen, manualActive, resetLoopState]);
+  }, [
+    camState.kind,
+    captureNow,
+    tipOpen,
+    manualActive,
+    resetLoopState,
+    aimRing,
+    cornerStore,
+  ]);
 
   // The stage exists on the phone's camera screen and behind the bottom
   // sheet; it is never resized (scan v2), only measured.
@@ -2407,7 +3511,48 @@ export default function EasyScanCamera({
         cueShown: cueDebounceRef.current.shown,
         ringFraction: autoCaptureRingFraction(autoCaptureRef.current),
         consecutiveFailures: autoCaptureRef.current.failStreak,
+        sheetCarriedShare: mean(live.carried ?? []),
+        ringFrameGapMs: {
+          average: mean(live.ringFrameGapMs ?? []),
+          p95: percentile(live.ringFrameGapMs ?? [], 95),
+          max:
+            (live.ringFrameGapMs ?? []).length > 0
+              ? Math.max(...(live.ringFrameGapMs ?? []))
+              : null,
+        },
+        ringAdvanceMs: {
+          frames: (live.ringAdvanceMs ?? []).length,
+          stillShare: mean(
+            (live.ringAdvanceMs ?? []).map((ms) => (ms <= 0 ? 1 : 0)),
+          ),
+          average: mean(live.ringAdvanceMs ?? []),
+          min:
+            (live.ringAdvanceMs ?? []).length > 0
+              ? Math.min(...(live.ringAdvanceMs ?? []))
+              : null,
+        },
+        sampleWorkMs: {
+          average: mean(live.sampleWorkMs ?? []),
+          p95: percentile(live.sampleWorkMs ?? [], 95),
+          max:
+            (live.sampleWorkMs ?? []).length > 0
+              ? Math.max(...(live.sampleWorkMs ?? []))
+              : null,
+        },
+        hiResLook: {
+          count: (live.hiResFound ?? []).length,
+          foundShare: mean(live.hiResFound ?? []),
+          msAverage: mean(live.hiResMs ?? []),
+          msP95: percentile(live.hiResMs ?? [], 95),
+        },
+        placement: debugPlacement({
+          fill: live.fill,
+          readings: livePlacementRef.current,
+          costMs: live.placementMs,
+          nowMs: performance.now(),
+        }),
       },
+      experimentTag: experimentTagRef.current,
       capture: {
         method: capture.method,
         source: capture.source ?? captureSource(),
@@ -2438,8 +3583,12 @@ export default function EasyScanCamera({
     };
   }, []);
   useEffect(() => {
-    const on = new URLSearchParams(window.location.search).get("debug") === "1";
+    const params = new URLSearchParams(window.location.search);
+    const on = params.get("debug") === "1";
     debugOnRef.current = on;
+    hintsDebugRef.current = on && params.get("hints") !== "0";
+    photosDebugRef.current =
+      debugPhotosAllowed && on && params.get("photos") === "1";
     setDebugOn(on);
     if (!on) return;
     setDebugSnapshot(buildDebugSnapshot());
@@ -2448,7 +3597,7 @@ export default function EasyScanCamera({
       400,
     );
     return () => window.clearInterval(timer);
-  }, [buildDebugSnapshot]);
+  }, [buildDebugSnapshot, debugPhotosAllowed]);
 
   const exitToHome = useCallback(() => {
     stopStream();
@@ -2499,7 +3648,7 @@ export default function EasyScanCamera({
   // browser's focus restore cannot land after the heading takes focus.
   const editLengthFromFailure = () => {
     sheetDialogRef.current?.close();
-    if (result.kind !== "none") URL.revokeObjectURL(result.previewUrl);
+    if (result.kind !== "none") revokeAfterFade(result.previewUrl);
     setResult({ kind: "none" });
     startLengthStep();
   };
@@ -2537,75 +3686,120 @@ export default function EasyScanCamera({
   // hand size. A native modal, so it is also what makes the page behind inert;
   // it is built before the early return of the desktop screen below, which
   // shows it over the QR page.
-  const answersDialog = answersOpen ? (
-    <dialog
-      ref={answerDialogRef}
-      className="answerDialog"
-      aria-labelledby="answer-title"
-      onClose={(e) => {
-        // The browser closed it itself: a second Esc, or the Android back
-        // gesture, with no tap in between is not cancelable, so onCancel
-        // never gets to stop it. State and dialog must stay in step:
-        // while the scan is being sent it opens again, otherwise it is a
-        // 返回 (and the effect above opens the dialog again if the page
-        // before it is a question page too).
-        if (answers.step === "thickness" && submitBusy) {
-          e.currentTarget.showModal();
-          return;
-        }
-        backFromAnswers();
-      }}
-      onCancel={(e) => {
-        // Escape is 返回, and does nothing while the scan is being sent.
-        e.preventDefault();
-        if (answers.step === "thickness" && submitBusy) return;
-        backFromAnswers();
-      }}
-    >
-      {answers.step === "grip" ? (
-        <GripPage
-          value={answers.grip}
-          onChange={(grip) => dispatchAnswers({ type: "chooseGrip", grip })}
-          onConfirm={() => dispatchAnswers({ type: "confirmGrip" })}
-          onSkip={() => dispatchAnswers({ type: "skipGrip" })}
-          onBack={backFromAnswers}
-          required={manualMode}
-        />
-      ) : (
-        <ThicknessPage
-          value={answers.thickness}
-          onChange={(thickness) => {
-            clearSubmitError();
-            dispatchAnswers({ type: "chooseThickness", thickness });
-          }}
-          onSubmit={() => sendScan(answers)}
-          onSkip={() => {
-            const next = answersReducer(answers, {
-              type: "skipThickness",
-            });
-            dispatchAnswers({ type: "skipThickness" });
-            sendScan(next);
-          }}
-          onBack={backFromAnswers}
-          busy={submitBusy}
-          onRetake={manualMode ? editManualNumbers : retake}
-          retakeLabel={
-            manualMode ? manualEntryCopy(locale).editNumbers : undefined
+  //
+  // V3.2 motion pass #4: the dialog fades in and out (answer-pages.css), and
+  // a change between the two pages slides the old one out and the new one in
+  // (`swapAnswerPage`: forward to the left, back to the right). 返回 from the
+  // thickness page, by the button or Esc, is such a change; 返回 from the grip
+  // page leaves the dialog, which fades.
+  const answersShownStep = answersLeave.shown;
+  const backFromPage = () => {
+    if (answers.step === "thickness") {
+      // 返回 is off while the scan is being sent (backEnabled: !busy).
+      if (submitBusy) return;
+      swapAnswerPage(-1, backFromAnswers, stillOnPage("thickness"));
+    } else backFromAnswers();
+  };
+  // While it fades out, a transparent layer over it takes the taps (e2e
+  // round 2): none reaches the screen under it (LeaveShield.tsx).
+  const answersDialog = answersShownStep ? (
+    <>
+      <dialog
+        ref={answerDialogRef}
+        className="answerDialog"
+        aria-labelledby="answer-title"
+        data-leaving={answersLeave.leaving ? "true" : undefined}
+        inert={answersLeave.leaving}
+        aria-hidden={answersLeave.leaving || undefined}
+        onClose={(e) => {
+          // Closed by the effect above to fade out (V3.2 motion pass #4): the
+          // change that closed it has already been made.
+          if (e.currentTarget.dataset.leaving === "true") return;
+          // The browser closed it itself: a second Esc, or the Android back
+          // gesture, with no tap in between is not cancelable, so onCancel
+          // never gets to stop it. State and dialog must stay in step:
+          // while the scan is being sent it opens again, otherwise it is a
+          // 返回 (and the effect above opens the dialog again if the page
+          // before it is a question page too). Applied at once: the dialog is
+          // already gone from the screen, so there is nothing to slide.
+          if (answers.step === "thickness" && submitBusy) {
+            e.currentTarget.showModal();
+            return;
           }
-          errorText={
-            manualMode
-              ? {
-                  invalid: manualEntryCopy(locale).sendInvalid,
-                  tooLarge: manualEntryCopy(locale).sendTooLarge,
-                }
-              : undefined
-          }
-          errorKind={
-            submitState.kind === "error" ? submitState.errorKind : null
-          }
-        />
-      )}
-    </dialog>
+          backFromAnswers();
+        }}
+        onCancel={(e) => {
+          // Escape is 返回, and does nothing while the scan is being sent.
+          e.preventDefault();
+          if (answersLeave.leaving) return;
+          if (answers.step === "thickness" && submitBusy) return;
+          backFromPage();
+        }}
+      >
+        {/* V3.2 motion pass #4: the pages slide 24 px while they swap. This
+          box clips that sideways (overflow-x: clip, not a scroller), so the
+          dialog never gains a horizontal scroll from it; the page's height is
+          not clipped (answer-pages.css). */}
+        <div className="answerSwap">
+          {answersShownStep === "grip" ? (
+            <GripPage
+              value={answers.grip}
+              onChange={(grip) => dispatchAnswers({ type: "chooseGrip", grip })}
+              onConfirm={() =>
+                swapAnswerPage(
+                  1,
+                  () => dispatchAnswers({ type: "confirmGrip" }),
+                  stillOnPage("grip"),
+                )
+              }
+              onSkip={() =>
+                swapAnswerPage(
+                  1,
+                  () => dispatchAnswers({ type: "skipGrip" }),
+                  stillOnPage("grip"),
+                )
+              }
+              onBack={backFromPage}
+              required={manualMode}
+            />
+          ) : (
+            <ThicknessPage
+              value={answers.thickness}
+              onChange={(thickness) => {
+                clearSubmitError();
+                dispatchAnswers({ type: "chooseThickness", thickness });
+              }}
+              onSubmit={() => sendScan(answers)}
+              onSkip={() => {
+                const next = answersReducer(answers, {
+                  type: "skipThickness",
+                });
+                dispatchAnswers({ type: "skipThickness" });
+                sendScan(next);
+              }}
+              onBack={backFromPage}
+              busy={submitBusy}
+              onRetake={manualMode ? editManualNumbers : retake}
+              retakeLabel={
+                manualMode ? manualEntryCopy(locale).editNumbers : undefined
+              }
+              errorText={
+                manualMode
+                  ? {
+                      invalid: manualEntryCopy(locale).sendInvalid,
+                      tooLarge: manualEntryCopy(locale).sendTooLarge,
+                    }
+                  : undefined
+              }
+              errorKind={
+                submitState.kind === "error" ? submitState.errorKind : null
+              }
+            />
+          )}
+        </div>
+      </dialog>
+      {answersLeave.leaving && <LeaveShield target={answerDialogRef} />}
+    </>
   ) : null;
 
   // The device is only known after mount. Until then show a neutral screen
@@ -2787,6 +3981,10 @@ export default function EasyScanCamera({
         ariaLabel={noPaperMode ? easy.photoLabelNoPaper : easy.photoLabelPaper}
       />
     ) : null;
+  // V3.2 motion pass #2: the photo as it is drawn now (where it is, how it is
+  // scaled), kept for the fade-out after a retake.
+  if (result.kind !== "none" && frozenLayout && stillSize)
+    lastPhotoRef.current = { node: renderPhoto(true), style: moveStyle };
 
   return (
     <main
@@ -2829,8 +4027,8 @@ export default function EasyScanCamera({
             )}
             {showCorners && guide && (
               <div className="cameraOverlay">
-                <EasyCorners
-                  states={cornerStates}
+                <LiveEasyCorners
+                  store={cornerStore}
                   guide={guide}
                   hidden={
                     (result.kind === "measured" ||
@@ -2850,6 +4048,24 @@ export default function EasyScanCamera({
               {renderPhoto(true)}
             </div>
           )}
+          {/* V3.2 motion pass #2: after a retake the photo does not vanish. It
+              stays where it was (scaled and moved as the sheet left it) and
+              fades out (--motion-base) over the live picture, which fades in
+              under it as soon as the camera plays. Decoration only: hidden
+              from assistive technology and from the pointer. */}
+          {result.kind === "none" &&
+            photoLeave.leaving &&
+            lastPhotoRef.current && (
+              <div
+                key="photoLeaving"
+                className="easyStageContent easyPhotoLeaving"
+                style={lastPhotoRef.current.style}
+                aria-hidden="true"
+                data-testid="easy-photo-leaving"
+              >
+                {lastPhotoRef.current.node}
+              </div>
+            )}
           {result.kind === "processing" && <div className="easyStageDim" />}
           {result.kind === "processing" && !reducedMotion && (
             <div className="easyScanLine" data-testid="easy-scan-line" />
@@ -2906,8 +4122,18 @@ export default function EasyScanCamera({
           no camera) the notice joins that flow above it. */}
       <DetectorProgress inert={lengthStep} />
 
-      {lengthStep && (
-        <section className="easyLengthStep" aria-labelledby="easy-length-title">
+      {/* V3.2 motion pass #5: the step fades in and out (--motion-base); while
+          it fades out it is inert, and the camera screen under it is already
+          usable. */}
+      {lengthLeave.shown && (
+        <section
+          ref={lengthStepRef}
+          className="easyLengthStep"
+          aria-labelledby="easy-length-title"
+          data-leaving={lengthLeave.leaving ? "true" : undefined}
+          inert={lengthLeave.leaving}
+          aria-hidden={lengthLeave.leaving || undefined}
+        >
           <button
             type="button"
             className="easyLengthBack"
@@ -2987,6 +4213,7 @@ export default function EasyScanCamera({
           </form>
         </section>
       )}
+      {lengthLeave.leaving && <LeaveShield target={lengthStepRef} />}
       {!lengthStep &&
         camState.kind === "streamEnded" &&
         result.kind === "none" && (
@@ -3074,132 +4301,149 @@ export default function EasyScanCamera({
           </div>
         )}
 
-      {!lengthStep &&
-        (camState.kind === "live" || camState.kind === "requesting") &&
-        result.kind === "none" && (
-          <>
-            <div className="cameraCueWrap">
-              <div
-                className={`cameraCue${cue?.allPass && !captureFailureHint ? " perfect" : ""}`}
-                aria-live="polite"
-                data-testid="camera-cue"
-                data-capture-failure={captureFailureHint ? "true" : undefined}
-              >
-                {captureFailureHint ? (
-                  captureFailureHint
-                ) : userLengthMm !== null ? (
-                  cameraCuesCopy(locale).handFlat
-                ) : cue?.allPass ? (
-                  <>
-                    <CheckIcon width={16} height={16} /> {cueLabel}
-                  </>
-                ) : (
-                  cueLabel
-                )}
-              </div>
+      {/* V3.2 motion pass #3: the cue and the dock come in (--motion-base) and
+          go (--motion-fast) with a fade and a short slide, the cue from the
+          top, the dock from the bottom. While they go they are inert and hand
+          their refs on (the handle and the "no paper" entry of another screen
+          may take them in the same commit). */}
+      {liveChromeLeave.shown && (
+        <>
+          <div
+            className="cameraCueWrap"
+            data-leaving={liveChromeLeave.leaving ? "true" : undefined}
+            inert={liveChromeLeave.leaving}
+            aria-hidden={liveChromeLeave.leaving || undefined}
+          >
+            <div
+              className={`cameraCue${cue?.allPass && !captureFailureHint ? " perfect" : ""}${cue && !captureFailureHint && isPlacementCueCode(cue.code) ? " cameraCueSoftHint" : ""}`}
+              aria-live="polite"
+              data-testid="camera-cue"
+              data-capture-failure={captureFailureHint ? "true" : undefined}
+            >
+              {captureFailureHint ? (
+                captureFailureHint
+              ) : userLengthMm !== null ? (
+                cameraCuesCopy(locale).handFlat
+              ) : cue?.allPass ? (
+                <>
+                  <CheckIcon width={16} height={16} /> {cueLabel}
+                </>
+              ) : (
+                cueLabel
+              )}
             </div>
+          </div>
+          {!liveChromeLeave.leaving && (
             <p className="visuallyHiddenLive" aria-live="polite">
               {announced}
             </p>
-            <div className="easyBottomDock easyBottomDock-withHandle">
-              {hintText && (
-                <p className="easyHint" data-testid="easy-hint">
-                  {hintText}
-                </p>
-              )}
+          )}
+          <div
+            ref={dockRef}
+            className="easyBottomDock easyBottomDock-withHandle"
+            data-leaving={liveChromeLeave.leaving ? "true" : undefined}
+            inert={liveChromeLeave.leaving}
+            aria-hidden={liveChromeLeave.leaving || undefined}
+          >
+            {hintText && (
+              <p className="easyHint" data-testid="easy-hint">
+                {hintText}
+              </p>
+            )}
 
-              <div className="easyBottomRow">
-                {userLengthMm === null ? (
-                  <button
-                    type="button"
-                    className="easyPaperToggle"
-                    onClick={() =>
-                      changePaperSize(paperSize === "a4" ? "letter" : "a4")
-                    }
-                  >
-                    {PAPER_SIZE_LABELS[paperSize]}
-                  </button>
-                ) : (
-                  <span className="easyLengthChip">
-                    {easy.lengthChip(String(userLengthMm))}
-                  </span>
-                )}
+            <div className="easyBottomRow">
+              {userLengthMm === null ? (
                 <button
                   type="button"
-                  className="cameraShutter"
-                  aria-label={common.takePhoto}
-                  onClick={() => void captureNow()}
+                  className="easyPaperToggle"
+                  onClick={() =>
+                    changePaperSize(paperSize === "a4" ? "letter" : "a4")
+                  }
                 >
-                  <div className="cameraShutterInner" />
-                  {userLengthMm === null && (
-                    <svg className="cameraShutterRing" viewBox="0 0 96 96">
-                      <circle
-                        cx="48"
-                        cy="48"
-                        r={40}
-                        strokeDasharray={2 * Math.PI * 40}
-                        strokeDashoffset={2 * Math.PI * 40 * (1 - ringFraction)}
-                      />
-                    </svg>
-                  )}
+                  {PAPER_SIZE_LABELS[paperSize]}
                 </button>
-                <label
-                  className="easyUploadIconButton"
-                  htmlFor="easy-scan-upload"
-                >
-                  <span className="visuallyHidden">{common.uploadInstead}</span>
-                  <svg
-                    viewBox="0 0 24 24"
-                    width="22"
-                    height="22"
-                    aria-hidden="true"
-                    focusable="false"
-                  >
-                    <path
-                      d="M4 16.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5M8 8l4-4 4 4M12 4v12"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+              ) : (
+                <span className="easyLengthChip">
+                  {easy.lengthChip(String(userLengthMm))}
+                </span>
+              )}
+              <button
+                type="button"
+                className="cameraShutter"
+                aria-label={common.takePhoto}
+                onClick={() => void captureNow()}
+              >
+                <div className="cameraShutterInner" />
+                {userLengthMm === null && (
+                  <svg className="cameraShutterRing" viewBox="0 0 96 96">
+                    <circle
+                      cx="48"
+                      cy="48"
+                      r={40}
+                      ref={drawRingCircle}
+                      strokeDasharray={RING_CIRCUMFERENCE}
                     />
                   </svg>
-                </label>
-              </div>
-              {noPaperLabel && (
-                <div className="easyNoPaperRow">
+                )}
+              </button>
+              <label
+                className="easyUploadIconButton"
+                htmlFor="easy-scan-upload"
+              >
+                <span className="visuallyHidden">{common.uploadInstead}</span>
+                <svg
+                  viewBox="0 0 24 24"
+                  width="22"
+                  height="22"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <path
+                    d="M4 16.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5M8 8l4-4 4 4M12 4v12"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </label>
+            </div>
+            {noPaperLabel && (
+              <div className="easyNoPaperRow">
+                <button
+                  type="button"
+                  className="easyNoPaperLink"
+                  ref={liveChromeLeave.leaving ? undefined : noPaperEntryRef}
+                  onClick={startLengthStep}
+                >
+                  {noPaperLabel}
+                </button>
+                {noPaperMode && (
                   <button
                     type="button"
                     className="easyNoPaperLink"
-                    ref={noPaperEntryRef}
-                    onClick={startLengthStep}
+                    onClick={switchToPaper}
                   >
-                    {noPaperLabel}
+                    {easy.usePaperInstead}
                   </button>
-                  {noPaperMode && (
-                    <button
-                      type="button"
-                      className="easyNoPaperLink"
-                      onClick={switchToPaper}
-                    >
-                      {easy.usePaperInstead}
-                    </button>
-                  )}
-                </div>
-              )}
-              {/* Typing the hand size instead (manual entry, candidate): a strip
+                )}
+              </div>
+            )}
+            {/* Typing the hand size instead (manual entry, candidate): a strip
                   at the very bottom of the camera screen. It is only here
                   while the camera is, not over a finished measurement, and
                   not under the first-run tip (a modal over the same edge). */}
-              {!tipOpen && (
-                <ManualEntryHandle
-                  ref={manualHandleRef}
-                  onOpen={openManualSheet}
-                />
-              )}
-            </div>
-          </>
-        )}
+            {!tipOpen && (
+              <ManualEntryHandle
+                ref={liveChromeLeave.leaving ? undefined : manualHandleRef}
+                onOpen={openManualSheet}
+              />
+            )}
+          </div>
+          {liveChromeLeave.leaving && <LeaveShield target={dockRef} />}
+        </>
+      )}
 
       <input
         id="easy-scan-upload"
@@ -3218,18 +4462,28 @@ export default function EasyScanCamera({
         }
       />
 
-      {measuringShown(result.kind, shutterMeasuring) && (
+      {/* V3.2 motion pass #19: in and out with a short fade (--motion-fast).
+          Leaving, it is inert: out of the accessibility tree at once, as its
+          unmount took it before. */}
+      {measuringLeave.shown && (
         <p
+          ref={pillRef}
           className="easyProcessingPill"
           role="status"
           aria-live="polite"
           data-testid="easy-measuring"
+          data-leaving={measuringLeave.leaving ? "true" : undefined}
+          inert={measuringLeave.leaving}
+          aria-hidden={measuringLeave.leaving || undefined}
         >
           {easy.measuring}
         </p>
       )}
+      {measuringLeave.leaving && <LeaveShield target={pillRef} />}
 
-      {(result.kind === "measured" || result.kind === "gateFailure") && (
+      {/* V3.2 motion pass #1: drawn from `sheetResult`, the result it showed,
+          so it keeps its content while it slides down after a retake. */}
+      {sheetResult && (
         <dialog
           ref={sheetDialogRef}
           className="easySheet easyResultSheet"
@@ -3237,24 +4491,44 @@ export default function EasyScanCamera({
           // scroller, and Tab after the last button landed on the dialog.
           tabIndex={-1}
           aria-label={
-            result.kind === "measured"
+            sheetResult.kind === "measured"
               ? common.handMeasured
               : common.retakeNeeded
           }
+          data-leaving={sheetLeave.leaving ? "true" : undefined}
+          inert={sheetLeave.leaving}
+          aria-hidden={sheetLeave.leaving || undefined}
           onCancel={(e) => {
             e.preventDefault();
+            if (sheetLeave.leaving) return;
             retake();
           }}
         >
-          {result.kind === "measured" ? (
+          {sheetResult.kind === "measured" ? (
             <>
+              {/* V3.3 WP3b (candidate): the post-shot banner, at most one,
+                  at the top of this sheet (SoftHintBannerView.tsx). */}
+              {softHintLeave.shown && (
+                <SoftHintBanner
+                  key={softHintLeave.shown.at}
+                  text={softHintBannerText(softHintLeave.shown.code, locale)}
+                  dismissLabel={cameraCuesCopy(locale).softHint.dismiss}
+                  leaving={softHintLeave.leaving}
+                  onDismiss={() => {
+                    const shown = softHintLeave.shown;
+                    if (!shown) return;
+                    setSoftHintClosedAt(shown.at);
+                    noteSoftHintOutcome(shown.at, { dismissed: true });
+                  }}
+                />
+              )}
               <p className="easySheetTitle" ref={sheetTitleRef} tabIndex={-1}>
                 <CheckIcon width={20} height={20} /> {common.handMeasured}
               </p>
               <p className="easySheetNumbers" data-testid="easy-sheet-numbers">
                 {measuredSheetNumbers(
-                  result.measurements,
-                  result.submission.calibration,
+                  sheetResult.measurements,
+                  sheetResult.submission.calibration,
                   locale,
                 )}
               </p>
@@ -3262,12 +4536,12 @@ export default function EasyScanCamera({
                   continue (and Debug with ?debug=1). "Still being
                   validated" and "adjusted by hand" are said on the results
                   page. */}
-              {"method" in result.submission.calibration &&
-                result.submission.calibration.method === "user-length" && (
+              {"method" in sheetResult.submission.calibration &&
+                sheetResult.submission.calibration.method === "user-length" && (
                   <div className="easyLengthDisclosure">
                     <p>
                       {easy.disclosureBased(
-                        String(result.submission.calibration.referenceMm),
+                        String(sheetResult.submission.calibration.referenceMm),
                       )}
                     </p>
                     <p>{easy.disclosureNoPaper}</p>
@@ -3303,7 +4577,14 @@ export default function EasyScanCamera({
                     className="primaryButton"
                     ref={continueRef}
                     data-testid="answers-continue-button"
-                    onClick={() => dispatchAnswers({ type: "open" })}
+                    onClick={() => {
+                      // V3.3 WP3b: going on after a banner (no-op without one).
+                      if (sheetResult.softHint)
+                        noteSoftHintOutcome(sheetResult.softHint.at, {
+                          after: "continue",
+                        });
+                      dispatchAnswers({ type: "open" });
+                    }}
                   >
                     {scanAnswersCopy(locale).sheetContinue}
                   </button>
@@ -3320,9 +4601,11 @@ export default function EasyScanCamera({
                 {common.retakeNeeded}
               </p>
               <p className="easySheetErrorMessage" role="alert">
-                {result.errors[0] ? issueText(result.errors[0], locale) : ""}
+                {sheetResult.errors[0]
+                  ? issueText(sheetResult.errors[0], locale)
+                  : ""}
               </p>
-              {result.errors[0]?.code === "HANDEDNESS_MISMATCH" && (
+              {sheetResult.errors[0]?.code === "HANDEDNESS_MISMATCH" && (
                 <HandToggle state={handChip} onClick={toggleHand} inSheet />
               )}
               <div className="easyStickyActions">
@@ -3337,7 +4620,7 @@ export default function EasyScanCamera({
                 {/* The secondary way on after a paper failure, or after a frame
                     placed by hand was turned back (V3.2 F2, F7, candidate):
                     retaking stays the main one. */}
-                {adjustEntry === "rescue" && (
+                {adjustEntryFor(sheetResult) === "rescue" && (
                   <button
                     type="button"
                     className="easyAdjustFrameButton"
@@ -3351,7 +4634,7 @@ export default function EasyScanCamera({
                 {noPaperLabel &&
                   failureOffersLengthEdit(
                     noPaperMode,
-                    result.errors[0]?.code,
+                    sheetResult.errors[0]?.code,
                   ) && (
                     <button
                       type="button"
@@ -3369,32 +4652,34 @@ export default function EasyScanCamera({
           {debugOn && debugSnapshot && (
             <details className="easyDebugDetails">
               <summary>Debug</summary>
-              <ScanDebugPanel snapshot={debugSnapshot} />
+              <ScanDebugPanel
+                snapshot={debugSnapshot}
+                experimentTag={experimentTag}
+                onExperimentTag={setExperimentTag}
+              />
             </details>
           )}
         </dialog>
       )}
+      {sheetLeave.leaving && <LeaveShield target={sheetDialogRef} />}
 
-      {adjustOpen &&
-        (result.kind === "measured" || result.kind === "gateFailure") &&
-        result.overlay && (
-          <PaperAdjust
-            key={`${adjustOpen}:${result.previewUrl}`}
-            entry={adjustOpen}
-            overlay={result.overlay}
-            previous={
-              result.kind === "gateFailure"
-                ? (result.placedFrame ?? null)
-                : null
-            }
-            leave={adjustDirect ? "retake" : "cancel"}
-            paperSize={paperSizeRef.current}
-            previewUrl={result.previewUrl}
-            locale={locale}
-            onCancel={cancelAdjust}
-            onConfirm={confirmAdjust}
-          />
-        )}
+      {/* V3.2 motion pass #22: drawn from the props it had (`adjustLeave`),
+          so a cancel or a confirm fades it out over what comes back. */}
+      {adjustLeave.shown && (
+        <PaperAdjust
+          key={adjustLeave.shown.key}
+          entry={adjustLeave.shown.entry}
+          overlay={adjustLeave.shown.overlay}
+          previous={adjustLeave.shown.previous}
+          leave={adjustLeave.shown.leave}
+          paperSize={adjustLeave.shown.paperSize}
+          previewUrl={adjustLeave.shown.previewUrl}
+          locale={locale}
+          onCancel={cancelAdjust}
+          onConfirm={confirmAdjust}
+          leaving={adjustLeave.leaving}
+        />
+      )}
 
       {manualSheetOpen && (
         <ManualEntrySheet
@@ -3408,11 +4693,20 @@ export default function EasyScanCamera({
       )}
       {answersDialog}
 
+      {/* V3.2 motion pass #21: the tip closes at once (focus goes back as
+          before) and slides down, still painted; its dimmed backdrop belongs
+          to the open dialog only, so a scrim of the same colour takes its
+          place and fades out with it. */}
+      {tipLeave.leaving && <div className="easyTipScrim" aria-hidden="true" />}
       <dialog
         ref={tipDialogRef}
         className="easySheet easyTipSheet"
         tabIndex={-1}
         aria-label={noPaperMode ? easy.tipTitleNoPaper : easy.tipTitlePaper}
+        data-leaving={tipLeave.leaving ? "true" : undefined}
+        inert={tipLeave.leaving}
+        aria-hidden={tipLeave.leaving || undefined}
+        {...tipBlankTap}
         onCancel={(e) => {
           e.preventDefault();
           dismissTip();
@@ -3486,7 +4780,11 @@ export default function EasyScanCamera({
         debugSnapshot &&
         result.kind !== "measured" &&
         result.kind !== "gateFailure" && (
-          <ScanDebugPanel snapshot={debugSnapshot} />
+          <ScanDebugPanel
+            snapshot={debugSnapshot}
+            experimentTag={experimentTag}
+            onExperimentTag={setExperimentTag}
+          />
         )}
     </main>
   );

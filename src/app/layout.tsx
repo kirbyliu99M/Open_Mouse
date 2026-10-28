@@ -5,6 +5,7 @@ import { LocaleProvider } from "@/client/i18n/LocaleProvider";
 import { CookieBanner } from "@/components/consent/CookieBanner";
 import { SiteFooter } from "@/components/SiteFooter";
 import { siteMetaCopy } from "@/lib/copy/site-meta";
+import { siteRobots } from "@/lib/seo";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 import { getLocale } from "@/server/i18n/getLocale";
 import { brandFont } from "./brand-font";
@@ -19,12 +20,18 @@ export async function generateMetadata(): Promise<Metadata> {
     // The home page has none, so it shows the default.
     title: { default: SITE_NAME, template: `%s · ${SITE_NAME}` },
     description,
-    robots: { index: false, follow: false },
+    // Only the production deployment is indexable (`siteRobots`). Private and
+    // demo pages set their own `noindex`, which wins over this default.
+    robots: siteRobots(),
 
     // Share previews. The images come from the file convention in this folder
     // (icon.png, apple-icon.png, opengraph-image.png, twitter-image.png), so no
     // image URL is written here; `metadataBase` makes them absolute URLs.
     metadataBase: new URL(SITE_URL),
+    // "./" resolves against `metadataBase` and the page's own path, so every
+    // page names its address on SITE_URL as canonical (a deployment URL or a
+    // query string never becomes a second copy).
+    alternates: { canonical: "./" },
     openGraph: {
       title: SITE_NAME,
       siteName: SITE_NAME,

@@ -71,10 +71,11 @@
 .account .journey-top-bar {
   margin-bottom: 2rem;
 }
+/* No \`animation: none\` here any more (V3.2 motion pass #26): the delete
+   confirmation fades in and out like every other dialog (globals.css). */
 .account dialog.dialog {
   border: 0;
   margin: auto;
-  animation: none;
 }
 .account dialog.dialog::backdrop {
   background: rgb(0 0 0 / 40%);
@@ -337,6 +338,16 @@
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
+/* The earlier scans fade in when the list is opened (V3.2 motion pass #28).
+   Its height opens at once: a height animation waits for Kirby (#24). */
+.profile-earlier {
+  animation: motion-fade-in var(--motion-base) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-earlier {
+    animation-duration: var(--motion-reduced);
+  }
+}
 .profile-earlier .profile-row {
   flex-wrap: wrap;
   justify-content: space-between;
@@ -466,6 +477,36 @@ dialog.profile-sheet::backdrop {
 }
 dialog.profile-sheet:focus {
   outline: none;
+}
+/* In and out (V3.2 motion pass #10, candidate / 未拍板), the manual-entry
+   sheet's pattern: up from the bottom over --motion-sheet-in, down again over
+   --motion-sheet-out once ProfileSheet sets data-leaving (its owner keeps it
+   mounted for leaveMs("sheet") through <Presence>); the dimmed page fades with
+   it. Transform and opacity only. */
+dialog.profile-sheet[open] {
+  animation: motion-sheet-up var(--motion-sheet-in) var(--ease-out);
+  transition: transform var(--motion-sheet-out) var(--ease-in);
+}
+dialog.profile-sheet::backdrop {
+  animation: motion-fade-in var(--motion-sheet-in) var(--ease-out);
+  transition: opacity var(--motion-sheet-out) var(--ease-in);
+}
+dialog.profile-sheet[data-leaving="true"] {
+  transform: translateY(100%);
+}
+dialog.profile-sheet[data-leaving="true"]::backdrop {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  dialog.profile-sheet[open],
+  dialog.profile-sheet::backdrop {
+    animation: motion-fade-in var(--motion-reduced) linear;
+    transition: opacity var(--motion-reduced) linear;
+  }
+  dialog.profile-sheet[data-leaving="true"] {
+    transform: none;
+    opacity: 0;
+  }
 }
 .profile-sheet-handle {
   display: block;

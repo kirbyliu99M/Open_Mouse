@@ -25,7 +25,7 @@ import {
 } from "../../src/components/results/share/text";
 import { DEFAULT_QR_STYLE } from "../../src/components/results/share/qrStyle";
 import { handTypeTitle, shareCardCopy } from "../../src/lib/copy/share-card";
-import { palmateMarkInkEdges } from "../../src/lib/brand/palmate-mark";
+import { mainLogoHandEdges } from "../../src/lib/brand/palmate-main-logo";
 import { SITE_NAME, SITE_URL } from "../../src/lib/site";
 
 /** A fake font: a CJK character is one em wide, anything else `latin` em. */
@@ -138,7 +138,7 @@ describe("layoutShareCard: the standard card", () => {
     expect(all).toContain("合手度分數");
     expect(all).toContain("適合你");
     expect(all).toContain(SITE_NAME);
-    expect(all).toContain("測測你的手型");
+    expect(all).toContain("找到你的最佳");
   });
 
   it("reads top to bottom: kicker, title, photo, pick, footer", () => {
@@ -166,6 +166,32 @@ describe("layoutShareCard: the standard card", () => {
     expect(layout.photoBox.h).toBeGreaterThanOrEqual(MIN_PHOTO_HEIGHT);
     expect(layout.photoBox.w).toBe(CARD_WIDTH - 2 * CARD_PADDING);
   });
+});
+
+describe("layoutShareCard: a filter's #1 (V3.2 F24)", () => {
+  it.each(["zh-TW", "en"] as const)(
+    "titles the pick with its place instead of best fit or closest (%s)",
+    (lang) => {
+      const copy = shareCardCopy(lang);
+      for (const total of [79, null]) {
+        const all = texts(
+          layoutShareCard(
+            {
+              ...BASE,
+              lang,
+              total,
+              bandLabel: null,
+              placeLabel: "人體工學第 1 名",
+            },
+            measure,
+          ).ops,
+        ).map((o) => o.text);
+        expect(all).toContain("人體工學第 1 名");
+        expect(all).not.toContain(copy.topPickLabel);
+        expect(all).not.toContain(copy.closestPickLabel);
+      }
+    },
+  );
 });
 
 describe("layoutShareCard: no score (the hand is outside the catalogue's range)", () => {
@@ -569,7 +595,7 @@ describe("the footer lockup and the QR", () => {
     for (const [name, input, m] of CASES) {
       const layout = layoutShareCard(input, m);
       const mark = findMark(layout);
-      const ink = palmateMarkInkEdges(mark.box);
+      const ink = mainLogoHandEdges(mark.box);
       expect(mark.box.w, name).toBe(MARK_SIZE);
       expect(mark.box.h, name).toBe(MARK_SIZE);
       // Ink left on the content margin, ink bottom on the QR box's bottom edge.
@@ -585,10 +611,12 @@ describe("the footer lockup and the QR", () => {
       )!;
       expect(nameOp.x, name).toBeGreaterThanOrEqual(ink.right + MARK_GAP_MIN);
       expect(tagOp.x, name).toBe(nameOp.x);
-      // The text block (name's cap height to the tagline's baseline) is
-      // centred on the mark's ink, to within a few pixels, and inside its height.
-      const top = nameOp.baseline - nameOp.font.size * 0.75;
-      const bottom = tagOp.baseline;
+      // The tagline above the name (one call to action, Kirby 2026-10-26). The
+      // text block (the tagline's cap height to the name's baseline) is
+      // centred on the hand, to within a few pixels, and inside its height.
+      expect(tagOp.baseline, name).toBeLessThan(nameOp.baseline);
+      const top = tagOp.baseline - tagOp.font.size * 0.75;
+      const bottom = nameOp.baseline;
       const mid = (ink.top + ink.bottom) / 2;
       expect(Math.abs((top + bottom) / 2 - mid), name).toBeLessThanOrEqual(6);
       expect(top, name).toBeGreaterThanOrEqual(ink.top);
@@ -608,7 +636,7 @@ describe("the footer lockup and the QR", () => {
       expect(qr.box.h, name).toBe(185);
       expect(qr.style, name).toBe("frameless");
       expect(qr.box.y + qr.box.h, name).toBeCloseTo(
-        palmateMarkInkEdges(mark.box).bottom,
+        mainLogoHandEdges(mark.box).bottom,
         6,
       );
       expect(qr.box.x + qr.box.w, name).toBe(CARD_WIDTH - CARD_PADDING);
@@ -643,7 +671,7 @@ describe("the footer lockup and the QR", () => {
     for (const size of [144, 160, 176]) {
       for (const [name, input, m] of CASES) {
         const layout = layoutShareCard(input, m, { qrSize: size });
-        const inkEdges = palmateMarkInkEdges(findMark(layout).box);
+        const inkEdges = mainLogoHandEdges(findMark(layout).box);
         const mark: Box = {
           x: inkEdges.left,
           y: inkEdges.top,

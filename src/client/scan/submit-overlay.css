@@ -1,7 +1,18 @@
 /*
  * The veil over the last question page while the scan is sent (V3.2 F13,
- * candidate / 未拍板): the page colour at about 70 %, the particle loader in
- * the middle. Fades by opacity only; none under reduced motion.
+ * candidate / 未拍板), the particle loader in the middle.
+ *
+ * V3.2 F23 (candidate / 未拍板): the page colour at 100 % (`--bg`, the same as
+ * the page behind the results (`:root`), so the page switch flashes neither white nor
+ * black), there at once with no fade in. Only a failed send fades it out, by
+ * opacity, and not under reduced motion.
+ *
+ * Where the loader sits is the contract with the results page
+ * (`.results-page-handoff` in results.css): the canvas centred in the
+ * viewport, both ways, with no padding around it, at the loader's own size
+ * (`.particleLoader-canvas`). The veil is `position: fixed; inset: 0` inside the
+ * full-screen `.answerDialog`, which has no transform, so its box is the
+ * viewport.
  */
 .submitOverlay {
   position: fixed;
@@ -10,32 +21,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(
-    in srgb,
-    var(--bg) var(--submit-veil-opacity, 70%),
-    transparent
-  );
-  animation: submitOverlay-in var(--submit-fade-ms, 220ms) ease-out;
+  background: var(--bg);
   transition: opacity var(--submit-fade-ms, 220ms) ease-in;
 }
 .submitOverlay[data-phase="leaving"] {
   opacity: 0;
   pointer-events: none;
 }
-.submitOverlay-loader {
+.submitOverlay .submitOverlay-loader {
   padding: 0;
-}
-@keyframes submitOverlay-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .submitOverlay {
-    animation: none;
     transition: none;
   }
 }

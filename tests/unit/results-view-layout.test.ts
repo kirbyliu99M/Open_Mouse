@@ -90,7 +90,9 @@ describe("the results page layout", () => {
     const html = render(many);
     expect(html).toContain('data-has-photo="false"');
     expect(html).toContain("results-photo-silhouette");
-    expect(html).not.toContain("<img");
+    // The only image is the brand mark in the top bar.
+    expect(html.match(/<img/g)).toHaveLength(1);
+    expect(html).toMatch(/<img[^>]*brandLockup-mark/);
     expect(html).not.toMatch(/official|官方產品照|產品照/);
   });
 
@@ -218,17 +220,14 @@ describe("the results page layout", () => {
     );
   });
 
-  it("carries the share button in the top bar (link), beside the purchase links on a wide screen and under Other mice on a phone (primary)", () => {
+  it("carries the share button beside the purchase links on a wide screen and under Other mice on a phone, not in the top bar (2026-10-26)", () => {
     const html = render(many);
-    expect(html.match(/data-testid="share-card-button"/g)).toHaveLength(3);
-    expect(html.match(/shareCard-button-link/g)).toHaveLength(1);
+    expect(html.match(/data-testid="share-card-button"/g)).toHaveLength(2);
+    expect(html).not.toContain("shareCard-button-link");
     expect(html.match(/shareCard-button-primary/g)).toHaveLength(2);
-    for (const position of ["top", "hero", "bottom"])
+    expect(html).not.toContain('data-share-position="top"');
+    for (const position of ["hero", "bottom"])
       expect(html).toContain(`data-share-position="${position}"`);
-    // In order: top bar, hero, then under Other mice.
-    expect(at(html, 'data-share-position="top"')).toBeLessThan(
-      at(html, 'data-share-position="hero"'),
-    );
     expect(at(html, 'data-share-position="hero"')).toBeLessThan(
       at(html, 'data-share-position="bottom"'),
     );
@@ -237,7 +236,7 @@ describe("the results page layout", () => {
   it("shares the top pick on a detail page too: the card is about the hand type, not this page's mouse", () => {
     // The button is given the whole response, so rank 1 is what it draws.
     const html = render(many, { rank: 3, scanId: many.scanId });
-    expect(html.match(/data-testid="share-card-button"/g)).toHaveLength(3);
+    expect(html.match(/data-testid="share-card-button"/g)).toHaveLength(2);
   });
 
   it("shows no share button when there are no results", () => {
@@ -249,20 +248,31 @@ describe("the results page layout", () => {
     expect(render(many, { language: "en" })).not.toMatch(/Early preview/i);
   });
 
-  it("names the back link by its destination, chevron left out", () => {
-    expect(render(many, { language: "en" })).toContain(
-      'aria-label="Back to Scan again"',
+  it("puts 重新掃描 last, after the share button under Other mice (2026-10-26)", () => {
+    const html = render(many);
+    expect(html.match(/href="\/scan\/easy"/g)).toHaveLength(1);
+    expect(at(html, 'href="/scan/easy"')).toBeGreaterThan(
+      at(html, 'data-share-position="bottom"'),
     );
-    expect(render(many, { language: "zh-TW" })).toContain(
-      'aria-label="返回重新掃描"',
+    expect(html).toMatch(/results-rescan-link[^>]*>重新掃描</);
+    expect(render(many, { language: "en" })).toMatch(
+      /results-rescan-link[^>]*>Scan again</,
     );
   });
 
-  it("puts the back link and the site name in the top bar", () => {
+  it("puts the mark and the site name, a link home, then the menu in the top bar (2026-10-26)", () => {
     const html = render(many);
-    expect(html).toContain('href="/scan/easy"');
-    expect(html).toContain("重新掃描");
-    expect(html).toContain(">Palmate<");
+    const bar = html.slice(
+      at(html, "results-topBar"),
+      html.indexOf("</nav>", at(html, "results-topBar")),
+    );
+    expect(bar).toMatch(
+      /<a[^>]*href="\/"[^>]*brandLockup|<a[^>]*brandLockup[^>]*href="\/"/,
+    );
+    expect(bar).toContain("brandLockup-mark");
+    expect(bar).toContain(">Palmate<");
+    expect(bar).toContain("navMenuTrigger");
+    expect(bar).not.toContain("重新掃描");
   });
 
   it("puts no lang attribute on its elements: <html lang> carries the language", () => {
@@ -650,9 +660,10 @@ describe("the enlarge-photo button", () => {
     const html = render(many);
     expect(html).toContain('data-has-photo="false"');
     expect(html).not.toContain("results-photoZoom");
-    // The share entries open a dialog too (V3.2 F21); no other control does.
+    // The share entries open a dialog too (V3.2 F21), and the menu button
+    // in the top bar; no other control does.
     const withoutShare = html.replace(
-      /<button[^>]*data-testid="share-card-button"[^>]*>/g,
+      /<button[^>]*(data-testid="share-card-button"|navMenuTrigger)[^>]*>/g,
       "",
     );
     expect(withoutShare).not.toContain("aria-haspopup");

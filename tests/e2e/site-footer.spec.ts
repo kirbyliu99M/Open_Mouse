@@ -18,7 +18,7 @@ const LINKS: readonly (readonly [href: string, name: string])[] = [
   ["/learn", "Learn"],
   ["/mice", "All mice"],
   ["/how-it-works", "How it works"],
-  ["/how-it-works#privacy", "Privacy"],
+  ["/privacy", "Privacy"],
   [GITHUB, "GitHub"],
 ];
 
@@ -116,14 +116,15 @@ test.describe("the site footer, in English", () => {
       await expect(icons.nth(i)).toHaveAttribute("aria-hidden", "true");
   });
 
-  test("the Privacy link lands on the privacy card", async ({ page }) => {
+  test("the Privacy link lands on the privacy notice", async ({ page }) => {
     await page.goto("/");
     await page
       .getByTestId("site-footer")
       .getByRole("link", { name: "Privacy" })
       .click();
-    await expect(page).toHaveURL(/\/how-it-works#privacy$/);
-    await expect(page.locator("#privacy")).toBeVisible();
+    // Pre-launch audit 2026-10-28: the privacy notice has its own page.
+    await expect(page).toHaveURL(/\/privacy$/);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   });
 
   test("the Scan link goes to the same place as the home page's Scan button", async ({

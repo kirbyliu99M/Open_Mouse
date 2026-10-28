@@ -1,0 +1,23 @@
+<!-- The header mark: the blue starlight glass tile, 36 px (Pencil q9pLv, Kirby 2026-10-26, candidate). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+<defs>
+<clipPath id="t"><rect width="36" height="36" rx="7.971"/></clipPath>
+<linearGradient id="b" x1="0.329" y1="0.03" x2="0.671" y2="0.97"><stop offset="0" stop-color="#1B2E63"/><stop offset="0.6" stop-color="#0C1430"/><stop offset="1" stop-color="#0A0F22"/></linearGradient>
+<linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9CC0FF" stop-opacity="0.2"/><stop offset="0.5" stop-color="#9CC0FF" stop-opacity="0.02"/><stop offset="1" stop-color="#2463EB" stop-opacity="0.122"/></linearGradient>
+<linearGradient id="e" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#CFE0FF" stop-opacity="0.651"/><stop offset="0.5" stop-color="#7FA8FF" stop-opacity="0.251"/><stop offset="1" stop-color="#2463EB" stop-opacity="0.502"/></linearGradient>
+<radialGradient id="k" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#3B7BFF" stop-opacity="0.502"/><stop offset="0.55" stop-color="#2463EB" stop-opacity="0.149"/><stop offset="1" stop-color="#2463EB" stop-opacity="0.0"/></radialGradient>
+<linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#CFE0FF" stop-opacity="0.0"/><stop offset="0.75" stop-color="#CFE0FF" stop-opacity="0.2"/><stop offset="1" stop-color="#CFE0FF" stop-opacity="0.0"/></linearGradient>
+</defs>
+<g clip-path="url(#t)">
+<rect width="36" height="36" fill="url(#b)"/>
+<rect width="36" height="36" fill="url(#g)"/>
+<rect x="1.929" y="3.857" width="32.143" height="32.143" fill="url(#k)"/>
+<ellipse cx="18" cy="-1.286" rx="21.857" ry="10.286" fill="url(#s)"/>
+<path d="M38 48c0 4 4 6 7 4 3-2 3-8-1-11-6-4-16 1-18 11-2 12 10 20 22 20 12 0 22-8 24-22 1-12-4-24-8-28-2-2-5-1-5 2 0 8 4 20 3 30m-4-16c0-12-2-22-6-24-2-2-5-1-6 2-2 8 0 20 0 30m-2-14c-1-8-3-14-7-16-2-2-5-1-6 2-2 8 1 20 3 28m-4-10c-2-6-5-12-8-12-3 0-4 3-3 8 1 8 3 16 5 22" transform="translate(7.2 6.043) scale(0.309 0.343) translate(-10 -10)" stroke="#E6F0FF" stroke-width="5.521" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="18.257" cy="21.343" r="1.286" fill="#CFE0FF"/>
+<circle cx="10.307" cy="9.507" r="0.707" fill="#E6F0FF"/>
+<circle cx="25.043" cy="8.643" r="0.643" fill="#CFE0FF"/>
+<circle cx="28.771" cy="23.971" r="0.771" fill="#8DB8FF"/>
+</g>
+<rect x="0.5" y="0.5" width="35" height="35" rx="7.471" stroke="url(#e)"/>
+</svg>

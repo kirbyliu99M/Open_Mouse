@@ -4,6 +4,7 @@ import {
   isQuadSkewed,
   computeQuadWidthFraction,
   computeQuadSizeStatus,
+  computeQuadSizeStatusWithHysteresis,
   computeContainRect,
   computeCoverRect,
   bilinearPointInQuad,
@@ -79,7 +80,9 @@ describe("computeQuadWidthFraction / computeQuadSizeStatus", () => {
   });
 
   it("flags too-close above the max fraction", () => {
-    expect(computeQuadSizeStatus(0.96)).toBe("too-close");
+    // V3.3 WP4: the top bound is 0.85 (was 0.95).
+    expect(computeQuadSizeStatus(0.86)).toBe("too-close");
+    expect(computeQuadSizeStatus(0.9)).toBe("too-close");
   });
 
   it("is ok within range", () => {
@@ -88,7 +91,62 @@ describe("computeQuadWidthFraction / computeQuadSizeStatus", () => {
 
   it("is ok exactly at the boundaries", () => {
     expect(computeQuadSizeStatus(0.55)).toBe("ok");
-    expect(computeQuadSizeStatus(0.95)).toBe("ok");
+    expect(computeQuadSizeStatus(0.85)).toBe("ok");
+  });
+
+  it("V3.3 WP4: 0.549 / 0.551 and 0.849 / 0.851 around the 0.55-0.85 bounds", () => {
+    expect(computeQuadSizeStatus(0.549)).toBe("too-far");
+    expect(computeQuadSizeStatus(0.551)).toBe("ok");
+    expect(computeQuadSizeStatus(0.849)).toBe("ok");
+    expect(computeQuadSizeStatus(0.851)).toBe("too-close");
+  });
+});
+
+describe("computeQuadSizeStatusWithHysteresis (V3.3 WP4)", () => {
+  const h = computeQuadSizeStatusWithHysteresis;
+
+  it("from inside the range (or the start), the bounds themselves apply", () => {
+    for (const prev of [null, undefined, "ok"] as const) {
+      expect(h(0.549, prev)).toBe("too-far");
+      expect(h(0.551, prev)).toBe("ok");
+      expect(h(0.55, prev)).toBe("ok");
+      expect(h(0.849, prev)).toBe("ok");
+      expect(h(0.85, prev)).toBe("ok");
+      expect(h(0.851, prev)).toBe("too-close");
+    }
+  });
+
+  it("too far stays until the fill is above 0.57", () => {
+    expect(h(0.551, "too-far")).toBe("too-far");
+    expect(h(0.569, "too-far")).toBe("too-far");
+    expect(h(0.571, "too-far")).toBe("ok");
+    expect(h(0.7, "too-far")).toBe("ok");
+    // Straight to the other side still reads as too close.
+    expect(h(0.9, "too-far")).toBe("too-close");
+  });
+
+  it("too close stays until the fill is below 0.83", () => {
+    expect(h(0.849, "too-close")).toBe("too-close");
+    expect(h(0.831, "too-close")).toBe("too-close");
+    expect(h(0.829, "too-close")).toBe("ok");
+    expect(h(0.4, "too-close")).toBe("too-far");
+  });
+
+  it("a fill that wavers around a bound does not flip the status", () => {
+    let status: ReturnType<typeof h> | null = null;
+    const seen: string[] = [];
+    for (let i = 0; i < 10; i++) {
+      status = h(i % 2 === 0 ? 0.549 : 0.56, status);
+      seen.push(status);
+    }
+    expect(new Set(seen)).toEqual(new Set(["too-far"]));
+    status = null;
+    seen.length = 0;
+    for (let i = 0; i < 10; i++) {
+      status = h(i % 2 === 0 ? 0.851 : 0.84, status);
+      seen.push(status);
+    }
+    expect(new Set(seen)).toEqual(new Set(["too-close"]));
   });
 });
 

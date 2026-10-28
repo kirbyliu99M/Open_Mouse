@@ -40,9 +40,33 @@ export const CAMERA_CONSTANTS = {
     maxAngleDeviationDeg: 12,
   },
   size: {
-    /** Paper quad width as a fraction of frame width (candidates). */
+    /**
+     * Paper quad width as a fraction of frame width (candidates). V3.3 WP4
+     * (Kirby 2026-10-26, candidate 未拍板; F20 design §3.2): the auto-capture
+     * range is 0.55-0.85 (was 0.55-0.95), for everyone. The top came down so
+     * the paper corners and the fingers stay clear of the picture's edge;
+     * the scale itself hardly depends on the distance (模擬). WP2's real
+     * scans may narrow it further.
+     */
     minWidthFraction: 0.55,
-    maxWidthFraction: 0.95,
+    maxWidthFraction: 0.85,
+    /**
+     * V3.3 WP4 (candidate, §3.2): a distance cue that is up goes only once
+     * the fill is this far back inside the range (too far: shown below 0.55,
+     * gone above 0.57; too close: shown above 0.85, gone below 0.83). From
+     * inside the range the cue still starts at the bounds themselves.
+     * `computeQuadSizeStatusWithHysteresis` (quad.ts).
+     */
+    hysteresis: 0.02,
+    /**
+     * Kirby 2026-10-28 (candidate 未拍板): with neither the sheet nor its
+     * rough quad, the hand's length in the picture says how far the phone
+     * is (cues.ts). A hand this long is taken (a sheet 210 mm wide), and the
+     * estimate must be this far outside the range to count, for hands 15 %
+     * shorter or longer.
+     */
+    assumedHandLengthMm: 185,
+    handEstimateMargin: 0.1,
   },
   light: {
     /** Mean luma (0-255) floor before "More light, please" (candidate). */
@@ -78,8 +102,55 @@ export const CAMERA_CONSTANTS = {
     minLiveLaplacianVariance: 15,
   },
   autoCapture: {
-    /** Ring-fill duration of passing samples (spec: 800 ms, not a candidate). */
-    durationMs: 800,
+    /**
+     * Ring-fill duration of passing samples. 800 ms until 2026-10-26; Kirby's
+     * S25 test: too quick to react to a hint (a hint needs two readings,
+     * ~1 s), and every photo came out under the sharpness floor (28-34
+     * against 50). 2.5 s (his 2-4 s), and the sharpest frame of the fill is
+     * the one kept (bestFrame.ts). 候選, 未拍板.
+     */
+    durationMs: 2500,
+    /**
+     * The photo is the sharpest frame of the ring's last this many ms
+     * (bestFrame.ts): after a hint the person may just have moved. 候選.
+     */
+    bestFrameWindowMs: 1000,
+    /**
+     * How many of the window's sharpest frames (by the live sample) are kept
+     * and scored again at full size when the ring fills (2026-10-27: the
+     * live number alone picked photos under the floor). 候選.
+     */
+    bestFrameKeep: 3,
+    /**
+     * A sample that misses the sheet where the forearm cuts it takes the
+     * last sheet found with four corners, at most this old, while the hand
+     * is seen and still (sheetCarry.ts, Kirby 2026-10-27). 候選.
+     */
+    sheetCarryMs: 1500,
+    /**
+     * The carried sheet follows the miss's rough quad (sheetCarry.ts,
+     * Kirby 2026-10-27: the outline did not keep up with the paper): its
+     * three best-agreeing corners must be within this fraction
+     * of the frame diagonal. Kirby's photos: 1-3 px apart at rest on a
+     * 342 x 641 sample, the shift itself when panned. 候選.
+     */
+    sheetCarryFollowFraction: 0.01,
+    /**
+     * While the live sample misses the sheet where the forearm or a bright
+     * neighbour cuts it, one frame at this long edge (px) goes to the
+     * analysis worker at most every `hiResIntervalMs` (hiResSheet.ts,
+     * Kirby 2026-10-27: both of his photos were found at 1280). 候選.
+     */
+    hiResLongEdgePx: 1280,
+    hiResIntervalMs: 500,
+    /**
+     * 2026-10-28 (Kirby: the ring still hitched slightly; 候選, 未拍板): a
+     * ring drawn ahead of its samples (one failed) goes on at this share of
+     * its speed instead of standing still until they catch up (smoothRing.ts).
+     * 0 brings back the stop. A failed sample at 6.6 samples a second was a
+     * 150 ms stop; at 0.5 it is 300 ms at half speed.
+     */
+    ringAheadRate: 0.5,
     /** navigator.vibrate() duration on auto-capture (spec: 30 ms). */
     vibrateMs: 30,
     /**
@@ -144,8 +215,22 @@ export const CAMERA_CONSTANTS = {
   },
   /** The easy scan's corner dots (scan v2, candidates). */
   corners: {
-    /** Exponential low-pass weight of a new sample, per sample. */
-    filterAlpha: 0.35,
+    /**
+     * 2026-10-28 (Kirby's S25 test: the outline followed the sheet too
+     * slowly; every number 候選, 未拍板): the dots' speed-adaptive filter
+     * (cornerSmoother.ts). Until then a fixed weight of 0.35 per sample.
+     * At rest: a cut-off of 0.6 Hz, a weight of 0.35 at 141 ms (7.1 samples
+     * a second), as before, so a sheet held still is damped as before.
+     */
+    minCutoffHz: 0.6,
+    /**
+     * The cut-off rises by this many Hz per picture diagonal per second of
+     * the corner's filtered speed: a sheet panned at a third of the diagonal
+     * a second (300 px/s on a phone) is followed with a weight near 0.8.
+     */
+    speedCutoffGain: 12,
+    /** Cut-off of the filter on the corner's velocity (the 1 euro filter's usual 1 Hz). */
+    velocityCutoffHz: 1,
     /** A corner lost this long eases back to the guide. */
     returnToGuideAfterMs: 1000,
     /** A corner found again within this long of being lost does not pop in again. */
@@ -166,6 +251,16 @@ export const CAMERA_CONSTANTS = {
     switchSamples: 2,
     /** Samples in a row a corner on screen must be missing before its dot goes hollow. */
     lostSamples: 3,
+    /**
+     * 2026-10-28 (候選, 未拍板): a jump within this share of the diagonal of
+     * where the outline's last step leads is the sheet still moving and is
+     * followed at once (outlineHysteresis.ts). Must stay under
+     * `jumpFraction`, or a still outline could be pulled to a second quad.
+     * 0.02 dropped 3 of 11 samples of a pan with 3 px of jitter per corner
+     * (the unit test); 0.025 (20 px on a phone) keeps them all and still
+     * turns back a quad 40 px off.
+     */
+    continueFraction: 0.025,
   },
   /**
    * The preview stream's shape (scan v2 field-of-view fix, candidates). The
@@ -217,6 +312,106 @@ export const CAMERA_CONSTANTS = {
     source: "frame",
     /** JPEG quality of the frame handed to the pipeline. */
     jpegQuality: 0.92,
+  },
+  /**
+   * V3.3 WP3 (Kirby 2026-10-26, every number a candidate, 未拍板; F20 design
+   * §1.1, §4, appendix B): SOFT HINTS about where the hand lies on the sheet,
+   * live while framing (placementHysteresis.ts, `pickCue`) and after the shot
+   * (softHintBanner.ts). Hints only: no auto-capture gate, never blocks
+   * Continue or a retake, never changes a number. WP2's real scans set the
+   * thresholds.
+   */
+  placement: {
+    /**
+     * Who sees the hints: "debug-only" = only with `?debug=1` (until WP2 has
+     * set the thresholds); "off" = nobody; "on" = everyone. With the hints
+     * off the camera is exactly what it was before WP3.
+     */
+    enabled: "debug-only",
+    /** Each live hint on its own (WP1a ruling: straight and flat wait for WP2). */
+    live: {
+      handMissing: true,
+      wristAlign: true,
+      handInside: true,
+      handStraight: false,
+      handFlat: false,
+      /**
+       * The curl half of 請把手掌壓平 (Kirby's S25 test 2026-10-26: a full
+       * curl read 25 mm short and was not caught). On; the palm/hand half
+       * (`handFlat`) stays off.
+       */
+      fingerCurl: true,
+    },
+    /** Hand readings in a row that fail before a live hint shows (§4.4)... */
+    showAfterReadings: 2,
+    /** ...and that pass before it goes. */
+    clearAfterReadings: 2,
+    /**
+     * Wrist to its short edge, sheet mm, positive inside. Kirby's S25 tests
+     * of 2026-10-26 (實測): "right on the edge" read -3 to +3 mm, "slightly
+     * above" +10 to +13 mm, and a wrist ON the edge hid the bottom edge
+     * (PAPER_EDGE_HIDDEN, 32.5 % seen). So the target is the wrist just
+     * inside the paper. 2026-10-27: wrists 4-5 mm past the edge measured fine
+     * (the edge 60-67.5 % seen), and Kirby: "when it is not sure, do not keep
+     * flashing", so past the edge needs -10 mm: below `showMinMm` 請把手腕移回紙內一點
+     * (`wrist-onto-paper`), above `showMaxMm` 請把手腕移到紙的下緣
+     * (`wrist-align`); each goes again only within `clearMinMm`-`clearMaxMm`
+     * (3 mm bands). 候選.
+     */
+    wristToEdge: {
+      showMinMm: -10,
+      showMaxMm: 15,
+      clearMinMm: -6,
+      clearMaxMm: 12,
+    },
+    /** Smallest margin of the wrist and fingers to the sides and the far edge (§1.1): shows below 3 mm, goes at 5 mm. */
+    sideMargin: { showBelowMm: 3, clearFromMm: 5 },
+    /** |hand axis| against the sheet's long side (§1.1): shows above 20°, goes at 17°. */
+    handAxis: { showAboveDeg: 20, clearAtDeg: 17 },
+    /** Palm over hand length (§2.3): shows outside 0.44-0.56, goes within 0.46-0.54. */
+    palmOverHand: {
+      showMin: 0.44,
+      showMax: 0.56,
+      clearMin: 0.46,
+      clearMax: 0.54,
+    },
+    /**
+     * The fingers' mean distal/proximal ratio (實測 n = 1 each on the photo,
+     * 2026-10-26: flat about 0.47, full curl about 0.18): shows below 0.35,
+     * goes from 0.40. 候選; the live sample's own values are not measured yet
+     * (the log now keeps them).
+     */
+    fingerRatio: { showBelow: 0.35, clearFrom: 0.4 },
+    /**
+     * §4.3: while the latest fresh hand reading has the wrist within this
+     * many mm of the sheet's bottom edge (either side of it), "the bottom
+     * edge is covered" is not said. The auto-capture is not changed by it.
+     */
+    bottomEdgeWristMm: 20,
+    /**
+     * The post-shot banner (softHintBanner.ts, softHint.ts's picker). One
+     * switch per hint; the ones without banner words yet are off.
+     */
+    postShot: {
+      wristAlign: true,
+      handFlat: false,
+      /** WP1a ruling 1: today's sharpness floor would fire on most frames (實測 30-50 against 50). */
+      blurry: false,
+      /** The 3D readings stay record-only until WP2 shows they separate. */
+      palmTilt: false,
+      fingerFlex: false,
+      /** 手掌沒壓平，建議重拍 for curled fingers (softHint.ts `fingerRatioMin`, 2026-10-26). */
+      fingerCurl: true,
+      handStraight: false,
+      handInside: false,
+      paperSmall: false,
+      /** Used only when `blurry` is on (the photo gate's own LOW_SHARPNESS floor). */
+      blurryMinSharpness: 50,
+      /** Used only when `palmTilt` is on (推估). */
+      palmTiltMaxDeg: 10,
+      /** Used only when `fingerFlex` is on (§2.2: arching from about 30°, 模擬). */
+      fingerFlexMaxDeg: 30,
+    },
   },
   /** Focus (scan v2). */
   focus: {

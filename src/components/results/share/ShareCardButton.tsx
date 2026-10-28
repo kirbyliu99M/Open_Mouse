@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { usePresence } from "@/components/motion/Presence";
 import type { Locale } from "@/lib/contracts/locale";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { shareCardCopy } from "@/lib/copy/share-card";
-import { shareFileName, topPick } from "./input";
+import { shareFileName, topPick, type SharePick } from "./input";
 import type { QrStyle } from "./qrStyle";
 import type { ShareOutcome } from "./shareDecision";
 import {
@@ -25,12 +26,17 @@ export interface ShareCardButtonProps {
   /** "link" is the small 分享 in the top bar; "primary" is the big 製作我的分享圖. */
   variant: "link" | "primary";
   /**
-   * The results are filtered (FILTER-1, candidate): a "primary" button turns
-   * into a secondary text link saying it shares the overall #1, with a note.
-   * The card itself never changes: it is made from `fit`, which is never
-   * filtered.
+   * The results are filtered and nothing matches (FILTER-1, candidate): a
+   * "primary" button turns into a secondary text link saying it shares the
+   * overall #1, with a note.
    */
   filtering?: boolean;
+  /**
+   * V3.2 F24 (Kirby 2026-10-26, candidate / 未拍板): the filter's #1 when it
+   * is another mouse than the overall #1. The card is then about it, titled
+   * with its place (「人體工學第 1 名」). Missing or null: the overall #1.
+   */
+  pick?: SharePick | null;
   /** The QR size in pixels: the panel's side, or for the frameless style the module step it gives (the box grows by its quiet zone). Only a preview route passes it. */
   qrSize?: number;
   /** The QR code's style; only a preview route passes it (default frameless, `DEFAULT_QR_STYLE`). */
@@ -71,6 +77,7 @@ export function ShareCardButton({
   lang,
   variant,
   filtering = false,
+  pick = null,
   qrSize,
   qrStyle,
   onShareStarted,
@@ -80,11 +87,27 @@ export function ShareCardButton({
   const entryRef = useRef<HTMLButtonElement>(null);
   // The preview reads the latest props through this ref, so the one
   // controller made on first use stays valid across renders.
-  const latest = useRef({ fit, lang, qrSize, qrStyle, onShareFinished });
-  latest.current = { fit, lang, qrSize, qrStyle, onShareFinished };
+  const latest = useRef({ fit, lang, pick, qrSize, qrStyle, onShareFinished });
+  latest.current = { fit, lang, pick, qrSize, qrStyle, onShareFinished };
   const previewRef = useRef<SharePreview | null>(null);
+  // A close asked for focus back on the entry: given once the preview has
+  // faded out and its modal is closed (a control behind an open modal can
+  // not take focus).
+  const focusEntry = useRef(false);
 
   useEffect(() => () => previewRef.current?.dispose(), []);
+
+  const open = state.phase !== "closed";
+  // While it fades out it keeps showing what it showed last.
+  const shownState = useRef(state);
+  if (open) shownState.current = state;
+  // The preview fades out before it unmounts (V3.2 motion pass #9). Hooks
+  // stay above the early return below.
+  const presence = usePresence(open, "fade", () => {
+    if (!focusEntry.current) return;
+    focusEntry.current = false;
+    entryRef.current?.focus();
+  });
 
   const top = topPick(fit);
   if (top === null) return null;
@@ -97,7 +120,6 @@ export function ShareCardButton({
     : variant === "primary"
       ? copy.buttonPrimary
       : copy.buttonLink;
-  const open = state.phase !== "closed";
 
   function preview(): SharePreview {
     if (previewRef.current) return previewRef.current;
@@ -106,18 +128,21 @@ export function ShareCardButton({
         const {
           fit: f,
           lang: l,
+          pick: chosen,
           qrSize: size,
           qrStyle: style,
         } = latest.current;
-        const pick = topPick(f);
-        if (pick === null) throw new Error("There is no result to share.");
+        const mouse = chosen?.entry ?? topPick(f);
+        if (mouse === null) throw new Error("There is no result to share.");
         // The card code, and with it `qrcode`, loads on the first open.
         const { makeShareCardPng } = await import("./render");
-        const blob = await makeShareCardPng(f, l, {
-          qrSize: size,
-          qrStyle: style,
-        });
-        return new File([blob], shareFileName(pick.mouse.slug), {
+        const blob = await makeShareCardPng(
+          f,
+          l,
+          { qrSize: size, qrStyle: style },
+          chosen,
+        );
+        return new File([blob], shareFileName(mouse.mouse.slug), {
           type: "image/png",
         });
       },
@@ -135,10 +160,11 @@ export function ShareCardButton({
       cache: cardCache,
       onChange: setState,
       onFinished: (outcome) => latest.current.onShareFinished?.(outcome),
-      // After React has removed the dialog: a control behind an open modal
-      // can not take focus.
+      // After the preview has faded out and React has removed the dialog
+      // (`usePresence`'s exit above): a control behind an open modal can not
+      // take focus.
       returnFocus: () => {
-        window.setTimeout(() => entryRef.current?.focus(), 0);
+        focusEntry.current = true;
       },
     });
     return previewRef.current;
@@ -147,7 +173,15 @@ export function ShareCardButton({
   function onClick() {
     if (open) return;
     onShareStarted?.();
-    void preview().open([fit, lang, qrSize, qrStyle]);
+    // Another mouse or another place is another card (F24).
+    void preview().open([
+      fit,
+      lang,
+      qrSize,
+      qrStyle,
+      pick?.entry.mouse.slug ?? null,
+      pick?.placeLabel ?? null,
+    ]);
   }
 
   return (
@@ -174,10 +208,11 @@ export function ShareCardButton({
       {/* In <body>, not inside the top bar or the hero: their styles stay
           out of the preview. Only rendered after a click, so never on the
           server. */}
-      {open && typeof document !== "undefined"
+      {presence.mounted && typeof document !== "undefined"
         ? createPortal(
             <SharePreviewDialog
-              state={state}
+              state={open ? state : shownState.current}
+              leaving={presence.leaving}
               copy={copy}
               onClose={() => previewRef.current?.close()}
               onShare={() => void previewRef.current?.share()}

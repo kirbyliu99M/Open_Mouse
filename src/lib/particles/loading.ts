@@ -414,6 +414,12 @@ export interface LoaderStep {
  * (`approach`). A failure stops the ring where it is drawn (where the wait
  * was, for a loader that only now appears). `reducedMotion` only holds the
  * breath: the ring moves the same with it as without it.
+ *
+ * V3.2 F23 (candidate / 未拍板): the first frame (no frame before it,
+ * `lastAt` 0) is drawn where the wait is, not caught up from 0. A loader
+ * drawn from its own start is at 0 there anyway; one that goes on from an
+ * earlier start (the results page after the send veil, `loaderHandoff.ts`)
+ * shows the ring where the veil's was, instead of growing it again.
  */
 export function loaderStep(
   prev: LoaderDrawState,
@@ -425,7 +431,9 @@ export function loaderStep(
   const { shown } = prev;
   const next =
     frame.phase === "waiting"
-      ? approach(shown, frame.progress, prev.lastAt > 0 ? now - prev.lastAt : 0)
+      ? prev.lastAt > 0
+        ? approach(shown, frame.progress, now - prev.lastAt)
+        : Math.max(shown, frame.progress)
       : frame.phase === "failed"
         ? shown > 0
           ? shown

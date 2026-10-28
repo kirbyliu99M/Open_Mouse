@@ -21,19 +21,26 @@ test.describe("TopBar — chevron spacing and accessible name", () => {
     expect(gap).not.toBe("normal");
   });
 
-  test("/results/demo's back link has spacing, an accessible name, and the easy-scan destination", async ({
+  // 2026-10-26 (candidate / 未拍板): the results top bar is the landing
+  // page's nav, the mark and Palmate on the left and the menu on the right;
+  // 重新掃描 moved to the end of the page.
+  test("/results/demo's top bar: the mark and Palmate (home) left, the menu right, Scan again at the end", async ({
     page,
   }) => {
     await page.goto("/results/demo");
-    const backLink = page.getByRole("link", { name: /scan again/i }).first();
-    await expect(backLink).toHaveAccessibleName("Back to Scan again");
-    await expect(backLink).toHaveAttribute("href", "/scan/easy");
+    const bar = page.locator(".results-topBar");
+    const brand = bar.getByRole("link", { name: "Palmate", exact: true });
+    await expect(brand).toHaveAttribute("href", "/");
+    await expect(bar.locator(".brandLockup-mark")).toBeVisible();
+    const menu = bar.getByRole("button", { name: "Open menu" });
+    await expect(menu).toBeVisible();
+    const brandBox = (await brand.boundingBox())!;
+    const menuBox = (await menu.boundingBox())!;
+    expect(brandBox.x).toBeLessThan(menuBox.x);
+    await expect(bar.getByText("Scan again")).toHaveCount(0);
 
-    const gap = await backLink.evaluate(
-      (el) => getComputedStyle(el).columnGap || getComputedStyle(el).gap,
-    );
-    expect(gap).not.toBe("0px");
-    expect(gap).not.toBe("");
-    expect(gap).not.toBe("normal");
+    const rescan = page.locator(".results-rescan-link");
+    await expect(rescan).toHaveAccessibleName("Scan again");
+    await expect(rescan).toHaveAttribute("href", "/scan/easy");
   });
 });

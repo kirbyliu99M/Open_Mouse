@@ -161,6 +161,28 @@ describe("the share card's input from a fit response", () => {
     });
   });
 
+  it("with a pick (a filter's #1, V3.2 F24) it is about that mouse, with its own total, band, photo and place", () => {
+    const second = fit.results.find((e) => e.rank === 2)!;
+    const pick = { entry: second, placeLabel: "人體工學第 1 名" };
+    const input = buildShareCardInput(withHandType, "zh-TW", null, pick)!;
+    expect(input.brand).toBe(second.mouse.brand);
+    expect(input.model).toBe(second.mouse.model);
+    expect(input.total).toBe(second.total);
+    expect(input.bandLabel).toBe(bandLabelFor(second.total, "zh-TW"));
+    expect(input.placeLabel).toBe("人體工學第 1 名");
+    expect(input.handType).toEqual(withHandType.handType);
+    expect(topPickPhotoPath(fit, pick)).toBe(
+      second.mouse.imageUrl?.startsWith("/") ? second.mouse.imageUrl : null,
+    );
+    // No pick: the overall #1, no place.
+    expect(buildShareCardInput(withHandType, "zh-TW", null, null)).toEqual(
+      buildShareCardInput(withHandType, "zh-TW", null),
+    );
+    expect(
+      "placeLabel" in buildShareCardInput(withHandType, "zh-TW", null)!,
+    ).toBe(false);
+  });
+
   it("out of the catalogue's length range carries no total and no band, and no coverage", () => {
     const out: FitResponse = {
       ...withHandType,

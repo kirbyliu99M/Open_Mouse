@@ -33,5 +33,12 @@ export default async function ScanEasyPage() {
   // The server sees no pointer, so this is the UA-only answer; a coarse
   // pointer on a desktop-looking UA is handled in CSS.
   const deviceHint = detectDeviceFit({ userAgent, coarsePointer: false });
-  return <EasyScanCamera deviceHint={deviceHint} />;
+  // Debug photos leave the phone only on a Vercel preview (pre-launch audit
+  // 2026-10-28): the query string alone must not send them on production.
+  return (
+    <EasyScanCamera
+      deviceHint={deviceHint}
+      debugPhotosAllowed={process.env.VERCEL_ENV === "preview"}
+    />
+  );
 }

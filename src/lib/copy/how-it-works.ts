@@ -18,7 +18,7 @@ export interface HowItWorksCopy {
   step2Title: string;
   step2Body: string;
   step3Title: string;
-  step3Body: (mouseCount: number) => string;
+  step3Body: (mouseCount: number | null) => string;
   scanMyHand: string;
   ctaCaption: string;
   expiry: string;
@@ -40,7 +40,8 @@ export const zhTW: HowItWorksCopy = {
   step2Title: "手掌攤平，手機在上方",
   step2Body: "四個角鎖定後，照片會自動拍下。",
   step3Title: "最適合你的滑鼠",
-  step3Body: (n) => `依合手度為 ${n} 款羅技滑鼠排序。`,
+  step3Body: (n) =>
+    n === null ? "依合手度為收錄的滑鼠排序。" : `依合手度為 ${n} 款滑鼠排序。`,
   scanMyHand: "掃描我的手",
   ctaCaption: "不用列印，不用註冊，大約一分鐘。",
   expiry: "未登入帳號的掃描紀錄會在一段時間後自動刪除。",
@@ -64,7 +65,10 @@ export const en: HowItWorksCopy = {
   step2Title: "Hand flat, phone above",
   step2Body: "The corners lock on and the photo takes itself.",
   step3Title: "Your best matches",
-  step3Body: (n) => `${n} Logitech mice ranked by how they fit your hand.`,
+  step3Body: (n) =>
+    n === null
+      ? "The mice we list, ranked by how they fit your hand."
+      : `${n} mice ranked by how they fit your hand.`,
   scanMyHand: "Scan my hand",
   ctaCaption: "No printing, no sign-up. About a minute.",
   expiry: "Scans without an account expire automatically after a while.",

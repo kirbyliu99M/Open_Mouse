@@ -2,7 +2,6 @@ import { useRef, useState, type MouseEvent } from "react";
 import type { FitResponse } from "@/lib/contracts/fit";
 import { RESULTS_PAGE_COPY } from "@/lib/copy/results-page";
 import { manualEntryCopy } from "@/lib/copy/manualEntry";
-import { scanCommonCopy } from "@/lib/copy/scan-common";
 import { formatCentimetres } from "@/lib/scan/manualEntry";
 import { en as enBands, zhTW as zhBands } from "@/lib/copy/fit-bands";
 import { bandOf } from "@/lib/fit/bands";
@@ -52,8 +51,9 @@ import { OfficialLink } from "./OfficialLink";
 import { PurchaseSlot } from "./PurchaseSlot";
 import { ResultFeedbackSheet } from "./ResultFeedbackSheet";
 import { ResultsDetails } from "./ResultsDetails";
-import { ResultsTopBar } from "./ResultsTopBar";
+import { ResultsRescanLink, ResultsTopBar } from "./ResultsTopBar";
 import { ShareCardButton } from "./share/ShareCardButton";
+import type { SharePick } from "./share/input";
 import { SimilarHands } from "./SimilarHands";
 import { PrintOpenDetails } from "./PrintOpenDetails";
 import { useMouseLinks } from "./useMouseLinks";
@@ -130,6 +130,7 @@ export function ResultsView({
   filters = emptyFilters(),
   onFiltersChange,
   navigation,
+  enter,
 }: {
   response: FitResponse;
   /**
@@ -180,11 +181,25 @@ export function ResultsView({
   onFiltersChange?: (next: Filters, source: ResultsFilterChange) => void;
   /** The real results pages only (V3.2 F11). */
   navigation?: ResultsNavigation;
+  /**
+   * This page replaces another results page of the same scan (V3.2 motion
+   * pass #6): it fades in with a short shift, from the right going deeper
+   * ("forward") or from the left back to the main page ("back").
+   */
+  enter?: "forward" | "back";
 }) {
   const view = filteredView(response, filters);
   const reducedMotion = usePrefersReducedMotion();
   const rootRef = useRef<HTMLDivElement>(null);
-  const swap = useSegmentSwap(rootRef, reducedMotion);
+  const swap = useSegmentSwap<Filters>(rootRef, reducedMotion);
+  // The filters as last applied from here, ahead of the render that brings
+  // them: a change made while another is still fading out builds on it.
+  const latestFilters = useRef(filters);
+  latestFilters.current = filters;
+  const commitFilters = (next: Filters, source: ResultsFilterChange) => {
+    latestFilters.current = next;
+    onFiltersChange?.(next, source);
+  };
   // The segment just pressed, until the change it starts reaches `filters`
   // (the cards fade out first): the toggle shows it at once.
   const [pressed, setPressed] = useState<{
@@ -196,10 +211,18 @@ export function ResultsView({
     pressed && pressed.on === filters ? pressed.segment : segmentOf(filters);
   const selectSegment = (segment: ShapeSegment, refocus = false) => {
     if (!onFiltersChange) return;
-    const next = withSegment(filters, segment);
     setPressed({ segment, on: filters });
-    swap(segmentDirection(shownSegment, segment), () =>
-      onFiltersChange(next, "shape_toggle"),
+    // Computed when it is applied, from the latest filters (a chip removed
+    // meanwhile stays removed); a change computed without it is rebased.
+    swap(
+      segmentDirection(shownSegment, segment),
+      () =>
+        commitFilters(
+          withSegment(latestFilters.current, segment),
+          "shape_toggle",
+        ),
+      "out-in",
+      (value) => withSegment(value, segment),
     );
     // The note's button goes away with the change: focus moves to the
     // segment that is now checked.
@@ -212,6 +235,12 @@ export function ResultsView({
           ?.focus(),
       );
   };
+  // A filter change (the sidebar, the sheet, a chip, the no-match button):
+  // applied at once, and the new cards come in (V3.2 motion pass #7).
+  const filterChange = onFiltersChange
+    ? (next: Filters, source: ResultsFilterChange) =>
+        swap(0, (under) => commitFilters(under(next), source), "in")
+    : undefined;
   const card = headerCard(view, rank);
   const entry = card?.entry ?? null;
   // The official link and the purchase links of the one mouse in the big
@@ -242,13 +271,26 @@ export function ResultsView({
   const showOverall =
     showPlace && card !== null && card.overallRank !== card.displayRank;
   const empty = filtering && view.count === 0;
-  // The share card is always the overall #1. Only when that mouse is not the
-  // filtered #1 (a swapped view, or nothing matches) does the button say so;
-  // when the overall #1 still leads it is exactly the button of an unfiltered
-  // page (Kirby, 2026-10-11).
-  const shareOverall = filtering && (view.count === 0 || view.swapped);
   // The place line names the shape when it is the only filter (「人體工學第 1 名」).
   const onlyShape = segmentOnly(filters);
+  // The share card follows the list on screen (V3.2 F24, Kirby 2026-10-26,
+  // candidate / 未拍板; before, it was always the overall #1): when a filter
+  // puts another mouse first, the card is about that #1, titled with its
+  // place in the filter. Only when nothing matches does the button share the
+  // overall #1 and say so.
+  const shareOverall = filtering && view.count === 0;
+  const sharePick: SharePick | null =
+    view.swapped && view.large
+      ? {
+          entry: view.large.entry,
+          placeLabel: onlyShape
+            ? copy.shapeToggle.segmentRank(
+                1,
+                copy.shapeToggle.segment[onlyShape],
+              )
+            : copy.filter.filteredRank(1),
+        }
+      : null;
   const few =
     isMain && onFiltersChange ? fewSegmentNote(filters, view.count) : null;
 
@@ -305,7 +347,7 @@ export function ResultsView({
               response={response}
               filters={filters}
               language={language}
-              onChange={(next) => onFiltersChange(next, "no_match")}
+              onChange={(next) => filterChange?.(next, "no_match")}
               headingLevel={hand ? 2 : 1}
             />
           )}
@@ -419,17 +461,8 @@ export function ResultsView({
               <WhyList entry={entry} language={language} />
 
               {/* Cautions about how the scan was made come before any link to a shop. */}
-              {/* V3.2 F15 (candidate): moved here from the scan's result
-                  sheet, so the sheet shows only its numbers. Not for numbers
-                  the person typed in (nothing was measured). */}
-              {enteredManual === null && (
-                <p
-                  className="results-measureNote"
-                  data-testid="results-unverified-note"
-                >
-                  {scanCommonCopy(language).unverifiedNote}
-                </p>
-              )}
+              {/* 「測量數值仍在驗證中。」 is gone (Kirby 2026-10-26: the
+                  measurements have been through validation tests). */}
               {enteredLengthMm !== null && (
                 <p className="results-handNotice">
                   {copy.enteredLengthNotice(enteredLengthMm)}
@@ -515,6 +548,7 @@ export function ResultsView({
                     lang={language}
                     variant="primary"
                     filtering={shareOverall}
+                    pick={sharePick}
                     {...shareHandlers("hero", shareOverall)}
                   />
                 </div>
@@ -642,9 +676,16 @@ export function ResultsView({
           lang={language}
           variant="primary"
           filtering={shareOverall}
+          pick={sharePick}
           {...shareHandlers("bottom", shareOverall)}
         />
       </div>
+
+      <ResultsRescanLink
+        language={language}
+        onRetake={analytics ? () => emit("rescan_clicked", {}) : undefined}
+        onBack={navigation?.onBack}
+      />
 
       {/* The feedback sheet: the main page of a real scan only (the demo has
           no scan id). It waits 20 s of the tab being visible and the end of
@@ -665,21 +706,22 @@ export function ResultsView({
   );
 
   return (
-    <div className="results-view" data-rank={card?.displayRank} ref={rootRef}>
+    <div
+      className="results-view"
+      data-rank={card?.displayRank}
+      data-enter={enter}
+      ref={rootRef}
+    >
       <PrintOpenDetails />
       {/* Decorative haze behind the hero: see .results-glow in results.css. */}
       <div className="results-glow" aria-hidden="true" />
       <ResultsTopBar
-        fit={response}
         language={language}
-        onRetake={analytics ? () => emit("rescan_clicked", {}) : undefined}
         onSurveyReminderClick={
           analytics
             ? (unanswered) => emit("survey_reminder_clicked", { unanswered })
             : undefined
         }
-        {...shareHandlers("top", false)}
-        onBack={navigation?.onBack}
       />
       {/* A detail page has no filter controls: it says which filter it is
           under and how to get back to the list. */}
@@ -702,7 +744,7 @@ export function ResultsView({
           language={language}
           filters={filters}
           count={view.count}
-          onChange={onFiltersChange}
+          onChange={filterChange ?? onFiltersChange}
           onSheetOpened={
             analytics ? () => emit("filter_sheet_opened", {}) : undefined
           }

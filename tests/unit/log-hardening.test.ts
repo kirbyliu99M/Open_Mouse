@@ -66,7 +66,7 @@ describe("scrubbing a long string is bounded", () => {
   });
 
   it("does not print a secret that begins inside the first 512 characters and ends after them", () => {
-    const secret = "AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q";
+    const secret = "AIzaFAKE_TEST_KEY_NOT_REAL_000000000000";
     const input = "q ".repeat(240) + secret + " tail";
     expect(scrubString(input)).not.toContain("AIza");
   });

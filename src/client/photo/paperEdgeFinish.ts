@@ -69,6 +69,11 @@ import type {
   ShadowPriorDiagnostics,
 } from "./diagnostics";
 import type { PipelineResult } from "./pipeline";
+import type { Point3 } from "./handWorld";
+import {
+  buildPlacementDiagnostics,
+  type PlacementDiagnostics,
+} from "./placementDiagnostics";
 
 export interface PaperEdgeFinishInput {
   /**
@@ -94,6 +99,9 @@ export interface PaperEdgeFinishInput {
     readonly landmarksPx: readonly Point2[];
     readonly handedness: "left" | "right" | null;
     readonly confidence: number;
+    /** V3.3 WP1b (log only): MediaPipe's world landmarks and per-point z, when it gave them. */
+    readonly worldLandmarks?: readonly Point3[] | null;
+    readonly landmarkZ?: readonly number[] | null;
   };
   readonly request: {
     readonly hand: "left" | "right";
@@ -146,6 +154,13 @@ export interface PaperEdgeFinish {
   readonly shadowPrior: ShadowPriorDiagnostics | null;
   /** V3.2 F16: the correction the safety check refused, `null` when none was (`guardCorrection`). Not part of `result`. */
   readonly parallaxGuard: ParallaxGuardDiagnostics | null;
+  /**
+   * V3.3 WP1b (candidate, log only): where the hand lay and how flat it was
+   * (placementDiagnostics.ts), read off the same corrected points the
+   * measurement used. Present only on a run that ended in a measurement. Not
+   * part of `result`; nothing reads it but the attempt log.
+   */
+  readonly placement?: PlacementDiagnostics | null;
 }
 
 /**
@@ -534,5 +549,33 @@ export async function finishPaperEdge(
       corrected.measurements,
     ),
     parallaxGuard,
+    placement: placementOf(input, frames, geometry.homography, corrected),
   };
+}
+
+/**
+ * V3.3 WP1b (log only): the placement record of an ok scan, from the
+ * measurement's own focal length and heights (so the points are the ones it
+ * was read off). Copies of the landmarks go in; a throw is `null`.
+ */
+function placementOf(
+  input: PaperEdgeFinishInput,
+  frames: ReturnType<typeof analysisFrames>,
+  homography: Homography,
+  corrected: CorrectedMeasurementsResult,
+): PlacementDiagnostics | null {
+  try {
+    return buildPlacementDiagnostics({
+      landmarksPx: input.hand.landmarksPx.map((p) => ({ x: p.x, y: p.y })),
+      homography,
+      paperSize: input.paperSize,
+      analysed: frames.principalFrame,
+      fPx: corrected.parallaxCorrected ? corrected.fPx : null,
+      heightsMm: corrected.parallaxCorrected ? corrected.heightsMm : null,
+      worldLandmarks: input.hand.worldLandmarks ?? null,
+      landmarkZ: input.hand.landmarkZ ?? null,
+    });
+  } catch {
+    return null;
+  }
 }

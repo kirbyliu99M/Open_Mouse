@@ -9,7 +9,7 @@
 import type { Locale } from "../../../lib/contracts/locale";
 import type { FitResponse } from "../../../lib/contracts/fit";
 import { SITE_NAME } from "../../../lib/site";
-import { buildShareCardInput, topPickPhotoPath } from "./input";
+import { buildShareCardInput, topPickPhotoPath, type SharePick } from "./input";
 import {
   PHOTO_RADIUS,
   type ShareCardOptions,
@@ -29,12 +29,12 @@ import {
 } from "./qrStyle";
 import type { FontSpec, MeasureText } from "./text";
 import {
-  PALMATE_MARK_DOT,
-  PALMATE_MARK_PATH,
-  PALMATE_MARK_STROKE,
-  PALMATE_MARK_STROKE_WIDTH,
-  PALMATE_MARK_VIEWBOX,
-} from "../../../lib/brand/palmate-mark";
+  MAIN_LOGO_CORE,
+  MAIN_LOGO_GLOW,
+  MAIN_LOGO_HAND,
+  MAIN_LOGO_PARTICLES,
+  MAIN_LOGO_SIZE,
+} from "../../../lib/brand/palmate-main-logo";
 
 /** The values of tokens.css, used when a token cannot be read. */
 const TOKEN_FALLBACK = {
@@ -185,28 +185,68 @@ function drawPhoto(
   ctx.restore();
 }
 
-/** The Palmate mark, drawn from its path data scaled to `box`. */
+/** "#RRGGBB" and an alpha as a canvas colour. */
+function rgba(hex: string, alpha: number): string {
+  const v = parseInt(hex.slice(1), 16);
+  return `rgba(${(v >> 16) & 255}, ${(v >> 8) & 255}, ${v & 255}, ${alpha})`;
+}
+
+/**
+ * The Main Palmate Logo (palmate-main-logo.ts) scaled to `box`: the glow, the
+ * hand, the core dot and the light dots. The hand's viewBox is stretched onto
+ * its 160 x 170 box as Pencil draws it; the path is transformed, not the
+ * canvas, so its line keeps one width (2.8 logo pixels) both ways.
+ */
 function drawMark(ctx: CanvasRenderingContext2D, box: Box): void {
-  const vb = PALMATE_MARK_VIEWBOX;
-  const scale = box.w / vb.w;
+  const s = box.w / MAIN_LOGO_SIZE;
+  const hand = MAIN_LOGO_HAND;
   ctx.save();
   ctx.translate(box.x, box.y);
-  ctx.scale(scale, scale);
-  ctx.translate(-vb.x, -vb.y);
-  ctx.strokeStyle = PALMATE_MARK_STROKE;
-  ctx.lineWidth = PALMATE_MARK_STROKE_WIDTH;
+  ctx.scale(s, s);
+
+  const half = MAIN_LOGO_SIZE / 2;
+  const glow = ctx.createRadialGradient(half, half, 0, half, half, half);
+  for (const stop of MAIN_LOGO_GLOW)
+    glow.addColorStop(stop.at, rgba(stop.color, stop.alpha));
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, MAIN_LOGO_SIZE, MAIN_LOGO_SIZE);
+
+  const sx = hand.w / hand.viewBox.w;
+  const sy = hand.h / hand.viewBox.h;
+  const path = new Path2D();
+  path.addPath(
+    new Path2D(hand.path),
+    new DOMMatrix([
+      sx,
+      0,
+      0,
+      sy,
+      hand.x - hand.viewBox.x * sx,
+      hand.y - hand.viewBox.y * sy,
+    ]),
+  );
+  ctx.strokeStyle = hand.stroke;
+  ctx.lineWidth = hand.strokeWidth;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.stroke(new Path2D(PALMATE_MARK_PATH));
-  // The core dot: a filled disc inside a ring whose outer edge is the radius.
-  const d = PALMATE_MARK_DOT;
-  ctx.beginPath();
-  ctx.arc(d.cx, d.cy, d.outerRadius - d.ringWidth / 2, 0, Math.PI * 2);
-  ctx.fillStyle = d.fillColor;
+  ctx.stroke(path);
+
+  const dot = (x: number, y: number, d: number) => {
+    ctx.beginPath();
+    ctx.arc(hand.x + x + d / 2, hand.y + y + d / 2, d / 2, 0, Math.PI * 2);
+  };
+  const core = MAIN_LOGO_CORE;
+  dot(core.x, core.y, core.d);
+  ctx.fillStyle = core.fill;
   ctx.fill();
-  ctx.strokeStyle = d.ringColor;
-  ctx.lineWidth = d.ringWidth;
+  ctx.strokeStyle = core.stroke;
+  ctx.lineWidth = core.strokeWidth;
   ctx.stroke();
+  for (const p of MAIN_LOGO_PARTICLES) {
+    dot(p.x, p.y, p.d);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -379,11 +419,15 @@ async function paint(
   }
 }
 
-/** The card as a 1080 x 1920 PNG. Rejects if the canvas cannot be made. */
+/**
+ * The card as a 1080 x 1920 PNG. Rejects if the canvas cannot be made. About
+ * the overall #1, or about `pick` when the page shows a filter's #1 (F24).
+ */
 export async function makeShareCardPng(
   fit: FitResponse,
   lang: Locale,
   options: ShareCardOptions = {},
+  pick: SharePick | null = null,
 ): Promise<Blob> {
   // Fonts first: measuring and drawing before the site's font is ready would
   // wrap the text for one font and paint it in another. The wordmark's Inter
@@ -404,9 +448,9 @@ export async function makeShareCardPng(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas 2D is not available.");
 
-  const photoPath = topPickPhotoPath(fit);
+  const photoPath = topPickPhotoPath(fit, pick);
   const photo = photoPath ? await loadImage(photoPath) : null;
-  const input = buildShareCardInput(fit, lang, photo ? photoPath : null);
+  const input = buildShareCardInput(fit, lang, photo ? photoPath : null, pick);
   if (!input) throw new Error("There is no result to share.");
 
   const measure: MeasureText = (text, font) => {

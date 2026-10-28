@@ -61,10 +61,9 @@ describe("the named wait (candidates)", () => {
     expect((2 * C.handSampleIntervalMs) / STEP_MS).toBeLessThan(
       C.maxConsecutiveMisses,
     );
-    // It is much longer than the paper ring: the sheet gets its chance first.
-    expect(C.waitMs).toBeGreaterThan(
-      4 * CAMERA_CONSTANTS.autoCapture.durationMs,
-    );
+    // It is longer than the paper ring (2.5 s since 2026-10-26; 4x the old
+    // 800 ms): the sheet gets its chance first.
+    expect(C.waitMs).toBeGreaterThan(CAMERA_CONSTANTS.autoCapture.durationMs);
   });
 });
 
@@ -480,12 +479,15 @@ describe("EasyScanCamera wires it (read from the source: the repo has no DOM tes
 
   it("each live sample advances the wait with the sheet, the hand, sharpness and the settled preview", () => {
     expect(tick).toMatch(
-      /noSheetCaptureRef\.current = advanceNoSheetCapture\(\s*noSheetCaptureRef\.current,\s*\{\s*sheetFound,\s*handSeen: hand\.seen,\s*handSteady: hand\.steady,\s*sharp: sharpEnough,\s*settled: previewSettledRef\.current,\s*\},\s*dtMs,\s*\);/,
+      /noSheetCaptureRef\.current = advanceNoSheetCapture\(\s*noSheetCaptureRef\.current,\s*\{[^}]*?sheetFound:\s*sheetFound \|\|\s*\(shownCandidate\.code !== nextCue\.code &&\s*\(isPlacementCueCode\(shownCandidate\.code\) \|\|\s*shownCandidate\.code === "too-far" \|\|\s*shownCandidate\.code === "too-close"\)\),\s*handSeen: hand\.seen,\s*handSteady: hand\.steady,\s*sharp: sharpEnough,\s*settled: previewSettledRef\.current,\s*\},\s*dtMs,\s*\);/,
     );
-    // The ring fills on the cue's allPass; the wait goes by the same cue,
-    // paused while the sheet is found (sheetFoundByCue).
+    // The ring fills on the cue's allPass (and, with the hints on, no hand
+    // hint on screen: Kirby 2026-10-27); the wait goes by the same cue,
+    // paused while the sheet is found (sheetFoundByCue), a hand hint is on
+    // screen (Kirby 2026-10-27) or a distance cue from the hand's side is
+    // (Kirby 2026-10-28).
     expect(tick).toMatch(
-      /const paperPassing = nextCue\.allPass && previewSettledRef\.current;\s*autoCaptureRef\.current = advanceAutoCapture\(\s*autoCaptureRef\.current,\s*paperPassing,\s*dtMs,\s*\);/,
+      /const paperPassing =\s*nextCue\.allPass && previewSettledRef\.current && handHint === null;\s*autoCaptureRef\.current = advanceAutoCapture\(\s*autoCaptureRef\.current,\s*paperPassing,\s*dtMs,\s*\);/,
     );
     expect(tick).toContain("const sheetFound = sheetFoundByCue(nextCue.code);");
     expect(tick).toMatch(
@@ -497,13 +499,19 @@ describe("EasyScanCamera wires it (read from the source: the repo has no DOM tes
     expect(tick).toMatch(
       /handReadingsRef\.current = recordHandReading\(\s*handReadingsRef\.current,\s*\{\s*atMs: now,\s*points,?\s*\},?\s*\);/,
     );
-    expect(tick).toContain("readLiveHandPoints(canvas, width, height)");
+    // V3.3 WP1b: the same one detect(), read through readLiveHand (which also
+    // returns z and the world landmarks); its points are what is recorded.
+    expect(tick).toContain("readLiveHand(canvas, width, height)");
+    expect(tick).toMatch(
+      /const points =\s*reading === undefined \? undefined : \(reading\?\.points \?\? null\);/,
+    );
     expect(tick).toMatch(/liveHandSignal\(\{[\s\S]*?frameDiagonal,\s*\}\)/);
   });
 
   it("either way of firing takes the photo through the one captureNow, once the preview has settled", () => {
     expect(tick).toMatch(
-      /if \(\s*\(autoCaptureRef\.current\.fired \|\| noSheetCaptureRef\.current\.fired\) &&\s*previewSettledRef\.current\s*\)\s*void captureNow\(\);/,
+      // V3.3 WP1b: the block also names the shutter for the attempt log first.
+      /if \(\s*\(autoCaptureRef\.current\.fired \|\| noSheetCaptureRef\.current\.fired\) &&\s*previewSettledRef\.current\s*\)\s*\{[^}]*pendingShutterRef\.current = shutterKindOf\(\{[^}]*\}\);\s*void captureNow\(\);\s*\}/,
     );
     expect(tick.split("captureNow()").length - 1).toBe(1);
   });

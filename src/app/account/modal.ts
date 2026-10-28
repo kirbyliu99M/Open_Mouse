@@ -48,7 +48,9 @@ export function focusIfConnected(
  * our own unmount that closed it (a sheet that is replaced by the next step,
  * or React's strict-mode second run in development). Handing that event to
  * `onClose` would close whatever opened next, so:
- *   - `onCancel` (Esc) always asks to close;
+ *   - `onCancel` (Esc) always asks to close, and stops the browser's own
+ *     instant close: the owner unmounts it, through `<Presence>`, after its
+ *     way out (V3.2 motion pass), the same path as the Cancel button;
  *   - `onClose` asks to close only when the dialog really is closed now and
  *     this component is not the one being unmounted.
  */
@@ -62,7 +64,7 @@ export function useModalDialog({
   returnFocusTo?: () => HTMLElement | null;
 }): {
   dialogRef: RefObject<HTMLDialogElement | null>;
-  onCancel: () => void;
+  onCancel: (event?: { preventDefault: () => void }) => void;
   onClose: () => void;
 } {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -92,7 +94,8 @@ export function useModalDialog({
     };
   }, [initialFocus]);
 
-  const handleCancel = useCallback(() => {
+  const handleCancel = useCallback((event?: { preventDefault: () => void }) => {
+    event?.preventDefault();
     if (!unmounting.current) closeRef.current();
   }, []);
   const handleClose = useCallback(() => {

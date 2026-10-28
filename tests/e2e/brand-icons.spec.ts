@@ -173,16 +173,29 @@ test.describe("brand icons and share preview", () => {
           expect(head).toContain(`content="${SITE_URL}/opengraph-image.png`);
         }
         expect(head).toContain('rel="apple-touch-icon"');
-        expect(head).toContain('name="robots" content="noindex, nofollow"');
+        expect(head).toContain('name="robots" content="index, follow"');
       } finally {
         await api.dispose();
       }
     });
   }
 
-  test("the site is still noindex", async ({ page }) => {
+  test("the home page is indexable and names its canonical address", async ({
+    page,
+  }) => {
     await page.goto("/");
     const robots = await metaContent(page, "name", "robots");
-    expect(robots).toContain("noindex");
+    expect(robots ?? "").not.toContain("noindex");
+    await expect(page.locator('head link[rel="canonical"]')).toHaveAttribute(
+      "href",
+      SITE_URL,
+    );
+  });
+
+  test("the account page stays noindex", async ({ page }) => {
+    // The first request compiles the page under `next dev`.
+    test.setTimeout(120_000);
+    await page.goto("/account", { timeout: 90_000 });
+    expect(await metaContent(page, "name", "robots")).toContain("noindex");
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useSyncExternalStore } from "react";
 import {
   cornerDrawPoints,
   isCornerReturning,
@@ -10,6 +10,49 @@ import { edgeTransform, placeEdges } from "./edgeGeometry";
 import type { Point } from "./quad";
 
 const DOT_SIZE = 26;
+
+/**
+ * The dots' states, written by the live loop at every sample and read by
+ * `LiveEasyCorners` alone (2026-10-28). As camera state, each sample
+ * re-rendered the whole camera screen on the main thread, 7 times a second,
+ * for four dots.
+ */
+export interface CornerStore {
+  readonly get: () => CornerStates;
+  readonly set: (states: CornerStates) => void;
+  readonly subscribe: (listener: () => void) => () => void;
+}
+
+export function createCornerStore(initial: CornerStates): CornerStore {
+  let current = initial;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => current,
+    set: (states) => {
+      if (states === current) return;
+      current = states;
+      for (const listener of listeners) listener();
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
+
+/** `EasyCorners` drawn from the store: only this re-renders at a sample. */
+export function LiveEasyCorners({
+  store,
+  guide,
+  hidden,
+}: {
+  readonly store: CornerStore;
+  readonly guide: readonly [Point, Point, Point, Point];
+  readonly hidden: boolean;
+}) {
+  const states = useSyncExternalStore(store.subscribe, store.get, store.get);
+  return <EasyCorners states={states} guide={guide} hidden={hidden} />;
+}
 
 /** A dot's position: a transform, never left/top (docs/design/scan-v2). */
 function dotTransform(p: Point): string {

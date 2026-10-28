@@ -504,7 +504,14 @@ describe("one edge hidden near the relabels (the detector reports 0, 2 or 4 corn
     console.log(
       `hidden edge: largest dot step ${largestStep.toFixed(2)} px, shortest side ${shortestSide.toFixed(1)} px, bow-tie frames ${bowTies}`,
     );
-    expect(largestStep).toBeLessThan(10);
+    // 10 px until 2026-10-28. The largest steps are now the two hidden
+    // corners found again at the end of each window (138 and 318 degrees):
+    // they were held where they were lost for five samples of a 1-degree-a-
+    // sample turn, and the speed-adaptive filter (cornerSmoother.ts) catches
+    // them up in about one step instead of gliding there over a second. A
+    // dot glided to the wrong corner is a step of the paper's size (the
+    // control below: 290 px).
+    expect(largestStep).toBeLessThan(20);
     expect(shortestSide).toBeGreaterThan(100);
     expect(bowTies).toBe(0);
   });
@@ -516,7 +523,10 @@ describe("one edge hidden near the relabels (the detector reports 0, 2 or 4 corn
       `hidden edge, old rule: largest dot step ${largestStep.toFixed(1)} px, shortest side ${shortestSide.toFixed(1)} px, bow-tie frames ${bowTies}`,
     );
     expect(largestStep).toBeGreaterThan(60);
-    expect(shortestSide).toBeLessThan(40);
+    // With the fixed 0.35 filter the wrong pair also collapsed the outline
+    // (a side under 40 px) on its slow way across; the speed-adaptive filter
+    // (2026-10-28) takes it across fast, so the failure shows as the jump
+    // above and the crossed sides below, not as a collapsed side.
     expect(bowTies).toBeGreaterThan(0);
   });
 });

@@ -118,6 +118,38 @@ describe("pickCue — priority order", () => {
     ).toBe("too-close");
   });
 
+  it("4c (V3.3 WP4): 0.88 of the frame is now too close; a distance cue that is up waits for 0.02 inside", () => {
+    const wide = (fraction: number): Quad => {
+      const w = 640 * fraction;
+      return {
+        topLeft: { x: 0, y: 0 },
+        topRight: { x: w, y: 0 },
+        bottomRight: { x: w, y: 300 },
+        bottomLeft: { x: 0, y: 300 },
+      };
+    };
+    const at = (
+      fraction: number,
+      previousSizeStatus?: "too-far" | "too-close" | "ok" | null,
+    ) =>
+      pickCue(
+        baseInput({
+          quad: wide(fraction),
+          frameWidth: 640,
+          previousSizeStatus,
+        }),
+        "paper-edge",
+        "en",
+      ).code;
+    expect(at(0.88)).toBe("too-close");
+    expect(at(0.84)).toBe("perfect");
+    expect(at(0.84, "too-close")).toBe("too-close");
+    expect(at(0.82, "too-close")).toBe("perfect");
+    expect(at(0.56)).toBe("perfect");
+    expect(at(0.56, "too-far")).toBe("too-far");
+    expect(at(0.58, "too-far")).toBe("perfect");
+  });
+
   it("5a: too dark", () => {
     expect(pickCue(baseInput({ meanLuma: 40 }), "paper-edge", "en").code).toBe(
       "dark",
@@ -435,7 +467,7 @@ describe("pickCue: the photo's paper gate (S1)", () => {
       "paper-edge",
       "zh-TW",
     );
-    expect(zh.message).toBe("紙的左緣被擋住，手往內移");
+    expect(zh.message).toBe("紙的左緣被擋住，請把手往內移");
   });
 
   it("with no trustworthy side name, the plain 'an edge' cue", () => {
@@ -525,7 +557,7 @@ describe("pickCue: the photo's paper gate (S1)", () => {
       "The top edge is covered. Move your hand in.",
     );
     expect(easyCueText(cue, { tapToFocus: false, locale: "zh-TW" })).toBe(
-      "紙的上緣被擋住，手往內移",
+      "紙的上緣被擋住，請把手往內移",
     );
   });
 });

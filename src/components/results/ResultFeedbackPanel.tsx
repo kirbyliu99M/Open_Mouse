@@ -160,6 +160,11 @@ export interface ResultFeedbackPanelProps {
   onClose: () => void;
   /** Escape was pressed; `composing` is true while an input method is composing. */
   onEscape: (composing: boolean) => void;
+  /**
+   * Closed, and sliding down before it unmounts (V3.2 motion pass #8): out
+   * of the tab order and the accessibility tree, as when it unmounted at once.
+   */
+  leaving?: boolean;
 }
 
 /**
@@ -185,6 +190,7 @@ export function ResultFeedbackPanel({
   onSubmit,
   onClose,
   onEscape,
+  leaving = false,
 }: ResultFeedbackPanelProps) {
   const copy = resultFeedbackCopy(language);
   const qn = questionnaireCopy(language);
@@ -212,6 +218,9 @@ export function ResultFeedbackPanel({
       ref={sectionRef}
       className="results-feedback"
       data-phase={phase}
+      data-leaving={leaving ? "true" : undefined}
+      inert={leaving}
+      aria-hidden={leaving ? true : undefined}
       role="dialog"
       aria-labelledby={titleId}
       onKeyDown={(event) => {

@@ -25,7 +25,10 @@ import "./account.css";
 import "./questionnaire.css";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return { title: accountCopy(await getLocale()).metaTitle };
+  return {
+    title: accountCopy(await getLocale()).metaTitle,
+    robots: { index: false, follow: false },
+  };
 }
 
 export const dynamic = "force-dynamic";

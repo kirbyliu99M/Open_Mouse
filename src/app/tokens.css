@@ -47,6 +47,24 @@
   --footer-heading: #9aa3b5;
   --footer-link: #c4ccdc;
   --footer-line: #ffffff14; /* the divider above the phone's Project row */
+
+  /* Motion (V3.2 motion pass, Kirby 2026-10-26 "閃現", candidate / 未拍板).
+     One set of durations and curves for the whole site, from the shape
+     toggle's (TOGGLE_MOTION) and the manual-entry sheet's, which were the
+     smoothest. JS that times an unmount reads `MOTION` in
+     src/lib/motion.ts, which mirrors these numbers. Only transform and
+     opacity move (docs/design-guidelines.md, Motion). Things leave the way
+     they came. Under reduced motion: a --motion-reduced cross-fade, no
+     movement. */
+  --motion-fast: 150ms; /* a small piece: a pill, a hint, a banner */
+  --motion-base: 220ms; /* content swapping in place, a full-screen fade */
+  --motion-out: 160ms; /* content leaving before the new one comes in */
+  --motion-sheet-in: 320ms; /* a bottom sheet or side menu coming in */
+  --motion-sheet-out: 240ms; /* ... and going back the way it came */
+  --motion-reduced: 120ms; /* every fade under prefers-reduced-motion */
+  --motion-shift: 24px; /* how far swapped content moves */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1); /* coming in */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1); /* going out */
 }
 
 @media (prefers-contrast: more) {

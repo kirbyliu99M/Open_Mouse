@@ -1,4 +1,5 @@
 import { devices, expect, test } from "@playwright/test";
+import { en as siteMetaEn } from "../../src/lib/copy/site-meta";
 import { SITE_NAME } from "../../src/lib/site";
 import { contrast } from "./fixtures/contrast";
 import { installLoopFreeze, loopFrozen } from "./fixtures/freeze-loop";
@@ -6,7 +7,8 @@ import { installLoopFreeze, loopFrozen } from "./fixtures/freeze-loop";
 // ── Page titles: each page names itself; the template adds the site ────────
 
 const TITLES: readonly (readonly [string, string])[] = [
-  ["/", SITE_NAME],
+  // The home page names the site and what it does (SEO, #227).
+  ["/", siteMetaEn.homeTitle],
   ["/scan/easy", `Scan your hand · ${SITE_NAME}`],
   ["/scan", `Scan on a printed sheet · ${SITE_NAME}`],
   ["/sheet", `Calibration sheet · ${SITE_NAME}`],
@@ -279,7 +281,8 @@ test("Tab to the upload input shows a ring on the upload icon next to a live cam
 
 // ── The measured numbers ─────────────────────────────────────────────────
 // V3.2 F15 (candidate): the easy-scan sheet shows only its title, numbers,
-// retake and continue; "still being validated" is said on the results page.
+// retake and continue. "Still being validated" is said nowhere since
+// 2026-10-26 (Kirby: the measurements passed validation tests).
 
 test("the easy-scan measured sheet says its numbers in text, and nothing else under them (F15)", async ({
   page,
@@ -327,42 +330,12 @@ test("a typed hand length is said to be entered, in the sheet's text and on the 
   await expect(page.getByText("Entered 186 mm")).toBeVisible();
 });
 
-test("the printed-sheet scan page says it too, between the numbers and their caption", async ({
+test("the printed-sheet scan page no longer says the numbers are still being validated (Kirby 2026-10-26)", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "chromium");
   await page.goto("/scan/measured-demo");
-  const note = page.getByTestId("scan-unverified-note");
-  await expect(note).toHaveText("Measurements are still being validated.");
-  const order = await page.evaluate(() => {
-    const list = document.querySelector("[data-testid=scan-measurements]")!;
-    const note = document.querySelector("[data-testid=scan-unverified-note]")!;
-    const caption = document.querySelector(".feedbackCaption")!;
-    const follows = (a: Element, b: Element) =>
-      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
-    return {
-      afterNumbers: follows(list, note),
-      beforeCaption: follows(note, caption),
-    };
-  });
-  expect(order).toEqual({ afterNumbers: true, beforeCaption: true });
-  // Their own margins apply: `.feedback p` used to win over both classes.
-  const margins = await page.evaluate(() => {
-    const top = (selector: string) =>
-      getComputedStyle(document.querySelector(selector)!).marginTop;
-    const bottom = (selector: string) =>
-      getComputedStyle(document.querySelector(selector)!).marginBottom;
-    return {
-      noteTop: top("[data-testid=scan-unverified-note]"),
-      noteBottom: bottom("[data-testid=scan-unverified-note]"),
-      captionTop: top(".feedbackCaption"),
-      captionBottom: bottom(".feedbackCaption"),
-    };
-  });
-  expect(margins).toEqual({
-    noteTop: "8px",
-    noteBottom: "0px",
-    captionTop: "12px",
-    captionBottom: "0px",
-  });
+  await expect(page.getByTestId("scan-measurements")).toBeVisible();
+  await expect(page.getByTestId("scan-unverified-note")).toHaveCount(0);
+  await expect(page.getByText(/still being validated/i)).toHaveCount(0);
 });

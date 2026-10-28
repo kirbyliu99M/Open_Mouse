@@ -491,7 +491,8 @@ describe("the pages as rendered", () => {
     expect(html).toMatch(
       /<div class="submitOverlay" data-phase="shown" data-testid="submit-overlay" aria-busy="true"/,
     );
-    expect(html).toContain("--submit-veil-opacity:70%");
+    // F23: opaque by its CSS (the page colour), no veil opacity of its own.
+    expect(html).not.toContain("--submit-veil-opacity");
     expect(html).toContain("--submit-fade-ms:220ms");
     expect(html).toMatch(/class="particleLoader submitOverlay-loader"/);
     // The loader's status says it is matching; no word about sending.
@@ -525,8 +526,13 @@ describe("the send veil's phases (submitOverlayPhase.ts, V3.2 F13)", () => {
     expect(overlayPhaseFor("leaving", true)).toBe("shown");
   });
 
-  it("about 70 % over the page, a 220 ms fade, none under reduced motion (candidate)", () => {
-    expect(SUBMIT_OVERLAY.VEIL_OPACITY).toBe(0.7);
+  it("F23: the send shows it at once and opaque; a failure still fades it out (220 ms), none under reduced motion (candidate)", () => {
+    // Shown the moment the send starts, from any phase.
+    for (const from of ["hidden", "leaving", "shown"] as const)
+      expect(overlayPhaseFor(from, true)).toBe("shown");
+    expect(SUBMIT_OVERLAY.VEIL_OPACITY).toBe(1);
+    // A failure: leaving, then hidden after the fade.
+    expect(overlayPhaseFor("shown", false)).toBe("leaving");
     expect(overlayFadeMs(false)).toBe(220);
     expect(overlayFadeMs(true)).toBe(0);
   });
@@ -566,6 +572,37 @@ describe("the send veil's wiring (source pins, F13)", () => {
     expect(veil).toContain('if (phase === "hidden") return null;');
   });
 
+  it("F23: the page colour at 100 %, with no fade in (reduced motion or not)", () => {
+    const css = source("src/client/scan/submit-overlay.css");
+    const rule = css.slice(
+      css.indexOf(".submitOverlay {"),
+      css.indexOf(".submitOverlay[data-phase="),
+    );
+    expect(rule).toContain("background: var(--bg);");
+    expect(rule).not.toMatch(/color-mix|transparent/);
+    expect(rule).not.toContain("animation");
+    expect(css).not.toContain("@keyframes");
+    // The loader centred in the viewport, no padding: the spot the results
+    // page's handed-over loader matches (`.results-page-handoff`).
+    expect(rule).toContain("position: fixed;");
+    expect(rule).toContain("inset: 0;");
+    expect(rule).toContain("align-items: center;");
+    expect(rule).toContain("justify-content: center;");
+    expect(css).toMatch(
+      /\.submitOverlay \.submitOverlay-loader \{\s*padding: 0;/,
+    );
+  });
+
+  it("F23: while it is up it notes its loader's start, and forgets it when it goes", () => {
+    const veil = source("src/client/scan/SubmitOverlay.tsx");
+    const effect = veil.slice(
+      veil.indexOf('if (phase !== "shown") return;'),
+      veil.indexOf("}, [phase, loader]);"),
+    );
+    expect(effect).toContain("noteSendLoaderStart(startedAt);");
+    expect(effect).toContain("return () => clearSendLoaderStart(startedAt);");
+  });
+
   it("while it fades it is see-through and catches no taps", () => {
     const css = source("src/client/scan/submit-overlay.css");
     const rule = css.slice(
@@ -576,7 +613,7 @@ describe("the send veil's wiring (source pins, F13)", () => {
     expect(body).toContain("pointer-events: none;");
   });
 
-  it("under reduced motion it neither animates in nor fades out", () => {
+  it("under reduced motion it does not fade out either", () => {
     const css = source("src/client/scan/submit-overlay.css");
     const block = css.slice(
       css.indexOf("@media (prefers-reduced-motion: reduce) {"),
@@ -585,7 +622,6 @@ describe("the send veil's wiring (source pins, F13)", () => {
       block.indexOf(".submitOverlay {"),
       block.indexOf("}"),
     );
-    expect(rule).toContain("animation: none;");
     expect(rule).toContain("transition: none;");
   });
 });

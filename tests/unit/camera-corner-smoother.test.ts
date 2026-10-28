@@ -5,6 +5,7 @@ import {
   advanceCorner,
   advanceCorners,
   cornerDrawPoint,
+  smoothingWeight,
   cornerDrawPoints,
   isCornerReturning,
   type CornerState,
@@ -22,9 +23,22 @@ function lost(state: CornerState, dt = STEP) {
 }
 
 describe("advanceCorner — found", () => {
-  it("uses the constants: alpha 0.35, back to the guide after 1 s", () => {
-    expect(CAMERA_CONSTANTS.corners.filterAlpha).toBe(0.35);
-    expect(CAMERA_CONSTANTS.corners.returnToGuideAfterMs).toBe(1000);
+  it("uses the constants: 0.6 Hz at rest, 12 Hz per diagonal a second, 1 Hz on the velocity, back to the guide after 1 s", () => {
+    expect(CAMERA_CONSTANTS.corners).toEqual({
+      minCutoffHz: 0.6,
+      speedCutoffGain: 12,
+      velocityCutoffHz: 1,
+      returnToGuideAfterMs: 1000,
+      repopAfterLostMs: 500,
+    });
+  });
+
+  it("at rest it filters as hard as the old fixed weight: 0.35 at 141 ms (7.1 samples a second)", () => {
+    expect(
+      smoothingWeight(CAMERA_CONSTANTS.corners.minCutoffHz, 141),
+    ).toBeCloseTo(0.35, 2);
+    expect(smoothingWeight(1, 0)).toBe(0);
+    expect(smoothingWeight(0, 141)).toBe(0);
   });
 
   it("the first sighting is taken as it is: there is nothing to filter against", () => {
@@ -35,13 +49,45 @@ describe("advanceCorner — found", () => {
     expect(state.foundCount).toBe(1);
   });
 
-  it("filters later samples with an exponential low-pass, alpha 0.35 per sample", () => {
+  it("filters later samples part of the way, the weight from the time step and the corner's speed", () => {
     let state = found(INITIAL_CORNER_STATE, 100, 100);
     state = found(state, 200, 100);
-    expect(state.point!.x).toBeCloseTo(100 + 0.35 * 100, 10);
+    // A 100 px move in one step is fast: more than the old 0.35, short of all of it.
+    expect(state.point!.x).toBeGreaterThan(135);
+    expect(state.point!.x).toBeLessThan(200);
     expect(state.point!.y).toBeCloseTo(100, 10);
+    const before = state.point!.x;
     state = found(state, 200, 100);
-    expect(state.point!.x).toBeCloseTo(135 + 0.35 * (200 - 135), 10);
+    expect(state.point!.x).toBeGreaterThan(before);
+    expect(state.point!.x).toBeLessThanOrEqual(200);
+  });
+
+  it("a sheet panned at 300 px/s is trailed by under a third of a sample (the old filter: 1.86 samples, 261 ms)", () => {
+    const DT = 141;
+    let state = found(INITIAL_CORNER_STATE, 0, 0, DT);
+    let truth = 0;
+    for (let k = 0; k < 30; k++) {
+      truth += (300 * DT) / 1000;
+      state = found(state, truth, 0, DT);
+    }
+    const lagMs = ((truth - state.point!.x) / 300) * 1000;
+    expect(lagMs).toBeLessThan(DT / 3);
+    expect(lagMs).toBeGreaterThan(0);
+  });
+
+  it("a sudden 60 px move is 90 % covered within two samples (the old filter: six)", () => {
+    let state = found(INITIAL_CORNER_STATE, 0, 0, 141);
+    for (let k = 0; k < 5; k++) state = found(state, 0, 0, 141);
+    state = found(state, 60, 0, 141);
+    state = found(state, 60, 0, 141);
+    expect(state.point!.x).toBeGreaterThan(54);
+  });
+
+  it("an uneven sample rate: a longer step moves the dot further toward the sample", () => {
+    const start = found(found(INITIAL_CORNER_STATE, 0, 0), 0, 0);
+    const short = advanceCorner(start, { x: 3, y: 0 }, 80).point!.x;
+    const long = advanceCorner(start, { x: 3, y: 0 }, 200).point!.x;
+    expect(long).toBeGreaterThan(short);
   });
 
   it("converges on a fixed target and never overshoots it", () => {
@@ -157,11 +203,17 @@ describe("advanceCorner — pop-in", () => {
     expect(state.point).toEqual({ x: 80, y: 90 });
   });
 
-  it("after a short blink the filter carries on from the last position", () => {
+  it("after a short blink the filter carries on from the last position (no snap to the sample, none to the guide)", () => {
     let state = found(INITIAL_CORNER_STATE, 100, 100);
     state = lost(state, 125);
+    expect(state.velocity).toEqual({ x: 0, y: 0 });
     state = found(state, 200, 100);
-    expect(state.point!.x).toBeCloseTo(135, 10);
+    expect(state.point!.x).toBeGreaterThan(100);
+    expect(state.point!.x).toBeLessThan(200);
+    // Timed over the blink and the step (250 ms), not the step alone.
+    let quick = found(INITIAL_CORNER_STATE, 100, 100);
+    quick = found(quick, 200, 100, 250);
+    expect(state.point!.x).toBeCloseTo(quick.point!.x, 9);
   });
 });
 

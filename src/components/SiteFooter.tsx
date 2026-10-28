@@ -180,7 +180,7 @@ export function SiteFooter() {
                 </Link>
               </li>
               <li>
-                <Link href="/how-it-works#privacy">
+                <Link href="/privacy">
                   <FooterIcon name="shield" />
                   {copy.privacy}
                 </Link>

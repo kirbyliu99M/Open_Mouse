@@ -289,8 +289,13 @@ describe("the toggle's change reaches analytics.send (wiring)", () => {
 
   it("ResultsView hands the toggle's change on with source shape_toggle", () => {
     const view = read("../../src/components/results/ResultsView.tsx");
+    // V3.2 motion pass review fix #1: computed when it is applied, from the
+    // latest filters, and handed on through commitFilters (onFiltersChange).
     expect(view).toMatch(
-      /const next = withSegment\(filters, segment\);[\s\S]*?onFiltersChange\(next, "shape_toggle"\)/,
+      /commitFilters\(\s*withSegment\(latestFilters\.current, segment\),\s*"shape_toggle",?\s*\)/,
+    );
+    expect(view).toMatch(
+      /const commitFilters = \([^)]*\) => \{[\s\S]*?onFiltersChange\?\.\(next, source\);/,
     );
     // The toggle's handler is the only place this source is passed.
     expect(view.match(/"shape_toggle"/g)).toHaveLength(1);
@@ -419,9 +424,11 @@ describe("the results page with the toggle", () => {
     expect(html).toContain("人體工學第 1 名");
     expect(html).toContain("總排名第 3 名");
     expect(html).toMatch(/aria-checked="true"[^>]*>人體工學</);
-    // The analysis line and the share button follow the filter's rules.
+    // The analysis line follows the filter's rule; the share button is the
+    // usual one, its card about this ergonomic #1 (V3.2 F24, Kirby 2026-10-26).
     expect(html).toContain("results-analysisLine");
-    expect(html).toContain("分享總排名第 1 名");
+    expect(html).not.toContain("分享總排名第 1 名");
+    expect(html).toContain("shareCard-button-primary");
   });
 
   it("a shape with few mice lists exactly those, with the note and a way back to 綜合", () => {

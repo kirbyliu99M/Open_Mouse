@@ -25,6 +25,7 @@ const EXPECTED_MODULES = [
   "language-switcher.ts",
   "learn-page.ts",
   "learn.ts",
+  "legal.ts",
   "loading.ts",
   "manualEntry.ts",
   "mice-page.ts",

@@ -7,6 +7,12 @@ import {
   expectNothingMeasuredShown,
 } from "./fixtures/confirm-frame";
 import { uploadGreyPhoto } from "./fixtures/slow-model";
+import {
+  expectSettled,
+  leavingRecords,
+  leftWith,
+  recordLeaving,
+} from "./fixtures/leaving";
 
 /**
  * Scan v2 (docs/design/scan-v2-2026-09-30/README.md): the stage that never
@@ -183,7 +189,7 @@ test.describe("AC6: the debug panel", () => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await holdPipeline(page);
     // Let the hand detector's one same-origin download finish first.
-    await page.goto(`${LIVE_DEMO}?debug=1`);
+    await page.goto(`${LIVE_DEMO}?debug=1&hints=0`);
     await page.waitForResponse((res) =>
       res.url().includes("/mediapipe/models/hand_landmarker.task"),
     );
@@ -222,12 +228,15 @@ test.describe("AC6: the debug panel", () => {
       "attempts",
       "capabilities",
       "capture",
+      "experimentTag",
       "focusApplied",
       "live",
       "preview",
       "track",
       "userAgent",
     ]);
+    // V3.3 WP1b: no tag picked, so none on record.
+    expect(json.experimentTag).toBeNull();
     expect(Array.isArray(json.attempts)).toBe(true);
     expect(json.userAgent).toMatch(/Chrome/);
     expect(json.track).toMatchObject({ width: 800, height: 1300 });
@@ -275,7 +284,7 @@ test.describe("AC6: the debug panel", () => {
     // test above, and the capture is waited for: the panel is where it will
     // stay for as long as the test takes.
     await holdPipeline(page);
-    await openLive(page, `${LIVE_DEMO}?debug=1`);
+    await openLive(page, `${LIVE_DEMO}?debug=1&hints=0`);
     await expect(page.locator(".easyStage")).toHaveAttribute(
       "data-phase",
       "processing",
@@ -431,7 +440,7 @@ test.describe("AC7: reduced motion", () => {
 });
 
 test.describe("AC5: only transform and opacity move", () => {
-  test("every property the scan flow animates or transitions is one of those two (one named exception)", async ({
+  test("every property the scan flow animates or transitions is one of those two (two named exceptions)", async ({
     page,
   }) => {
     await page.addInitScript(() => {
@@ -440,8 +449,14 @@ test.describe("AC5: only transform and opacity move", () => {
       addEventListener(
         "transitionrun",
         (event) => {
+          const property = (event as TransitionEvent).propertyName;
+          // The cue's colour is allowed on the cue alone (V3.2 motion pass
+          // #20): anywhere else a background-color transition still fails.
+          const onCue =
+            property === "background-color" &&
+            (event.target as Element).classList?.contains("cameraCue");
           w.__animated!.push(
-            `transition:${(event as TransitionEvent).propertyName}`,
+            `transition:${onCue ? "cue-background-color" : property}`,
           );
         },
         true,
@@ -481,9 +496,15 @@ test.describe("AC5: only transform and opacity move", () => {
     console.log(
       `AC5 animated entries: ${JSON.stringify([...new Set(animated)])}`,
     );
-    // The one deliberate exception: the shutter ring's fill, a 96 px SVG circle
-    // (camera.css, unchanged from before this slice).
-    const allowed = new Set(["transform", "opacity", "stroke-dashoffset"]);
+    // The deliberate exceptions: the shutter ring's fill, a 96 px SVG circle
+    // (camera.css, unchanged from before this slice), and the cue's colour
+    // turning green (V3.2 motion pass #20: a colour, nothing moves).
+    const allowed = new Set([
+      "transform",
+      "opacity",
+      "stroke-dashoffset",
+      "cue-background-color",
+    ]);
     expect(properties.filter((p) => !allowed.has(p))).toEqual([]);
     expect(properties).toContain("transform");
     expect(properties).toContain("opacity");
@@ -687,7 +708,7 @@ test.describe("AC3 and AC4: focus", () => {
     });
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(String(error)));
-    await page.goto("/scan/easy?debug=1");
+    await page.goto("/scan/easy?debug=1&hints=0");
     await page.getByRole("button", { name: "Got it" }).click();
     await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
     await expect(page.getByTestId("scan-debug-panel")).toContainText(
@@ -804,7 +825,7 @@ test.describe("AC6: the debug panel once a sheet is open", () => {
   }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await holdPipeline(page);
-    await openLive(page, `${LIVE_DEMO}?debug=1`);
+    await openLive(page, `${LIVE_DEMO}?debug=1&hints=0`);
     await expect(page.locator(".easyStage")).toHaveAttribute(
       "data-phase",
       "processing",
@@ -1252,7 +1273,7 @@ test.describe("fix round 1: a browser whose getSettings throws", () => {
     });
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(String(error)));
-    await page.goto("/scan/easy?debug=1");
+    await page.goto("/scan/easy?debug=1&hints=0");
     await page.getByRole("button", { name: "Got it" }).click();
     await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
     await expect(page.getByTestId("scan-debug-panel")).toBeVisible();
@@ -2139,10 +2160,385 @@ test.describe("F15: the adjustment that opens by itself on a measured photo", ()
     const sheet = page.getByRole("dialog", { name: "Retake needed" });
     await expect(sheet).toBeVisible({ timeout: 30_000 });
     await expect(adjust).toBeHidden();
-    await expect(page.locator("dialog.easyResultSheet")).not.toHaveAttribute(
-      "data-resumed",
-      "true",
-    );
+    // A new result rises as any arrival does (V3.2 motion pass #1: every
+    // arrival of the sheet slides in now; `data-resumed` is gone).
+    expect(
+      await page
+        .locator("dialog.easyResultSheet")
+        .evaluate((el) => getComputedStyle(el).animationName),
+    ).toBe("easySheetSlideIn");
     await expect(sheet.locator(".easySheetTitle")).toBeFocused();
+  });
+});
+
+/**
+ * Kirby's PC screenshots 2026-10-26: on a wide screen the adjustment's title
+ * sat left of the photo, its buttons right of it, and the measured sheet ran
+ * the whole width of the screen. Now both line up with the photo's centre,
+ * and the sheet is a 28rem column.
+ */
+test.describe("a wide screen: the adjustment and the measured sheet are centred on the photo", () => {
+  test("1440x800", async ({ page }) => {
+    // The fake camera finds the paper only in the phone-shaped picture, so
+    // the photo is taken at the phone size and the window then widened, as
+    // a PC window would be.
+    await openLive(page);
+    const adjust = page.getByTestId("paper-adjust");
+    await expect(adjust).toBeVisible({ timeout: 20_000 });
+    await page.setViewportSize({ width: 1440, height: 800 });
+    // The photo is fitted again to the new stage (a resize observer).
+    await page.waitForTimeout(300);
+    const a = await page.evaluate(() => {
+      const box = (el: Element) => el.getBoundingClientRect();
+      const centre = (r: DOMRect) => r.left + r.width / 2;
+      const photo = box(document.querySelector(".paperAdjustPhoto")!);
+      const title = document.querySelector(".paperAdjustHeader h2")!;
+      const range = document.createRange();
+      range.selectNodeContents(title);
+      const words = range.getBoundingClientRect();
+      const confirm = box(
+        document.querySelector('[data-testid="paper-adjust-confirm"]')!,
+      );
+      const cancel = box(
+        document.querySelector('[data-testid="paper-adjust-cancel"]')!,
+      );
+      const buttons =
+        (Math.min(confirm.left, cancel.left) +
+          Math.max(confirm.right, cancel.right)) /
+        2;
+      return {
+        photo: centre(photo),
+        title: centre(words),
+        buttons,
+      };
+    });
+    expect(Math.abs(a.title - a.photo), JSON.stringify(a)).toBeLessThan(4);
+    expect(Math.abs(a.buttons - a.photo), JSON.stringify(a)).toBeLessThan(4);
+
+    await page.getByTestId("paper-adjust-confirm").click();
+    const sheet = page.locator("dialog.easyResultSheet[open]");
+    await expect(sheet).toBeVisible({ timeout: 20_000 });
+    const s = (await sheet.boundingBox())!;
+    const rem = await page.evaluate(() =>
+      parseFloat(getComputedStyle(document.documentElement).fontSize),
+    );
+    expect(s.width).toBeLessThanOrEqual(28 * rem + 1);
+    expect(Math.abs(s.x + s.width / 2 - 720)).toBeLessThan(2);
+    const button = (await sheet
+      .getByRole("button", { name: "Continue" })
+      .boundingBox())!;
+    expect(button.x).toBeGreaterThanOrEqual(s.x);
+    expect(button.x + button.width).toBeLessThanOrEqual(s.x + s.width);
+  });
+});
+
+/**
+ * V3.2 motion pass (Kirby 2026-10-26 "閃現", candidate): nothing in the scan
+ * flow pops in or out. Each piece is recorded the moment it starts to leave
+ * (fixtures/leaving.ts), so the checks do not race the animations: how it
+ * goes (the token's duration, the way it came), that a native dialog is
+ * already closed, and that what leaves is inert.
+ */
+test.describe("V3.2 motion pass: the scan flow leaves the way it came", () => {
+  for (const motion of ["no-preference", "reduce"] as const) {
+    test(`with motion set to ${motion}: tip, cue, dock, adjustment, pill, sheet and the retaken photo all leave with their tokens`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion: motion });
+      const reduced = motion === "reduce";
+      const expectLeft = (
+        records: Awaited<ReturnType<typeof leavingRecords>>,
+        cls: string,
+        name: string,
+        duration: string,
+        open: boolean | null = null,
+      ) => {
+        const record = leftWith(records, cls);
+        expect(record, `${cls} left`).toBeDefined();
+        expect(
+          [record!.animationName, record!.animationDuration, record!.open],
+          cls,
+        ).toEqual(
+          reduced ? ["easyFadeOut", "0.12s", open] : [name, duration, open],
+        );
+      };
+      await recordLeaving(page);
+      await captureAndMeasure(page);
+      const before = await leavingRecords(page);
+      // #21: the first-run tip slides down, closed at once, over a fading scrim.
+      expectLeft(before, "easyTipSheet", "easySheetSlideOut", "0.24s", false);
+      expect(leftWith(before, "easyTipSheet")!.inert).toBe(true);
+      expectLeft(before, "easyTipScrim", "easyFadeOut", "0.24s");
+      // #3: the cue goes up and the dock down when the photo is taken.
+      expectLeft(before, "cameraCueWrap", "easyLiftOut", "0.15s");
+      expectLeft(before, "easyBottomDock", "easySinkOut", "0.15s");
+      expect(leftWith(before, "easyBottomDock")!.inert).toBe(true);
+      // #22: the adjustment that opened by itself (F15) fades out.
+      expectLeft(before, "paperAdjust", "easyFadeOut", "0.16s", false);
+      // #19: the 測量中… pill fades out once the measurement is in.
+      expectLeft(before, "easyProcessingPill", "easyFadeOut", "0.15s");
+
+      await page.getByRole("button", { name: "Retake photo" }).click();
+      await expect
+        .poll(async () =>
+          Boolean(leftWith(await leavingRecords(page), "easyPhotoLeaving")),
+        )
+        .toBe(true);
+      const after = await leavingRecords(page);
+      // #1: the sheet slides down instead of being unmounted.
+      expectLeft(after, "easyResultSheet", "easySheetSlideOut", "0.24s", false);
+      // #2: the photo stays where it was and fades out over the live picture.
+      expectLeft(after, "easyPhotoLeaving", "easyFadeOut", "0.22s");
+      // Both are gone once they have left.
+      await expect(page.locator(".easyPhotoLeaving")).toHaveCount(0);
+      await expect(page.locator("dialog.easyResultSheet")).toHaveCount(0);
+      // #3 and #2: the dock rises back in, and the live picture fades in.
+      expect(
+        await page.locator(".easyBottomDock").evaluate((el) => {
+          const style = getComputedStyle(el);
+          return [style.animationName, style.animationDuration];
+        }),
+      ).toEqual(reduced ? ["easyFadeIn", "0.12s"] : ["easyRiseIn", "0.22s"]);
+      expect(
+        await page
+          .locator(".easyStage video.cameraVideo")
+          .evaluate((el) => getComputedStyle(el).transitionDuration),
+      ).toBe(reduced ? "0.12s" : "0.22s");
+    });
+  }
+
+  test("#5: the hand-length step fades in and out, and the camera under it is usable at once", async ({
+    page,
+  }) => {
+    await recordLeaving(page);
+    await openLive(page);
+    await page
+      .locator(".easyBottomDock")
+      .getByRole("button", { name: "No paper? Use a ruler instead" })
+      .click();
+    const step = page.locator("section.easyLengthStep");
+    await expect(
+      page.getByRole("heading", { name: "Hand length" }),
+    ).toBeVisible();
+    expect(
+      await step.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return [style.animationName, style.animationDuration];
+      }),
+    ).toEqual(["easyFadeIn", "0.22s"]);
+    await page.getByRole("button", { name: "Back to camera" }).click();
+    await expect
+      .poll(async () =>
+        Boolean(leftWith(await leavingRecords(page), "easyLengthStep")),
+      )
+      .toBe(true);
+    const record = leftWith(await leavingRecords(page), "easyLengthStep")!;
+    expect([
+      record.animationName,
+      record.animationDuration,
+      record.inert,
+    ]).toEqual(["easyFadeOut", "0.22s", true]);
+    await expect(step).toHaveCount(0);
+    // Focus went back to the entry that opened it, as before.
+    await expect(
+      page
+        .locator(".easyBottomDock")
+        .getByRole("button", { name: "No paper? Use a ruler instead" }),
+    ).toBeFocused();
+  });
+
+  test("#20: the cue turns green over --motion-fast (a colour, the one named exception); at once under reduced motion", async ({
+    page,
+  }) => {
+    await openLive(page);
+    const cue = page.getByTestId("camera-cue");
+    const transition = () =>
+      cue.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return [style.transitionProperty, style.transitionDuration];
+      });
+    expect(await transition()).toEqual(["background-color", "0.15s"]);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    expect((await transition())[1]).toBe("0s");
+  });
+});
+
+/**
+ * Fix round (review item 8): transitions interrupted part-way. Each ends with
+ * nothing left marked leaving, nothing stray inert, and the next control
+ * usable.
+ */
+test.describe("V3.2 motion pass: interrupted transitions end usable", () => {
+  // The frame wrapper of fixtures/freeze-loop.ts, armed on nothing: the test
+  // stops the loop itself right after the retake, so the auto-shutter cannot
+  // take a new photo while the end state is read. (Nothing checked here runs
+  // on frames: the leaves are CSS animations timed by setTimeout.)
+  const armManualFreeze = (page: Page) =>
+    installLoopFreeze(page, { selector: "[data-never-matches]", count: 1 });
+  const freezeNow = (page: Page) =>
+    page.evaluate(() => {
+      (window as Window & { __loopFrozen?: boolean }).__loopFrozen = true;
+    });
+
+  /** The camera is back and its shutter can be pressed. */
+  async function cameraUsable(page: Page) {
+    await expect(page.locator(".easyStage")).toHaveAttribute(
+      "data-phase",
+      "none",
+    );
+    await expect(page.locator("dialog.easyResultSheet")).toHaveCount(0);
+    await expect(page.locator(".easyPhotoLeaving")).toHaveCount(0);
+    await expectSettled(page);
+    await page
+      .getByRole("button", { name: "Take photo" })
+      .click({ trial: true });
+  }
+
+  test("retake tapped twice fast: the second tap is taken by the leaving sheet's layer, nothing under it acts, and the camera comes back once", async ({
+    page,
+  }) => {
+    // The Next.js dev tools button (`nextjs-portal`) exists only on the dev
+    // server the e2e suite runs on, at the bottom left, near 重拍: hidden, so
+    // the test reads the product alone. Any error the page throws fails the
+    // test by name.
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    // Counts the camera openings: one for the page, one for the retake.
+    await page.addInitScript(() => {
+      const w = window as Window & { __cameraOpens?: number };
+      w.__cameraOpens = 0;
+      const media = navigator.mediaDevices;
+      if (!media?.getUserMedia) return;
+      const open = media.getUserMedia.bind(media);
+      media.getUserMedia = (constraints) => {
+        w.__cameraOpens! += 1;
+        return open(constraints);
+      };
+    });
+    const cameraOpens = () =>
+      page.evaluate(
+        () => (window as Window & { __cameraOpens?: number }).__cameraOpens,
+      );
+    await armManualFreeze(page);
+    const { sheet } = await captureAndMeasure(page);
+    await page.addStyleTag({
+      content: "nextjs-portal { display: none !important; }",
+    });
+    await page.waitForTimeout(400); // the sheet has risen
+    const opensBefore = await cameraOpens();
+    const retake = sheet.getByRole("button", { name: "Retake photo" });
+    const b = (await retake.boundingBox())!;
+    const x = b.x + b.width / 2;
+    const y = b.y + b.height / 2;
+    await page.mouse.click(x, y);
+    await freezeNow(page); // no new photo is taken by itself meanwhile
+    // Still inside the 240 ms slide-out: what is under the finger is the
+    // transparent layer over the leaving sheet (LeaveShield), not the camera
+    // screen coming back under it.
+    const under = await page.evaluate(
+      ([px, py]) => {
+        const el = document.elementFromPoint(px, py);
+        return el?.classList.contains("easyLeaveShield")
+          ? "shield"
+          : (el?.className.toString() ?? "nothing");
+      },
+      [x, y] as const,
+    );
+    expect(under, "what the second tap lands on").toBe("shield");
+    await page.mouse.click(x, y);
+    await expect(
+      page.locator(".easyStage video.cameraVideo.ready"),
+    ).toBeVisible({ timeout: 20_000 });
+    // Nothing under the sheet's old place acted: no manual-entry sheet, the
+    // paper size as it was, no second camera opening.
+    await expect(page.getByTestId("manual-entry-sheet")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^A4/ })).toBeVisible();
+    expect((await cameraOpens())! - opensBefore!).toBe(1);
+    await expect(page.locator(".easyLeaveShield")).toHaveCount(0);
+    await cameraUsable(page);
+    expect(errors).toEqual([]);
+  });
+
+  test("retake during the result sheet's rise: it slides back down from where it was, and the camera comes back", async ({
+    page,
+  }) => {
+    await holdPipeline(page);
+    await armManualFreeze(page);
+    await openLive(page);
+    await expect(page.locator(".easyStage")).toHaveAttribute(
+      "data-phase",
+      "processing",
+      { timeout: 20_000 },
+    );
+    await release(page);
+    await confirmAutoFrame(page);
+    // The moment the sheet is open (polled every frame), while it still rises.
+    const handle = await page.waitForFunction(() => {
+      const sheet = document.querySelector<HTMLDialogElement>(
+        "dialog.easyResultSheet[open]",
+      );
+      if (!sheet) return false;
+      const rising = sheet
+        .getAnimations()
+        .some((a) => a.playState === "running");
+      sheet.querySelector<HTMLButtonElement>(".easyRetakeButton")!.click();
+      (window as Window & { __loopFrozen?: boolean }).__loopFrozen = true;
+      return { rising };
+    });
+    expect(await handle.jsonValue()).toEqual({ rising: true });
+    await expect(
+      page.locator(".easyStage video.cameraVideo.ready"),
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+    await cameraUsable(page);
+  });
+
+  test("the adjustment cancelled and opened again within its 160 ms fade-out ends open and usable (review item 1)", async ({
+    page,
+  }) => {
+    await openLive(page);
+    // A frame placed by hand that is then turned back on the hand: the failure
+    // sheet offers the adjustment (rescue) with no adjustment open by itself.
+    const adjust = page.getByTestId("paper-adjust");
+    await expect(adjust).toBeVisible({ timeout: 20_000 });
+    await page.evaluate(() => {
+      (
+        window as Window & { __easyScanLiveResult?: string }
+      ).__easyScanLiveResult = "retake";
+    });
+    await page.getByTestId("paper-adjust-handle-0").focus();
+    await page.keyboard.press("Shift+ArrowRight");
+    await page.getByTestId("paper-adjust-confirm").click();
+    const failure = page.getByRole("dialog", { name: "Retake needed" });
+    await expect(failure).toBeVisible({ timeout: 20_000 });
+    await failure.getByTestId("adjust-frame-entry").click();
+    await expect(adjust).toBeVisible();
+    await expect(adjust).toHaveAttribute("data-entry", "rescue");
+    // Cancel, and 60 ms later (inside the fade) open it again from the sheet.
+    await page.evaluate(async () => {
+      document
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="paper-adjust-cancel"]',
+        )!
+        .click();
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      document
+        .querySelector<HTMLButtonElement>('[data-testid="adjust-frame-entry"]')!
+        .click();
+    });
+    await expectSettled(page);
+    await expect(page.locator("dialog.paperAdjust")).toHaveCount(1);
+    expect(
+      await page
+        .locator("dialog.paperAdjust")
+        .evaluate((el) => (el as HTMLDialogElement).open),
+    ).toBe(true);
+    await expect(adjust).toBeVisible();
+    await expect(page.locator("#paper-adjust-title")).toBeFocused();
+    // Usable: a corner moves with the keys, and confirm can be pressed.
+    await page.getByTestId("paper-adjust-handle-0").focus();
+    await page.keyboard.press("Shift+ArrowRight");
+    await page.getByTestId("paper-adjust-confirm").click({ trial: true });
   });
 });

@@ -70,6 +70,15 @@ const SHEET_FOUND_BY_CUE: Readonly<Record<CueCode, boolean>> = {
   "hold-still": true,
   "out-of-focus": true,
   perfect: true,
+  // V3.3 WP3a (candidate): a hand hint comes only after the sheet passed.
+  // The live loop asks this of the cue WITHOUT the hand (EasyScanCamera), so
+  // the F14 wait is what it was; the entries are here for completeness.
+  "hand-missing": true,
+  "wrist-onto-paper": true,
+  "wrist-align": true,
+  "hand-inside": true,
+  "hand-straight": true,
+  "hand-flat": true,
 };
 
 /** Whether this live cue says the sheet is found, so the wait pauses (`SHEET_FOUND_BY_CUE`). */

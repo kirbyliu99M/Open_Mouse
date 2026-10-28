@@ -427,7 +427,7 @@ for (const [path, name] of PAGES) {
       if (path.includes("presentation"))
         await expect(page.locator(".results-analysis")).toBeVisible();
       if (path === "/scan/measured-demo")
-        await expect(page.getByTestId("scan-unverified-note")).toBeVisible();
+        await expect(page.getByTestId("scan-measurements")).toBeVisible();
       await audit(page, info, name);
     });
   }

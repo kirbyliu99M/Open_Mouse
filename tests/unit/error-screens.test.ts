@@ -78,9 +78,15 @@ describe("not-found screen", () => {
     expect(html).toContain(NOT_FOUND_COPY.title);
   });
 
-  it("carries the Palmate mark before the title, decorative and with no new text", () => {
+  it("carries the Main Palmate Logo, then the code, then the title: decorative, with no new text (2026-10-26)", () => {
     const mark = html.match(/<img[^>]*>/)?.[0] ?? "";
-    expect(mark).toContain('src="/images/brand/palmate-mark.svg"');
+    expect(mark).toContain('src="/images/brand/palmate-main-logo.svg"');
+    expect(html.indexOf(mark)).toBeLessThan(
+      html.indexOf(NOT_FOUND_COPY.eyebrow),
+    );
+    expect(html.indexOf(NOT_FOUND_COPY.eyebrow)).toBeLessThan(
+      html.indexOf("<h1"),
+    );
     expect(mark).toContain('alt=""');
     expect(mark).toContain('aria-hidden="true"');
     expect(html.indexOf(mark)).toBeLessThan(html.indexOf("<h1"));
@@ -154,7 +160,7 @@ describe("global error screen (global-error.tsx)", () => {
 
   it("carries the same decorative mark (there is no root layout here)", () => {
     expect(html).toMatch(
-      /<img[^>]*src="\/images\/brand\/palmate-mark\.svg"[^>]*alt=""/,
+      /<img[^>]*src="\/images\/brand\/palmate-main-logo\.svg"[^>]*alt=""/,
     );
   });
 

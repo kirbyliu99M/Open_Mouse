@@ -38,6 +38,7 @@ import { sweepLegacyHandKeys } from "@/components/results/handDisclosure";
 import { rankingUpdatedNoticeDue } from "@/components/results/rankingUpdatedNotice";
 import { ResultsUpdatedNotice } from "@/components/results/ResultsUpdatedNotice";
 import { track } from "@/client/analytics/track";
+import { forgetShownView } from "@/lib/results/viewEnter";
 import type { ResultsAnalytics } from "@/lib/results/analyticsEvents";
 import { TopBar } from "@/components/nav/TopBar";
 import { DeleteScanAction } from "@/components/results/DeleteScanAction";
@@ -50,6 +51,11 @@ import {
   fitReveal,
   type LoaderInput,
 } from "@/lib/particles/loading";
+import {
+  handedFitReveal,
+  peekLoaderHandoff,
+  takeLoaderHandoff,
+} from "@/lib/results/loaderHandoff";
 import type { Locale } from "@/lib/contracts/locale";
 import type { RESCAN_STATES } from "@/lib/contracts/analytics";
 import "@/components/results/results.css";
@@ -145,7 +151,21 @@ export function useResultsScan(): ResultsScan {
  * shown at once (the page fades in) with no loader; a later one is shown by
  * the loader that appeared at 300 ms, with no minimum time: a result fills
  * the ring and fades, a failure stops the ring, dimmed, above the error and
- * its retry. The same on every way in: after a scan, a direct open, a reload.
+ * its retry. The same on a direct open, a reload, a page reached any other way.
+ *
+ * V3.2 F23 (Kirby's phone test 2026-10-25, candidate / 未拍板): straight
+ * after the send from the last question page it is one loader, not two. The
+ * send veil (`SubmitOverlay`) hands its loader's start over
+ * (`loaderHandoff.ts`), and this page draws its loader from the first frame,
+ * from that start (the ring and the breath go on where they were), at the
+ * same spot as on the veil: the canvas centred in the viewport
+ * (`.results-page-handoff`, fixed over the page, which matches the veil's
+ * `position: fixed; inset: 0` flex centre), the same size and the same words
+ * (`loadingCopy(locale).fit`). Like the veil it is opaque and covers the
+ * whole page, the top bar and the site footer included. Since
+ * it is on screen from the start, even a quick answer goes through it (fills
+ * and fades, `handedFitReveal`). Only the first fit request of the page gets
+ * this; a retry keeps the 300 ms rule.
  *
  * `anonymous` (issue #42) is decided server-side by `layout.tsx` (it calls
  * `auth()`), never guessed client-side: it gates the "Delete this scan now"
@@ -175,18 +195,31 @@ export function ResultsScanProvider({
   // V3.2 F13 (candidate): 0 = no "results updated" line; each in-place
   // refresh that changed the ranking bumps it (a new line, a fresh timer).
   const [updatedNotice, setUpdatedNotice] = useState(0);
+  // Leaving the results forgets the page last shown (V3.2 motion pass #6):
+  // coming back later is a first arrival, which slides from no side.
+  useEffect(() => forgetShownView, []);
   const language = useLocale();
   const copy = resultsScreensCopy(language);
   const loaderWords = loadingCopy(language).fit;
   // The loader of the current fit request: when it appeared and, once it is
   // here, when the answer came and whether it was a result.
   // Whether the loader is on screen yet: only once the fit has taken
-  // `FIT_SHOW_AFTER_MS` (`fitReveal`).
-  const [loaderVisible, setLoaderVisible] = useState(false);
+  // `FIT_SHOW_AFTER_MS` (`fitReveal`), or from the first frame when the send
+  // veil handed its loader over (F23; `peekLoaderHandoff` only reads, so the
+  // initialisers may run twice under Strict Mode; the fit effect takes it).
+  const [loaderVisible, setLoaderVisible] = useState(
+    () => peekLoaderHandoff(scanId) !== null,
+  );
+  // F23: the loader goes on from the send veil's, centred like it.
+  const [loaderHanded, setLoaderHanded] = useState(
+    () => peekLoaderHandoff(scanId) !== null,
+  );
   const [loader, setLoader] = useState<LoaderInput>(() => ({
     // Replaced by the fit effect's own start; this only covers the frames
-    // before it runs.
-    startedAt: typeof performance === "undefined" ? 0 : performance.now(),
+    // before it runs (the veil's start when it handed one over, F23).
+    startedAt:
+      peekLoaderHandoff(scanId) ??
+      (typeof performance === "undefined" ? 0 : performance.now()),
     minMs: LOADING_TIMING.MIN_DISPLAY_FIT_MS,
     steps: null,
     arrival: null,
@@ -330,13 +363,32 @@ export function ResultsScanProvider({
     routeSlugRef.current = routeSlug;
   }, [routeSlug]);
 
+  // F23: the send veil's loader start, taken once per mount (`undefined`
+  // until then). Kept in a ref, so the fit effect's second run under Strict
+  // Mode finds it too; the module memory is cleared by the first take.
+  const handoffRef = useRef<
+    { scanId: string; startedAt: number } | null | undefined
+  >(undefined);
+
   useEffect(() => {
     let cancelled = false;
     let reveal: ReturnType<typeof setTimeout> | undefined;
     const requestedAt = performance.now();
-    // The loader's own start: when it appears, if the answer is not here yet.
-    const shownAt = requestedAt + LOADING_TIMING.FIT_SHOW_AFTER_MS;
-    setLoaderVisible(false);
+    if (handoffRef.current === undefined) {
+      const at = takeLoaderHandoff(scanId);
+      handoffRef.current = at === null ? null : { scanId, startedAt: at };
+    }
+    // F23: the veil's start, for this scan's first request only (a retry
+    // keeps the 300 ms rule).
+    const handed =
+      attempt === 0 && handoffRef.current?.scanId === scanId
+        ? handoffRef.current.startedAt
+        : null;
+    setLoaderHanded(handed !== null);
+    // The loader's own start: when it appears, if the answer is not here yet
+    // (the veil's start when it handed one over: on screen already).
+    const shownAt = handed ?? requestedAt + LOADING_TIMING.FIT_SHOW_AFTER_MS;
+    setLoaderVisible(handed !== null);
     setLoader({
       startedAt: shownAt,
       minMs: LOADING_TIMING.MIN_DISPLAY_FIT_MS,
@@ -371,7 +423,12 @@ export function ResultsScanProvider({
       // A quick answer is shown at once and no loader is drawn; a later one
       // goes through the loader that appeared at 300 ms (a result fills and
       // fades, a failure stops the ring), with no minimum time.
-      const { loaderShownAt, revealAt } = fitReveal(requestedAt, arrivedAt, ok);
+      // F23: a handed-over loader is on screen already, so it is never
+      // skipped: even a quick answer fills it and fades.
+      const { loaderShownAt, revealAt } =
+        handed === null
+          ? fitReveal(requestedAt, arrivedAt, ok)
+          : handedFitReveal(handed, arrivedAt, ok);
       if (loaderShownAt !== null) {
         setLoaderVisible(true);
         setLoader({
@@ -481,8 +538,18 @@ export function ResultsScanProvider({
           stepLabel={copy.stepLabel}
         />
         {/* Nothing until the fit has taken 300 ms (F7): a quick answer is
-            shown at once, without a loader flashing up first. */}
-        {loaderVisible ? (
+            shown at once, without a loader flashing up first. Straight after
+            the send it is there from the first frame, where the send veil's
+            was (F23, candidate / 未拍板). */}
+        {loaderVisible && loaderHanded ? (
+          <div className="results-page-handoff">
+            <ParticleLoader
+              className="results-page-handoffLoader"
+              input={loader}
+              status={loaderWords}
+            />
+          </div>
+        ) : loaderVisible ? (
           <ParticleLoader
             className="results-page-status"
             input={loader}

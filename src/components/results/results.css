@@ -315,6 +315,19 @@
   padding-top: 1.5rem;
 }
 
+/* The written analysis, or its error, replaces "preparing" with a fade over
+   --motion-base (V3.2 motion pass #15, candidate / 未拍板). Its height is not
+   animated (#24 waits for Kirby). */
+.results-analysis-ready,
+.results-analysis-error {
+  animation: motion-fade-in var(--motion-base) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .results-analysis-ready,
+  .results-analysis-error {
+    animation-duration: var(--motion-reduced);
+  }
+}
 .results-analysis-retry {
   min-height: 44px;
   padding: 0.5rem 1rem;
@@ -586,10 +599,7 @@
   }
 }
 
-/* F15: .results-measureNote ("still being validated", moved here from the
-   scan's sheet) looks like the other notes about how the scan was made. */
-.results-handNotice,
-.results-measureNote {
+.results-handNotice {
   line-height: 1.5;
 }
 
@@ -600,8 +610,7 @@
 
 .results-fitNotice,
 .results-coverageNotice,
-.results-handNotice,
-.results-measureNote {
+.results-handNotice {
   color: #b5b5bd;
 }
 
@@ -651,58 +660,85 @@
 .results-page-failedLoader .particleLoader-canvas {
   width: min(44vw, 10rem);
 }
-.resultsMain.results-entered {
-  animation: results-enter 200ms ease-out;
+/* V3.2 F23 (candidate / 未拍板): the loader straight after the send, where the
+   send veil's was. The veil (src/client/scan/submit-overlay.css) centres the
+   canvas in the viewport (`position: fixed; inset: 0`, flex centre, no
+   padding); this does the same, so at the page switch the loader neither
+   moves nor changes size. Like the veil it is the whole page: opaque (`--bg`,
+   the veil's colour) and above the top bar and the site footer (z-index 30;
+   the footer comes later in the page and has its own background, so without
+   both it covered the loader: Kirby's phone test 2026-10-25 saw a blank page
+   until the results). The cookie banner (50) stays above it. Taps stop here,
+   as on the veil. */
+.results-page-handoff {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
 }
-@keyframes results-enter {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
+.results-page-handoff .results-page-handoffLoader {
+  padding: 0;
+}
+/* The results arrive once the loader has filled and faded: they rise in
+   from below while they fade in (Kirby 2026-10-26, candidate / 未拍板; it
+   was a 200 ms fade in place), over --motion-sheet-in, the time a sheet takes
+   to come up. Transform and opacity only, no fill: nothing is held after. */
+.resultsMain.results-entered {
+  animation: motion-rise-in var(--motion-sheet-in) var(--ease-out);
+}
+/* A results page that replaces another of the same scan (V3.2 motion pass #6,
+   candidate / 未拍板): a fade and a --motion-shift along x over --motion-base,
+   from the right going to a detail page, from the left back to the main page
+   (data-enter, set by ResultsRankClient). Only once, when it mounts. */
+.results-view[data-enter] {
+  animation: motion-shift-in var(--motion-base) var(--ease-out);
+}
+.results-view[data-enter="forward"] {
+  --motion-enter-x: var(--motion-shift);
+}
+.results-view[data-enter="back"] {
+  --motion-enter-x: calc(var(--motion-shift) * -1);
+}
+/* The error and deleted screens fade in where the loader was (#12). The
+   loader handoff itself is untouched (F23). */
+.results-page-error {
+  animation: motion-fade-in var(--motion-base) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .resultsMain.results-entered,
+  .results-view[data-enter],
+  .results-page-error {
+    animation: motion-fade-in var(--motion-reduced) linear;
   }
 }
 @media print {
-  .resultsMain.results-entered {
+  .resultsMain.results-entered,
+  .results-view[data-enter],
+  .results-page-error,
+  .results-analysis-ready,
+  .results-analysis-error {
     animation: none;
   }
 }
 
 /* Top bar: back link, site name (wide only), share spot. */
+/* As the landing page's nav (candidate / 未拍板, 2026-10-26): the mark and
+   "Palmate" on the left, the questionnaire reminder and the menu on the
+   right. */
 .results-topBar {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  min-height: 3.25rem;
-}
-.results-topBar-back {
-  grid-column: 1;
-  justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  min-height: 2.75rem;
-  color: var(--accent-text);
-  text-decoration: none;
-}
-.results-topBar-name {
-  grid-column: 2;
-  display: none;
-  color: var(--text-primary);
-  /* Inter 700, spaced -0.3/18 em: the official wordmark (brand-font.ts). */
-  font-family: var(--font-brand), system-ui, sans-serif;
-  font-weight: 700;
-  letter-spacing: -0.0167em;
-  text-decoration: none;
-}
-/* The right of the bar: the questionnaire reminder, then the share link,
-   24 px apart (candidate, 2026-10-12). */
-.results-topBar-actions {
-  grid-column: 3;
-  justify-self: end;
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3.25rem;
+}
+.results-topBar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 /* A 44 x 44 hit area for the icon; the dot sits on its top right corner. */
 .results-topBar-reminder {
@@ -740,15 +776,29 @@
     outline: 1px solid currentColor;
   }
 }
-.results-topBar-share {
-  justify-self: end;
-}
-.results-topBar a:active {
+.results-topBar-reminder:active {
   opacity: 0.65;
 }
-.results-topBar a:focus-visible {
+.results-topBar-reminder:focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 3px;
+}
+/* 重新掃描, last on the page (moved from the top bar, 2026-10-26). */
+.results-rescan {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+.results-rescan-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  font-weight: 600;
+}
+.results-rescan-link:active {
+  opacity: 0.65;
 }
 /* The primary share button: under Other mice on a phone, beside the purchase
    links in the hero on a wide screen (the one not shown is display: none, so
@@ -936,10 +986,19 @@
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  animation: results-photoDialog-in 150ms ease-out;
+  animation: results-photoDialog-in var(--motion-fast) var(--ease-out);
 }
 .results-photoDialog::backdrop {
   background: transparent;
+}
+/* Closing (V3.2 motion pass #13, candidate / 未拍板): the photo and its dark
+   page fade out over --motion-out, the way they faded in; PhotoZoom keeps the
+   dialog open for leaveMs("fade") and then closes it. */
+.results-photoDialog {
+  transition: opacity var(--motion-out) var(--ease-in);
+}
+.results-photoDialog[data-leaving="true"] {
+  opacity: 0;
 }
 .results-photoDialog-caption {
   position: absolute;
@@ -972,7 +1031,7 @@
   cursor: zoom-in;
   user-select: none;
   -webkit-user-select: none;
-  animation: results-photoDialog-in 150ms ease-out;
+  animation: results-photoDialog-in var(--motion-fast) var(--ease-out);
 }
 .results-photoDialog-area:focus {
   outline: none;
@@ -1405,6 +1464,16 @@
 
 /* The similar-hand block (candidate, 2026-10-12): plain rows between the other
    picks and Other mice. No link, no badge. */
+/* It shows only once its answer is in: it fades in over --motion-base
+   rather than appearing in one frame (V3.2 motion pass #16). */
+.results-similar {
+  animation: motion-fade-in var(--motion-base) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .results-similar {
+    animation-duration: var(--motion-reduced);
+  }
+}
 .results-similar {
   display: flex;
   flex-direction: column;
@@ -1531,7 +1600,6 @@
 .results-disclosure-hint:lang(zh-TW),
 :lang(zh-TW) > .results-disclosure-hint,
 .results-handNotice:lang(zh-TW),
-.results-measureNote:lang(zh-TW),
 .results-coverageNotice:lang(zh-TW),
 .results-fitNotice:lang(zh-TW) {
   line-height: 1.6;
@@ -1567,9 +1635,6 @@
   .resultsMain {
     padding-inline: 1.5rem;
   }
-  .results-topBar-name {
-    display: inline-flex;
-  }
   .results-hero {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: 4rem;
@@ -1598,9 +1663,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* A --motion-reduced fade in and out (the fade is already all it does). */
   .results-photoDialog[open],
   .results-photoDialog-area {
-    animation: none;
+    animation: results-photoDialog-in var(--motion-reduced) linear;
+  }
+  .results-photoDialog {
+    transition-duration: var(--motion-reduced);
   }
   .results-chevron {
     transition: none;
@@ -1677,8 +1746,7 @@
   .results-sizeNotice,
   .results-fitNotice,
   .results-coverageNotice,
-  .results-handNotice,
-  .results-measureNote {
+  .results-handNotice {
     color: var(--text-secondary);
   }
 
@@ -1808,6 +1876,21 @@ body {
   box-shadow: 0 -8px 32px rgb(0 0 0 / 0.45);
   animation: results-feedback-in 200ms var(--feedback-ease);
   transition: transform 160ms var(--feedback-ease);
+}
+/* Closed (X, Esc, the handle, the thanks closing itself): it slides back
+   down and fades over --motion-sheet-out (V3.2 motion pass #8, candidate /
+   未拍板). A release of the handle sets the inline transform to 100 %, so it
+   carries on from where the finger let go. */
+.results-feedback[data-leaving="true"] .results-feedback-sheet {
+  transform: translateY(100%);
+  opacity: 0;
+  transition:
+    transform var(--motion-sheet-out) var(--ease-in),
+    opacity var(--motion-sheet-out) var(--ease-in);
+}
+/* The thanks (or "already sent") replaces the form with a fade (#31). */
+.results-feedback-scroll[data-finished="true"] {
+  animation: motion-fade-in var(--motion-base) var(--ease-out);
 }
 @keyframes results-feedback-in {
   from {
@@ -2190,9 +2273,15 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .results-feedback-sheet {
-    animation: none;
+  /* A --motion-reduced fade in and out, no movement. */
+  .results-feedback-sheet,
+  .results-feedback-scroll[data-finished="true"] {
+    animation: motion-fade-in var(--motion-reduced) linear;
     transition: none;
+  }
+  .results-feedback[data-leaving="true"] .results-feedback-sheet {
+    transform: none;
+    transition: opacity var(--motion-reduced) linear;
   }
   .results-feedback-collapse,
   .results-feedback-collapse[data-open="true"],

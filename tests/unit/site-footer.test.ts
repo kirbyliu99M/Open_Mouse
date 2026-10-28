@@ -49,7 +49,7 @@ describe("SiteFooter", () => {
       ["/learn", "Learn"],
       ["/mice", "All mice"],
       ["/how-it-works", "How it works"],
-      ["/how-it-works#privacy", "Privacy"],
+      ["/privacy", "Privacy"],
       [GITHUB_URL, "GitHub"],
     ]);
     const titles = [...html.matchAll(/<h2[^>]*>([^<]+)<\/h2>/g)].map(

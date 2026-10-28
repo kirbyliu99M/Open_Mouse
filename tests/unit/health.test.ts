@@ -166,7 +166,7 @@ describe("nothing from the environment is in the response", () => {
   const SECRET_ENV = {
     DATABASE_URL: "postgres://admin:hunter2@ep-secret-host-123.neon.tech/prod",
     AUTH_SECRET: "auth-secret-value-aaaaaaaaaaaaaaaaaaaa",
-    GEMINI_API_KEY: "AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q",
+    GEMINI_API_KEY: "AIzaFAKE_TEST_KEY_NOT_REAL_000000000000",
     CRON_SECRET: "cron-secret-value-bbbbbbbbbbbbbbbbbbbb",
     RATE_LIMIT_KEY_SECRET: "rate-limit-secret-cccccccccccccccc",
   };
