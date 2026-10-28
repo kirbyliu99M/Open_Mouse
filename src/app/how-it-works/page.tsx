@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { howItWorksCopy } from "@/lib/copy/how-it-works";
 import { privacyCopy } from "@/lib/copy/privacy";
+import { howItWorksStructuredData } from "@/lib/structured-data";
 import { getMiceList } from "@/server/catalogue/list-mice";
 import { getLocale } from "@/server/i18n/getLocale";
 import "../home.css";
@@ -21,6 +23,7 @@ export default async function HowItWorksPage() {
 
   return (
     <main className="home-main home-how-page">
+      <JsonLd data={howItWorksStructuredData(locale, mouseCount)} />
       <Link className="home-back-link" href="/">
         {copy.back}
       </Link>

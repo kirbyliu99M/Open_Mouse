@@ -35,6 +35,8 @@ export const SITEMAP_PATHS = [
   "/learn",
   "/mice",
   "/how-it-works",
+  "/privacy",
+  "/terms",
 ] as const;
 
 export function absoluteUrl(path: string): string {

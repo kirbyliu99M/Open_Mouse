@@ -5,11 +5,13 @@ import { ParticleStage } from "@/components/home/ParticleStage";
 import { AccountNavLink } from "@/components/nav/AccountNavLink";
 import { BrandLockup } from "@/components/nav/BrandLockup";
 import { NavMenu } from "@/components/nav/NavMenu";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { FINALE_HEADLINE, homeCopy } from "@/lib/copy/home";
 import { navCopy } from "@/lib/copy/nav";
 import { homeStoryNotes } from "@/lib/copy/home-story";
 import { siteMetaCopy } from "@/lib/copy/site-meta";
 import { handSheetFrame } from "@/lib/particles/template-hand";
+import { homeStructuredData } from "@/lib/structured-data";
 import type { Locale } from "@/lib/contracts/locale";
 import { getLocale } from "@/server/i18n/getLocale";
 import "./home.css";
@@ -37,6 +39,7 @@ export default async function HomePage() {
   const frame = handSheetFrame();
   return (
     <main className="home-main landing-page">
+      <JsonLd data={homeStructuredData(locale)} />
       <nav className="home-nav" aria-label={navCopy(locale).primaryNavLabel}>
         <BrandLockup className="home-wordmark" />
         <div className="home-nav-actions">

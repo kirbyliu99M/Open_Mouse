@@ -56,6 +56,8 @@ describe("sitemap.xml", () => {
       `${SITE_URL}/learn`,
       `${SITE_URL}/mice`,
       `${SITE_URL}/how-it-works`,
+      `${SITE_URL}/privacy`,
+      `${SITE_URL}/terms`,
     ]);
     expect(new Set(urls).size).toBe(urls.length);
   });
