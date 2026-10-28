@@ -43,6 +43,11 @@ export const SITEMAP_PATHS = [
   "/learn",
   "/mice",
   "/how-it-works",
+  "/faq",
+  "/guides",
+  "/guides/mouse-size-for-hand-size",
+  "/guides/symmetrical-vs-ergonomic",
+  "/compare",
   "/privacy",
   "/terms",
 ] as const;

@@ -34,7 +34,15 @@ export function showsSiteFooter(pathname: string | null): boolean {
 }
 
 type IconName =
-  "camera" | "book" | "list" | "workflow" | "shield" | "branch" | "sliders";
+  | "camera"
+  | "book"
+  | "list"
+  | "workflow"
+  | "shield"
+  | "branch"
+  | "sliders"
+  | "compare"
+  | "question";
 
 /**
  * 16 px line icons (1.75 px stroke, `currentColor`), drawn for this footer.
@@ -72,6 +80,19 @@ const ICONS: Record<IconName, ReactNode> = {
     <>
       <path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z" />
       <path d="M9 12l2 2 4-4" />
+    </>
+  ),
+  compare: (
+    <>
+      <rect x="3" y="5" width="7" height="14" rx="1.5" />
+      <rect x="14" y="5" width="7" height="14" rx="1.5" />
+    </>
+  ),
+  question: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6" />
+      <path d="M12 17h.01" />
     </>
   ),
   sliders: (
@@ -168,6 +189,18 @@ export function SiteFooter() {
                   {copy.allMice}
                 </Link>
               </li>
+              <li>
+                <Link href={localizedPath("/compare", locale)}>
+                  <FooterIcon name="compare" />
+                  {copy.compare}
+                </Link>
+              </li>
+              <li>
+                <Link href={localizedPath("/guides", locale)}>
+                  <FooterIcon name="book" />
+                  {copy.guides}
+                </Link>
+              </li>
             </ul>
           </div>
           <div className="siteFooter-group siteFooter-group--trust">
@@ -179,6 +212,12 @@ export function SiteFooter() {
                 <Link href={localizedPath("/how-it-works", locale)}>
                   <FooterIcon name="workflow" />
                   {copy.howItWorks}
+                </Link>
+              </li>
+              <li>
+                <Link href={localizedPath("/faq", locale)}>
+                  <FooterIcon name="question" />
+                  {copy.faq}
                 </Link>
               </li>
               <li>

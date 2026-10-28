@@ -10,6 +10,37 @@ import {
 } from "../../src/lib/seo";
 import { LEGACY_HOST, SITE_URL } from "../../src/lib/site";
 
+// The sitemap reads the listed catalogue (server-only, a database); two rows
+// stand in for it.
+vi.mock("../../src/server/seo/catalogue", () => ({
+  listedMice: async () => [
+    {
+      slug: "brand-a",
+      brand: "Brand",
+      model: "A",
+      size: "medium",
+      shape: "symmetrical",
+      connectivity: "wireless",
+      lengthMm: 120,
+      widthMm: 62,
+      heightMm: 38,
+      weightG: 55,
+    },
+    {
+      slug: "brand-b",
+      brand: "Brand",
+      model: "B",
+      size: "medium",
+      shape: "symmetrical",
+      connectivity: "wireless",
+      lengthMm: 122,
+      widthMm: 63,
+      heightMm: 39,
+      weightG: 60,
+    },
+  ],
+}));
+
 afterEach(() => vi.unstubAllEnvs());
 
 describe("which deployments are indexable", () => {
@@ -47,22 +78,25 @@ describe("robots.txt", () => {
 });
 
 describe("sitemap.xml", () => {
-  it("lists every public page in both languages on SITE_URL, each once", () => {
+  it("lists every public page in both languages on SITE_URL, each once", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    const urls = sitemap().map((e) => e.url);
+    const urls = (await sitemap()).map((e) => e.url);
     expect(urls.slice(0, 4)).toEqual([
       SITE_URL,
       `${SITE_URL}/en`,
       `${SITE_URL}/scan/easy`,
       `${SITE_URL}/en/scan/easy`,
     ]);
-    expect(urls).toHaveLength(SITEMAP_PATHS.length * 2);
+    // The fixed pages, both mice and their one comparison, in two languages.
+    expect(urls).toHaveLength((SITEMAP_PATHS.length + 3) * 2);
+    expect(urls).toContain(`${SITE_URL}/en/mice/brand-a`);
+    expect(urls).toContain(`${SITE_URL}/compare/brand-a-vs-brand-b`);
     expect(new Set(urls).size).toBe(urls.length);
   });
 
-  it("names every language version of each page, x-default unprefixed", () => {
+  it("names every language version of each page, x-default unprefixed", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    const mice = sitemap().filter((e) => e.url.endsWith("/mice"));
+    const mice = (await sitemap()).filter((e) => e.url.endsWith("/mice"));
     expect(mice).toHaveLength(2);
     for (const entry of mice) {
       expect(entry.alternates?.languages).toEqual({
@@ -82,9 +116,9 @@ describe("sitemap.xml", () => {
     expect(absoluteUrl("/")).toBe(SITE_URL);
   });
 
-  it("is empty on a preview", () => {
+  it("is empty on a preview", async () => {
     vi.stubEnv("VERCEL_ENV", "preview");
-    expect(sitemap()).toEqual([]);
+    expect(await sitemap()).toEqual([]);
   });
 });
 

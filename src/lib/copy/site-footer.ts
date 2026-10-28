@@ -22,8 +22,13 @@ export interface SiteFooterCopy {
   learn: string;
   /** The all-mice page (`/mice`); candidate (未拍板), from the three-page copy draft. */
   allMice: string;
+  /** The comparison pages and the guides (SEO task 2026-10-28, candidate). */
+  compare: string;
+  guides: string;
   /** Trust group. */
   howItWorks: string;
+  /** The FAQ page (SEO task 2026-10-28, candidate). */
+  faq: string;
   privacy: string;
   /** Reopens the cookie banner; shown only when GA4 is configured (2026-10-24, candidate). */
   cookieSettings: string;
@@ -40,7 +45,10 @@ export const zhTW: SiteFooterCopy = {
   scan: "掃描",
   learn: "學習",
   allMice: "所有滑鼠",
+  compare: "滑鼠比較",
+  guides: "選購指南",
   howItWorks: "運作方式",
+  faq: "常見問題",
   privacy: "隱私",
   cookieSettings: "Cookie 設定",
   github: "GitHub",
@@ -54,7 +62,10 @@ export const en: SiteFooterCopy = {
   scan: "Scan",
   learn: "Learn",
   allMice: "All mice",
+  compare: "Compare mice",
+  guides: "Guides",
   howItWorks: "How it works",
+  faq: "FAQ",
   privacy: "Privacy",
   cookieSettings: "Cookie settings",
   github: "GitHub",

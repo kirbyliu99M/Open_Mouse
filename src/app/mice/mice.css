@@ -246,3 +246,15 @@
     display: none;
   }
 }
+
+/* Each name links to the mouse's own page (SEO task, 2026-10-28). The text
+   keeps its colours; the link shows on hover and focus. */
+.mice-name a,
+.mice-card .mice-model a {
+  color: inherit;
+  text-decoration: none;
+}
+.mice-name a:hover,
+.mice-card .mice-model a:hover {
+  text-decoration: underline;
+}
