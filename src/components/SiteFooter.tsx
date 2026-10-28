@@ -8,6 +8,7 @@ import { reopenConsent } from "@/client/consent/consent";
 import { useLocale } from "@/client/i18n/LocaleProvider";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { FOOTER_HEADLINE, siteFooterCopy } from "@/lib/copy/site-footer";
+import { localizedPath, stripLocalePrefix } from "@/lib/i18n/localePath";
 import { GITHUB_URL, SITE_NAME } from "@/lib/site";
 import "./site-footer.css";
 
@@ -26,8 +27,9 @@ const NO_FOOTER_PREFIXES = [
 
 export function showsSiteFooter(pathname: string | null): boolean {
   if (pathname === null) return true;
+  const path = stripLocalePrefix(pathname);
   return !NO_FOOTER_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`),
   );
 }
 
@@ -149,19 +151,19 @@ export function SiteFooter() {
             </h2>
             <ul aria-labelledby="siteFooter-h-product">
               <li>
-                <Link href="/scan/easy">
+                <Link href={localizedPath("/scan/easy", locale)}>
                   <FooterIcon name="camera" />
                   {copy.scan}
                 </Link>
               </li>
               <li>
-                <Link href="/learn">
+                <Link href={localizedPath("/learn", locale)}>
                   <FooterIcon name="book" />
                   {copy.learn}
                 </Link>
               </li>
               <li>
-                <Link href="/mice">
+                <Link href={localizedPath("/mice", locale)}>
                   <FooterIcon name="list" />
                   {copy.allMice}
                 </Link>
@@ -174,13 +176,13 @@ export function SiteFooter() {
             </h2>
             <ul aria-labelledby="siteFooter-h-trust">
               <li>
-                <Link href="/how-it-works">
+                <Link href={localizedPath("/how-it-works", locale)}>
                   <FooterIcon name="workflow" />
                   {copy.howItWorks}
                 </Link>
               </li>
               <li>
-                <Link href="/privacy">
+                <Link href={localizedPath("/privacy", locale)}>
                   <FooterIcon name="shield" />
                   {copy.privacy}
                 </Link>

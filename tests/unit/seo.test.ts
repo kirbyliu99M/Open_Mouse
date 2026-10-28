@@ -47,17 +47,30 @@ describe("robots.txt", () => {
 });
 
 describe("sitemap.xml", () => {
-  it("lists the public pages on SITE_URL, each once", () => {
+  it("lists every public page in both languages on SITE_URL, each once", () => {
     vi.stubEnv("VERCEL_ENV", "production");
     const urls = sitemap().map((e) => e.url);
-    expect(urls).toEqual([
+    expect(urls.slice(0, 4)).toEqual([
       SITE_URL,
+      `${SITE_URL}/en`,
       `${SITE_URL}/scan/easy`,
-      `${SITE_URL}/learn`,
-      `${SITE_URL}/mice`,
-      `${SITE_URL}/how-it-works`,
+      `${SITE_URL}/en/scan/easy`,
     ]);
+    expect(urls).toHaveLength(SITEMAP_PATHS.length * 2);
     expect(new Set(urls).size).toBe(urls.length);
+  });
+
+  it("names every language version of each page, x-default unprefixed", () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    const mice = sitemap().filter((e) => e.url.endsWith("/mice"));
+    expect(mice).toHaveLength(2);
+    for (const entry of mice) {
+      expect(entry.alternates?.languages).toEqual({
+        "zh-TW": `${SITE_URL}/mice`,
+        en: `${SITE_URL}/en/mice`,
+        "x-default": `${SITE_URL}/mice`,
+      });
+    }
   });
 
   it("never lists a private, demo or closed route", () => {

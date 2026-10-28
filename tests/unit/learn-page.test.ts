@@ -48,7 +48,12 @@ function visibleText(html: string): string {
 }
 
 const render = (copy: typeof en) =>
-  renderToStaticMarkup(createElement(LearnInfo, { copy }));
+  renderToStaticMarkup(
+    createElement(LearnInfo, {
+      copy,
+      locale: copy === en ? "en" : "zh-TW",
+    }),
+  );
 
 describe("learn page copy", () => {
   it("takes the two shape labels from the results page, not new strings", () => {
@@ -176,8 +181,10 @@ describe("the rendered /learn body", () => {
         copy.shape.hump,
         copy.shape.flare,
       ]);
-      expect(html.match(/href="\/scan\/easy"/g)).toHaveLength(2);
-      expect(html).toContain('href="/how-it-works"');
+      // Links stay in the page's language: `/en/...` on the English page.
+      const prefix = copy === en ? "/en" : "";
+      expect(html.split(`href="${prefix}/scan/easy"`).length - 1).toBe(2);
+      expect(html).toContain(`href="${prefix}/how-it-works"`);
       expect(html).toContain(copy.scanButton);
     },
   );

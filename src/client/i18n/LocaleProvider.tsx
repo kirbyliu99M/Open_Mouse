@@ -11,6 +11,7 @@ import {
 } from "react";
 import { DEFAULT_LOCALE, type Locale } from "@/lib/contracts/locale";
 import { localeCookieString } from "@/lib/i18n/localeCookie";
+import { localizedPath, splitLocalePath } from "@/lib/i18n/localePath";
 
 interface LocaleContextValue {
   locale: Locale;
@@ -25,7 +26,8 @@ const LocaleContext = createContext<LocaleContextValue>({
 /**
  * Holds the locale the server rendered in (`initialLocale`, so there is no
  * hydration mismatch). `setLocale` writes the cookie, sets `<html lang>`, and
- * refreshes the route so server components render again in the new language.
+ * refreshes the route so server components render again in the new language
+ * (or, on a `/en/...` URL, moves to the same page's URL in the new language).
  */
 export function LocaleProvider({
   initialLocale,
@@ -55,7 +57,15 @@ export function LocaleProvider({
       );
       document.documentElement.lang = next;
       setChosen(next);
-      router.refresh();
+      // On a URL that names its language (`/en/...`) the URL wins over the
+      // cookie, so the switch moves to the other language's URL. An
+      // unprefixed URL follows the cookie and only needs a new render.
+      const { pathname, search, hash } = window.location;
+      if (splitLocalePath(pathname).locale !== null) {
+        router.push(`${localizedPath(pathname, next)}${search}${hash}`);
+      } else {
+        router.refresh();
+      }
     },
     [router],
   );

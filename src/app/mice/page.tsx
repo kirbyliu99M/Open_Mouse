@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { requestPageMetadata } from "@/server/seo/pageMetadata";
+import { pageMetaCopy } from "@/lib/copy/page-meta";
 import { AccountNavLink } from "@/components/nav/AccountNavLink";
 import { BrandLockup } from "@/components/nav/BrandLockup";
 import { NavMenu } from "@/components/nav/NavMenu";
@@ -8,10 +10,15 @@ import { getMiceList } from "@/server/catalogue/list-mice";
 import { getLocale } from "@/server/i18n/getLocale";
 import "../home.css";
 import { MiceBrowser } from "./MiceBrowser";
+import { localizedPath } from "@/lib/i18n/localePath";
 
 /** The title is the page's name; the root layout's template adds 「 · Palmate」. */
 export async function generateMetadata(): Promise<Metadata> {
-  return { title: micePageCopy(await getLocale()).title };
+  return requestPageMetadata((locale) => ({
+    path: "/mice",
+    title: micePageCopy(locale).title,
+    description: pageMetaCopy(locale).mice,
+  }));
 }
 
 /**
@@ -30,7 +37,10 @@ export default async function MicePage() {
   return (
     <main className="mice-page">
       <nav className="home-nav" aria-label={navCopy(locale).primaryNavLabel}>
-        <BrandLockup className="home-wordmark mice-wordmark" href="/" />
+        <BrandLockup
+          className="home-wordmark mice-wordmark"
+          href={localizedPath("/", locale)}
+        />
         <div className="home-nav-actions">
           <AccountNavLink />
           <NavMenu />

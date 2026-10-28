@@ -1,13 +1,23 @@
 import type { Metadata } from "next";
+import { requestPageMetadata } from "@/server/seo/pageMetadata";
+import { pageMetaCopy } from "@/lib/copy/page-meta";
 import Link from "next/link";
 import { howItWorksCopy } from "@/lib/copy/how-it-works";
 import { privacyCopy } from "@/lib/copy/privacy";
 import { getMiceList } from "@/server/catalogue/list-mice";
 import { getLocale } from "@/server/i18n/getLocale";
 import "../home.css";
+import { localizedPath } from "@/lib/i18n/localePath";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { navCopy } from "@/lib/copy/nav";
+import { breadcrumbLd, howToLd } from "@/lib/structured-data";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return { title: howItWorksCopy(await getLocale()).title };
+  return requestPageMetadata((locale) => ({
+    path: "/how-it-works",
+    title: howItWorksCopy(locale).title,
+    description: pageMetaCopy(locale).howItWorks,
+  }));
 }
 
 /** The original introduction, moved to its own route (screen 18). */
@@ -21,7 +31,28 @@ export default async function HowItWorksPage() {
 
   return (
     <main className="home-main home-how-page">
-      <Link className="home-back-link" href="/">
+      <JsonLd
+        data={[
+          howToLd({
+            locale,
+            path: "/how-it-works",
+            name: copy.title,
+            description: pageMetaCopy(locale).howItWorks,
+            totalTime: "PT1M",
+            supplies: [copy.step1Title],
+            steps: [
+              { name: copy.step1Title, text: copy.step1Body },
+              { name: copy.step2Title, text: copy.step2Body },
+              { name: copy.step3Title, text: copy.step3Body(mouseCount) },
+            ],
+          }),
+          breadcrumbLd(locale, [
+            [navCopy(locale).home, "/"],
+            [copy.title, "/how-it-works"],
+          ]),
+        ]}
+      />
+      <Link className="home-back-link" href={localizedPath("/", locale)}>
         {copy.back}
       </Link>
       <h1>{copy.title}</h1>
@@ -84,7 +115,7 @@ export default async function HowItWorksPage() {
         </ul>
       </section>
 
-      <Link className="home-cta" href="/scan/easy">
+      <Link className="home-cta" href={localizedPath("/scan/easy", locale)}>
         <CameraIcon /> {copy.scanMyHand}
       </Link>
       <p className="home-cta-caption">{copy.ctaCaption}</p>
@@ -113,7 +144,8 @@ export default async function HowItWorksPage() {
       </div>
 
       <p className="home-privacy-link">
-        {copy.questions} <Link href="/privacy">{copy.privacyLink}</Link>
+        {copy.questions}{" "}
+        <Link href={localizedPath("/privacy", locale)}>{copy.privacyLink}</Link>
       </p>
     </main>
   );
