@@ -13,8 +13,6 @@ import {
 } from "@/lib/results/disclosure";
 import type { Locale } from "@/lib/contracts/locale";
 import { ViewerRegion } from "@/components/viewer/ViewerRegion";
-import { AnalysisSlot } from "./AnalysisSlot";
-import type { AnalysisState } from "./analysisState";
 import { ConfidenceNote } from "./ConfidenceNote";
 import { SubscoreBar } from "./SubscoreBar";
 import { TargetDeltas } from "./TargetDeltas";
@@ -22,16 +20,15 @@ import { TargetDeltas } from "./TargetDeltas";
 /**
  * "Details": a details element, closed by default. Inside: the 3D viewer (a
  * real scan only, and only once opened, so nothing is downloaded while it is
- * closed), the six sub-score bars, the gaps to the ideal size, the written
- * analysis (the main page only: `analysis` is undefined on a detail page) and
- * the confidence note.
+ * closed), the six sub-score bars, the gaps to the ideal size and the
+ * confidence note. The written analysis is not here: the 「綜合」 page has it
+ * under the large card (`FilteredAnalysisLine`, Kirby 2026-10-28).
  */
 export function ResultsDetails({
   response,
   entry,
   language,
   showViewer,
-  analysis,
   onViewerInteracted,
   onOpened,
 }: {
@@ -39,7 +36,6 @@ export function ResultsDetails({
   entry: FitEntry;
   language: Locale;
   showViewer: boolean;
-  analysis?: { state: AnalysisState; onRetry?: () => void };
   onViewerInteracted?: () => void;
   /** Called each time the person opens the section (analytics, and the feedback sheet's timing, V3.2 F11). */
   onOpened?: () => void;
@@ -108,15 +104,6 @@ export function ResultsDetails({
           mouse={mouse}
           language={language}
         />
-
-        {analysis && (
-          <AnalysisSlot
-            state={analysis.state}
-            onRetry={analysis.onRetry}
-            headingLevel={3}
-            language={language}
-          />
-        )}
 
         {shapeUnrated ? (
           <p className="results-sizeNotice">{copy.sizeNotice}</p>

@@ -7,6 +7,7 @@ import { RESULTS_VIEWER_ENABLED } from "../../src/lib/results/features";
 import { contrast } from "./fixtures/contrast";
 import { scoreFit } from "../../src/server/fit/score";
 import type { CatalogueMouse } from "../../src/server/fit/types";
+import { openAnalysisLine } from "./fixtures/analysis-line";
 
 // Read as plain JSON rather than `import ... from "*.json"` — Playwright's
 // test runner loads spec files as native Node ESM, which requires an
@@ -72,6 +73,8 @@ async function openDetails(page: Page) {
   const details = page.locator(".results-details");
   await details.locator("summary").click();
   await expect(details).toHaveAttribute("open", "");
+  // The analysis these tests reach for is behind its own line now.
+  await openAnalysisLine(page);
 }
 
 async function stubHappyFit(page: Page) {
@@ -138,13 +141,15 @@ test("a new tab shows the typed-length note from storage and the left-hand note 
       const [disclosure, leftHand] = [
         ...document.querySelectorAll(".results-handNotice"),
       ];
-      const analysis = document.querySelector(".results-analysis");
+      // Not the page-bottom footnote: ahead of the closed Details section
+      // (the analysis is no longer there, Kirby 2026-10-28).
+      const details = document.querySelector(".results-details");
       return {
         beforeLeftHandNotice: follows(disclosure, leftHand),
-        beforeAnalysis: analysis ? follows(disclosure, analysis) : false,
+        beforeDetails: details ? follows(disclosure, details) : false,
       };
     }),
-  ).toEqual({ beforeLeftHandNotice: true, beforeAnalysis: true });
+  ).toEqual({ beforeLeftHandNotice: true, beforeDetails: true });
   await newTab.getByRole("button", { name: "Delete this scan now" }).click();
   await newTab.getByRole("button", { name: "Delete scan" }).click();
   await expect(
@@ -559,6 +564,7 @@ test.describe("/results/[scanId] — real results page", () => {
     ).toBeVisible();
     // The analysis card is a status region. Scoped to it: the page has other
     // status regions (the confidence note, the viewer's fallback line).
+    await openAnalysisLine(page);
     const loading = page.locator(".results-analysis-loading");
     await expect(loading).toHaveAttribute("role", "status");
     await expect(loading).toContainText(/Preparing/);

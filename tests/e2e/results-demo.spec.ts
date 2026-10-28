@@ -1,10 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openAnalysisLine } from "./fixtures/analysis-line";
 
 /** Details is closed by default; open it to reach the scores and the analysis. */
 async function openDetails(page: Page) {
   const details = page.locator(".results-details");
   await details.locator("summary").click();
   await expect(details).toHaveAttribute("open", "");
+  // The analysis these tests reach for is behind its own line now.
+  await openAnalysisLine(page);
 }
 
 test.describe("/results/demo", () => {
@@ -281,6 +284,7 @@ test.describe("/results/demo", () => {
     await openDetails(page);
 
     await page.getByRole("button", { name: "Loading", exact: true }).click();
+    await openAnalysisLine(page);
     // The analysis card is a status region; scoped to it, as the page has others.
     await expect(page.locator(".results-analysis-loading")).toContainText(
       /Preparing/,
@@ -357,12 +361,16 @@ test.describe("/results/demo", () => {
     await expect(page.locator(".results-analysis-aiNotice")).toHaveCount(0);
   });
 
-  test("the written analysis lives in Details, after the scores, and a detail page has none", async ({
+  test("the written analysis is behind the line under the large card, not in Details, and a detail page has none", async ({
     page,
   }) => {
     await page.goto("/results/demo");
     await page.getByRole("button", { name: "Many mice + hand type" }).click();
     await page.getByRole("button", { name: "Ready", exact: true }).click();
+    // Closed until 「看分析」 (Kirby 2026-10-28 hotfix).
+    await expect(page.locator(".results-analysis")).toHaveCount(0);
+    await openAnalysisLine(page);
+    await expect(page.locator(".results-analysis-ready")).toBeVisible();
 
     const order = await page.evaluate(() => {
       const q = (s: string) => document.querySelector(s)!;
@@ -373,16 +381,14 @@ test.describe("/results/demo", () => {
       const analysis = q(".results-analysis");
       return {
         insideDetails: q(".results-details").contains(analysis),
-        scoresBeforeAnalysis: follows(q(".results-subscoreGrid"), analysis),
-        deltasBeforeAnalysis: follows(q(".results-targetDeltas"), analysis),
-        analysisBeforeOthers: follows(analysis, q(".results-others")),
+        insideLine: q(".results-analysisLine").contains(analysis),
+        analysisBeforeWhy: follows(analysis, q(".results-why")),
       };
     });
     expect(order).toEqual({
-      insideDetails: true,
-      scoresBeforeAnalysis: true,
-      deltasBeforeAnalysis: true,
-      analysisBeforeOthers: true,
+      insideDetails: false,
+      insideLine: true,
+      analysisBeforeWhy: true,
     });
 
     await page.locator(".results-card").first().click();
@@ -458,6 +464,7 @@ test.describe("/results/demo", () => {
     await page.goto("/results/demo");
     await page.getByRole("button", { name: "Many mice + hand type" }).click();
     await page.getByRole("button", { name: "Ready", exact: true }).click();
+    await openAnalysisLine(page);
     await openDetails(page);
     await page.locator(".results-otherMice summary").click();
 
@@ -490,6 +497,7 @@ test.describe("/results/demo in a Chinese browser", () => {
     await page.getByRole("button", { name: "Many mice + hand type" }).click();
     await openDetails(page);
     await page.getByRole("button", { name: "Ready", exact: true }).click();
+    await openAnalysisLine(page);
 
     await expect(page.locator(".results-analysis-labelRow")).toContainText(
       "文字分析",

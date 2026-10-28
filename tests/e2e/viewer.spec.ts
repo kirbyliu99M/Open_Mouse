@@ -11,6 +11,7 @@ import {
 } from "@playwright/test";
 import { RESULTS_VIEWER_ENABLED } from "../../src/lib/results/features";
 import { decodePng } from "./fixtures/png";
+import { openAnalysisLine } from "./fixtures/analysis-line";
 
 /**
  * The 3D size illustration on /results/[scanId] (Builder D).
@@ -139,6 +140,8 @@ async function openDetails(page: Page) {
   const details = page.locator(".results-details");
   await details.locator("summary").click();
   await expect(details).toHaveAttribute("open", "");
+  // The analysis these tests reach for is behind its own line now.
+  await openAnalysisLine(page);
 }
 
 /** Opens a results page, then its Details section. */

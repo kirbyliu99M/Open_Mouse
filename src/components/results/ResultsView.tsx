@@ -267,6 +267,15 @@ export function ResultsView({
   // analysis (about the overall #1) shrinks to one line.
   const swappedMain = isMain && view.swapped;
   const overallTop = view.overallTop;
+  // The written analysis is about the overall #1, so only the 「綜合」 page
+  // has it, as the one line with 「看分析」; the two shape pages have none
+  // (Kirby 2026-10-28 hotfix: the symmetric page showed the overall #1's
+  // analysis under another mouse, and in Details it was never seen).
+  const showAnalysisLine =
+    isMain &&
+    overallTop !== null &&
+    segmentOf(filters) === "overall" &&
+    analysisState.status !== "idle";
   const showPlace = filtering && card !== null && (swappedMain || !isMain);
   const showOverall =
     showPlace && card !== null && card.overallRank !== card.displayRank;
@@ -449,7 +458,7 @@ export function ResultsView({
                 </div>
               )}
 
-              {swappedMain && overallTop && (
+              {showAnalysisLine && overallTop && (
                 <FilteredAnalysisLine
                   name={`${overallTop.mouse.brand} ${overallTop.mouse.model}`}
                   language={language}
@@ -566,11 +575,6 @@ export function ResultsView({
           entry={entry}
           language={language}
           showViewer={showViewer}
-          analysis={
-            isMain && !swappedMain
-              ? { state: analysisState, onRetry: onRetryAnalysis }
-              : undefined
-          }
           onViewerInteracted={
             analytics
               ? () => {

@@ -123,9 +123,10 @@ test.describe("desktop sidebar", () => {
     await expect(
       sidebar.getByRole("button", { name: /^顯示其他 \d+ 個品牌$/ }),
     ).toBeVisible();
-    // The page is the plain one: no badge, no collapsed analysis.
+    // The page is the plain one: no badge; the analysis is its one line
+    // (綜合 always has it, Kirby 2026-10-28).
     await expect(page.locator(".results-badge")).toHaveCount(0);
-    await expect(page.locator(".results-analysisLine")).toHaveCount(0);
+    await expect(page.locator(".results-analysisLine")).toHaveCount(1);
   });
 
   test("applies on each change: URL, count, chips, large card, analysis line, share", async ({
@@ -186,13 +187,13 @@ test.describe("desktop sidebar", () => {
     await expect(page.locator(".results-badge")).toHaveCount(0);
   });
 
-  test("overall #1 still matching changes nothing: no badge, analysis stays in Details", async ({
+  test("overall #1 still matching changes nothing: no badge, the same analysis line", async ({
     page,
   }) => {
     await page.goto(MAIN);
     await (await brand(page, "Zowie")).click();
     await expect(page.locator(".results-badge")).toHaveCount(0);
-    await expect(page.locator(".results-analysisLine")).toHaveCount(0);
+    await expect(page.locator(".results-analysisLine")).toHaveCount(1);
     await expect(page.locator(".results-score-model")).toHaveText("EC2-DW");
     await expect(page.locator(".results-score-rank")).toHaveText(
       "第 1 名 · Zowie",
@@ -202,7 +203,10 @@ test.describe("desktop sidebar", () => {
       page.locator(".results-share-hero").getByTestId("share-card-button"),
     ).toHaveText("製作我的分享圖");
     await expect(page.locator(".shareCard-note")).toHaveCount(0);
-    await page.locator(".results-details summary").click();
+    await page
+      .locator(".results-analysisLine")
+      .getByRole("button", { name: "看分析" })
+      .click();
     await expect(
       page.getByText("Analysis body about the overall first pick."),
     ).toBeVisible();

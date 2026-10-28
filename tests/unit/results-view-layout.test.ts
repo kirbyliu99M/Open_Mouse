@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 import { ResultsView } from "../../src/components/results/ResultsView";
+import { AnalysisSlot } from "../../src/components/results/AnalysisSlot";
 import {
   primeMouseLinks,
   resetMouseLinks,
@@ -536,7 +537,7 @@ describe("the written analysis heading", () => {
     },
   };
 
-  it("is an h3 inside Details, under the page's h2 sections, with h4s below it", () => {
+  it("is an h3 under the page's h2 sections, with h4s below it, behind the closed line", () => {
     const html = renderToStaticMarkup(
       createElement(ResultsView, {
         response: many,
@@ -544,10 +545,19 @@ describe("the written analysis heading", () => {
         analysisState: ready,
       }),
     );
-    expect(html).toMatch(/<h3 class="results-analysis-heading">Why this one/);
-    expect(html).toContain("<h4>Tradeoffs</h4>");
-    // Only the zh-TW "why" heading is an h2 of that name.
-    expect(html).not.toMatch(/<h2[^>]*>Why this one/);
+    // Closed on the page (Kirby 2026-10-28): the line, not the text.
+    expect(html).toContain("results-analysisLine");
+    expect(html).not.toMatch(/Why this one/);
+    // What 「看分析」 opens: the slot at level 3.
+    const opened = renderToStaticMarkup(
+      createElement(AnalysisSlot, {
+        state: ready,
+        headingLevel: 3,
+        language: "en",
+      }),
+    );
+    expect(opened).toMatch(/<h3 class="results-analysis-heading">Why this one/);
+    expect(opened).toContain("<h4>Tradeoffs</h4>");
   });
 });
 

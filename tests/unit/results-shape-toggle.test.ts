@@ -397,6 +397,8 @@ describe("the results page with the toggle", () => {
         response: fit(),
         language: "zh-TW",
         filters,
+        // An analysis on its way, so the page has one to place.
+        analysisState: { status: "loading" },
         ...(onFiltersChange ? { onFiltersChange: () => {} } : {}),
       }),
     );
@@ -407,6 +409,8 @@ describe("the results page with the toggle", () => {
     expect(toggle).toBeGreaterThan(-1);
     expect(toggle).toBeLessThan(html.indexOf("results-filterButton"));
     expect(html).toMatch(/aria-checked="true"[^>]*>綜合</);
+    // 綜合 is the one page with the analysis line (Kirby 2026-10-28).
+    expect(html).toContain("results-analysisLine");
   });
 
   it("is not on a page without the filter (a detail page, the demo)", () => {
@@ -424,9 +428,13 @@ describe("the results page with the toggle", () => {
     expect(html).toContain("人體工學第 1 名");
     expect(html).toContain("總排名第 3 名");
     expect(html).toMatch(/aria-checked="true"[^>]*>人體工學</);
-    // The analysis line follows the filter's rule; the share button is the
-    // usual one, its card about this ergonomic #1 (V3.2 F24, Kirby 2026-10-26).
-    expect(html).toContain("results-analysisLine");
+    // No analysis on a shape page: it is about the overall #1 (Kirby
+    // 2026-10-28 hotfix). The share button is the usual one, its card about
+    // this ergonomic #1 (V3.2 F24, Kirby 2026-10-26).
+    expect(html).not.toContain("results-analysis");
+    expect(render(withSegment(emptyFilters(), "symmetrical"))).not.toContain(
+      "results-analysis",
+    );
     expect(html).not.toContain("分享總排名第 1 名");
     expect(html).toContain("shareCard-button-primary");
   });

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { openAnalysisLine } from "./fixtures/analysis-line";
 import {
   expectPrintsDark,
   textSamples,
@@ -150,6 +151,8 @@ test("/results/[scanId] prints dark text on white: notices, analysis, delete act
   );
   await page.goto(`/results/${SCAN_ID}`);
   await page.locator(".results-details > summary").click();
+  // The analysis is behind its line (Kirby 2026-10-28); print it open.
+  await openAnalysisLine(page);
   await expect(page.locator(".results-analysis-ready")).toBeVisible();
   await expect(page.locator(".results-handNotice")).toHaveCount(2);
   await expect(
