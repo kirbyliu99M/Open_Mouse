@@ -699,6 +699,12 @@ dialog.results-sheet[data-leaving="true"]::backdrop {
   gap: 0.25rem 1rem;
   margin-top: -0.75rem;
 }
+/* The link keeps its 44 px target, but its text sits in the middle of it,
+   on the chips' centre line, not at the top of the box. */
+.results-filterNote .results-textLink {
+  display: inline-flex;
+  align-items: center;
+}
 /* Read only (a detail page): an outline, not the filled look of a chip that
    can be removed, and no pressed state. */
 .results-chip--static {
