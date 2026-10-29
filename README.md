@@ -1,9 +1,13 @@
 # Open_Mouse
 
+**Palmate** is the public name of this project. Try it at
+**<https://palmate.kirby-fivesenses.com/>**.
+
 Measure your hand with a phone photo. See which mice fit it.
 
 Open_Mouse compares a measurement of your hand with the published dimensions of
-each mouse in a catalogue of Logitech models, scores every mouse that isn't
+each mouse in its catalogue (408 gaming mice from 23 brands listed on the site,
+2026-10-28), scores every mouse that isn't
 excluded (wrong hand, vertical) on six aspects of fit, and explains the ranking
 in plain language. The question behind it: can a measured hand beat "large
 hands, buy a large mouse"?
@@ -36,7 +40,9 @@ locked. The paper's known size is the ruler.
 **Printed-sheet flow** (`/sheet`, then `/scan`). The earlier calibration: print a
 sheet carrying six ArUco markers (four flat on the sheet, two on a flap you fold
 up for the side shot; identical on A4 and Letter) and photograph your hand with
-the sheet in frame. It is still available; whether to keep it is pending.
+the sheet in frame. Both pages are closed on the production site (they answer
+404 there, like the demo routes) and still run locally; whether to keep the flow
+is pending.
 Until that is decided it is mainly used for checking the blank-paper
 measurement against ground truth (a learning kit for that is in development).
 
@@ -65,16 +71,16 @@ photo measurement is validated.
   warning. Whether production sets it is **unconfirmed**.
 - **Deletion.** A scan made without an account belongs to a session that
   expires automatically. Once it has expired, the app treats the session and its
-  scans as if they did not exist, so they can no longer be read. When the expired
-  data is physically removed from the database, and how long database backups
-  keep it, are not stated here: they will be set out in the privacy terms, which
-  are not written yet. How long Neon's point-in-time restore (PITR) keeps
-  data has **not been confirmed**. You can delete a scan at any time with
+  scans as if they did not exist, so they can no longer be read. The
+  [privacy policy](https://palmate.kirby-fivesenses.com/privacy) states the
+  retention: a scan made without an account is deleted within 24 hours, and an
+  account unused for 90 days is deleted with all its scans. How long database
+  backups keep deleted data, including Neon's point-in-time restore (PITR), has
+  **not been confirmed**. You can delete a scan at any time with
   "Delete this scan now" on its results page.
-- **Accounts are optional, and sign-in is off on the production site.** Google
-  sign-in exists in the code and stays off unless OAuth credentials are
-  configured; it is not enabled in production (see `docs/STATUS.md`). If it is
-  turned on, signing in stores: in the `users` table, your name, email address,
+- **Accounts are optional.** Google sign-in is enabled on the production site;
+  it stays off in any deployment without OAuth credentials. Signing in stores:
+  in the `users` table, your name, email address,
   whether the email is verified (`emailVerified`) and profile image; in the
   `accounts` table, your Google account ID (`provider_account_id`) and the OAuth
   data Google returns (access, refresh and ID tokens, token type, `expires_at`,
@@ -175,13 +181,15 @@ can see a public repository. Third-party components keep their own licences; see
 
 ## 繁體中文摘要
 
-Open_Mouse 用手機拍一張手部照片，量出手的尺寸，再和 Logitech 滑鼠型錄裡各型號的公開尺寸比對，
+**Palmate** 是這個專案對外的名稱，網址：**<https://palmate.kirby-fivesenses.com/>**。
+
+Open_Mouse 用手機拍一張手部照片，量出手的尺寸，再和型錄裡各型號滑鼠的公開尺寸比對（2026-10-28 網站列出 23 個品牌、408 款電競滑鼠），
 給出適合度排名，並用白話說明原因。它只提供購買時的適合度估計，不是醫療或健康工具，不做任何診斷或治療宣稱。
 
-- **狀態：早期預覽，尚未公開。** 網站已部署，但標了 `noindex`，沒有對外宣傳。手部量測仍在驗證中，適合度權重也是暫定值，請不要當成已驗證的結果。
+- **狀態：已公開上線。** 2026-10-28 起開放搜尋引擎收錄。手部量測仍在驗證中，適合度權重也是暫定值，請不要當成已驗證的結果。
 - **主流程：** 把手平放在深色桌面上的一張空白 A4 或 Letter 紙上，手機從上方拍，即時相機鎖定四個紙邊後自動拍照，以紙張的已知尺寸當尺。
-- **印刷紙流程：** 舊的校正流程（`/sheet`、`/scan`；要印 6 個標記），仍可使用；是否保留尚未決定。目前主要用來對照空白紙流程的量測結果。
+- **印刷紙流程：** 舊的校正流程（`/sheet`、`/scan`；要印 6 個標記），正式站已關閉（回應 404），只在本機可用；是否保留尚未決定。目前主要用來對照空白紙流程的量測結果。
 - **無紙輸入手長：** 仍要拍照，只是把你用尺量到的手長輸入，取代紙張當比例尺；有旗標 `NEXT_PUBLIC_TYPED_HAND_LENGTH_ENTRY`，預設關閉。這個模式送出的 calibration 是 `user-length`，含 `referenceMm`（你輸入的手長）。
-- **隱私：** 照片只在瀏覽器裡處理，不會上傳，伺服器只收到毫米數值。沒有帳號的掃描會自動過期，過期後就讀不到（讀取端把它當成不存在）；過期資料何時從資料庫實體刪除、備份保留多久（Neon 時間點還原 PITR 的保留期尚未確認），會在隱私條款中說明，而隱私條款尚未撰寫。也可以隨時在結果頁按「Delete this scan now」立即刪除。登入（Google OAuth，第三方）在正式站目前關閉；若開啟，會存姓名、Email 與是否驗證、頭像、Google 帳號 ID，以及 OAuth token 與相關欄位（scope、session_state）和登入 session。文字說明由 Google 的 Gemini API 根據量測值與分數寫成，不會送出照片。
+- **隱私：** 照片只在瀏覽器裡處理，不會上傳，伺服器只收到毫米數值。沒有帳號的掃描會自動過期，過期後就讀不到（讀取端把它當成不存在）。依[隱私權政策](https://palmate.kirby-fivesenses.com/privacy)，未登入的掃描在建立後 24 小時內刪除，帳號 90 天未使用會連同所有掃描一併刪除；備份保留多久（含 Neon 時間點還原 PITR）尚未確認。也可以隨時在結果頁按「立即刪除這次掃描」。正式站已開放 Google 登入（Google OAuth，第三方），登入會存姓名、Email 與是否驗證、頭像、Google 帳號 ID，以及 OAuth token 與相關欄位（scope、session_state）和登入 session。文字說明由 Google 的 Gemini API 根據量測值與分數寫成，不會送出照片。
 - **授權：** 尚未決定（待定）。第三方元件的授權見 [`NOTICE`](NOTICE)。
 - **開發：** Node.js 24 與 npm。`npm ci`、`npm run dev`；檢查用 `npm run typecheck`、`lint`、`format:check`、`test`、`db:check`、`test:e2e`。細節見上方英文段落與 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
