@@ -21,6 +21,10 @@ export interface NavCopy {
   home: string;
   scanMyHand: string;
   howItWorks: string;
+  /** Menu entries to the public content pages (SEO task 2026-10-30, candidate). */
+  allMice: string;
+  guides: string;
+  faq: string;
   /** The menu item and the avatar link: the profile page. */
   account: string;
   /** The marker on that item when the person has not answered the questionnaire. */
@@ -42,6 +46,9 @@ export const zhTW: NavCopy = {
   home: "首頁",
   scanMyHand: "掃描我的手",
   howItWorks: "運作方式",
+  allMice: "所有滑鼠",
+  guides: "選購指南",
+  faq: "常見問題",
   account: "我的檔案",
   unanswered: "尚未填答",
   signIn: "登入",
@@ -59,6 +66,9 @@ export const en: NavCopy = {
   home: "Home",
   scanMyHand: "Scan my hand",
   howItWorks: "How it works",
+  allMice: "All mice",
+  guides: "Guides",
+  faq: "FAQ",
   account: "My profile",
   unanswered: "Not answered yet",
   signIn: "Sign in",
