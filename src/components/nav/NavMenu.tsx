@@ -138,6 +138,30 @@ export function NavMenu({
               </li>
               <li>
                 <Link
+                  href={localizedPath("/mice", locale)}
+                  onClick={() => setOpen(false)}
+                >
+                  {copy.allMice}
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href={localizedPath("/guides", locale)}
+                  onClick={() => setOpen(false)}
+                >
+                  {copy.guides}
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href={localizedPath("/faq", locale)}
+                  onClick={() => setOpen(false)}
+                >
+                  {copy.faq}
+                </Link>
+              </li>
+              <li>
+                <Link
                   href={localizedPath("/account", locale)}
                   onClick={() => setOpen(false)}
                 >

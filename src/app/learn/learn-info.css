@@ -647,3 +647,22 @@
     print-color-adjust: exact;
   }
 }
+
+/* Links to the guides and the FAQ under the cards (SEO task 2026-10-30,
+   candidate): plain accent-text links, 44 px targets, hairlines between. */
+.learn-more-links {
+  max-width: 42rem;
+  margin: 2rem auto 0;
+  padding: 0 1.25rem;
+  list-style: none;
+}
+.learn-more-links li {
+  border-bottom: 1px solid var(--hairline);
+}
+.learn-more-links a {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--accent-text);
+  text-decoration: none;
+}
