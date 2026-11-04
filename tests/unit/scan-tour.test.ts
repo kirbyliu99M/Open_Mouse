@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  PROPOSED_SCAN_TOUR_EVENT_SCHEMAS,
-  SCAN_TOUR_EVENT_NAMES,
   sendTourEvent,
-  tourEventProps,
+  type TourTrack,
 } from "../../src/client/camera/tour/tourAnalytics";
+import { analyticsEventSchemas } from "../../src/lib/contracts/analytics";
 import {
+  FIXED_SPOTLIGHT_RADIUS,
   SCREEN_MARGIN,
   SPOTLIGHT_PAD,
   buildTourSteps,
@@ -60,13 +60,13 @@ describe("buildTourSteps", () => {
     expect(PAPER[1].placement).toBe("dock-bottom");
   });
 
-  it("card mode on and card chosen: choice in step 1, card slot in step 2", () => {
+  it("card mode on and card chosen: choice in step 1, hand-and-slot layout in step 2", () => {
     const steps = buildTourSteps({
       reference: "card",
       cardModeAvailable: true,
     });
     expect(steps[0].choices).toEqual(["a4", "letter", "card"]);
-    expect(steps[1].target).toBe("card-slot");
+    expect(steps[1].target).toBe("card-layout");
     expect(steps[1].placement).toBe("auto");
   });
 
@@ -87,10 +87,34 @@ describe("buildTourSteps", () => {
 
 describe("visibleTourSteps (Toutour when rule)", () => {
   it("drops steps whose target is missing before counting", () => {
-    const missing = new Set<TourTargetId>(["card-slot"]);
+    const missing = new Set<TourTargetId>(["card-slot", "card-layout"]);
     const steps = visibleTourSteps(
       buildTourSteps({ reference: "card", cardModeAvailable: true }),
       (t) => !missing.has(t),
+    );
+    expect(steps.map((s) => s.id)).toEqual(["reference", "cue", "shutter"]);
+  });
+});
+
+describe("card step 2 target", () => {
+  const card = buildTourSteps({ reference: "card", cardModeAvailable: true });
+
+  it("prefers the hand-and-slot layout, radius 18", () => {
+    expect(card[1].target).toBe("card-layout");
+    expect(FIXED_SPOTLIGHT_RADIUS["card-layout"]).toBe(18);
+    expect(visibleTourSteps(card, () => true)[1].target).toBe("card-layout");
+  });
+
+  it("falls back to the card slot when the layout is absent", () => {
+    const steps = visibleTourSteps(card, (t) => t !== "card-layout");
+    expect(steps).toHaveLength(4);
+    expect(steps[1].target).toBe("card-slot");
+  });
+
+  it("drops the step when neither is there", () => {
+    const steps = visibleTourSteps(
+      card,
+      (t) => t !== "card-layout" && t !== "card-slot",
     );
     expect(steps.map((s) => s.id)).toEqual(["reference", "cue", "shutter"]);
   });
@@ -346,54 +370,57 @@ describe("step text", () => {
   });
 });
 
-describe("tour analytics isolation", () => {
-  it("sends nothing while the contract does not list the event", () => {
-    const sent: string[] = [];
-    const ok = sendTourEvent({ name: "scan_tour_completed" }, "a4", {
-      schemas: {},
-      send: (name) => sent.push(name),
-    });
-    expect(ok).toBe(false);
-    expect(sent).toEqual([]);
-  });
+describe("tour analytics", () => {
+  const events = [
+    { name: "scan_tour_started", trigger: "auto" },
+    { name: "scan_tour_step_viewed", step: 4, stepId: "shutter" },
+    { name: "scan_tour_completed" },
+    { name: "scan_tour_skipped", step: 0 },
+    { name: "scan_tour_first_use_answer", answer: "returning" },
+  ] as const;
 
-  it("sends with the reference once the contract lists it", () => {
-    const sent: [string, unknown][] = [];
-    const ok = sendTourEvent({ name: "scan_tour_skipped", step: 2 }, "card", {
-      schemas: { scan_tour_skipped: {} },
-      send: (name, props) => sent.push([name, props]),
+  it("sends each event with the reference, and every one parses against the contract", () => {
+    const sent: [string, Record<string, unknown>][] = [];
+    const send = ((name: string, props: Record<string, unknown>) =>
+      sent.push([name, props])) as unknown as TourTrack;
+    for (const e of events) sendTourEvent(e, "card", send);
+    expect(sent.map(([n]) => n)).toEqual(events.map((e) => e.name));
+    for (const [name, props] of sent) {
+      expect(props.reference).toBe("card");
+      const schema =
+        analyticsEventSchemas[name as keyof typeof analyticsEventSchemas];
+      expect(schema.safeParse(props).success).toBe(true);
+    }
+    expect(sent[1][1]).toEqual({
+      step: 4,
+      stepId: "shutter",
+      reference: "card",
     });
-    expect(ok).toBe(true);
-    expect(sent).toEqual([
-      ["scan_tour_skipped", { step: 2, reference: "card" }],
-    ]);
   });
 
   it("never throws even if sending throws", () => {
-    expect(
-      sendTourEvent({ name: "scan_tour_completed" }, "a4", {
-        schemas: { scan_tour_completed: {} },
-        send: () => {
-          throw new Error("boom");
-        },
-      }),
-    ).toBe(false);
+    const send = (() => {
+      throw new Error("boom");
+    }) as unknown as TourTrack;
+    expect(() =>
+      sendTourEvent({ name: "scan_tour_completed" }, "a4", send),
+    ).not.toThrow();
   });
 
-  it("every event the model emits passes its proposed schema", () => {
-    const events = [
-      { name: "scan_tour_started", trigger: "auto" },
-      { name: "scan_tour_step_viewed", step: 4, stepId: "shutter" },
-      { name: "scan_tour_completed" },
-      { name: "scan_tour_skipped", step: 0 },
-      { name: "scan_tour_first_use_answer", answer: "returning" },
-    ] as const;
-    for (const e of events) {
-      const { name, props } = tourEventProps(e, "letter");
-      expect(SCAN_TOUR_EVENT_NAMES).toContain(name);
-      expect(
-        PROPOSED_SCAN_TOUR_EVENT_SCHEMAS[name].safeParse(props).success,
-      ).toBe(true);
-    }
+  it("the contract rejects extra props and unknown values", () => {
+    const s = analyticsEventSchemas;
+    expect(s.scan_tour_completed.safeParse({ reference: "b5" }).success).toBe(
+      false,
+    );
+    expect(
+      s.scan_tour_skipped.safeParse({ step: 5, reference: "a4" }).success,
+    ).toBe(false);
+    expect(
+      s.scan_tour_started.safeParse({
+        trigger: "auto",
+        reference: "a4",
+        handMm: 180,
+      }).success,
+    ).toBe(false);
   });
 });

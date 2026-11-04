@@ -32,6 +32,7 @@ import { CheckIcon, HandIcon } from "../icons";
 import { sendTourEvent } from "./tourAnalytics";
 import { stepBody, stepTitle } from "./tourText";
 import {
+  FIXED_SPOTLIGHT_RADIUS,
   SPOTLIGHT_PAD,
   buildTourSteps,
   inflateRect,
@@ -63,6 +64,8 @@ export interface ScanTourProps {
   readonly onReferenceChange: (reference: TourReference) => void;
   /** The paper guide rectangle in viewport pixels, or null. */
   readonly resolvePaperFrame: () => Rect | null;
+  /** The hand chip's hand: the card-step label is mirrored for "left". */
+  readonly hand?: "left" | "right";
   /** The tour is over (finished, skipped, or nothing to point at). */
   readonly onClose: () => void;
 }
@@ -78,6 +81,7 @@ const ALL_TARGETS: readonly TourTargetId[] = [
   "reference-chip",
   "paper-frame",
   "card-slot",
+  "card-layout",
   "cue",
   "shutter",
 ];
@@ -137,6 +141,7 @@ export default function ScanTour({
   noPaperEntry,
   onReferenceChange,
   resolvePaperFrame,
+  hand = "right",
   onClose,
 }: ScanTourProps) {
   const copy = scanTourCopy(useLocale());
@@ -265,12 +270,21 @@ export default function ScanTour({
 
   const measured = step ? (targets[step.target] ?? null) : null;
   const hole = measured ? inflateRect(measured.rect, SPOTLIGHT_PAD) : null;
-  const radius = measured && hole ? spotlightRadius(measured.radius, hole) : 0;
+  const fixedRadius = step ? FIXED_SPOTLIGHT_RADIUS[step.target] : undefined;
+  const radius =
+    measured && hole
+      ? (fixedRadius ?? spotlightRadius(measured.radius, hole))
+      : 0;
 
   // Labels drawn beside the spotlight on the placement step.
   const cardLabels =
-    step?.target === "card-slot"
-      ? [copy.placeCardCentreLabel, copy.placeCardHandLabel]
+    step?.target === "card-slot" || step?.target === "card-layout"
+      ? [
+          copy.placeCardCentreLabel,
+          hand === "left"
+            ? copy.placeCardHandLabelLeft
+            : copy.placeCardHandLabel,
+        ]
       : [];
   // A tall spotlight (hand and slot, as drawn) holds the labels inside its
   // lower edge; a small one (the slot alone) gets them just below it, and the

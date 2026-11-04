@@ -52,6 +52,8 @@ export interface ScanTourCopy {
   placeCardBody: string;
   placeCardCentreLabel: string;
   placeCardHandLabel: string;
+  /** The same label when the hand chip says left (mirrored). */
+  placeCardHandLabelLeft: string;
   cueTitle: string;
   /** `perfect` is the cue line shown when everything lines up. */
   cueBody: (perfect: string) => string;
@@ -102,6 +104,7 @@ export const zhTW: ScanTourCopy = {
     "手背朝上貼平桌面，手指自然伸直、微開；中指大約對準中線，前臂從畫面下方伸出去。卡片直放在小指旁的虛線框裡，平放在桌上，不要拿著。",
   placeCardCentreLabel: "卡片中心對齊指根",
   placeCardHandLabel: "示範右手｜量左手時卡片放左邊",
+  placeCardHandLabelLeft: "示範左手｜量右手時卡片放右邊",
   cueTitle: "照這行字調整",
   cueBody: (perfect) =>
     `它會告訴你手或手機往哪移；出現「${perfect}」就是對好了。`,
@@ -152,6 +155,8 @@ export const en: ScanTourCopy = {
     "Back of the hand flat on the table, fingers naturally straight and slightly apart; middle finger roughly on the centre line, forearm out past the bottom of the screen. Card upright in the dashed box beside your little finger, flat on the table, not held.",
   placeCardCentreLabel: "Card centre level with the finger roots",
   placeCardHandLabel: "Right hand shown | for the left hand, card on the left",
+  placeCardHandLabelLeft:
+    "Left hand shown | for the right hand, card on the right",
   cueTitle: "Follow this line",
   cueBody: (perfect) =>
     `It tells you which way to move your hand or phone; “${perfect}” means you're lined up.`,

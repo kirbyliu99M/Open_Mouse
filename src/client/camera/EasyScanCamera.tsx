@@ -4740,6 +4740,7 @@ export default function EasyScanCamera({
                 guide,
               )
             }
+            hand={handChip.hand}
             onClose={closeTour}
           />
         )}

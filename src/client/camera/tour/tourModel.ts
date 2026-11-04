@@ -17,13 +17,21 @@ export type TourReference = "a4" | "letter" | "card";
  * rectangle on the stage, worked out by `guideRectInViewport`.
  */
 export type TourTargetId =
-  "reference-chip" | "paper-frame" | "card-slot" | "cue" | "shutter";
+  | "reference-chip"
+  | "paper-frame"
+  | "card-slot"
+  /** The hand zone plus the card slot (card line); card step 2 prefers it. */
+  | "card-layout"
+  | "cue"
+  | "shutter";
 
 export type TourStepId = "reference" | "placement" | "cue" | "shutter";
 
 export interface TourStepDef {
   readonly id: TourStepId;
   readonly target: TourTargetId;
+  /** Used when `target` is not on screen (card-layout → card-slot). */
+  readonly fallbackTarget?: TourTargetId;
   /**
    * "dock-bottom": the target is about as tall as the screen (the paper
    * frame), so the card sits at the bottom with no arrow. "auto": above or
@@ -64,7 +72,8 @@ export function buildTourSteps(options: TourOptions): TourStepDef[] {
     card
       ? {
           id: "placement",
-          target: "card-slot",
+          target: "card-layout",
+          fallbackTarget: "card-slot",
           placement: "auto",
           choices: [],
         }
@@ -88,7 +97,13 @@ export function visibleTourSteps(
   steps: readonly TourStepDef[],
   isPresent: (target: TourTargetId) => boolean,
 ): TourStepDef[] {
-  return steps.filter((step) => isPresent(step.target));
+  const out: TourStepDef[] = [];
+  for (const step of steps) {
+    if (isPresent(step.target)) out.push(step);
+    else if (step.fallbackTarget && isPresent(step.fallbackTarget))
+      out.push({ ...step, target: step.fallbackTarget });
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -298,6 +313,11 @@ export function inflateRect(rect: Rect, by: number): Rect {
     height: rect.height + 2 * by,
   };
 }
+
+/** Spotlight radius fixed by the design (Pencil card-2: r18), not derived. */
+export const FIXED_SPOTLIGHT_RADIUS: Partial<Record<TourTargetId, number>> = {
+  "card-layout": 18,
+};
 
 /**
  * The spotlight's corner radius: the target's own radius plus the pad,
