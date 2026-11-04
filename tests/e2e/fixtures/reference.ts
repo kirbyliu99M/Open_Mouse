@@ -29,10 +29,9 @@ export async function chooseReference(page: Page, target: ReferenceLabel) {
   const chip = referenceChip(page);
   if ((await chip.innerText()).trim() === target) return;
   if (await openReferenceChip(page)) {
+    const key = { A4: "a4", Letter: "letter", Card: "card" }[target];
     await referenceMenu(page)
-      .locator('[role^="menuitem"]')
-      .filter({ hasText: new RegExp(String.raw`^\s*${target}(\s|$)`) })
-      .first()
+      .locator(`[role^="menuitem"][data-reference="${key}"]`)
       .click();
     await expect(referenceMenu(page)).toBeHidden();
   } else {
