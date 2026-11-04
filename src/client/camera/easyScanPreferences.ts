@@ -121,10 +121,29 @@ export function referenceSwitch(
   current: { readonly cardMode: boolean; readonly paperSize: PaperSize },
   cardEnabled: boolean,
 ): ReferenceSwitch {
-  const next = nextReference(
-    current.cardMode ? "card" : current.paperSize,
+  return referenceSelect(
+    current,
+    nextReference(current.cardMode ? "card" : current.paperSize, cardEnabled),
     cardEnabled,
   );
+}
+
+/**
+ * Choosing a reference directly (the scan tour's radios, v3.4): the same
+ * step as the chip's, to `target`. The card with the flag off is no
+ * change at all (the current reference stays, nothing resets).
+ */
+export function referenceSelect(
+  current: { readonly cardMode: boolean; readonly paperSize: PaperSize },
+  target: ScanReference,
+  cardEnabled: boolean,
+): ReferenceSwitch {
+  const next: ScanReference =
+    target === "card" && !cardEnabled
+      ? current.cardMode
+        ? "card"
+        : current.paperSize
+      : target;
   const cardMode = next === "card";
   return {
     next,

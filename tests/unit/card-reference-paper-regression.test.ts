@@ -8,6 +8,7 @@ import { assemblePaperEdgeSubmission } from "../../src/client/photo/submission";
 import {
   readStoredPaperSize,
   readStoredReference,
+  referenceSelect,
   referenceSwitch,
   writeStoredReference,
   type StorageLike,
@@ -81,6 +82,40 @@ describe("paper path regression (v3.4 card mode added)", () => {
       cardMode: false,
       paperSize: "a4",
       resetLoop: true,
+    });
+  });
+
+  it("choosing directly (the tour's radios) is the same step as the chip", () => {
+    const paper = { cardMode: false, paperSize: "a4" } as const;
+    // A4 → Letter: the old toggle, no loop reset.
+    expect(referenceSelect(paper, "letter", true)).toEqual({
+      next: "letter",
+      cardMode: false,
+      paperSize: "letter",
+      resetLoop: false,
+    });
+    expect(referenceSelect(paper, "a4", false).resetLoop).toBe(false);
+    // Into the card and back: a reset each way.
+    expect(referenceSelect(paper, "card", true)).toEqual({
+      next: "card",
+      cardMode: true,
+      paperSize: "a4",
+      resetLoop: true,
+    });
+    expect(
+      referenceSelect({ cardMode: true, paperSize: "a4" }, "letter", true),
+    ).toEqual({
+      next: "letter",
+      cardMode: false,
+      paperSize: "letter",
+      resetLoop: true,
+    });
+    // The card with the flag off changes nothing.
+    expect(referenceSelect(paper, "card", false)).toEqual({
+      next: "a4",
+      cardMode: false,
+      paperSize: "a4",
+      resetLoop: false,
     });
   });
 

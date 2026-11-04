@@ -290,9 +290,11 @@ import {
 } from "./handInference";
 import {
   getBrowserStorage,
+  referenceSelect,
   referenceSwitch,
   readStoredReference,
   writeStoredReference,
+  type ScanReference,
   readFirstRunTipSeen,
   markFirstRunTipSeen,
 } from "./easyScanPreferences";
@@ -606,6 +608,11 @@ export interface EasyScanCameraProps {
   readonly runPhotoPipelineImpl?: (
     input: RunPhotoPipelineInput,
   ) => Promise<PipelineResult>;
+  /**
+   * Test/demo injection point for the card path (v3.4) — real pages never
+   * pass this. Same role as `runPhotoPipelineImpl` for the paper path.
+   */
+  readonly runCardPhotoImpl?: typeof runCardPhoto;
   /** Seeds the measured bottom sheet directly, skipping the camera and
    * pipeline entirely — for `/scan/easy/measured-demo` (screenshots and
    * e2e; no synthetic photo makes MediaPipe detect a hand, same reason
@@ -685,6 +692,7 @@ function fullScore(canvas: HTMLCanvasElement, bitmap: ImageBitmap): number {
 
 export default function EasyScanCamera({
   runPhotoPipelineImpl = runPhotoPipeline,
+  runCardPhotoImpl = runCardPhoto,
   demoMeasured,
   deviceHint,
   debugPhotosAllowed = false,
@@ -2674,25 +2682,42 @@ export default function EasyScanCamera({
   // the card the live loop starts over (`referenceSwitch`); choosing the
   // card is a tap, which is where iOS lets the page ask for the motion
   // sensor (a live "phone level" hint only; card mode works without it).
-  const changePaperSize = useCallback(() => {
-    const step = referenceSwitch(
-      { cardMode: cardModeRef.current, paperSize: paperSizeRef.current },
-      CARD_REFERENCE_ENABLED,
-    );
-    if (!step.resetLoop) {
-      setPaperSize(step.paperSize);
+  // `selectReference` sets one directly (the scan tour's radios); the chip
+  // calls `changePaperSize()` with no argument for the next one.
+  const selectReference = useCallback(
+    (target: ScanReference) => {
+      const step = referenceSelect(
+        { cardMode: cardModeRef.current, paperSize: paperSizeRef.current },
+        target,
+        CARD_REFERENCE_ENABLED,
+      );
+      if (!step.resetLoop) {
+        setPaperSize(step.paperSize);
+        writeStoredReference(getBrowserStorage(), step.next);
+        return;
+      }
       writeStoredReference(getBrowserStorage(), step.next);
-      return;
-    }
-    writeStoredReference(getBrowserStorage(), step.next);
-    cardModeRef.current = step.cardMode;
-    resetLoopState();
-    setCardShapes([]);
-    setCardHint(null);
-    setCardMode(step.cardMode);
-    setPaperSize(step.paperSize);
-    if (step.cardMode) void deviceTiltRef.current.request();
-  }, [resetLoopState]);
+      cardModeRef.current = step.cardMode;
+      resetLoopState();
+      setCardShapes([]);
+      setCardHint(null);
+      setCardMode(step.cardMode);
+      setPaperSize(step.paperSize);
+      if (step.cardMode) void deviceTiltRef.current.request();
+    },
+    [resetLoopState],
+  );
+  const changePaperSize = useCallback(
+    (target?: ScanReference) =>
+      selectReference(
+        target ??
+          referenceSwitch(
+            { cardMode: cardModeRef.current, paperSize: paperSizeRef.current },
+            CARD_REFERENCE_ENABLED,
+          ).next,
+      ),
+    [selectReference],
+  );
 
   // v3.4 card mode (candidate 未拍板): the photo is measured against the
   // card (cardPhoto.ts) instead of a sheet, in this tab; the result takes
@@ -2728,7 +2753,7 @@ export default function EasyScanCamera({
             }
           : null;
       try {
-        const outcome = await runCardPhoto(file, {
+        const outcome = await runCardPhotoImpl(file, {
           selectedHand: handChipRef.current.hand,
           handExplicit: handChipRef.current.locked,
           handednessFixInstruction: HAND_BUTTON_FIX_INSTRUCTION,
@@ -2828,7 +2853,7 @@ export default function EasyScanCamera({
         });
       }
     },
-    [logAttempt],
+    [logAttempt, runCardPhotoImpl],
   );
 
   runCardPipelineRef.current = runCardPipeline;
@@ -4717,7 +4742,7 @@ export default function EasyScanCamera({
                       ? cardCopy.chipAccessibleName(referenceLabel)
                       : undefined
                   }
-                  onClick={changePaperSize}
+                  onClick={() => changePaperSize()}
                 >
                   {referenceLabel}
                 </button>
