@@ -153,6 +153,11 @@ for (const item of ITEMS) {
             });
           });
           await page.goto("/scan/easy?debug=1&hints=0");
+          // The debug panel (kept for its numbers) lies over the dock on a
+          // 360 px screen: taps go through it to the shutter.
+          await page.addStyleTag({
+            content: "[data-testid=scan-debug-panel] { pointer-events: none; }",
+          });
           await expect(page.locator('[data-tour="reference-chip"]')).toHaveText(
             item.mode === "card" ? "Card" : "A4",
             { timeout: 30_000 },
