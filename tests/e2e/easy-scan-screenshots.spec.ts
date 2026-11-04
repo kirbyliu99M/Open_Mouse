@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { en as accountEn } from "../../src/lib/copy/account";
+import { dismissFirstRun } from "./fixtures/first-run";
 
 const OUTPUT = "docs/design/easy-scan-shell-2026-09-25/built";
 
@@ -114,7 +115,7 @@ test.describe("easy-scan shell screenshots", () => {
     );
 
     await page.goto("/scan/easy");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     await expect(page.locator("[data-testid='camera-cue']")).toContainText(
       "Got it — hold still",
       { timeout: 15_000 },

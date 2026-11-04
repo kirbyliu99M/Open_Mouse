@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { dismissFirstRun } from "./fixtures/first-run";
 
 /**
  * Typing the hand length and width instead of scanning, wired into the real
@@ -153,7 +154,7 @@ test.describe("phone: the handle, the sheet, the grip and thickness pages", () =
 
   async function openCameraAndHandle(page: Page) {
     await page.goto("/scan/easy");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     // Early: before the auto-shutter has anything to take.
     await expect(handle(page)).toBeVisible();
     await handle(page).click();
@@ -178,7 +179,7 @@ test.describe("phone: the handle, the sheet, the grip and thickness pages", () =
       };
     });
     await page.goto("/scan/easy");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     await expect(handle(page)).toBeVisible();
     const box = await handle(page).boundingBox();
     if (!box) throw new Error("the handle has no box");
@@ -430,7 +431,7 @@ test.describe("phone: the handle, the sheet, the grip and thickness pages", () =
     }) => {
       await page.setViewportSize({ width, height });
       await page.goto("/scan/easy");
-      await page.getByRole("button", { name: "Got it" }).click();
+      await dismissFirstRun(page);
       await expect(handle(page)).toBeVisible();
       const h = (await handle(page).boundingBox())!;
       const shutter = (await page
@@ -599,7 +600,7 @@ test.describe("phone: where the camera cannot be used, typing the size is still 
       await stubResults(page, SCAN_ID);
       await page.addInitScript(script);
       await page.goto("/scan/easy");
-      await page.getByRole("button", { name: "Got it" }).click();
+      await dismissFirstRun(page);
       await expect(page.locator(screen)).toBeVisible();
       await expect(handle(page)).toBeVisible();
       const h = (await handle(page).boundingBox())!;
@@ -626,7 +627,7 @@ test.describe("phone: where the camera cannot be used, typing the size is still 
   }) => {
     await page.addInitScript(SCENARIOS[0][2]);
     await page.goto("/scan/easy");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     await handle(page).click();
     await entrySheet(page).getByRole("button", { name: "Cancel" }).click();
     await expect(entrySheet(page)).toBeHidden();
@@ -638,7 +639,7 @@ test.describe("phone: where the camera cannot be used, typing the size is still 
   }) => {
     await page.setViewportSize({ width: 844, height: 390 });
     await page.goto("/scan/easy");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     await expect(handle(page)).toBeVisible();
     const h = (await handle(page).boundingBox())!;
     const shutter = (await page

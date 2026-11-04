@@ -5,6 +5,7 @@ import {
 } from "../../src/client/camera/attemptLog";
 import { confirmAutoFrameIfShown } from "./fixtures/confirm-frame";
 import { buildPaperScenePng } from "./fixtures/paper-scene";
+import { dismissFirstRun } from "./fixtures/first-run";
 
 /**
  * Scan v2, frame capture (docs/design/scan-v2-2026-09-30/README.md, "Frame
@@ -107,7 +108,7 @@ test.describe("frame capture: the shutter takes the part of the video that is on
       };
     });
     await page.goto("/scan/easy");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     // The scene is perfect from the first second: the shutter fires by itself.
     await expect(page.locator(".easyStage")).toHaveAttribute(
       "data-phase",
@@ -156,7 +157,7 @@ test.describe("frame capture: the shutter takes the part of the video that is on
       });
     });
     await page.goto("/scan/easy/live-measured-demo?debug=1&hints=0");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
 
     // The fake camera's frame is 800x1300 (paper-edge-full.y4m); the 390x844
     // screen shows the middle 601 columns of it (390 / (844 / 1300)), x 100 to
@@ -249,7 +250,7 @@ test.describe("frame capture: the shutter takes the part of the video that is on
         StubImageCapture;
     });
     await page.goto("/scan/easy?debug=1&hints=0");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     await expect
       .poll(async () => (await storedAttempts(page))?.length, {
         timeout: 60_000,
@@ -343,7 +344,7 @@ test.describe("frame capture: the shutter takes the part of the video that is on
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
     await page.goto("/scan/easy?debug=1&hints=0");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     // The scene is perfect from the first second, so the auto-shutter fires, is
     // let down twice, and fires again after a refilled ring.
     await expect
@@ -418,7 +419,7 @@ test.describe("frame capture: the shutter takes the part of the video that is on
       };
     });
     await page.goto("/scan/easy");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     await page.waitForFunction(
       () => {
         const video = document.querySelector("video");
@@ -489,7 +490,7 @@ test.describe("the attempt log", () => {
       requests.push(`${req.method()} ${url}`);
     });
     await page.goto("/scan/easy?debug=1&hints=0");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     expect(await storedAttempts(page)).toEqual([]);
 
     await uploadSyntheticPhoto(page);
@@ -573,7 +574,7 @@ test.describe("the attempt log", () => {
     page,
   }) => {
     await page.goto("/scan/easy?debug=1&hints=0");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     await uploadSyntheticPhoto(page);
     await expect
       .poll(async () => (await storedAttempts(page))?.length, {
@@ -621,7 +622,7 @@ test.describe("the attempt log", () => {
       };
     });
     await page.goto("/scan/easy?debug=1&hints=0");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     await uploadSyntheticPhoto(page, "first.png", {
       width: 1500,
       height: 2000,
@@ -667,9 +668,7 @@ test.describe("the attempt log", () => {
       });
     });
     await page.goto("/scan/easy?debug=1&hints=0");
-    await page
-      .getByRole("button", { name: "Got it" })
-      .click({ timeout: 15_000 });
+    await dismissFirstRun(page, 15_000);
     await uploadSyntheticPhoto(page);
     await confirmAutoFrameIfShown(page, 60_000);
     const sheet = page.getByRole("dialog", {

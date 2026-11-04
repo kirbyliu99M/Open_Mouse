@@ -16,6 +16,7 @@ import {
   slowModel,
   uploadGreyPhoto,
 } from "./fixtures/slow-model";
+import { dismissFirstRun } from "./fixtures/first-run";
 
 /**
  * WCAG 2.2 AA rules (and the A rules under them) on the main pages and on
@@ -454,7 +455,7 @@ async function openLengthStep(page: Page) {
 }
 
 const dismissTip = async (page: Page) => {
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
 };
 
 const MOBILE_STATES: readonly (readonly [

@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { buildDemoPhotoUrl } from "../../src/app/scan/demo-photo";
 import { confirmAutoFrame } from "./fixtures/confirm-frame";
+import { dismissFirstRun } from "./fixtures/first-run";
 
 const OUTPUT = "docs/design/scan-v2-2026-09-30/built";
 
@@ -129,7 +130,7 @@ async function start(page: Page, url = "/scan/easy") {
   // The typed-length entry is off in production (src/lib/flags.ts) and on in
   // the test server; hide its link so the picture is what production shows.
   await page.addStyleTag({ content: ".easyNoPaperRow { display: none; }" });
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
   await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
 }
 

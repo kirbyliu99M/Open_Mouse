@@ -4,6 +4,7 @@ import {
   PHOTO_PRIVACY_COPY,
   PHOTO_PRIVACY_COPY_THIS_DEVICE,
 } from "../../src/components/privacy-copy";
+import { dismissFirstRun } from "./fixtures/first-run";
 
 const output = "docs/design/easy-scan-shell-2026-09-25/built";
 
@@ -406,7 +407,7 @@ test("without a usable camera, the length step goes back to the upload screen, n
     Object.defineProperty(navigator, "mediaDevices", { value: undefined });
   });
   await page.goto("/scan/easy");
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
   const paperCopy =
     "Upload a top-down photo of your hand on a blank sheet of paper.";
   await expect(page.getByText(paperCopy)).toBeVisible();

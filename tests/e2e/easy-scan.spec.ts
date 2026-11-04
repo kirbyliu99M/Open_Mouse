@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { isSameOriginCodeChunk } from "./fixtures/code-load";
 import { contrast } from "./fixtures/contrast";
 import { checkHandDetected } from "../../src/client/photo/gates";
+import { dismissFirstRun, firstRunCloseButton } from "./fixtures/first-run";
 
 test("the in-sheet hand toggle reruns the same photo with an explicit hand and updates the sheet", async ({
   page,
@@ -22,7 +23,7 @@ test("the in-sheet hand toggle reruns the same photo with an explicit hand and u
     };
   });
   await page.goto("/scan/easy/hand-mismatch-demo");
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
   await page.locator("#easy-scan-upload").setInputFiles({
     name: "hand.jpg",
     mimeType: "image/jpeg",
@@ -93,7 +94,7 @@ test("the hand chip is disabled while a photo is processing, and drops 'auto' on
     });
   });
   await page.goto("/scan/easy/hand-mismatch-demo");
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
   const chip = page.locator(".easyScanTopRight .easyHandChip");
   await expect(chip).toHaveText(/right hand · auto/i);
 
@@ -173,7 +174,7 @@ test.describe("/scan/easy — no setup page, hand chip and first-run tip", () =>
     await expect(tip).toBeVisible();
     await expect(page.getByText(/a4 paper on a darker table/i)).toBeVisible();
 
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     await expect(tip).toBeHidden();
 
     await page.reload();
@@ -203,7 +204,7 @@ test.describe("/scan/easy — no setup page, hand chip and first-run tip", () =>
       "Runs only in the mobile project: its camera has no fake-media auto-capture, so the hand chip stays visible.",
     );
     await page.goto("/scan/easy");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     const chip = page.locator(".cameraTopBar .easyHandChip");
     await expect(chip).toHaveText(/right hand · auto/i);
     // A button whose label changes is not a toggle: no aria-pressed at all
@@ -235,7 +236,7 @@ test.describe("/scan/easy — live camera (real paper-edge detector)", () => {
       res.url().includes("/mediapipe/models/hand_landmarker.task"),
     );
     await page.waitForLoadState("networkidle");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
 
     const requestedUrls: string[] = [];
     page.on("request", (req) => {
@@ -284,7 +285,7 @@ test("the hand chip inside the retake sheet is readable on the dark theme", asyn
 }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "Uses the upload path.");
   await page.goto("/scan/easy/hand-mismatch-demo");
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
   await page.locator("#easy-scan-upload").setInputFiles({
     name: "hand.jpg",
     mimeType: "image/jpeg",
@@ -315,7 +316,7 @@ test("the hand chip is a plain button named for what it does, not a toggle", asy
 }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "Runs in the mobile project.");
   await page.goto("/scan/easy");
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
   const chip = page.locator(".easyScanTopRight .easyHandChip");
   // aria-pressed would stay "true" after the first tap while the label keeps
   // changing; a button whose label changes is not a toggle.
@@ -356,7 +357,7 @@ test("the hand chip inside the retake sheet stays readable with reduced transpar
     });
   await emulate();
   await page.goto("/scan/easy/hand-mismatch-demo");
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
   await page.locator("#easy-scan-upload").setInputFiles({
     name: "hand.jpg",
     mimeType: "image/jpeg",
@@ -403,7 +404,7 @@ test("the camera-error upload pill shows a visible keyboard focus ring in --acce
   await page.goto("/scan/easy");
   const label = page.locator("label.easyUploadFallbackButton");
   await expect(label).toBeVisible({ timeout: 15_000 });
-  const gotIt = page.getByRole("button", { name: "Got it" });
+  const gotIt = firstRunCloseButton(page);
   if (await gotIt.isVisible()) await gotIt.click();
   // The file input is visually hidden; a keyboard reaches it and the ring is
   // drawn on the label. Tab until it has focus.
