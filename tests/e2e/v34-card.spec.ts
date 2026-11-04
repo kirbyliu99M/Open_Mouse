@@ -233,7 +233,11 @@ test("[injected] the outline question is a modal: focus starts on Yes, focus sta
     await page.keyboard.press("Tab");
     expect(
       await page.evaluate(
-        () => !!document.activeElement?.closest("[data-testid=card-check]"),
+        // Inside the dialog, or nowhere in the page (a native modal lets Tab
+        // leave to the browser's own controls, never to the page behind it).
+        () =>
+          document.activeElement === document.body ||
+          !!document.activeElement?.closest("[data-testid=card-check]"),
       ),
     ).toBe(true);
   }
