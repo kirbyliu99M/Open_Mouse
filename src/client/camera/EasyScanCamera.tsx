@@ -290,7 +290,7 @@ import {
 } from "./handInference";
 import {
   getBrowserStorage,
-  nextReference,
+  referenceSwitch,
   readStoredReference,
   writeStoredReference,
   readFirstRunTipSeen,
@@ -2796,29 +2796,30 @@ export default function EasyScanCamera({
     [adjustOpen, adjustDirect, logAttempt, runPipeline],
   );
 
-  // The reference chip: A4 → Letter (→ 卡片 with the flag on) → A4. Choosing
-  // the card is a tap, which is where iOS lets the page ask for the motion
+  // The reference chip: A4 → Letter (→ 卡片 with the flag on) → A4. Between
+  // A4 and Letter this is exactly the old toggle. Crossing into or out of
+  // the card the live loop starts over (`referenceSwitch`); choosing the
+  // card is a tap, which is where iOS lets the page ask for the motion
   // sensor (a live "phone level" hint only; card mode works without it).
   const changeReference = useCallback(() => {
-    const next = nextReference(
-      cardModeRef.current ? "card" : paperSizeRef.current,
+    const step = referenceSwitch(
+      { cardMode: cardModeRef.current, paperSize: paperSizeRef.current },
       CARD_REFERENCE_ENABLED,
     );
-    writeStoredReference(getBrowserStorage(), next);
-    autoCaptureRef.current = resetAutoCapture();
-    aimRing(0, false);
-    cardHandsRef.current = { latest: null, previous: null, lastReadAtMs: null };
-    cardHintRef.current = INITIAL_HINT;
+    if (!step.resetLoop) {
+      setPaperSize(step.paperSize);
+      writeStoredReference(getBrowserStorage(), step.next);
+      return;
+    }
+    writeStoredReference(getBrowserStorage(), step.next);
+    cardModeRef.current = step.cardMode;
+    resetLoopState();
     setCardShapes([]);
     setCardHint(null);
-    if (next === "card") {
-      setCardMode(true);
-      void deviceTiltRef.current.request();
-    } else {
-      setCardMode(false);
-      setPaperSize(next);
-    }
-  }, [aimRing]);
+    setCardMode(step.cardMode);
+    setPaperSize(step.paperSize);
+    if (step.cardMode) void deviceTiltRef.current.request();
+  }, [resetLoopState]);
 
   // The scan is sent from the last question page, with whatever was answered
   // (answers.ts): a skipped question leaves its field out. A typed pair is

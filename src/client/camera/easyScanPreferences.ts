@@ -102,6 +102,38 @@ export function nextReference(
   return list[(i + 1) % list.length] ?? "a4";
 }
 
+/**
+ * What one tap of the reference chip does (v3.4). Between A4 and Letter it
+ * is exactly the old toggle (only the paper size changes; the live loop is
+ * not touched). Crossing into or out of the card (`resetLoop`), the live
+ * loop starts over: no paper corners, card slot, hand readings or ring of
+ * the other mode survive the switch.
+ */
+export interface ReferenceSwitch {
+  readonly next: ScanReference;
+  readonly cardMode: boolean;
+  /** The paper size to keep (unchanged when the card is chosen). */
+  readonly paperSize: PaperSize;
+  readonly resetLoop: boolean;
+}
+
+export function referenceSwitch(
+  current: { readonly cardMode: boolean; readonly paperSize: PaperSize },
+  cardEnabled: boolean,
+): ReferenceSwitch {
+  const next = nextReference(
+    current.cardMode ? "card" : current.paperSize,
+    cardEnabled,
+  );
+  const cardMode = next === "card";
+  return {
+    next,
+    cardMode,
+    paperSize: next === "card" ? current.paperSize : next,
+    resetLoop: cardMode !== current.cardMode,
+  };
+}
+
 /** The stored reference; `"card"` only when `cardEnabled`, else the fallback. */
 export function readStoredReference(
   storage: StorageLike | null,
