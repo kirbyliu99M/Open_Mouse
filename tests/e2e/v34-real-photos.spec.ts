@@ -3,6 +3,7 @@ import { appendFile, mkdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { chromium, devices, expect, test, type Page } from "@playwright/test";
+import { chooseReference } from "./fixtures/reference";
 
 /**
  * v3.4 LOCAL measurement, never CI (skips unless V34_REAL=1): the whole easy
@@ -105,10 +106,21 @@ test("v3.4 real photos through the whole easy scan (local only)", async ({
         baseURL,
         locale: "en-US",
       });
-      await context.addInitScript((mode) => {
-        window.localStorage.setItem("openMouse.easyScan.paperSize", mode);
+      await context.addInitScript(() => {
         window.localStorage.setItem("openMouse.easyScan.firstRunTipSeen", "1");
-      }, item.mode);
+      });
+      if (item.mode === "card") {
+        // Choose the card on the screen with the live loop held (no frame
+        // callback runs, so the photo cannot be taken in A4 first); the page
+        // keeps the choice for the next load, however it stores it.
+        const setup = await context.newPage();
+        await setup.addInitScript(() => {
+          window.requestAnimationFrame = () => 0;
+        });
+        await setup.goto("/scan/easy");
+        await chooseReference(setup, "Card");
+        await setup.close();
+      }
       const page = await context.newPage();
       const bodies: Record<string, unknown>[] = [];
       await page.route("**/api/scans", async (route) => {
