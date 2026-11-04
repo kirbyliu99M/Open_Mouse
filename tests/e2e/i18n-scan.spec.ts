@@ -6,6 +6,7 @@ import {
 } from "../../src/lib/copy/scan-common";
 import { en as easyEn, zhTW as easyZh } from "../../src/lib/copy/easy-scan";
 import { zhTW as sheetZh } from "../../src/lib/copy/scan-sheet";
+import { en as tourEn, zhTW as tourZh } from "../../src/lib/copy/scan-tour";
 
 /**
  * The scan flow follows the visitor's locale (cookie `om_locale`), with
@@ -64,6 +65,8 @@ test.describe("desktop entry of the easy scan", () => {
   });
 });
 
+// v3.4: without a camera screen (this project has no camera) the first-run
+// screen stays the paper tip, which carries the "no paper" entry.
 test.describe("easy scan on a phone without a camera", () => {
   test("zh-TW: first-run tip, length step, and a failure sheet", async ({
     page,
@@ -184,9 +187,9 @@ test.describe("the live camera, with the fake paper camera", () => {
     await setLocale(page, "zh-TW");
     await page.goto("/scan/easy");
     expect(await htmlLang(page)).toBe("zh-TW");
-    const tip = page.getByRole("dialog", { name: easyZh.tipTitlePaper });
-    await expect(tip).toBeVisible();
-    await tip.getByRole("button", { name: easyZh.tipGotIt }).click();
+    const tour = page.getByRole("dialog", { name: tourZh.welcomeTitle });
+    await expect(tour).toBeVisible();
+    await tour.getByRole("button", { name: tourZh.welcomeReturning }).click();
     await expect(
       page.getByRole("button", { name: commonZh.takePhoto }),
     ).toBeVisible();
@@ -210,8 +213,8 @@ test.describe("the live camera, with the fake paper camera", () => {
     await page.goto("/scan/easy");
     expect(await htmlLang(page)).toBe("en");
     await page
-      .getByRole("dialog", { name: easyEn.tipTitlePaper })
-      .getByRole("button", { name: easyEn.tipGotIt })
+      .getByRole("dialog", { name: tourEn.welcomeTitle })
+      .getByRole("button", { name: tourEn.welcomeReturning })
       .click();
     const cue = page.locator(CUE);
     await expect(cue).toHaveText(/[A-Za-z]{3,}/, { timeout: 15_000 });

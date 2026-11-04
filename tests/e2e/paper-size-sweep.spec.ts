@@ -6,6 +6,7 @@ import {
   type AttemptRecord,
 } from "../../src/client/camera/attemptLog";
 import { buildPaperScenePng } from "./fixtures/paper-scene";
+import { firstRunCloseButton } from "./fixtures/first-run";
 
 /**
  * Measurement, not a test of the suite: how the pipeline's paper gates react
@@ -77,7 +78,7 @@ async function runStep(
   mimeType: string,
 ): Promise<Row> {
   await page.goto("/scan/easy?debug=1&hints=0");
-  const gotIt = page.getByRole("button", { name: "Got it" });
+  const gotIt = firstRunCloseButton(page);
   if (await gotIt.isVisible().catch(() => false)) await gotIt.click();
   // The log keeps 20, so each step starts from an empty one.
   await page.evaluate(

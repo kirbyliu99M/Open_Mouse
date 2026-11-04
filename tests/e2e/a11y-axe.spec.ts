@@ -16,6 +16,8 @@ import {
   slowModel,
   uploadGreyPhoto,
 } from "./fixtures/slow-model";
+import { dismissFirstRun, skipFirstRun } from "./fixtures/first-run";
+import { chooseReference } from "./fixtures/reference";
 
 /**
  * WCAG 2.2 AA rules (and the A rules under them) on the main pages and on
@@ -261,7 +263,11 @@ const overLivePicture = async (_page: Page, targets: readonly string[]) => {
       (selector) =>
         target === selector ||
         target.startsWith(`${selector} `) ||
-        target.startsWith(`${selector}>`),
+        target.startsWith(`${selector}>`) ||
+        // The same element named with a position (".cardGuideLabel:nth-child(2)").
+        new RegExp(
+          `^${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:nth-(child|of-type)\\(\\d+\\)$`,
+        ).test(target),
     );
   expect(
     targets.filter((target) => !listed(target)),
@@ -462,7 +468,7 @@ async function openLengthStep(page: Page) {
 }
 
 const dismissTip = async (page: Page) => {
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
 };
 
 const MOBILE_STATES: readonly (readonly [
@@ -473,8 +479,11 @@ const MOBILE_STATES: readonly (readonly [
     "camera screen, first-run tip open",
     async (page) => {
       await page.goto("/scan/easy");
+      // v3.4: the tour's first-use question took the paper tip's place.
       await expect(
-        page.getByRole("dialog", { name: "One blank sheet is all you need" }),
+        page.getByRole("dialog", {
+          name: /^(One blank sheet is all you need|First time scanning\?)$/,
+        }),
       ).toBeVisible();
     },
   ],
@@ -647,8 +656,10 @@ for (const colorScheme of SCHEMES) {
         count: 1,
       });
       if (loading) await slowModel(page, "gated");
+      // Frames freeze when the picture plays: start as a returning visitor
+      // (the v3.4 tour opens over the playing picture, on frames).
+      await skipFirstRun(page);
       await page.goto("/scan/easy");
-      await dismissTip(page);
       await expect(page.locator(".cameraFrame")).toBeVisible();
       // The picture is transparent until the video is playing (it fades in
       // over 200 ms), and axe rightly sees no picture behind the controls
@@ -692,8 +703,8 @@ async function measureProbe(
     selector: "video.cameraVideo.ready",
     count: 1,
   });
+  await skipFirstRun(page);
   await page.goto("/scan/easy");
-  await dismissTip(page);
   await expect(page.locator("video.cameraVideo.ready")).toBeVisible({
     timeout: 20_000,
   });
@@ -746,4 +757,186 @@ for (const colorScheme of SCHEMES) {
       }),
     );
   });
+}
+
+// ── v3.4 (candidate): the scan tour and the card reference ──────────────────
+//
+// The tour is a modal <dialog> over the live camera (its dim is 60 % black,
+// so nothing behind it is read for contrast except through the spotlight);
+// the card mode is the live camera with the card guide drawn over it, and the
+// card outline question is a bottom sheet. The card states need the card
+// build (`NEXT_PUBLIC_CARD_REFERENCE_ENABLED=1`, see v34-reference.spec.ts).
+
+const V34_CARD_ON = process.env.NEXT_PUBLIC_CARD_REFERENCE_ENABLED === "1";
+
+const V34_STATES: readonly (readonly [
+  string,
+  boolean,
+  (page: Page) => Promise<void>,
+])[] = [
+  [
+    "v3.4 tour, first-use question",
+    false,
+    async (page) => {
+      await page.goto("/scan/easy?debug=1");
+      await expect(
+        page.getByRole("dialog", { name: "First time scanning?" }),
+      ).toBeVisible({ timeout: 15_000 });
+    },
+  ],
+  [
+    "v3.4 tour, step 1 (spotlight on the reference chip)",
+    false,
+    async (page) => {
+      await page.goto("/scan/easy?debug=1");
+      await page.getByRole("button", { name: "First time, show me" }).click();
+      await expect(page.getByTestId("scan-tour-spotlight")).toBeVisible();
+    },
+  ],
+  [
+    "v3.4 tour, last step",
+    false,
+    async (page) => {
+      await page.goto("/scan/easy?debug=1");
+      await page.getByRole("button", { name: "First time, show me" }).click();
+      for (let i = 0; i < 3; i++)
+        await page.getByRole("button", { name: "Next", exact: true }).click();
+      await expect(
+        page.getByRole("button", { name: "Start scanning", exact: true }),
+      ).toBeVisible();
+    },
+  ],
+  [
+    "v3.4 card mode, live camera",
+    true,
+    async (page) => {
+      await page.goto("/scan/easy");
+      await dismissFirstRun(page);
+      await chooseReference(page, "Card");
+      await expect(page.locator('[data-tour="card-slot"]')).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(page.locator("video.cameraVideo.ready")).toBeVisible({
+        timeout: 20_000,
+      });
+    },
+  ],
+  [
+    "v3.4 card outline question",
+    true,
+    async (page) => {
+      await page.goto("/scan/easy/card-live-demo");
+      await dismissFirstRun(page);
+      await chooseReference(page, "Card");
+      await expect(page.locator('[data-tour="card-slot"]')).toBeVisible({
+        timeout: 15_000,
+      });
+      await page.getByRole("button", { name: "Take photo" }).click();
+      await expect(page.getByTestId("card-check-yes")).toBeVisible({
+        timeout: 30_000,
+      });
+    },
+  ],
+];
+NEEDS_REVIEW["v3.4 card mode, live camera"] = LIVE_CAMERA_REVIEW;
+
+/**
+ * The tour is a modal <dialog>: a full-screen blocker (transparent, it takes
+ * the taps outside the card) lies under the card, so axe cannot tell what is
+ * behind the card's text. Measured here instead: every node axe left open
+ * must be inside the tour, and its text colour against the first opaque
+ * background up its own ancestors (the card, the sheet or the button) keeps
+ * 4.5:1; a translucent first background fails closed.
+ */
+const TOUR_SURFACE_REVIEW: Review = {
+  why: "The tour's text sits on its own opaque card (translucent segments composited over it) above a transparent tap blocker and a dim that axe reads as overlapping it; each open node is measured against the composited surface under it.",
+  check: async (page, targets) => {
+    const rows = await page.evaluate((selectors) => {
+      const out: {
+        target: string;
+        inTour: boolean;
+        color: string;
+        bg: string | null;
+      }[] = [];
+      for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        if (!el) {
+          out.push({ target: sel, inTour: false, color: "", bg: null });
+          continue;
+        }
+        // Translucent fills are laid over the next one up, until an opaque
+        // one; none opaque up to the tour's root fails closed (null). An
+        // element's own opacity (other than 1) also fails closed.
+        let bg: string | null = null;
+        const layers: number[][] = [];
+        for (let n: Element | null = el; n; n = n.parentElement) {
+          const cs = getComputedStyle(n);
+          if (Number(cs.opacity) < 1) break;
+          const v = (cs.backgroundColor.match(/[\d.]+/g) ?? []).map(Number);
+          const alpha = v[3] ?? 1;
+          if (v.length >= 3 && alpha > 0)
+            layers.push([v[0], v[1], v[2], alpha]);
+          if (v.length >= 3 && alpha >= 1) {
+            let [r, g, b] = layers[layers.length - 1];
+            for (let i = layers.length - 2; i >= 0; i--) {
+              const [lr, lg, lb, la] = layers[i];
+              r = lr * la + r * (1 - la);
+              g = lg * la + g * (1 - la);
+              b = lb * la + b * (1 - la);
+            }
+            bg = `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+            break;
+          }
+          if (n.matches("[data-testid=scan-tour]")) break;
+        }
+        out.push({
+          target: sel,
+          inTour: Boolean(el.closest("[data-testid=scan-tour]")),
+          color: getComputedStyle(el).color,
+          bg,
+        });
+      }
+      return out;
+    }, targets as string[]);
+    for (const r of rows) {
+      expect(r.inTour, `${r.target} is inside the tour`).toBe(true);
+      expect(r.bg, `${r.target} has an opaque surface`).not.toBeNull();
+      expect(
+        contrast(r.color, r.bg!),
+        `${r.target}: ${r.color} on ${r.bg}`,
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+  },
+};
+for (const state of [
+  "v3.4 tour, first-use question",
+  "v3.4 tour, step 1 (spotlight on the reference chip)",
+  "v3.4 tour, last step",
+])
+  NEEDS_REVIEW[state] = { "color-contrast": TOUR_SURFACE_REVIEW };
+
+for (const [state, needsCard, setup] of V34_STATES) {
+  for (const colorScheme of SCHEMES) {
+    test(`phone: ${state} has no violations in ${colorScheme} mode`, async ({
+      page,
+    }, info) => {
+      // The card states run on the card fake camera (no sheet in view, so
+      // nothing is taken in A4 before the card is chosen); the tour states on
+      // the paper one.
+      test.skip(
+        info.project.name !==
+          (needsCard ? "chromium-camera-card" : "chromium-camera-paper-edge"),
+        "Needs its fake camera project.",
+      );
+      test.skip(needsCard && !V34_CARD_ON, "Needs the card build.");
+      await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
+      await setup(page);
+      await audit(
+        page,
+        info,
+        state,
+        state === "v3.4 card mode, live camera" ? [checkLivePicture] : [],
+      );
+    });
+  }
 }
