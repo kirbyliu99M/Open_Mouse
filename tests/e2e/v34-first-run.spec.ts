@@ -67,6 +67,7 @@ test("paper, first visit: picture, then the tour over it, then 'not my first tim
     testInfo.project.name !== "chromium-camera-paper-edge",
     "Needs the paper fake camera.",
   );
+  test.setTimeout(90_000);
   await page.goto("/scan/easy/live-measured-demo");
   await expectStorageEmpty(page);
   const welcome = page.getByRole("dialog", { name: tour.welcomeTitle });
@@ -87,6 +88,7 @@ test("paper, first visit, the long way: 'first time, show me', walk to the end, 
     testInfo.project.name !== "chromium-camera-paper-edge",
     "Needs the paper fake camera.",
   );
+  test.setTimeout(90_000);
   await page.goto("/scan/easy/live-measured-demo");
   await page.getByRole("button", { name: tour.welcomeFirst }).click();
   await expectLivePicture(page);
@@ -114,6 +116,9 @@ test("card, first visit: picture, tour over it, Card chosen in the tour, then th
     "Needs the card fake camera.",
   );
   test.skip(!CARD_ON, "Needs NEXT_PUBLIC_CARD_REFERENCE_ENABLED=1.");
+  // Picture, tour, card choice, live loop and a shot: more than the default
+  // 30 s on a cold dev server (the card chunks load on first use).
+  test.setTimeout(120_000);
   await page.goto("/scan/easy/card-live-demo");
   await expectStorageEmpty(page);
   await page.getByRole("button", { name: tour.welcomeFirst }).click();
