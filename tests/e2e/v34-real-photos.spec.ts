@@ -160,12 +160,19 @@ test("v3.4 real photos through the whole easy scan (local only)", async ({
       }
       row.autoShot = auto;
       row.secondsToShot = Math.round((Date.now() - t0) / 100) / 10;
-      if (
-        (await adjust.isVisible()) &&
-        (await adjust.getAttribute("data-entry")) === "review"
-      ) {
-        row.frameConfirm = true;
-        await page.getByTestId("paper-adjust-confirm").click();
+      if (await adjust.isVisible()) {
+        row.adjustEntry = await adjust.getAttribute("data-entry");
+        await page.screenshot({
+          path: path.join(tmp, `${item.id}-adjust.png`),
+        });
+        if (row.adjustEntry === "review") {
+          row.frameConfirm = true;
+          await page.getByTestId("paper-adjust-confirm").click();
+        } else {
+          // A rescue (the paper was not found by itself): not measured.
+          row.sheet = "paper-rescue";
+          throw new Error(`paper adjustment opened as ${row.adjustEntry}`);
+        }
       }
       await expect(anySheet).toBeVisible({ timeout: 60_000 });
       if (await page.getByTestId("card-check-yes").isVisible()) {
@@ -182,6 +189,10 @@ test("v3.4 real photos through the whole easy scan (local only)", async ({
           .getByTestId("easy-sheet-numbers")
           .innerText()
           .catch(() => null);
+        const shown = /Hand length\s+(\d+(?:\.\d+)?)\s*mm/.exec(
+          String(row.sheetNumbers ?? ""),
+        );
+        row.shownHandLengthMm = shown ? Number(shown[1]) : null;
         await finishQuestions(page);
         await expect.poll(() => bodies.length, { timeout: 30_000 }).toBe(1);
         const body = bodies[0] as {
@@ -203,7 +214,10 @@ test("v3.4 real photos through the whole easy scan (local only)", async ({
         });
       }
     } catch (error) {
-      row.error = String(error).slice(0, 400);
+      row.error = String(error)
+        // eslint-disable-next-line no-control-regex
+        .replace(/\[[0-9;]*m/g, "")
+        .slice(0, 400);
     } finally {
       await browser.close();
       await rm(y4m, { force: true });
