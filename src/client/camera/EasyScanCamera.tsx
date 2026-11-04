@@ -299,7 +299,11 @@ import {
   readFirstRunTipSeen,
   markFirstRunTipSeen,
 } from "./easyScanPreferences";
-import { cardPathActive, referenceChangeAllowed } from "./cardRoute";
+import {
+  cardCheckUnanswered,
+  cardPathActive,
+  referenceChangeAllowed,
+} from "./cardRoute";
 import { ReferenceMenu } from "./ReferenceMenu";
 import { GripPage, ThicknessPage } from "../scan/AnswerPages";
 import {
@@ -787,6 +791,9 @@ export default function EasyScanCamera({
   // picker hides the page, which ends the stream before the file returns):
   // true only on the live dock's upload button.
   const uploadFromReferenceScreenRef = useRef(false);
+  // Whether the live dock (with its upload button) is on screen now (F3).
+  const liveDockShownRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   // A shot is being taken (capturingRef, for the render): the reference
   // menu is disabled then too, not only while 測量中… (review n1).
   const [capturingUi, setCapturingUi] = useState(false);
@@ -1261,9 +1268,13 @@ export default function EasyScanCamera({
   // Review B1: the picture must start within PICTURE_WAIT_MS of the camera
   // going live, or the tip sheet shows instead (never a blank screen).
   const [pictureTimedOut, setPictureTimedOut] = useState(false);
+  // Review F4: the fallback sheet was touched (a tap or a key in it): a late
+  // picture no longer replaces it with the tour.
+  const [tipSheetTouched, setTipSheetTouched] = useState(false);
   useEffect(() => {
     if (!tipOpen) {
       setPictureTimedOut(false);
+      setTipSheetTouched(false);
       return;
     }
     if (camState.kind !== "live" || videoReady) return;
@@ -1279,9 +1290,18 @@ export default function EasyScanCamera({
     typedLength: userLengthMm !== null,
     pictureReady: videoReady,
     pictureTimedOut,
+    sheetTouched: tipSheetTouched,
   });
   const tourScreen = tipView === "tour";
   const tipSheetScreen = tipView === "sheet";
+  // Review F1: the one sheet whose dismissal leaves the tip unseen (so the
+  // tour shows later): the picture-wait fallback while the camera is live.
+  const pictureWaitFallbackRef = useRef(false);
+  pictureWaitFallbackRef.current =
+    tipSheetScreen &&
+    camState.kind === "live" &&
+    pictureTimedOut &&
+    userLengthMm === null;
   useEffect(() => {
     if (tipOpen && deviceFit === "phone" && !lengthStep && tipSheetScreen) {
       const dialog = tipDialogRef.current;
@@ -1568,10 +1588,11 @@ export default function EasyScanCamera({
   const dismissTip = useCallback(() => {
     setTipOpen(false);
     tipDialogRef.current?.close();
-    // Only the typed-length tip counts as seen; the sheet shown in the
-    // tour's place (no camera picture) does not, so the tour shows next
-    // time (review R3).
-    if (tipSheetMarksSeen({ typedLength: userLengthRef.current !== null }))
+    // Seen once dismissed, as on main, except the picture-wait fallback
+    // while the camera is live: the tour shows later (review R3, F1).
+    if (
+      tipSheetMarksSeen({ pictureWaitFallback: pictureWaitFallbackRef.current })
+    )
       markFirstRunTipSeen(getBrowserStorage());
     // No explicit focus() to the "?" trigger here: the tip auto-opens on
     // mount (nothing "opened" it the way a click opens the nav menu), and
@@ -1592,6 +1613,27 @@ export default function EasyScanCamera({
     setTipTrigger("help");
     setTipOpen(true);
   }, []);
+  // Review F3: a picker closed with no file leaves no stale origin behind.
+  useEffect(() => {
+    const input = fileInputRef.current;
+    if (!input) return;
+    const onCancel = () => {
+      uploadFromReferenceScreenRef.current = false;
+    };
+    input.addEventListener("cancel", onCancel);
+    return () => input.removeEventListener("cancel", onCancel);
+  }, []);
+
+  // Review R2: the live dock is not usable while the first-run tip / tour is
+  // open or waiting for the picture (main's modal tip blocked it from
+  // mount). Set after React's own inert (the leave), so both hold; the dock
+  // is mounted again when the live chrome comes back. A layout effect, so it
+  // is cleared before the focus below goes to the shutter (review F2).
+  useLayoutEffect(() => {
+    const dock = dockRef.current;
+    if (dock) dock.inert = liveChromeLeave.leaving || tipOpen;
+  }, [tipOpen, liveChromeLeave.leaving, liveChromeLeave.shown]);
+
   // The tour marks the tip as seen itself (only when skipped or finished).
   // Focus then goes back to "?" when it opened the tour, else to the shutter
   // (review item 10; `tourReturnFocus`), once the tour has unmounted.
@@ -2689,7 +2731,10 @@ export default function EasyScanCamera({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       e.target.value = "";
-      if (!file || manualActiveRef.current) return;
+      if (!file || manualActiveRef.current) {
+        uploadFromReferenceScreenRef.current = false;
+        return;
+      }
       // Card mode only for an upload picked on the live screen that shows it
       // (review m2), as recorded when its button was tapped (review R1);
       // from any other screen the photo takes the paper path.
@@ -3930,15 +3975,6 @@ export default function EasyScanCamera({
     (result.kind !== "none" ||
       (!lengthStep &&
         (camState.kind === "live" || camState.kind === "requesting")));
-  // Review R2: the live dock is not usable while the first-run tip / tour is
-  // open or waiting for the picture (main's modal tip blocked it from
-  // mount). Set after React's own inert (the leave), so both
-  // hold; the dock is mounted again when the live chrome comes back.
-  useEffect(() => {
-    const dock = dockRef.current;
-    if (dock) dock.inert = liveChromeLeave.leaving || tipOpen;
-  }, [tipOpen, liveChromeLeave.leaving, liveChromeLeave.shown]);
-
   // Review B1: the live picture plays whenever the camera is live and the
   // <video> is mounted (also after a retake mounts a new one), whether or not
   // the tip / tour is open: the tour waits for this picture. Only the live
@@ -4216,6 +4252,8 @@ export default function EasyScanCamera({
   // The card's overlay, layout target and outline drawing: only while the
   // card path is in charge (not under a typed hand length, review item 1).
   const cardActive = cardPathActive({ cardMode, typedLengthMm: userLengthMm });
+  liveDockShownRef.current =
+    Boolean(liveChromeLeave.shown) && !liveChromeLeave.leaving && !lengthStep;
   const cardResult =
     (result.kind === "measured" || result.kind === "gateFailure") &&
     result.reference === "card";
@@ -5103,9 +5141,15 @@ export default function EasyScanCamera({
 
       <input
         id="easy-scan-upload"
+        ref={fileInputRef}
         type="file"
         accept="image/*"
         onChange={onFilePicked}
+        // Review F3: the input itself activated (a label click reaches it
+        // too): the live dock's upload when the dock is on screen.
+        onClick={() => {
+          uploadFromReferenceScreenRef.current = liveDockShownRef.current;
+        }}
         className="visuallyHidden"
         inert={lengthStep}
         // Matches the visible label of whichever upload control is on screen
@@ -5151,6 +5195,11 @@ export default function EasyScanCamera({
           onCancel={(e) => {
             e.preventDefault();
             retake();
+          }}
+          // Review F5: closed without an answer (the browser closed it), the
+          // photo must not stay with no buttons: a retake.
+          onClose={() => {
+            if (cardCheckUnanswered(resultRef.current)) retake();
           }}
         >
           <p className="easySheetTitle" id="easy-card-check-title">
@@ -5428,6 +5477,8 @@ export default function EasyScanCamera({
         inert={tipLeave.leaving}
         aria-hidden={tipLeave.leaving || undefined}
         {...tipBlankTap}
+        onPointerDownCapture={() => setTipSheetTouched(true)}
+        onKeyDownCapture={() => setTipSheetTouched(true)}
         onCancel={(e) => {
           e.preventDefault();
           dismissTip();

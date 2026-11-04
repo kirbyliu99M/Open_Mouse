@@ -51,3 +51,14 @@ export function referenceChangeAllowed(busy: {
 }): boolean {
   return !busy.capturing && !busy.measuring;
 }
+
+/**
+ * The card outline question is still unanswered (review F5): its dialog
+ * closing now (not by 有 or 沒有) is treated as a retake.
+ */
+export function cardCheckUnanswered(result: {
+  readonly kind: string;
+  readonly cardCheck?: string;
+}): boolean {
+  return result.kind === "measured" && result.cardCheck === "pending";
+}

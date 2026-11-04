@@ -12,6 +12,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import {
+  cardCheckUnanswered,
   cardPathActive,
   referenceChangeAllowed,
 } from "../../src/client/camera/cardRoute";
@@ -201,7 +202,7 @@ describe("item 2 [major]: no tour where it has nothing to point at", () => {
 
   it("the camera mounts the tour only on that screen, and the old tip sheet everywhere else", () => {
     expect(camera).toMatch(
-      /const tipView = tipPresentation\(\{\s*camera: camState\.kind,\s*result: result\.kind,\s*typedLength: userLengthMm !== null,\s*pictureReady: videoReady,\s*pictureTimedOut,\s*\}\);\s*const tourScreen = tipView === "tour";/,
+      /const tipView = tipPresentation\(\{\s*camera: camState\.kind,\s*result: result\.kind,\s*typedLength: userLengthMm !== null,\s*pictureReady: videoReady,\s*pictureTimedOut,\s*sheetTouched: tipSheetTouched,\s*\}\);\s*const tourScreen = tipView === "tour";/,
     );
     expect(camera).toContain('const tipSheetScreen = tipView === "sheet";');
     expect(camera).toMatch(
@@ -759,16 +760,19 @@ describe("round 4: R2 dock while the tip is open, R3 fallback sheet, R4 card res
     );
   });
 
-  it("R3: closing the fallback sheet does not mark the tip seen; the typed-length tip does", () => {
-    expect(tipSheetMarksSeen({ typedLength: false })).toBe(false);
-    expect(tipSheetMarksSeen({ typedLength: true })).toBe(true);
+  it("F1: dismissing the sheet marks the tip seen as on main, except the live picture-wait fallback", () => {
+    expect(tipSheetMarksSeen({ pictureWaitFallback: false })).toBe(true);
+    expect(tipSheetMarksSeen({ pictureWaitFallback: true })).toBe(false);
     const dismiss = between(
       camera,
       "const dismissTip = useCallback(",
       "}, []);",
     );
     expect(dismiss).toMatch(
-      /if \(tipSheetMarksSeen\(\{ typedLength: userLengthRef\.current !== null \}\)\)\s*markFirstRunTipSeen\(getBrowserStorage\(\)\);/,
+      /if \(\s*tipSheetMarksSeen\(\{ pictureWaitFallback: pictureWaitFallbackRef\.current \}\)\s*\)\s*markFirstRunTipSeen\(getBrowserStorage\(\)\);/,
+    );
+    expect(camera).toMatch(
+      /pictureWaitFallbackRef\.current =\s*tipSheetScreen &&\s*camState\.kind === "live" &&\s*pictureTimedOut &&\s*userLengthMm === null;/,
     );
   });
 
@@ -829,6 +833,89 @@ describe("R5 (a11y): the outline question is a modal sheet like the others", () 
   it("the photo stays visible behind it (the result sheets' transparent backdrop)", () => {
     expect(between(css, ".easySheet::backdrop {", "}")).toContain(
       "background: transparent;",
+    );
+  });
+});
+
+describe("round 5: F2 focus after the tour, F3 upload origin, F4 late picture, F5 card-check close", () => {
+  it("F2: the dock's inert is a layout effect declared before the focus-return effect", () => {
+    const inertAt = camera.indexOf(
+      "if (dock) dock.inert = liveChromeLeave.leaving || tipOpen;",
+    );
+    const focusAt = camera.indexOf("tourReturnFocus(tipTrigger)");
+    expect(inertAt).toBeGreaterThan(0);
+    expect(inertAt).toBeLessThan(focusAt);
+    const before = camera.slice(
+      camera.lastIndexOf("useLayoutEffect(() => {", inertAt),
+      inertAt,
+    );
+    expect(before).toContain("const dock = dockRef.current;");
+    expect(camera).not.toMatch(
+      /useEffect\(\(\) => \{\s*const dock = dockRef\.current;/,
+    );
+  });
+
+  it("F3: the input itself records the origin (live dock on screen); a cancelled or empty pick clears it", () => {
+    expect(camera).toMatch(
+      /id="easy-scan-upload"[\s\S]{0,400}?onClick=\{\(\) => \{\s*uploadFromReferenceScreenRef\.current = liveDockShownRef\.current;\s*\}\}/,
+    );
+    expect(camera).toMatch(
+      /liveDockShownRef\.current =\s*Boolean\(liveChromeLeave\.shown\) &&\s*!liveChromeLeave\.leaving &&\s*!lengthStep;/,
+    );
+    expect(camera).toMatch(/input\.addEventListener\("cancel", onCancel\);/);
+    expect(camera).toMatch(
+      /const onCancel = \(\) => \{\s*uploadFromReferenceScreenRef\.current = false;\s*\};/,
+    );
+    const pick = between(
+      camera,
+      "const onFilePicked = useCallback(",
+      "stopStream();",
+    );
+    expect(pick).toMatch(
+      /if \(!file \|\| manualActiveRef\.current\) \{\s*uploadFromReferenceScreenRef\.current = false;\s*return;\s*\}/,
+    );
+  });
+
+  it("F4: a late picture replaces the fallback sheet only while it is untouched", () => {
+    const at = (sheetTouched: boolean) =>
+      tipPresentation({
+        camera: "live",
+        result: "none",
+        typedLength: false,
+        pictureReady: true,
+        pictureTimedOut: true,
+        sheetTouched,
+      });
+    expect(at(false)).toBe("tour");
+    expect(at(true)).toBe("sheet");
+    // A touched flag without a timeout changes nothing.
+    expect(
+      tipPresentation({
+        camera: "live",
+        result: "none",
+        typedLength: false,
+        pictureReady: true,
+        sheetTouched: true,
+      }),
+    ).toBe("tour");
+    expect(camera).toContain(
+      "onPointerDownCapture={() => setTipSheetTouched(true)}",
+    );
+    expect(camera).toContain(
+      "onKeyDownCapture={() => setTipSheetTouched(true)}",
+    );
+    expect(camera).toContain("sheetTouched: tipSheetTouched,");
+  });
+
+  it("F5: the card-check dialog closed without an answer is a retake", () => {
+    expect(
+      cardCheckUnanswered({ kind: "measured", cardCheck: "pending" }),
+    ).toBe(true);
+    expect(cardCheckUnanswered({ kind: "measured" })).toBe(false);
+    expect(cardCheckUnanswered({ kind: "none" })).toBe(false);
+    const check = between(camera, "{cardCheckOpen && (", "</dialog>");
+    expect(check).toMatch(
+      /onClose=\{\(\) => \{\s*if \(cardCheckUnanswered\(resultRef\.current\)\) retake\(\);\s*\}\}/,
     );
   });
 });
