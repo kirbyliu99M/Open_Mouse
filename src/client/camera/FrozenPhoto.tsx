@@ -187,6 +187,12 @@ export interface FrozenPhotoProps {
   /** The area to outline in amber, in overlay pixels. */
   readonly problem: Rect | null;
   readonly ariaLabel: string;
+  /**
+   * v3.4 card mode (candidate): draw the reference's four corners as a
+   * closed outline too, so the person can check it frames the card they
+   * placed. Omitted: only the corner checks, as before.
+   */
+  readonly outlineCorners?: boolean;
 }
 
 /**
@@ -209,6 +215,7 @@ export function FrozenPhoto({
   dimensions,
   problem,
   ariaLabel,
+  outlineCorners = false,
 }: FrozenPhotoProps) {
   const { box, crop } = layout;
   // Overlay units per on-screen pixel, for sizes that must not depend on the
@@ -261,6 +268,19 @@ export function FrozenPhoto({
                 rx={14 * scale}
               />
             </>
+          )}
+          {outlineCorners && overlay.paperCorners && (
+            <polygon
+              className="easyCardOutline"
+              data-testid="card-outline"
+              points={overlay.paperCorners
+                .map((p) => `${p.x},${p.y}`)
+                .join(" ")}
+              fill="none"
+              stroke="#34c759"
+              strokeWidth={4 * scale}
+              strokeLinejoin="round"
+            />
           )}
           {overlay.paperCorners?.map((p, i) => {
             const cx = clamp(p.x, cornerRadius, overlayWidth - cornerRadius);
