@@ -37,8 +37,9 @@ export const TYPED_HAND_LENGTH_ENTRY_ENABLED = parseFlag(
  * (A4 / Letter / 卡片). OFF unless a build sets
  * `NEXT_PUBLIC_CARD_REFERENCE_ENABLED=1`. Off, the reference chip only
  * toggles A4 / Letter as before and no card option, card guide, motion
- * sensor request or card copy shows anywhere; a stored "card" preference
- * reads as A4. The card mode opens only after its precision gate (card vs
+ * sensor request or card copy shows anywhere, and the card's code is not
+ * loaded; a stored card choice is ignored and the stored paper size is used
+ * (A4 for an older build's "card"). The card mode opens only after its precision gate (card vs
  * A4 hand length on the same photos, |mean| <= 2 mm and SD <= 2 mm,
  * candidate) passes.
  */

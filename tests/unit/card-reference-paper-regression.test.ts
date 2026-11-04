@@ -127,8 +127,10 @@ describe("paper path regression (v3.4 card mode added)", () => {
     };
     expect(readStoredReference(storage, true)).toBe("a4");
     expect(readStoredPaperSize(storage)).toBe("a4");
-    writeStoredReference(storage, "card");
+    writeStoredReference(storage, "card", true);
     expect(readStoredReference(storage, true)).toBe("card");
     expect(readStoredReference(storage, false)).toBe("a4");
+    // The paper size is kept apart from the card (review item 6).
+    expect(readStoredPaperSize(storage)).toBe("a4");
   });
 });

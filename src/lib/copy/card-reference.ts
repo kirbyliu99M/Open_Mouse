@@ -17,6 +17,14 @@ export interface CardReferenceCopy {
   chip: string;
   /** The reference chip's accessible name (any mode). */
   chipAccessibleName: (current: string) => string;
+  /** The chip's menu (Pencil card-reference-menu, review items 5+6). */
+  menuTitle: string;
+  menuA4: string;
+  menuA4Detail: string;
+  menuLetter: string;
+  menuLetterDetail: string;
+  menuCard: string;
+  menuCardDetail: string;
   /** The one line under the viewfinder in card mode: which card and how. */
   cardRule: string;
   /** Overlay labels. */
@@ -52,7 +60,14 @@ export interface CardReferenceCopy {
 
 export const zhTW: CardReferenceCopy = {
   chip: "卡片",
-  chipAccessibleName: (current) => `參考物：${current}（點一下切換）`,
+  chipAccessibleName: (current) => `參考物：${current}（點一下選擇）`,
+  menuTitle: "拿什麼對照",
+  menuA4: "A4 紙",
+  menuA4Detail: "最常見的影印紙",
+  menuLetter: "Letter 紙",
+  menuLetterDetail: "美規信紙",
+  menuCard: "卡片",
+  menuCardDetail: "悠遊卡、一卡通大小",
   cardRule:
     "卡片要淺色或亮面、標準大小，背面朝上放在小指那側。不要用名片，也不要露出有名字或號碼的那面。",
   handZone: "手放這裡",
@@ -84,7 +99,14 @@ export const zhTW: CardReferenceCopy = {
 
 export const en: CardReferenceCopy = {
   chip: "Card",
-  chipAccessibleName: (current) => `Reference: ${current} (tap to change)`,
+  chipAccessibleName: (current) => `Reference: ${current} (tap to choose)`,
+  menuTitle: "Measure against",
+  menuA4: "A4 paper",
+  menuA4Detail: "The usual copy paper",
+  menuLetter: "Letter paper",
+  menuLetterDetail: "US letter size",
+  menuCard: "Card",
+  menuCardDetail: "The size of a transit card",
   cardRule:
     "Use a light or glossy standard-size card, back side up, beside your little finger. Not a business card, and never the side with a name or number.",
   handZone: "Hand here",

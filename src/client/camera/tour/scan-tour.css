@@ -349,3 +349,9 @@
     background: CanvasText;
   }
 }
+
+/* The step title takes focus on each step (so a screen reader reads it); it
+   is not a control, so it draws no focus ring. */
+.scanTourTitle:focus {
+  outline: none;
+}

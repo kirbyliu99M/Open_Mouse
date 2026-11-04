@@ -120,16 +120,38 @@ describe("v3.4 scan reference (A4 / Letter / card)", () => {
     expect(nextReference("card", false)).toBe("a4");
   });
 
-  it("stores the card under the paper-size key; it reads back only with the card on", () => {
+  it("keeps the card choice under its own key; the paper size under it survives (review items 5+6)", () => {
     const storage = fakeStorage();
-    writeStoredReference(storage, "card");
+    writeStoredReference(storage, "letter", true);
+    writeStoredReference(storage, "card", true);
     expect(readStoredReference(storage, true)).toBe("card");
-    expect(readStoredReference(storage, false)).toBe("a4");
-    // The paper-size reader (used by the tour) never sees "card".
-    expect(readStoredPaperSize(storage)).toBe("a4");
-    writeStoredReference(storage, "letter");
-    expect(readStoredReference(storage, true)).toBe("letter");
+    // Flag off (or rolled back): the Letter choice is still there.
+    expect(readStoredReference(storage, false)).toBe("letter");
+    // The paper-size reader (used by the tour and on load) never sees "card".
     expect(readStoredPaperSize(storage)).toBe("letter");
+    writeStoredReference(storage, "a4", true);
+    expect(readStoredReference(storage, true)).toBe("a4");
+    expect(readStoredPaperSize(storage)).toBe("a4");
+  });
+
+  it("with the flag off a paper choice writes only the paper-size key, as main did", () => {
+    const writes: [string, string][] = [];
+    const storage: StorageLike = {
+      getItem: () => null,
+      setItem: (k, v) => void writes.push([k, v]),
+    };
+    writeStoredReference(storage, "letter", false);
+    expect(writes).toEqual([["openMouse.easyScan.paperSize", "letter"]]);
+  });
+
+  it('an older build\'s "card" under the paper-size key reads as A4 plus the card', () => {
+    const legacy = fakeStorage({ "openMouse.easyScan.paperSize": "card" });
+    expect(readStoredReference(legacy, true)).toBe("card");
+    expect(readStoredReference(legacy, false)).toBe("a4");
+    expect(readStoredPaperSize(legacy)).toBe("a4");
+    // Choosing Letter afterwards: Letter, the card off.
+    writeStoredReference(legacy, "letter", true);
+    expect(readStoredReference(legacy, true)).toBe("letter");
   });
 
   it("falls back without storage, on junk and on a store that throws", () => {
@@ -149,6 +171,7 @@ describe("v3.4 scan reference (A4 / Letter / card)", () => {
       },
     };
     expect(readStoredReference(throwing, true)).toBe("a4");
-    expect(() => writeStoredReference(throwing, "card")).not.toThrow();
+    expect(() => writeStoredReference(throwing, "card", true)).not.toThrow();
+    expect(() => writeStoredReference(throwing, "a4", true)).not.toThrow();
   });
 });

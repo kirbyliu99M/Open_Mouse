@@ -7,6 +7,34 @@
  * Nothing here touches the DOM; `ScanTour.tsx` measures and renders.
  */
 
+/**
+ * Whether the screen the tour points at is there (review item 2): the live
+ * camera (or the camera being asked for), with no photo over it and no typed
+ * hand length. Every target (cue, reference chip, frame, shutter) lives
+ * there; anywhere else (camera refused, no camera, stream ended, a photo on
+ * screen) "?" opens the old tip sheet instead, as before the tour.
+ */
+export function tourScreenShown(screen: {
+  readonly camera:
+    "requesting" | "live" | "cameraError" | "streamEnded" | "noCamera";
+  readonly result: string;
+  readonly typedLength: boolean;
+}): boolean {
+  return (
+    !screen.typedLength &&
+    (screen.camera === "live" || screen.camera === "requesting") &&
+    screen.result === "none"
+  );
+}
+
+/**
+ * Where focus goes when the tour closes (review item 10): back to "?" when
+ * it opened the tour, else (the first-use question) to the shutter.
+ */
+export function tourReturnFocus(trigger: TourTrigger): "help" | "shutter" {
+  return trigger === "help" ? "help" : "shutter";
+}
+
 /** What the person measures against. "card" exists only with card mode. */
 export type TourReference = "a4" | "letter" | "card";
 
@@ -216,6 +244,20 @@ export function tourTransition(
       ]);
     case "answerFirst":
       if (state.phase !== "welcome") return { state, effects: [] };
+      // Nothing to point at (review item 2): the answer is kept, but no tour
+      // started, and the tip is not marked seen, so it can show once the
+      // camera screen is there.
+      if (steps.length === 0)
+        return {
+          state: CLOSED,
+          effects: [
+            {
+              kind: "track",
+              event: { name: "scan_tour_first_use_answer", answer: "first" },
+            },
+            { kind: "close" },
+          ],
+        };
       return enterStep(0, "auto", steps, [
         {
           kind: "track",

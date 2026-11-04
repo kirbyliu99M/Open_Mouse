@@ -148,6 +148,7 @@ export default function ScanTour({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
+  const stepTitleRef = useRef<HTMLHeadingElement>(null);
   const [targets, setTargets] = useState<TargetMap>({});
   const [settled, setSettled] = useState(false);
   const [state, setState] = useState<TourState>({ phase: "closed" });
@@ -178,7 +179,13 @@ export default function ScanTour({
       if (effect.kind === "markSeen") markFirstRunTipSeen(getBrowserStorage());
       else if (effect.kind === "track")
         sendTourEvent(effect.event, now.reference);
-      else now.onClose();
+      else {
+        // Closed before the parent unmounts it (review item 10): removing an
+        // open modal runs no close steps, and focus fell to <body>. The
+        // parent then puts focus on "?" or the shutter (`onClose`).
+        if (dialogRef.current?.open) dialogRef.current.close();
+        now.onClose();
+      }
     }
   }, []);
 
@@ -243,10 +250,14 @@ export default function ScanTour({
   const stepIndex = state.phase === "step" ? state.index : -1;
   const step = stepIndex >= 0 ? steps[stepIndex] : undefined;
 
-  // Focus the main button of each new screen (design §6).
+  // Focus the main button of the question (design §6). On a step, focus goes
+  // to the step's title (tabIndex -1), so a screen reader reads each new step
+  // (review item 9): the 下一步 button is the same element from step to
+  // step, and focusing it again announced nothing.
   useEffect(() => {
     if (state.phase === "closed") return;
-    primaryRef.current?.focus();
+    if (state.phase === "step") stepTitleRef.current?.focus();
+    else primaryRef.current?.focus();
   }, [state.phase, stepIndex]);
 
   // The card's own size, for placing it.
@@ -492,7 +503,13 @@ export default function ScanTour({
                 {copy.skip}
               </button>
             </div>
-            <h2 id="scan-tour-title" className="scanTourTitle">
+            <h2
+              key={step.id}
+              id="scan-tour-title"
+              className="scanTourTitle"
+              ref={stepTitleRef}
+              tabIndex={-1}
+            >
               {stepTitle(step, copy, isCard)}
             </h2>
             {step.choices.length > 0 && (
