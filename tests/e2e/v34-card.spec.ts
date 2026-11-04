@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { en as cardEn } from "../../src/lib/copy/card-reference";
 import { dismissFirstRun } from "./fixtures/first-run";
+import { chooseReference, referenceChip } from "./fixtures/reference";
 
 /**
  * v3.4 card reference (candidate 未拍板), card build only
@@ -30,10 +31,25 @@ test.beforeEach(async ({ page }, testInfo) => {
   test.skip(!CARD_ON, "Needs NEXT_PUBLIC_CARD_REFERENCE_ENABLED=1.");
 });
 
-const chip = (page: Page) => page.locator('[data-tour="reference-chip"]');
+const chip = referenceChip;
 const cardSlot = (page: Page) => page.locator('[data-tour="card-slot"]');
-const question = (page: Page) =>
-  page.getByRole("dialog", { name: /Hand measured|Retake needed/ });
+/** The open bottom sheet (the outline question is one too). */
+const question = (page: Page) => page.locator("dialog.easyResultSheet[open]");
+
+/** Before the outline is confirmed, no number of the hand is on screen. */
+async function expectNoNumbersYet(page: Page) {
+  await expect(page.getByTestId("easy-sheet-numbers")).toHaveCount(0);
+  await expect(
+    page.locator(".easyDimLabelText, .easyFrozenSvg text"),
+  ).toHaveCount(0);
+  // The frozen photo's accessible name carries no lengths either.
+  const names = await page
+    .locator("[role=img][aria-label], img[alt]")
+    .evaluateAll((els) =>
+      els.map((e) => e.getAttribute("aria-label") ?? e.getAttribute("alt")),
+    );
+  for (const n of names) expect(n ?? "").not.toMatch(/\d+\s*mm/);
+}
 const cardCalls = (page: Page) =>
   page.evaluate(
     () =>
@@ -46,9 +62,7 @@ async function openCard(page: Page, url: string) {
   await dismissFirstRun(page);
   await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
   await expect(chip(page)).toHaveText("A4");
-  await chip(page).click(); // Letter
-  await chip(page).click(); // Card
-  await expect(chip(page)).toHaveText(cardEn.chip);
+  await chooseReference(page, "Card");
   await expect(cardSlot(page)).toBeVisible({ timeout: 10_000 });
 }
 
@@ -103,7 +117,7 @@ test("[injected] outline question NO: back to the card camera with nothing measu
   await expect(sheet).toBeVisible({ timeout: 30_000 });
   await expect(sheet).toContainText(cardEn.confirmQuestion);
   // The outline question comes before any number.
-  await expect(page.getByTestId("easy-sheet-numbers")).toHaveCount(0);
+  await expectNoNumbersYet(page);
   await expect(page.getByTestId("card-check-yes")).toHaveText(
     cardEn.confirmYes,
   );
@@ -141,6 +155,7 @@ test("[injected] outline question YES: the measured sheet, the two questions, an
   await expect(question(page)).toContainText(cardEn.confirmQuestion, {
     timeout: 30_000,
   });
+  await expectNoNumbersYet(page);
   await page.getByTestId("card-check-yes").click();
   const sheet = page.getByRole("dialog", { name: "Hand measured" });
   await expect(sheet).toBeVisible();
@@ -183,10 +198,11 @@ test("[injected] switching away from the card after a NO starts the paper loop c
   await expect(page.locator("dialog.easyResultSheet[open]")).toHaveCount(0, {
     timeout: 10_000,
   });
-  await chip(page).click(); // Card -> A4
-  await expect(chip(page)).toHaveText("A4");
+  await chooseReference(page, "A4");
   await expect(cardSlot(page)).toHaveCount(0);
-  await expect(page.getByTestId("easy-hint")).not.toHaveText(cardEn.cardRule);
+  await expect(
+    page.getByTestId("easy-hint").filter({ hasText: cardEn.cardRule }),
+  ).toHaveCount(0);
   await expect(page.getByTestId("camera-cue")).not.toContainText(
     cardEn.hintNoHand,
   );

@@ -272,8 +272,8 @@ test("card build: choosing Card inside the tour switches the camera to the card 
   // Design (card-2): the spotlight is on the hand-and-slot layout, or on the
   // slot alone where the layout is not drawn.
   const slot = page.locator('[data-tour="card-slot"]');
-  await expect(slot).toBeVisible();
   const layout = page.locator('[data-tour="card-layout"]');
+  await expect(layout.or(slot).first()).toBeAttached();
   await expectSpotlightOn(page, (await layout.count()) > 0 ? layout : slot);
   await expect(page.locator("body")).toContainText(tour.placeCardCentreLabel);
   // Back to step 1, A4 again: the placement is the paper frame again.
@@ -291,4 +291,24 @@ test("card build: choosing Card inside the tour switches the camera to the card 
       window.localStorage.getItem("openMouse.easyScan.paperSize"),
     ),
   ).toBe("a4");
+});
+
+test("card build: under the card placement step the card guide itself (hand box and dashed slot) is drawn inside the spotlight", async ({
+  page,
+}) => {
+  test.skip(!CARD_ON, "Needs NEXT_PUBLIC_CARD_REFERENCE_ENABLED=1.");
+  // Design (Pencil 14c card-2): the spotlight shows the hand brackets and the
+  // slot as drawn. The tour holds the live loop, so this checks the guide is
+  // drawn even then, not only once the loop runs.
+  await page.goto("/scan/easy?debug=1");
+  await button(page, tour.welcomeFirst).click();
+  await card(page)
+    .getByRole("group", { name: tour.referenceGroupLabel })
+    .getByRole("radio", { name: tour.referenceCard })
+    .check();
+  await button(page, tour.next).click();
+  await expect(card(page)).toHaveAttribute("data-step", "placement");
+  await expect(page.locator('[data-tour="card-slot"]')).toBeVisible({
+    timeout: 5_000,
+  });
 });

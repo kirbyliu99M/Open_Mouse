@@ -2,6 +2,12 @@ import { expect, test, type Page } from "@playwright/test";
 import { en as cardEn } from "../../src/lib/copy/card-reference";
 import { confirmAutoFrame } from "./fixtures/confirm-frame";
 import { dismissFirstRun } from "./fixtures/first-run";
+import {
+  chooseReference,
+  openReferenceChip,
+  referenceChip,
+  referenceMenu,
+} from "./fixtures/reference";
 
 /**
  * v3.4 (candidate 未拍板): the reference chip on the easy scan — A4 / Letter,
@@ -42,7 +48,7 @@ test.beforeEach(async ({ page }, testInfo) => {
   );
 });
 
-const chip = (page: Page) => page.locator('[data-tour="reference-chip"]');
+const chip = referenceChip;
 const cardSlot = (page: Page) => page.locator('[data-tour="card-slot"]');
 const cue = (page: Page) => page.getByTestId("camera-cue");
 const corners = (page: Page) => page.getByTestId("easy-corners");
@@ -76,8 +82,18 @@ async function openCamera(page: Page, url: string) {
   await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
 }
 
-const stored = (page: Page) =>
-  page.evaluate((key) => window.localStorage.getItem(key), PAPER_SIZE_KEY);
+/**
+ * Opens `url` in card mode: the card is chosen on the screen (with the ring
+ * held, ?debug=1) and the page itself keeps the choice for the next load, so
+ * this does not depend on how it is stored.
+ */
+async function startInCard(page: Page, url: string) {
+  await openCamera(page, "/scan/easy?debug=1");
+  await chooseReference(page, "Card");
+  await page.goto(url);
+  await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
+  await expect(chip(page)).toHaveText(cardEn.chip);
+}
 
 /** The paper-path calls the injected demo pipeline received. */
 const paperCalls = (page: Page) =>
@@ -174,7 +190,32 @@ test.describe("card flag ON", () => {
     test.skip(!CARD_ON, "Needs NEXT_PUBLIC_CARD_REFERENCE_ENABLED=1.");
   });
 
-  test("the chip steps A4 -> Letter -> Card -> A4 -> Letter -> Card; overlay, hint and slot follow each step; the choice is stored", async ({
+  test("the chip offers exactly A4, Letter and Card (a menu, closed by Escape)", async ({
+    page,
+  }) => {
+    await openCamera(page, "/scan/easy?debug=1");
+    await expect(chip(page)).toHaveText("A4");
+    if (await openReferenceChip(page)) {
+      const items = referenceMenu(page).locator('[role^="menuitem"]');
+      await expect(items).toHaveCount(3);
+      const texts = (await items.allInnerTexts()).map((t) => t.trim());
+      expect(texts.map((t) => t.split(/\s/)[0])).toEqual([
+        "A4",
+        "Letter",
+        cardEn.chip,
+      ]);
+      // The current one is marked as chosen.
+      await expect(items.first()).toHaveAttribute("aria-checked", "true");
+      await page.keyboard.press("Escape");
+      await expect(referenceMenu(page)).toBeHidden();
+      await expect(chip(page)).toHaveText("A4");
+    } else {
+      // A cycling chip (before the menu): one tap is the next one in order.
+      await expect(chip(page)).toHaveText("Letter");
+    }
+  });
+
+  test("A4 -> Card -> Letter -> A4 -> Card: overlay, hint and slot follow each choice, and a reload keeps it", async ({
     page,
   }) => {
     await openCamera(page, "/scan/easy?debug=1");
@@ -188,18 +229,19 @@ test.describe("card flag ON", () => {
     await expect(cardSlot(page)).toHaveCount(0);
     await expect(cue(page)).not.toContainText(cardEn.hintNoHand);
 
+    const noCardRule = () =>
+      expect(
+        page.getByTestId("easy-hint").filter({ hasText: cardEn.cardRule }),
+      ).toHaveCount(0);
     const expectPaper = async (label: "A4" | "Letter") => {
       await expect(chip(page)).toHaveText(label);
       await expect(chip(page)).toHaveAttribute(
         "aria-label",
         cardEn.chipAccessibleName(label),
       );
-      expect(await stored(page)).toBe(label === "A4" ? "a4" : "letter");
       await expect(cardSlot(page)).toHaveCount(0);
       await expect(corners(page)).toBeVisible();
-      await expect(page.getByTestId("easy-hint")).not.toHaveText(
-        cardEn.cardRule,
-      );
+      await noCardRule();
       await expect(cue(page)).not.toContainText(cardEn.hintNoHand);
     };
     const expectCard = async () => {
@@ -208,7 +250,6 @@ test.describe("card flag ON", () => {
         "aria-label",
         cardEn.chipAccessibleName(cardEn.chip),
       );
-      expect(await stored(page)).toBe("card");
       // The paper overlay is gone at once: no corner of the sheet survives.
       await expect(corners(page)).toHaveCount(0);
       await expect(foundCorners(page)).toHaveCount(0);
@@ -219,17 +260,15 @@ test.describe("card flag ON", () => {
       await expect(cue(page)).toContainText(cardEn.hintNoHand);
     };
 
-    await chip(page).click();
-    await expectPaper("Letter");
-    await chip(page).click();
+    await chooseReference(page, "Card");
     await expectCard();
-    await chip(page).click();
+    await chooseReference(page, "Letter");
+    await expectPaper("Letter");
+    await chooseReference(page, "A4");
     await expectPaper("A4");
     // Back on A4 the paper is found again from scratch.
     await expect(foundCorners(page)).toHaveCount(4, { timeout: 20_000 });
-    await chip(page).click();
-    await expectPaper("Letter");
-    await chip(page).click();
+    await chooseReference(page, "Card");
     await expectCard();
 
     // A reload keeps the card.
@@ -241,8 +280,7 @@ test.describe("card flag ON", () => {
     await expect(cardSlot(page)).toBeVisible({ timeout: 10_000 });
     await expect(corners(page)).toHaveCount(0);
     // ...and Letter, chosen next, is kept too.
-    await chip(page).click(); // Card -> A4
-    await chip(page).click(); // A4 -> Letter
+    await chooseReference(page, "Letter");
     await page.reload();
     await expect(chip(page)).toHaveText("Letter");
     await expect(cardSlot(page)).toHaveCount(0);
@@ -251,8 +289,7 @@ test.describe("card flag ON", () => {
   test("auto-shutter: card mode with no hand never fires and takes no paper photo; switching to A4 starts the paper ring from empty and it fires", async ({
     page,
   }) => {
-    await presetReference(page, "card");
-    await openCamera(page, LIVE_DEMO);
+    await startInCard(page, LIVE_DEMO);
     await expect(chip(page)).toHaveText(cardEn.chip);
     await expect(cardSlot(page)).toBeVisible({ timeout: 10_000 });
     // The same scene that fires the paper shutter within a second or two:
@@ -265,9 +302,8 @@ test.describe("card flag ON", () => {
     }
     expect(await paperCalls(page)).toBe(0);
 
-    // To A4 (Card -> A4): the paper loop starts over and fires by itself.
-    await chip(page).click();
-    await expect(chip(page)).toHaveText("A4");
+    // To A4: the paper loop starts over and fires by itself.
+    await chooseReference(page, "A4");
     await expect(cardSlot(page)).toHaveCount(0);
     await confirmAutoFrame(page, 30_000);
     await expect(
@@ -319,8 +355,7 @@ test.describe("card flag ON", () => {
   test("a manual shot in card mode runs the REAL card analysis (not the paper pipeline): no hand -> retake, and retake returns to card mode", async ({
     page,
   }) => {
-    await presetReference(page, "card");
-    await openCamera(page, LIVE_DEMO);
+    await startInCard(page, LIVE_DEMO);
     await expect(cardSlot(page)).toBeVisible({ timeout: 10_000 });
     await page.getByRole("button", { name: "Take photo" }).click();
     const retake = page.getByRole("dialog", { name: "Retake needed" });
