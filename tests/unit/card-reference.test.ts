@@ -4,7 +4,10 @@
  * photo analysis, the live G-M2 step and the submission.
  */
 import { describe, expect, it, vi } from "vitest";
-import { scanSubmissionSchema } from "../../src/lib/contracts/measurement";
+import {
+  calibrationMethodOf,
+  scanSubmissionSchema,
+} from "../../src/lib/contracts/measurement";
 import { landmarkHeightsMm } from "../../src/client/geometry/parallax";
 import { applyHomography } from "../../src/client/geometry/homography";
 import {
@@ -31,7 +34,10 @@ import {
   evaluateCardLive,
   toViewHand,
 } from "../../src/client/card/cardLive";
-import { buildCardSubmission } from "../../src/client/card/cardSubmission";
+import {
+  buildCardSubmission,
+  cardFitMm,
+} from "../../src/client/card/cardSubmission";
 import type { CardDetection } from "../../src/client/card/detect/detectCard";
 import { cardReferenceCopy } from "../../src/lib/copy/card-reference";
 import { renderLabCardScene, type Pt } from "./helpers/card-scene";
@@ -353,14 +359,43 @@ describe("live G-M2 step (cardLive.ts)", () => {
 });
 
 describe("card submission (cardSubmission.ts)", () => {
-  it("is a valid scan submission", () => {
-    const m = measureHandWithCard({
+  const m = () =>
+    measureHandWithCard({
       landmarksPx: handPx,
       cardCorners: cardPx,
       intrinsics,
       cardSize: ID1,
     }).measurements!;
-    const s = buildCardSubmission({ hand: "right", measurements: m });
+
+  it("is a valid scan submission with card-edge evidence", () => {
+    const s = buildCardSubmission({
+      hand: "right",
+      measurements: m(),
+      cardSize: ID1,
+      searchPass: "slot",
+      cardFitRmsMm: 0.3,
+    });
     expect(scanSubmissionSchema.safeParse(s).success).toBe(true);
+    expect(s.calibration).toEqual({
+      method: "card-edge",
+      cardSizeMm: { longMm: 85.6, shortMm: 53.98 },
+      searchPass: "slot",
+      cardFitRmsMm: 0.3,
+      parallaxCorrected: true,
+      focalSource: "nominal",
+    });
+    expect(calibrationMethodOf(s.calibration)).toBe("card-edge");
+  });
+
+  it("puts the edge residual in mm at the card's scale", () => {
+    // Long side 200 px for 85.6 mm: 2 px is 0.856 mm.
+    const q = [
+      { x: 0, y: 0 },
+      { x: 126.12, y: 0 },
+      { x: 126.12, y: 200 },
+      { x: 0, y: 200 },
+    ];
+    expect(cardFitMm(2, q, ID1)).toBeCloseTo(0.856, 6);
+    expect(cardFitMm(2, q.slice(0, 3), ID1)).toBe(null);
   });
 });

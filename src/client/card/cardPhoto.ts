@@ -35,7 +35,7 @@ import {
   detectCardInPasses,
   type CardSearchPass,
 } from "./cardReference";
-import { buildCardSubmission } from "./cardSubmission";
+import { buildCardSubmission, cardFitMm } from "./cardSubmission";
 import { ID1_CARD_SIZE_MM } from "./detect/cardMeasure";
 import {
   detectCard,
@@ -274,6 +274,11 @@ export function analyseCardPhoto(input: CardPhotoInput): CardPhotoOutcome {
     submission = buildCardSubmission({
       hand: decision.submitted,
       measurements: m.measurements,
+      cardSize: ID1_CARD_SIZE_MM,
+      // No slot at all (one pass: whole frame, then beside the hand).
+      searchPass: passes.searchPass ?? "hand-side",
+      cardFitRmsMm:
+        cardFitMm(d.worstResidualPx, corners, ID1_CARD_SIZE_MM) ?? 0,
     });
   } catch {
     return fail(
