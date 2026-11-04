@@ -9,7 +9,7 @@
  * as the paper path). Pure.
  */
 import type { CardFailureCode } from "./detect/detectCard";
-import { GM2_COPY } from "./hand/gm2Rules";
+import { GM2_COPY, gm2Layout } from "./hand/gm2Rules";
 import { gm2 } from "./hand/guides/gm2";
 import type {
   GuideCheck,
@@ -180,4 +180,25 @@ export function cardFailureText(
     default:
       return copy.failNoCard;
   }
+}
+
+/**
+ * The G-M2 v3 layout's whole area for the scan tour (`data-tour=
+ * "card-layout"`): the union of the hand brackets and the card slot, view
+ * 0..1, mirrored for the left hand with the layout.
+ */
+export function cardLayoutRect(side: HandSide): {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+} {
+  const l = gm2Layout(side);
+  const a = l.handZone;
+  const b = l.cardZone;
+  const x0 = Math.min(a.x, b.x);
+  const y0 = Math.min(a.y, b.y);
+  const x1 = Math.max(a.x + a.width, b.x + b.width);
+  const y1 = Math.max(a.y + a.height, b.y + b.height);
+  return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
 }

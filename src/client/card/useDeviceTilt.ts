@@ -111,6 +111,8 @@ export function useDeviceTilt(active: boolean): DeviceTilt {
   useEffect(() => {
     if (!active) {
       stop();
+      // Off from the start (the paper path): nothing to change, no render.
+      if (stateRef.current === "off") return;
       // Deferred: no state change inside the effect body.
       const id = window.setTimeout(() => set("off"), 0);
       return () => window.clearTimeout(id);

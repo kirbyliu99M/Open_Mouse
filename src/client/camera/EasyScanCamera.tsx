@@ -338,6 +338,7 @@ import { cardReferenceCopy } from "../../lib/copy/card-reference";
 import { CardGuideOverlay } from "../card/CardGuideOverlay";
 import {
   cardHintText,
+  cardLayoutRect,
   evaluateCardLive,
   toViewHand,
   type CardLiveHand,
@@ -728,6 +729,11 @@ export default function EasyScanCamera({
   const cardShapesAtRef = useRef(0);
   // The shutter's moment (performance.now), for the motion window (recorded only).
   const cardShutterAtRef = useRef<number | null>(null);
+  // The card photo's analysis (defined after the paper path's; read when a
+  // card-mode photo arrives).
+  const runCardPipelineRef = useRef<
+    (file: File, previewUrl: string) => Promise<void>
+  >(async () => {});
   const [deviceFit, setDeviceFit] = useState<DeviceFit | null>(null);
   const locale = useLocale();
   // The live loop and the capture callbacks outlive a render: they read the
@@ -1219,10 +1225,14 @@ export default function EasyScanCamera({
   // #1: the measured / failure sheet slides down when a retake, a question
   // page or the paper adjustment takes its place, instead of a native close()
   // or an unmount that made it vanish.
+  // v3.4 card mode: while the outline question is open, the sheet waits.
+  const cardCheckOpen =
+    result.kind === "measured" && result.cardCheck === "pending";
   const sheetNow =
     (result.kind === "measured" || result.kind === "gateFailure") &&
     onSheet &&
-    !adjustOpen
+    !adjustOpen &&
+    !cardCheckOpen
       ? result
       : null;
   const sheetLeave = useLeaving(sheetNow, leaveMs("sheet", reducedMotion));
@@ -1828,143 +1838,6 @@ export default function EasyScanCamera({
     [],
   );
 
-  // v3.4 card mode (candidate 未拍板): the photo is measured against the
-  // card (cardPhoto.ts) instead of a sheet, in this tab; the result takes
-  // the paper path's shape, so the sheet, the questions and the send are
-  // the same. 測量中… stays up while the card is searched.
-  const runCardPipeline = useCallback(
-    async (file: File, previewUrl: string) => {
-      const runId = ++runIdRef.current;
-      attemptCountRef.current += 1;
-      const attempt = clampAttempt(attemptCountRef.current);
-      const info = captureInfoRef.current;
-      track("scan_capture_attempted", {
-        flow: "easy",
-        method: info?.method ?? "upload",
-        attempt,
-        liveWait: liveWaitBucket(info?.liveWaitMs),
-      });
-      setResult({ kind: "processing", previewUrl });
-      setShutterMeasuring(false);
-      dispatchAnswers({ type: "reset" });
-      // The motion window around the shutter (recorded only): wait for its
-      // second half while the photo is decoded.
-      const shutterAt = cardShutterAtRef.current;
-      cardShutterAtRef.current = null;
-      const frame =
-        info?.captureSource === "frame" && info.frame
-          ? {
-              stream: info.frame.stream,
-              crop: {
-                x: Math.round(info.frame.visibleInStream.x),
-                y: Math.round(info.frame.visibleInStream.y),
-              },
-            }
-          : null;
-      try {
-        const outcome = await runCardPhoto(file, {
-          selectedHand: handChipRef.current.hand,
-          handExplicit: handChipRef.current.locked,
-          handednessFixInstruction: HAND_BUTTON_FIX_INSTRUCTION,
-          sensor:
-            shutterAt !== null
-              ? deviceTiltRef.current.snapshot(shutterAt)
-              : null,
-          frame,
-          locale: localeRef.current,
-        });
-        const r = outcome.result;
-        void logAttempt(info, { kind: "result", result: r });
-        if (runId !== runIdRef.current) return;
-        if (manualActiveRef.current) {
-          URL.revokeObjectURL(previewUrl);
-          setResult((prev) => (prev.kind === "processing" ? NO_RESULT : prev));
-          return;
-        }
-        setHandChip((prev) =>
-          applyDetectedHandedness(prev, r.overlay.handedness),
-        );
-        if (r.status === "ok") {
-          // No `scan_measured` event: its `paper` enum has no card value
-          // (an analytics-contract change, 需要 Kirby 決定).
-          setResult({
-            kind: "measured",
-            previewUrl,
-            overlay: r.overlay,
-            measurements: r.measurements,
-            submission: r.submission,
-            imageWidth: r.overlay.imageWidth,
-            imageHeight: r.overlay.imageHeight,
-            // The outline check comes first (a card the person did not place
-            // must not be measured).
-            ...(r.overlay.paperCorners
-              ? { cardCheck: "pending" as const }
-              : {}),
-          });
-        } else {
-          const errors =
-            r.status === "error"
-              ? r.errors
-              : [
-                  {
-                    code: "UNEXPECTED",
-                    message: "Something went wrong. Try again.",
-                  },
-                ];
-          track("scan_rejected", {
-            flow: "easy",
-            attempt,
-            codes: errors.map((e) => e.code),
-          });
-          setResult({
-            kind: "gateFailure",
-            previewUrl,
-            overlay: r.overlay,
-            errors,
-            imageWidth: r.overlay.imageWidth,
-            imageHeight: r.overlay.imageHeight,
-          });
-        }
-      } catch (error) {
-        const detectorFailed = error instanceof HandLandmarkerLoadError;
-        reportCaught(error, "easy-scan.card");
-        void logAttempt(info, {
-          kind: "thrown",
-          code: detectorFailed ? "DETECTOR_LOAD_FAILED" : "PROCESSING_FAILED",
-          message: error instanceof Error ? error.message : "",
-        });
-        if (runId !== runIdRef.current) return;
-        track("scan_rejected", {
-          flow: "easy",
-          attempt,
-          codes: [
-            detectorFailed ? "DETECTOR_LOAD_FAILED" : "PROCESSING_FAILED",
-          ],
-        });
-        setResult({
-          kind: "gateFailure",
-          previewUrl,
-          overlay: null,
-          errors: [
-            detectorFailed
-              ? {
-                  code: "DETECTOR_LOAD_FAILED",
-                  message: DETECTOR_LOAD_FAILED_MESSAGE,
-                }
-              : {
-                  code: "PROCESSING_FAILED",
-                  message:
-                    "Something went wrong while measuring that photo. Try again.",
-                },
-          ],
-          imageWidth: 0,
-          imageHeight: 0,
-        });
-      }
-    },
-    [logAttempt],
-  );
-
   const runPipeline = useCallback(
     async (
       file: File,
@@ -1983,7 +1856,7 @@ export default function EasyScanCamera({
       // v3.4: card mode measures against the card (a placed paper frame
       // never comes here: card mode has no adjustment).
       if (cardModeRef.current && !manualPaperCorners) {
-        await runCardPipeline(file, previewUrl);
+        await runCardPipelineRef.current(file, previewUrl);
         return;
       }
       const runId = ++runIdRef.current;
@@ -2268,7 +2141,7 @@ export default function EasyScanCamera({
         });
       }
     },
-    [runPhotoPipelineImpl, logAttempt, runCardPipeline],
+    [runPhotoPipelineImpl, logAttempt],
   );
 
   // Kirby 2026-10-27 (candidate, hiResSheet.ts): the sheet the live loop
@@ -2801,7 +2674,7 @@ export default function EasyScanCamera({
   // the card the live loop starts over (`referenceSwitch`); choosing the
   // card is a tap, which is where iOS lets the page ask for the motion
   // sensor (a live "phone level" hint only; card mode works without it).
-  const changeReference = useCallback(() => {
+  const changePaperSize = useCallback(() => {
     const step = referenceSwitch(
       { cardMode: cardModeRef.current, paperSize: paperSizeRef.current },
       CARD_REFERENCE_ENABLED,
@@ -2820,6 +2693,145 @@ export default function EasyScanCamera({
     setPaperSize(step.paperSize);
     if (step.cardMode) void deviceTiltRef.current.request();
   }, [resetLoopState]);
+
+  // v3.4 card mode (candidate 未拍板): the photo is measured against the
+  // card (cardPhoto.ts) instead of a sheet, in this tab; the result takes
+  // the paper path's shape, so the sheet, the questions and the send are
+  // the same. 測量中… stays up while the card is searched.
+  const runCardPipeline = useCallback(
+    async (file: File, previewUrl: string) => {
+      const runId = ++runIdRef.current;
+      attemptCountRef.current += 1;
+      const attempt = clampAttempt(attemptCountRef.current);
+      const info = captureInfoRef.current;
+      track("scan_capture_attempted", {
+        flow: "easy",
+        method: info?.method ?? "upload",
+        attempt,
+        liveWait: liveWaitBucket(info?.liveWaitMs),
+      });
+      setResult({ kind: "processing", previewUrl });
+      setShutterMeasuring(false);
+      dispatchAnswers({ type: "reset" });
+      // The motion window around the shutter, as much of it as has arrived
+      // (recorded only: nothing measured depends on it).
+      const shutterAt = cardShutterAtRef.current;
+      cardShutterAtRef.current = null;
+      const frame =
+        info?.captureSource === "frame" && info.frame
+          ? {
+              stream: info.frame.stream,
+              crop: {
+                x: Math.round(info.frame.visibleInStream.x),
+                y: Math.round(info.frame.visibleInStream.y),
+              },
+            }
+          : null;
+      try {
+        const outcome = await runCardPhoto(file, {
+          selectedHand: handChipRef.current.hand,
+          handExplicit: handChipRef.current.locked,
+          handednessFixInstruction: HAND_BUTTON_FIX_INSTRUCTION,
+          sensor:
+            shutterAt !== null
+              ? deviceTiltRef.current.snapshot(shutterAt)
+              : null,
+          frame,
+          locale: localeRef.current,
+        });
+        const r = outcome.result;
+        void logAttempt(info, { kind: "result", result: r });
+        if (runId !== runIdRef.current) return;
+        if (manualActiveRef.current) {
+          URL.revokeObjectURL(previewUrl);
+          setResult((prev) => (prev.kind === "processing" ? NO_RESULT : prev));
+          return;
+        }
+        setHandChip((prev) =>
+          applyDetectedHandedness(prev, r.overlay.handedness),
+        );
+        if (r.status === "ok") {
+          // No `scan_measured` event: its `paper` enum has no card value
+          // (an analytics-contract change, 需要 Kirby 決定).
+          setResult({
+            kind: "measured",
+            previewUrl,
+            overlay: r.overlay,
+            measurements: r.measurements,
+            submission: r.submission,
+            imageWidth: r.overlay.imageWidth,
+            imageHeight: r.overlay.imageHeight,
+            // The outline check comes first (a card the person did not place
+            // must not be measured).
+            ...(r.overlay.paperCorners
+              ? { cardCheck: "pending" as const }
+              : {}),
+          });
+        } else {
+          const errors =
+            r.status === "error"
+              ? r.errors
+              : [
+                  {
+                    code: "UNEXPECTED",
+                    message: "Something went wrong. Try again.",
+                  },
+                ];
+          track("scan_rejected", {
+            flow: "easy",
+            attempt,
+            codes: [...new Set(errors.map((e) => e.code))].slice(0, 8),
+          });
+          setResult({
+            kind: "gateFailure",
+            previewUrl,
+            overlay: r.overlay,
+            errors,
+            imageWidth: r.overlay.imageWidth,
+            imageHeight: r.overlay.imageHeight,
+          });
+        }
+      } catch (error) {
+        const detectorFailed = error instanceof HandLandmarkerLoadError;
+        reportCaught(error, "easy-scan.card");
+        void logAttempt(info, {
+          kind: "thrown",
+          code: detectorFailed ? "DETECTOR_LOAD_FAILED" : "PROCESSING_FAILED",
+          message: error instanceof Error ? error.message : "",
+        });
+        if (runId !== runIdRef.current) return;
+        track("scan_rejected", {
+          flow: "easy",
+          attempt,
+          codes: [
+            detectorFailed ? "DETECTOR_LOAD_FAILED" : "PROCESSING_FAILED",
+          ],
+        });
+        setResult({
+          kind: "gateFailure",
+          previewUrl,
+          overlay: null,
+          errors: [
+            detectorFailed
+              ? {
+                  code: "DETECTOR_LOAD_FAILED",
+                  message: DETECTOR_LOAD_FAILED_MESSAGE,
+                }
+              : {
+                  code: "PROCESSING_FAILED",
+                  message:
+                    "Something went wrong while measuring that photo. Try again.",
+                },
+          ],
+          imageWidth: 0,
+          imageHeight: 0,
+        });
+      }
+    },
+    [logAttempt],
+  );
+
+  runCardPipelineRef.current = runCardPipeline;
 
   // The scan is sent from the last question page, with whatever was answered
   // (answers.ts): a skipped question leaves its field out. A typed pair is
@@ -3057,6 +3069,92 @@ export default function EasyScanCamera({
         .catch(() => done(null));
     }
 
+    // v3.4 card mode (candidate 未拍板): no sheet is looked for. The hand
+    // is read every `handSampleIntervalMs` (as the paper path's F14
+    // reading), judged with G-M2 v3 (cardLive.ts), and the product's own
+    // ring fills while no blocking check fails; when it is full the same
+    // shutter fires. The phone's tilt is a live hint only (a missing
+    // sensor never holds the ring).
+    function cardSample(
+      canvas: HTMLCanvasElement,
+      width: number,
+      height: number,
+      now: number,
+      dtMs: number,
+    ) {
+      const hands = cardHandsRef.current;
+      if (
+        shouldSampleHand({
+          detectorReady: isHandLandmarkerReady(),
+          lastReadingAtMs: hands.lastReadAtMs,
+          nowMs: now,
+        })
+      ) {
+        const reading = readLiveHand(canvas, width, height);
+        if (reading !== undefined) {
+          const hand = reading
+            ? toViewHand(reading.points, { width, height }, now)
+            : null;
+          cardHandsRef.current = {
+            latest: hand,
+            previous: hand ? (hands.latest ?? hands.previous) : hands.previous,
+            lastReadAtMs: now,
+          };
+        }
+      }
+      const latest = cardHandsRef.current.latest;
+      const stale =
+        latest !== null &&
+        now - latest.atMs > CAMERA_CONSTANTS.noSheetCapture.handStaleMs;
+      const step = evaluateCardLive({
+        hand: stale ? null : latest,
+        previousHand: stale ? null : cardHandsRef.current.previous,
+        side: handChipRef.current.hand,
+        view: { width, height },
+        tiltDeg: deviceTiltRef.current.liveTiltDeg(),
+        detectorReady: isHandLandmarkerReady(),
+        nowMs: now,
+      });
+      const passing = step.passing && previewSettledRef.current;
+      autoCaptureRef.current = advanceAutoCapture(
+        autoCaptureRef.current,
+        passing,
+        dtMs,
+      );
+      aimRing(
+        autoCaptureRingFraction(autoCaptureRef.current),
+        autoCaptureRef.current.elapsedMs > 0 && !autoCaptureRef.current.fired,
+        now,
+      );
+      // The overlay is redrawn at most every 250 ms (the hand is read
+      // every 500 ms; the level moves in between).
+      if (now - cardShapesAtRef.current >= 250) {
+        cardShapesAtRef.current = now;
+        setCardShapes(step.evaluation.overlay);
+      }
+      const copy = cardReferenceCopy(localeRef.current);
+      const text = cardHintText(step.problem, copy);
+      const hintState = advanceHint(
+        cardHintRef.current,
+        {
+          text,
+          checkId: step.problem?.id ?? null,
+          level: step.problem?.level ?? "ok",
+        },
+        now,
+        GM2_THRESHOLDS.hintHoldMs,
+      );
+      if (hintState.shown?.text !== cardHintRef.current.shown?.text) {
+        setCardHint(hintState.shown?.text ?? null);
+        setAnnounced(hintState.shown?.text ?? "");
+      }
+      cardHintRef.current = hintState;
+      if (autoCaptureRef.current.fired && previewSettledRef.current) {
+        pendingShutterRef.current = "auto";
+        void captureNow();
+      }
+    }
+
     function tick(now: number) {
       if (cancelled) return;
       rafRef.current = requestAnimationFrame(tick);
@@ -3124,86 +3222,8 @@ export default function EasyScanCamera({
         return;
       }
 
-      // v3.4 card mode (candidate 未拍板): no sheet is looked for. The hand
-      // is read every `handSampleIntervalMs` (as the paper path's F14
-      // reading), judged with G-M2 v3 (cardLive.ts), and the product's own
-      // ring fills while no blocking check fails; when it is full the same
-      // shutter fires. The phone's tilt is a live hint only (a missing
-      // sensor never holds the ring).
       if (cardModeRef.current) {
-        const hands = cardHandsRef.current;
-        if (
-          shouldSampleHand({
-            detectorReady: isHandLandmarkerReady(),
-            lastReadingAtMs: hands.lastReadAtMs,
-            nowMs: now,
-          })
-        ) {
-          const reading = readLiveHand(canvas, width, height);
-          if (reading !== undefined) {
-            const hand = reading
-              ? toViewHand(reading.points, { width, height }, now)
-              : null;
-            cardHandsRef.current = {
-              latest: hand,
-              previous: hand
-                ? (hands.latest ?? hands.previous)
-                : hands.previous,
-              lastReadAtMs: now,
-            };
-          }
-        }
-        const latest = cardHandsRef.current.latest;
-        const stale =
-          latest !== null &&
-          now - latest.atMs > CAMERA_CONSTANTS.noSheetCapture.handStaleMs;
-        const step = evaluateCardLive({
-          hand: stale ? null : latest,
-          previousHand: stale ? null : cardHandsRef.current.previous,
-          side: handChipRef.current.hand,
-          view: { width, height },
-          tiltDeg: deviceTiltRef.current.liveTiltDeg(),
-          detectorReady: isHandLandmarkerReady(),
-          nowMs: now,
-        });
-        const passing = step.passing && previewSettledRef.current;
-        autoCaptureRef.current = advanceAutoCapture(
-          autoCaptureRef.current,
-          passing,
-          dtMs,
-        );
-        aimRing(
-          autoCaptureRingFraction(autoCaptureRef.current),
-          autoCaptureRef.current.elapsedMs > 0 && !autoCaptureRef.current.fired,
-          now,
-        );
-        // The overlay is redrawn at most every 250 ms (the hand is read
-        // every 500 ms; the level moves in between).
-        if (now - cardShapesAtRef.current >= 250) {
-          cardShapesAtRef.current = now;
-          setCardShapes(step.evaluation.overlay);
-        }
-        const copy = cardReferenceCopy(localeRef.current);
-        const text = cardHintText(step.problem, copy);
-        const hintState = advanceHint(
-          cardHintRef.current,
-          {
-            text,
-            checkId: step.problem?.id ?? null,
-            level: step.problem?.level ?? "ok",
-          },
-          now,
-          GM2_THRESHOLDS.hintHoldMs,
-        );
-        if (hintState.shown?.text !== cardHintRef.current.shown?.text) {
-          setCardHint(hintState.shown?.text ?? null);
-          setAnnounced(hintState.shown?.text ?? "");
-        }
-        cardHintRef.current = hintState;
-        if (autoCaptureRef.current.fired && previewSettledRef.current) {
-          pendingShutterRef.current = "auto";
-          void captureNow();
-        }
+        cardSample(canvas, width, height, now, dtMs);
         return;
       }
 
@@ -4339,6 +4359,25 @@ export default function EasyScanCamera({
                 copy={cardCopy}
               />
             )}
+            {cardMode && result.kind === "none" && stageSize && (
+              // The scan tour's spotlight target for the card layout: the
+              // hand brackets and the card slot together (invisible).
+              <div
+                data-tour="card-layout"
+                aria-hidden="true"
+                style={(() => {
+                  const r = cardLayoutRect(handChip.hand);
+                  return {
+                    position: "absolute",
+                    left: r.x * stageSize.width,
+                    top: r.y * stageSize.height,
+                    width: r.width * stageSize.width,
+                    height: r.height * stageSize.height,
+                    pointerEvents: "none",
+                  };
+                })()}
+              />
+            )}
             {showCorners && guide && (
               <div className="cameraOverlay">
                 <LiveEasyCorners
@@ -4678,7 +4717,7 @@ export default function EasyScanCamera({
                       ? cardCopy.chipAccessibleName(referenceLabel)
                       : undefined
                   }
-                  onClick={changeReference}
+                  onClick={changePaperSize}
                 >
                   {referenceLabel}
                 </button>
@@ -4801,6 +4840,46 @@ export default function EasyScanCamera({
       )}
       {measuringLeave.leaving && <LeaveShield target={pillRef} />}
 
+      {/* v3.4 card mode (candidate): before the numbers, the person checks
+          the outline drawn on the photo frames the card they placed. */}
+      {cardCheckOpen && (
+        <section
+          className="easySheet easyResultSheet easyCardCheck"
+          role="dialog"
+          aria-labelledby="easy-card-check-title"
+          data-testid="card-check"
+        >
+          <p className="easySheetTitle" id="easy-card-check-title">
+            {cardCopy.confirmQuestion}
+          </p>
+          <div className="easySheetActions easyStickyActions">
+            <button
+              type="button"
+              className="easyTryAgainButton easyAdjustFrameButton"
+              data-testid="card-check-no"
+              onClick={retake}
+            >
+              {cardCopy.confirmNo}
+            </button>
+            <div className="easySeeMatches">
+              <button
+                type="button"
+                className="primaryButton"
+                data-testid="card-check-yes"
+                onClick={() =>
+                  setResult((prev) =>
+                    prev.kind === "measured" && prev.cardCheck
+                      ? { ...prev, cardCheck: undefined }
+                      : prev,
+                  )
+                }
+              >
+                {cardCopy.confirmYes}
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
       {/* V3.2 motion pass #1: drawn from `sheetResult`, the result it showed,
           so it keeps its content while it slides down after a retake. */}
       {sheetResult && (
@@ -4824,40 +4903,7 @@ export default function EasyScanCamera({
             retake();
           }}
         >
-          {sheetResult.kind === "measured" &&
-          sheetResult.cardCheck === "pending" ? (
-            <>
-              <p className="easySheetTitle" ref={sheetTitleRef} tabIndex={-1}>
-                {cardCopy.confirmQuestion}
-              </p>
-              <div className="easySheetActions easyStickyActions">
-                <button
-                  type="button"
-                  className="easyTryAgainButton easyAdjustFrameButton"
-                  data-testid="card-check-no"
-                  onClick={retake}
-                >
-                  {cardCopy.confirmNo}
-                </button>
-                <div className="easySeeMatches">
-                  <button
-                    type="button"
-                    className="primaryButton"
-                    data-testid="card-check-yes"
-                    onClick={() =>
-                      setResult((prev) =>
-                        prev.kind === "measured" && prev.cardCheck
-                          ? { ...prev, cardCheck: undefined }
-                          : prev,
-                      )
-                    }
-                  >
-                    {cardCopy.confirmYes}
-                  </button>
-                </div>
-              </div>
-            </>
-          ) : sheetResult.kind === "measured" ? (
+          {sheetResult.kind === "measured" ? (
             <>
               {/* V3.3 WP3b (candidate): the post-shot banner, at most one,
                   at the top of this sheet (SoftHintBannerView.tsx). */}

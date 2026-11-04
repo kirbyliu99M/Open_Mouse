@@ -31,6 +31,7 @@ import {
 import {
   cardFailureText,
   cardHintKey,
+  cardLayoutRect,
   evaluateCardLive,
   toViewHand,
 } from "../../src/client/card/cardLive";
@@ -323,6 +324,18 @@ describe("live G-M2 step (cardLive.ts)", () => {
     });
     const tilt = step.evaluation.checks.find((c) => c.id === "tilt")!;
     expect(tilt.blocks).toBe(false);
+  });
+
+  it("the tour's card-layout box is the hand brackets and the slot together, mirrored for the left hand", () => {
+    const r = cardLayoutRect("right");
+    // v3 right hand: brackets x 0.03-0.66, y 0.08-0.88; slot x 0.68-0.90, y 0.26-0.58.
+    expect(r.x).toBeCloseTo(0.03, 9);
+    expect(r.x + r.width).toBeCloseTo(0.9, 9);
+    expect(r.y).toBeCloseTo(0.08, 9);
+    expect(r.y + r.height).toBeCloseTo(0.88, 9);
+    const l = cardLayoutRect("left");
+    expect(l.x).toBeCloseTo(0.1, 9);
+    expect(l.x + l.width).toBeCloseTo(0.97, 9);
   });
 
   it("every hint and failure has words", () => {
