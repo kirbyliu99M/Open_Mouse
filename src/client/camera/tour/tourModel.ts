@@ -30,8 +30,12 @@ export interface TourStepDef {
    * below the target, whichever has the room, with an arrow to its centre.
    */
   readonly placement: "auto" | "dock-bottom";
-  /** Step 1 in card mode: the A4/Letter/card choice inside the card. */
-  readonly choice: boolean;
+  /**
+   * The choice drawn inside the card (step 1 only; empty elsewhere). The
+   * spotlit chip is locked, so the switch lives here: A4/Letter, plus card
+   * once card mode exists. Choosing changes the real setting at once.
+   */
+  readonly choices: readonly TourReference[];
 }
 
 export interface TourOptions {
@@ -42,7 +46,8 @@ export interface TourOptions {
 
 /**
  * The four steps for this reference, before the "is the target on screen"
- * filter. Paper and card differ in step 1 (a choice once card mode exists)
+ * filter. Paper and card differ in step 1 (card joins the choice once card
+ * mode exists)
  * and step 2 (the paper frame, or the card slot).
  */
 export function buildTourSteps(options: TourOptions): TourStepDef[] {
@@ -52,23 +57,25 @@ export function buildTourSteps(options: TourOptions): TourStepDef[] {
       id: "reference",
       target: "reference-chip",
       placement: "auto",
-      choice: options.cardModeAvailable,
+      choices: options.cardModeAvailable
+        ? ["a4", "letter", "card"]
+        : ["a4", "letter"],
     },
     card
       ? {
           id: "placement",
           target: "card-slot",
           placement: "auto",
-          choice: false,
+          choices: [],
         }
       : {
           id: "placement",
           target: "paper-frame",
           placement: "dock-bottom",
-          choice: false,
+          choices: [],
         },
-    { id: "cue", target: "cue", placement: "auto", choice: false },
-    { id: "shutter", target: "shutter", placement: "auto", choice: false },
+    { id: "cue", target: "cue", placement: "auto", choices: [] },
+    { id: "shutter", target: "shutter", placement: "auto", choices: [] },
   ];
 }
 

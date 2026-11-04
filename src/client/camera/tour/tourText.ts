@@ -6,11 +6,6 @@ import type { TourReference, TourStepDef } from "./tourModel";
 
 type Copy = ScanTourCopy;
 
-const PAPER_LABEL: Record<"a4" | "letter", string> = {
-  a4: "A4",
-  letter: "Letter",
-};
-
 export function stepTitle(
   step: TourStepDef,
   copy: Copy,
@@ -18,7 +13,9 @@ export function stepTitle(
 ): string {
   switch (step.id) {
     case "reference":
-      return step.choice ? copy.referenceTitle : copy.paperSizeTitle;
+      return step.choices.includes("card")
+        ? copy.referenceTitle
+        : copy.paperSizeTitle;
     case "placement":
       return isCard ? copy.placeCardTitle : copy.placePaperTitle;
     case "cue":
@@ -39,17 +36,13 @@ export function stepBody(
 ): string[] {
   switch (step.id) {
     case "reference": {
-      if (step.choice)
+      if (step.choices.includes("card"))
         return [
           context.reference === "card"
             ? copy.referenceBodyCard
             : copy.referenceBodyPaper,
         ];
-      const current = context.reference === "letter" ? "letter" : "a4";
-      const other = current === "a4" ? "letter" : "a4";
-      const lines = [
-        copy.paperSizeBody(PAPER_LABEL[current], PAPER_LABEL[other]),
-      ];
+      const lines = [copy.paperSizeBody];
       if (context.noPaperEntry) lines.push(copy.paperSizeNoPaper);
       return lines;
     }

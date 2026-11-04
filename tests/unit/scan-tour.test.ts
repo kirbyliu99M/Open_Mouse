@@ -55,7 +55,8 @@ describe("buildTourSteps", () => {
       "cue",
       "shutter",
     ]);
-    expect(PAPER[0].choice).toBe(false);
+    expect(PAPER[0].choices).toEqual(["a4", "letter"]);
+    expect(PAPER.slice(1).every((s) => s.choices.length === 0)).toBe(true);
     expect(PAPER[1].placement).toBe("dock-bottom");
   });
 
@@ -64,14 +65,14 @@ describe("buildTourSteps", () => {
       reference: "card",
       cardModeAvailable: true,
     });
-    expect(steps[0].choice).toBe(true);
+    expect(steps[0].choices).toEqual(["a4", "letter", "card"]);
     expect(steps[1].target).toBe("card-slot");
     expect(steps[1].placement).toBe("auto");
   });
 
   it("card mode on, paper chosen: choice in step 1, paper frame in step 2", () => {
     const steps = buildTourSteps({ reference: "a4", cardModeAvailable: true });
-    expect(steps[0].choice).toBe(true);
+    expect(steps[0].choices).toEqual(["a4", "letter", "card"]);
     expect(steps[1].target).toBe("paper-frame");
   });
 
@@ -310,7 +311,7 @@ describe("step text", () => {
   it("paper steps use the approved wording", () => {
     expect(stepTitle(PAPER[0], zhTW, false)).toBe("先確認紙張大小");
     expect(stepBody(PAPER[0], zhTW, ctx)).toEqual([
-      "預設是 A4。用 Letter 紙的話，點這裡切換。",
+      "預設是 A4。用 Letter 紙的話，在這裡切換。",
       "沒有紙？最下面可以改用尺量手長。",
     ]);
     expect(stepBody(PAPER[2], zhTW, ctx)[0]).toContain("「很好，請拿穩」");

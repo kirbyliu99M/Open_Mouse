@@ -55,7 +55,7 @@ export interface ScanTourProps {
   /** "auto": first use, asks 第一次掃描嗎？ first. "help": the "?" button. */
   readonly trigger: TourTrigger;
   readonly reference: TourReference;
-  /** Card mode exists (A line's flag): step 1 becomes a three-way choice. */
+  /** Card mode exists (A line's flag): card joins the step-1 choice. */
   readonly cardModeAvailable: boolean;
   /** The "沒有紙？" entry is on screen (its feature flag is on). */
   readonly noPaperEntry: boolean;
@@ -481,12 +481,12 @@ export default function ScanTour({
             <h2 id="scan-tour-title" className="scanTourTitle">
               {stepTitle(step, copy, isCard)}
             </h2>
-            {step.choice && (
+            {step.choices.length > 0 && (
               <fieldset className="scanTourChoice">
                 <legend className="visuallyHidden">
                   {copy.referenceGroupLabel}
                 </legend>
-                {(["a4", "letter", "card"] as const).map((r) => (
+                {step.choices.map((r) => (
                   <label
                     key={r}
                     className={`scanTourChoiceOption${reference === r ? " on" : ""}`}

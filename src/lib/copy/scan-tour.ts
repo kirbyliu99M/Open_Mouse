@@ -33,9 +33,9 @@ export interface ScanTourCopy {
   back: string;
   next: string;
   start: string;
-  /** Step 1 without card mode: the chip says the paper size. */
+  /** Step 1 without card mode: an A4/Letter choice inside the card. */
   paperSizeTitle: string;
-  paperSizeBody: (current: string, other: string) => string;
+  paperSizeBody: string;
   paperSizeNoPaper: string;
   /** Step 1 with card mode: a three-way choice inside the card. */
   referenceTitle: string;
@@ -83,8 +83,7 @@ export const zhTW: ScanTourCopy = {
   next: "下一步",
   start: "開始掃描",
   paperSizeTitle: "先確認紙張大小",
-  paperSizeBody: (current, other) =>
-    `預設是 ${current}。用 ${other} 紙的話，點這裡切換。`,
+  paperSizeBody: "預設是 A4。用 Letter 紙的話，在這裡切換。",
   paperSizeNoPaper: "沒有紙？最下面可以改用尺量手長。",
   referenceTitle: "你用什麼對照？",
   referenceGroupLabel: "對照物",
@@ -134,8 +133,7 @@ export const en: ScanTourCopy = {
   next: "Next",
   start: "Start scanning",
   paperSizeTitle: "Check the paper size",
-  paperSizeBody: (current, other) =>
-    `It's set to ${current}. Using ${other} paper? Switch it here.`,
+  paperSizeBody: "It's A4 by default. Using Letter paper? Switch it here.",
   paperSizeNoPaper: "No paper? At the bottom you can measure with a ruler.",
   referenceTitle: "What are you measuring against?",
   referenceGroupLabel: "Reference",
