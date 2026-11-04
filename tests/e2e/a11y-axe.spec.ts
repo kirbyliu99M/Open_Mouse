@@ -263,7 +263,11 @@ const overLivePicture = async (_page: Page, targets: readonly string[]) => {
       (selector) =>
         target === selector ||
         target.startsWith(`${selector} `) ||
-        target.startsWith(`${selector}>`),
+        target.startsWith(`${selector}>`) ||
+        // The same element named with a position (".cardGuideLabel:nth-child(2)").
+        new RegExp(
+          `^${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:nth-(child|of-type)\\(\\d+\\)$`,
+        ).test(target),
     );
   expect(
     targets.filter((target) => !listed(target)),
