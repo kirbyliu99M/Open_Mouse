@@ -2,7 +2,6 @@ import { expect, test } from "@playwright/test";
 import { checkHandDetected } from "../../src/client/photo/gates";
 import { cameraCuesCopy } from "../../src/lib/copy/camera-cues";
 import { issueText } from "../../src/client/photo/issueText";
-import { easyScanCopy } from "../../src/lib/copy/easy-scan";
 import { scanCommonCopy } from "../../src/lib/copy/scan-common";
 import {
   CAPTURE_FAILURE_HINT_COPY,
