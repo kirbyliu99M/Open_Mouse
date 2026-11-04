@@ -77,6 +77,110 @@ export function writeStoredPaperSize(
   }
 }
 
+/**
+ * v3.4 (candidate 未拍板): what the person measures against, kept under the
+ * same key as the paper size: `"a4"`, `"letter"` or `"card"` (the card
+ * reference, only while `CARD_REFERENCE_ENABLED`). `readStoredPaperSize`
+ * keeps reading a paper size only: a stored `"card"` reads as its fallback.
+ */
+export type ScanReference = PaperSize | "card";
+
+/** The order the reference chip steps through. */
+export function referenceChoices(
+  cardEnabled: boolean,
+): readonly ScanReference[] {
+  return cardEnabled ? ["a4", "letter", "card"] : ["a4", "letter"];
+}
+
+/** The chip's next choice after `current` (wraps; an unknown one starts over). */
+export function nextReference(
+  current: ScanReference,
+  cardEnabled: boolean,
+): ScanReference {
+  const list = referenceChoices(cardEnabled);
+  const i = list.indexOf(current);
+  return list[(i + 1) % list.length] ?? "a4";
+}
+
+/**
+ * What one tap of the reference chip does (v3.4). Between A4 and Letter it
+ * is exactly the old toggle (only the paper size changes; the live loop is
+ * not touched). Crossing into or out of the card (`resetLoop`), the live
+ * loop starts over: no paper corners, card slot, hand readings or ring of
+ * the other mode survive the switch.
+ */
+export interface ReferenceSwitch {
+  readonly next: ScanReference;
+  readonly cardMode: boolean;
+  /** The paper size to keep (unchanged when the card is chosen). */
+  readonly paperSize: PaperSize;
+  readonly resetLoop: boolean;
+}
+
+export function referenceSwitch(
+  current: { readonly cardMode: boolean; readonly paperSize: PaperSize },
+  cardEnabled: boolean,
+): ReferenceSwitch {
+  return referenceSelect(
+    current,
+    nextReference(current.cardMode ? "card" : current.paperSize, cardEnabled),
+    cardEnabled,
+  );
+}
+
+/**
+ * Choosing a reference directly (the scan tour's radios, v3.4): the same
+ * step as the chip's, to `target`. The card with the flag off is no
+ * change at all (the current reference stays, nothing resets).
+ */
+export function referenceSelect(
+  current: { readonly cardMode: boolean; readonly paperSize: PaperSize },
+  target: ScanReference,
+  cardEnabled: boolean,
+): ReferenceSwitch {
+  const next: ScanReference =
+    target === "card" && !cardEnabled
+      ? current.cardMode
+        ? "card"
+        : current.paperSize
+      : target;
+  const cardMode = next === "card";
+  return {
+    next,
+    cardMode,
+    paperSize: next === "card" ? current.paperSize : next,
+    resetLoop: cardMode !== current.cardMode,
+  };
+}
+
+/** The stored reference; `"card"` only when `cardEnabled`, else the fallback. */
+export function readStoredReference(
+  storage: StorageLike | null,
+  cardEnabled: boolean,
+  fallback: PaperSize = "a4",
+): ScanReference {
+  if (!storage) return fallback;
+  let value: string | null;
+  try {
+    value = storage.getItem(PAPER_SIZE_KEY);
+  } catch {
+    return fallback;
+  }
+  if (value === "card") return cardEnabled ? "card" : fallback;
+  return value === "a4" || value === "letter" ? value : fallback;
+}
+
+export function writeStoredReference(
+  storage: StorageLike | null,
+  reference: ScanReference,
+): void {
+  try {
+    storage?.setItem(PAPER_SIZE_KEY, reference);
+  } catch {
+    // Best-effort only, as `writeStoredPaperSize`.
+  }
+}
+
 export function readFirstRunTipSeen(storage: StorageLike | null): boolean {
   try {
     return storage?.getItem(TIP_SEEN_KEY) === "1";

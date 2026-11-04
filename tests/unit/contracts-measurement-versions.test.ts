@@ -85,12 +85,13 @@ describe("calibrationMethodOf", () => {
     expect(calibrationMethodOf(userLength)).toBe("user-length");
   });
 
-  it("lists exactly the four methods", () => {
+  it("lists exactly the five methods (card-edge added in v3.4)", () => {
     expect(CALIBRATION_METHODS).toEqual([
       "printed-sheet",
       "paper-edge",
       "user-length",
       "manual-entry",
+      "card-edge",
     ]);
   });
 });

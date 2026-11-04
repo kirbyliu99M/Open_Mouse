@@ -428,6 +428,40 @@ export function estimatePalmLengthMm(handLengthMm: number): number {
 }
 
 /**
+ * A card as the reference (v3.4, candidate 未拍板; Kirby OK 2026-11-05): an
+ * ID-1-size card laid beside the hand, found from its own edges in the
+ * photo (the scan lab's G-M2 v3 detector, `src/client/card/`). The card's
+ * four corners alone give the homography (no motion sensor); the landmarks
+ * are parallax-corrected at the nominal focal and the hand length is
+ * multiplied by the card path's scale (×1.038, Kirby's paired check of
+ * 2026-11-05: card vs A4 on the same 45 photos, mean −0.14 mm, SD 0.89 mm;
+ * one phone, one hand). The measurements then have the paper path's scale,
+ * so `parallaxCorrected: true` gets `FIT_SCALE_FROM_CORRECTED` as a sheet
+ * scan does.
+ *
+ * - `cardSizeMm`: the card's true size the scale came from (ID-1 today).
+ * - `searchPass`: where the card was found: `slot` (the guide's card slot)
+ *   or `hand-side` (the whole frame, then the box beside the hand).
+ * - `cardFitRmsMm`: how well the card's outline fitted straight edges: the
+ *   detector's worst side residual, in mm at the card's own scale (the
+ *   card-only homography fits its four corners exactly, so its own residual
+ *   would always be 0).
+ */
+export const CARD_SEARCH_PASSES = ["slot", "hand-side"] as const;
+export const cardEdgeEvidenceSchema = z.strictObject({
+  method: z.literal("card-edge"),
+  cardSizeMm: z.strictObject({
+    longMm: z.number().finite().min(20).max(150),
+    shortMm: z.number().finite().min(20).max(150),
+  }),
+  searchPass: z.enum(CARD_SEARCH_PASSES),
+  cardFitRmsMm: z.number().finite().min(0).max(5),
+  parallaxCorrected: z.boolean(),
+  /** See `FOCAL_LENGTH_SOURCES`. */
+  focalSource: z.enum(FOCAL_LENGTH_SOURCES).optional(),
+});
+
+/**
  * Any calibration method. The printed sheet keeps its original shape (no
  * `method` field) so clients built before plain paper still parse.
  */
@@ -436,6 +470,7 @@ export const calibrationEvidenceSchema = z.union([
   paperEdgeEvidenceSchema,
   userLengthEvidenceSchema,
   manualEntryEvidenceSchema,
+  cardEdgeEvidenceSchema,
 ]);
 
 /**
@@ -448,6 +483,7 @@ export const CALIBRATION_METHODS = [
   "paper-edge",
   "user-length",
   "manual-entry",
+  "card-edge",
 ] as const;
 export type CalibrationMethod = (typeof CALIBRATION_METHODS)[number];
 
@@ -593,4 +629,5 @@ export type PrintedSheetEvidence = z.infer<typeof printedSheetEvidenceSchema>;
 export type PaperEdgeEvidence = z.infer<typeof paperEdgeEvidenceSchema>;
 export type UserLengthEvidence = z.infer<typeof userLengthEvidenceSchema>;
 export type ManualEntryEvidence = z.infer<typeof manualEntryEvidenceSchema>;
+export type CardEdgeEvidence = z.infer<typeof cardEdgeEvidenceSchema>;
 export type ScanSubmission = z.infer<typeof scanSubmissionSchema>;
