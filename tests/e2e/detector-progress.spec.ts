@@ -239,7 +239,12 @@ test("coming back to the scan screen in the same session downloads nothing again
     .click();
   await expect(page).toHaveURL(/\/$/);
   await page.getByRole("link", { name: "Scan my hand" }).first().click();
-  await expect(page).toHaveURL(/\/scan\/easy$/);
+  // v3.4: under `next dev` the first client navigation compiles the
+  // /scan/easy route on demand; on main it already landed at ~4.98 s of the
+  // default 5 s, and the larger v3.4 route pushes the first compile past it
+  // (the RSC request is sent at once; traces 2026-11-05). Timing only: the
+  // navigation itself is what this line checks, so it gets a longer wait.
+  await expect(page).toHaveURL(/\/scan\/easy$/, { timeout: 20_000 });
   await expect(page.getByRole("main")).toBeVisible();
   await expect(pill(page)).toHaveCount(0);
   expect(
