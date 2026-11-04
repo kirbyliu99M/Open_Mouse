@@ -25,6 +25,8 @@ export interface CardReferenceCopy {
   menuLetterDetail: string;
   menuCard: string;
   menuCardDetail: string;
+  /** iOS: the tap that asks for the motion sensor (the level hint), review n2. */
+  tiltPermission: string;
   /** The one line under the viewfinder in card mode: which card and how. */
   cardRule: string;
   /** Overlay labels. */
@@ -68,6 +70,7 @@ export const zhTW: CardReferenceCopy = {
   menuLetterDetail: "美規信紙",
   menuCard: "卡片",
   menuCardDetail: "悠遊卡、一卡通大小",
+  tiltPermission: "開啟水平提示",
   cardRule:
     "卡片要淺色或亮面、標準大小，背面朝上放在小指那側。不要用名片，也不要露出有名字或號碼的那面。",
   handZone: "手放這裡",
@@ -107,6 +110,7 @@ export const en: CardReferenceCopy = {
   menuLetterDetail: "US letter size",
   menuCard: "Card",
   menuCardDetail: "The size of a transit card",
+  tiltPermission: "Turn on the level hint",
   cardRule:
     "Use a light or glossy standard-size card, back side up, beside your little finger. Not a business card, and never the side with a name or number.",
   handZone: "Hand here",
