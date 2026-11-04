@@ -36,3 +36,21 @@ export function firstRunCloseButton(page: Page) {
 export async function dismissFirstRun(page: Page, timeout = 15_000) {
   await firstRunCloseButton(page).click({ timeout });
 }
+
+/**
+ * For a spec that freezes the page's animation frames from the moment the
+ * picture plays (fixtures/freeze-loop.ts): since v3.4 the tour opens only
+ * over a playing picture and lays itself out on animation frames, so with the
+ * frames frozen it would never open and could not be closed. Such a spec is
+ * not about the first visit: it starts as a returning visitor (the same key
+ * the tip and the tour write when closed).
+ */
+export async function skipFirstRun(page: Page) {
+  await page.addInitScript(() => {
+    try {
+      window.localStorage.setItem("openMouse.easyScan.firstRunTipSeen", "1");
+    } catch {
+      // A refused store: the first-run screen shows, and the spec fails loudly.
+    }
+  });
+}

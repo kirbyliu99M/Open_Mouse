@@ -3,7 +3,7 @@ import { en as siteMetaEn } from "../../src/lib/copy/site-meta";
 import { SITE_NAME } from "../../src/lib/site";
 import { contrast } from "./fixtures/contrast";
 import { installLoopFreeze, loopFrozen } from "./fixtures/freeze-loop";
-import { dismissFirstRun } from "./fixtures/first-run";
+import { dismissFirstRun, skipFirstRun } from "./fixtures/first-run";
 
 // ── Page titles: each page names itself; the template adds the site ────────
 
@@ -267,8 +267,8 @@ test("Tab to the upload input shows a ring on the upload icon next to a live cam
     selector: "video.cameraVideo.ready",
     count: 1,
   });
+  await skipFirstRun(page);
   await page.goto("/scan/easy");
-  await dismissFirstRun(page);
   await expect(page.locator(".cameraFrame")).toBeVisible();
   await expect(page.locator("video.cameraVideo.ready")).toBeVisible({
     timeout: 20_000,

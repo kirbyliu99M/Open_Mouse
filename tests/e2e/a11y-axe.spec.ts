@@ -16,7 +16,7 @@ import {
   slowModel,
   uploadGreyPhoto,
 } from "./fixtures/slow-model";
-import { dismissFirstRun } from "./fixtures/first-run";
+import { dismissFirstRun, skipFirstRun } from "./fixtures/first-run";
 import { chooseReference } from "./fixtures/reference";
 
 /**
@@ -652,8 +652,10 @@ for (const colorScheme of SCHEMES) {
         count: 1,
       });
       if (loading) await slowModel(page, "gated");
+      // Frames freeze when the picture plays: start as a returning visitor
+      // (the v3.4 tour opens over the playing picture, on frames).
+      await skipFirstRun(page);
       await page.goto("/scan/easy");
-      await dismissTip(page);
       await expect(page.locator(".cameraFrame")).toBeVisible();
       // The picture is transparent until the video is playing (it fades in
       // over 200 ms), and axe rightly sees no picture behind the controls
@@ -697,8 +699,8 @@ async function measureProbe(
     selector: "video.cameraVideo.ready",
     count: 1,
   });
+  await skipFirstRun(page);
   await page.goto("/scan/easy");
-  await dismissTip(page);
   await expect(page.locator("video.cameraVideo.ready")).toBeVisible({
     timeout: 20_000,
   });

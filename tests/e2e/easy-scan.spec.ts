@@ -2,7 +2,6 @@ import { expect, test } from "@playwright/test";
 import { isSameOriginCodeChunk } from "./fixtures/code-load";
 import { contrast } from "./fixtures/contrast";
 import { checkHandDetected } from "../../src/client/photo/gates";
-import { en as tourEn } from "../../src/lib/copy/scan-tour";
 import { dismissFirstRun, firstRunCloseButton } from "./fixtures/first-run";
 
 test("the in-sheet hand toggle reruns the same photo with an explicit hand and updates the sheet", async ({
@@ -161,46 +160,44 @@ test.describe("/scan/easy — no setup page, hand chip and first-run tip", () =>
     ).toBeVisible();
   });
 
-  // v3.4: with paper, the first-run screen is the tour's question (the
-  // paper tip is gone); "?" reopening it, Next/Back and the keyboard are in
-  // v34-tour.spec.ts, on the fake camera where its targets are on screen.
-  test("the first-run tour question shows once, closes, and stays closed after reload", async ({
+  // v3.4: this project has no camera, so the first-run screen stays the
+  // paper tip (the tour opens only over a live picture: v34-tour.spec.ts).
+  test("the first-run tip shows once, dismisses, stays dismissed after reload, and reopens from '?'", async ({
     page,
   }, testInfo) => {
     test.skip(
       testInfo.project.name !== "mobile",
-      "Runs only in the mobile project: its camera has no fake-media auto-capture, so the first-run screen stays stable.",
+      "Runs only in the mobile project: its camera has no fake-media auto-capture, so the first-run tip stays stable.",
     );
     await page.goto("/scan/easy");
-    const question = page.getByRole("dialog", {
-      name: tourEn.welcomeTitle,
+    const tip = page.getByRole("dialog", {
+      name: "One blank sheet is all you need",
     });
-    await expect(question).toBeVisible();
-    await expect(question).toContainText(tourEn.welcomeRowCue);
+    await expect(tip).toBeVisible();
+    await expect(page.getByText(/a4 paper on a darker table/i)).toBeVisible();
 
     await dismissFirstRun(page);
-    await expect(question).toBeHidden();
+    await expect(tip).toBeHidden();
 
     await page.reload();
-    await expect(page.getByLabel("Show the first-run tip")).toBeVisible();
-    await page.waitForTimeout(1_000); // past the tour's 400 ms settle
-    await expect(question).toBeHidden();
+    await expect(tip).toBeHidden();
+
+    await page.getByRole("button", { name: "Show the first-run tip" }).click();
+    await expect(tip).toBeVisible();
   });
 
-  test("Escape closes the first-run tour question", async ({
-    page,
-  }, testInfo) => {
+  test("Escape dismisses the first-run tip", async ({ page }, testInfo) => {
     test.skip(
       testInfo.project.name !== "mobile",
-      "Runs only in the mobile project: its camera has no fake-media auto-capture, so Escape targets the question.",
+      "Runs only in the mobile project: its camera has no fake-media auto-capture, so Escape targets the tip.",
     );
     await page.goto("/scan/easy");
-    const question = page.getByRole("dialog", {
-      name: tourEn.welcomeTitle,
+    const tip = page.getByRole("dialog", {
+      name: "One blank sheet is all you need",
     });
-    await expect(question).toBeVisible();
+    await expect(tip).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(question).toBeHidden();
+    await expect(tip).toBeHidden();
   });
 
   test("the hand chip flips on tap", async ({ page }, testInfo) => {
