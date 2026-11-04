@@ -3914,6 +3914,15 @@ export default function EasyScanCamera({
     (result.kind !== "none" ||
       (!lengthStep &&
         (camState.kind === "live" || camState.kind === "requesting")));
+  // Review R2: the live dock is not usable while the first-run tip / tour is
+  // open or waiting for the picture (main's modal tip blocked it from
+  // mount). Set after React's own inert (the leave), so both
+  // hold; the dock is mounted again when the live chrome comes back.
+  useEffect(() => {
+    const dock = dockRef.current;
+    if (dock) dock.inert = liveChromeLeave.leaving || tipOpen;
+  }, [tipOpen, liveChromeLeave.leaving, liveChromeLeave.shown]);
+
   // Review B1: the live picture plays whenever the camera is live and the
   // <video> is mounted (also after a retake mounts a new one), whether or not
   // the tip / tour is open: the tour waits for this picture. Only the live
@@ -4943,9 +4952,7 @@ export default function EasyScanCamera({
             ref={dockRef}
             className="easyBottomDock easyBottomDock-withHandle"
             data-leaving={liveChromeLeave.leaving ? "true" : undefined}
-            // Review R2: not usable while the first-run tip / tour is open
-            // or waiting for the picture (main's modal tip blocked it).
-            inert={liveChromeLeave.leaving || tipOpen}
+            inert={liveChromeLeave.leaving}
             aria-hidden={liveChromeLeave.leaving || undefined}
           >
             {hintText && (

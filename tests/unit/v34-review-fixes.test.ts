@@ -735,7 +735,11 @@ describe("n1, n2: the menu during a shot; the iOS level hint", () => {
 describe("round 4: R2 dock while the tip is open, R3 fallback sheet, R4 card results", () => {
   it("R2: the live dock is inert while the tip / tour is open or waiting", () => {
     expect(camera).toMatch(
-      /className="easyBottomDock easyBottomDock-withHandle"[\s\S]{0,400}?inert=\{liveChromeLeave\.leaving \|\| tipOpen\}/,
+      /const dock = dockRef\.current;\s*if \(dock\) dock\.inert = liveChromeLeave\.leaving \|\| tipOpen;\s*\}, \[tipOpen, liveChromeLeave\.leaving, liveChromeLeave\.shown\]\);/,
+    );
+    // The leaving pin of the motion pass stays as it was.
+    expect(camera).toMatch(
+      /className="easyBottomDock easyBottomDock-withHandle"[\s\S]{0,200}?inert=\{liveChromeLeave\.leaving\}/,
     );
   });
 
