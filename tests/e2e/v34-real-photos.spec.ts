@@ -215,8 +215,7 @@ test("v3.4 real photos through the whole easy scan (local only)", async ({
       }
     } catch (error) {
       row.error = String(error)
-        // eslint-disable-next-line no-control-regex
-        .replace(/\[[0-9;]*m/g, "")
+        .replace(new RegExp(String.fromCharCode(27) + "\[[0-9;]*m", "g"), "")
         .slice(0, 400);
     } finally {
       await browser.close();
