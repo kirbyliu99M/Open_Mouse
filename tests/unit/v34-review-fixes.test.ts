@@ -798,3 +798,37 @@ describe("round 4: R2 dock while the tip is open, R3 fallback sheet, R4 card res
     );
   });
 });
+
+describe("R5 (a11y): the outline question is a modal sheet like the others", () => {
+  const check = between(camera, "{cardCheckOpen && (", "</dialog>");
+
+  it("a <dialog> labelled by the question, with Esc as 沒有，重拍", () => {
+    expect(check).toMatch(
+      /<dialog\s+ref=\{cardCheckDialogRef\}\s+className="easySheet easyResultSheet easyCardCheck"\s+aria-labelledby="easy-card-check-title"\s+data-testid="card-check"/,
+    );
+    expect(check).not.toContain('role="dialog"');
+    expect(check).toContain('id="easy-card-check-title"');
+    expect(check).toMatch(
+      /onCancel=\{\(e\) => \{\s*e\.preventDefault\(\);\s*retake\(\);\s*\}\}/,
+    );
+    // The No button does the same.
+    expect(
+      between(check, 'data-testid="card-check-no"', "</button>"),
+    ).toContain("onClick={retake}");
+  });
+
+  it("opened with showModal, focus on 有, closed before it unmounts", () => {
+    expect(camera).toMatch(
+      /useLayoutEffect\(\(\) => \{\s*if \(!cardCheckOpen\) return;\s*const dialog = cardCheckDialogRef\.current;\s*if \(!dialog\) return;\s*if \(!dialog\.open\) dialog\.showModal\(\);\s*cardCheckYesRef\.current\?\.focus\(\);\s*return \(\) => \{\s*if \(dialog\.open\) dialog\.close\(\);\s*\};\s*\}, \[cardCheckOpen\]\);/,
+    );
+    expect(check).toMatch(
+      /ref=\{cardCheckYesRef\}\s*data-testid="card-check-yes"/,
+    );
+  });
+
+  it("the photo stays visible behind it (the result sheets' transparent backdrop)", () => {
+    expect(between(css, ".easySheet::backdrop {", "}")).toContain(
+      "background: transparent;",
+    );
+  });
+});

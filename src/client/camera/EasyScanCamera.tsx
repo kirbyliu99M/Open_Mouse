@@ -1325,6 +1325,22 @@ export default function EasyScanCamera({
   // v3.4 card mode: while the outline question is open, the sheet waits.
   const cardCheckOpen =
     result.kind === "measured" && result.cardCheck === "pending";
+  // Review R5: the outline question is a modal like the other sheets. It
+  // opens with focus on 有; closed before it unmounts, so the browser's own
+  // focus return runs; after 有 the measured sheet takes focus (its title),
+  // after 沒有 the camera comes back as on any retake.
+  const cardCheckDialogRef = useRef<HTMLDialogElement>(null);
+  const cardCheckYesRef = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    if (!cardCheckOpen) return;
+    const dialog = cardCheckDialogRef.current;
+    if (!dialog) return;
+    if (!dialog.open) dialog.showModal();
+    cardCheckYesRef.current?.focus();
+    return () => {
+      if (dialog.open) dialog.close();
+    };
+  }, [cardCheckOpen]);
   const sheetNow =
     (result.kind === "measured" || result.kind === "gateFailure") &&
     onSheet &&
@@ -5124,11 +5140,18 @@ export default function EasyScanCamera({
       {/* v3.4 card mode (candidate): before the numbers, the person checks
           the outline drawn on the photo frames the card they placed. */}
       {cardCheckOpen && (
-        <section
+        // Review R5: a modal <dialog> like the other result sheets (opened
+        // with showModal, focus on 有, Esc = 沒有，重拍); the photo stays
+        // visible behind it.
+        <dialog
+          ref={cardCheckDialogRef}
           className="easySheet easyResultSheet easyCardCheck"
-          role="dialog"
           aria-labelledby="easy-card-check-title"
           data-testid="card-check"
+          onCancel={(e) => {
+            e.preventDefault();
+            retake();
+          }}
         >
           <p className="easySheetTitle" id="easy-card-check-title">
             {cardCopy.confirmQuestion}
@@ -5146,6 +5169,7 @@ export default function EasyScanCamera({
               <button
                 type="button"
                 className="primaryButton"
+                ref={cardCheckYesRef}
                 data-testid="card-check-yes"
                 onClick={() =>
                   setResult((prev) =>
@@ -5159,7 +5183,7 @@ export default function EasyScanCamera({
               </button>
             </div>
           </div>
-        </section>
+        </dialog>
       )}
       {/* V3.2 motion pass #1: drawn from `sheetResult`, the result it showed,
           so it keeps its content while it slides down after a retake. */}
