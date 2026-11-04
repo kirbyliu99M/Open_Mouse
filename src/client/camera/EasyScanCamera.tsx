@@ -377,7 +377,6 @@ import {
   guideRectInViewport,
   PICTURE_WAIT_MS,
   tipPresentation,
-  tipSheetMarksSeen,
   tourReturnFocus,
 } from "./tour/tourModel";
 
@@ -793,7 +792,6 @@ export default function EasyScanCamera({
   const uploadFromReferenceScreenRef = useRef(false);
   // Whether the live dock (with its upload button) is on screen now (F3).
   const liveDockShownRef = useRef(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   // A shot is being taken (capturingRef, for the render): the reference
   // menu is disabled then too, not only while 測量中… (review n1).
   const [capturingUi, setCapturingUi] = useState(false);
@@ -1294,14 +1292,6 @@ export default function EasyScanCamera({
   });
   const tourScreen = tipView === "tour";
   const tipSheetScreen = tipView === "sheet";
-  // Review F1: the one sheet whose dismissal leaves the tip unseen (so the
-  // tour shows later): the picture-wait fallback while the camera is live.
-  const pictureWaitFallbackRef = useRef(false);
-  pictureWaitFallbackRef.current =
-    tipSheetScreen &&
-    camState.kind === "live" &&
-    pictureTimedOut &&
-    userLengthMm === null;
   useEffect(() => {
     if (tipOpen && deviceFit === "phone" && !lengthStep && tipSheetScreen) {
       const dialog = tipDialogRef.current;
@@ -1588,12 +1578,9 @@ export default function EasyScanCamera({
   const dismissTip = useCallback(() => {
     setTipOpen(false);
     tipDialogRef.current?.close();
-    // Seen once dismissed, as on main, except the picture-wait fallback
-    // while the camera is live: the tour shows later (review R3, F1).
-    if (
-      tipSheetMarksSeen({ pictureWaitFallback: pictureWaitFallbackRef.current })
-    )
-      markFirstRunTipSeen(getBrowserStorage());
+    // Any tip sheet dismissed is seen, as on main (review G1), the
+    // picture-wait fallback included.
+    markFirstRunTipSeen(getBrowserStorage());
     // No explicit focus() to the "?" trigger here: the tip auto-opens on
     // mount (nothing "opened" it the way a click opens the nav menu), and
     // Chromium's :focus-visible heuristic treats a script-triggered focus
@@ -1613,15 +1600,20 @@ export default function EasyScanCamera({
     setTipTrigger("help");
     setTipOpen(true);
   }, []);
-  // Review F3: a picker closed with no file leaves no stale origin behind.
-  useEffect(() => {
-    const input = fileInputRef.current;
+  // Review F3/G2: a picker closed with no file leaves no stale origin
+  // behind. A callback ref, so the listener is attached whenever the input
+  // mounts (it is not rendered on the first, placeholder render).
+  const fileInputCleanupRef = useRef<(() => void) | null>(null);
+  const attachFileInput = useCallback((input: HTMLInputElement | null) => {
+    fileInputCleanupRef.current?.();
+    fileInputCleanupRef.current = null;
     if (!input) return;
     const onCancel = () => {
       uploadFromReferenceScreenRef.current = false;
     };
     input.addEventListener("cancel", onCancel);
-    return () => input.removeEventListener("cancel", onCancel);
+    fileInputCleanupRef.current = () =>
+      input.removeEventListener("cancel", onCancel);
   }, []);
 
   // Review R2: the live dock is not usable while the first-run tip / tour is
@@ -2774,6 +2766,9 @@ export default function EasyScanCamera({
   );
 
   const retake = useCallback(() => {
+    // Review G3: the last shot's live card drawing goes; the static guide
+    // shows until the first new sample.
+    setCardShapes([]);
     // V3.3 WP3b: a retake after a banner is what the banner asked for.
     if (result.kind === "measured" && result.softHint)
       noteSoftHintOutcome(result.softHint.at, { after: "retake" });
@@ -3206,6 +3201,8 @@ export default function EasyScanCamera({
     // last-sample time, ring timer or previous quad would let the very first
     // sample fire an auto-capture.
     resetLoopState();
+    // Review G3: nor an old card drawing (the static guide until a sample).
+    setCardShapes([]);
 
     let cancelled = false;
     const minIntervalMs = 1000 / CAMERA_CONSTANTS.liveLoop.maxSamplesPerSecond;
@@ -5141,7 +5138,7 @@ export default function EasyScanCamera({
 
       <input
         id="easy-scan-upload"
-        ref={fileInputRef}
+        ref={attachFileInput}
         type="file"
         accept="image/*"
         onChange={onFilePicked}

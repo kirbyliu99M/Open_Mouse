@@ -27,7 +27,6 @@ import {
   TOUR_EXIT_FADE_MS,
   placeTooltip,
   tipPresentation,
-  tipSheetMarksSeen,
   tourExitMs,
   tourReturnFocus,
   tourTransition,
@@ -760,20 +759,17 @@ describe("round 4: R2 dock while the tip is open, R3 fallback sheet, R4 card res
     );
   });
 
-  it("F1: dismissing the sheet marks the tip seen as on main, except the live picture-wait fallback", () => {
-    expect(tipSheetMarksSeen({ pictureWaitFallback: false })).toBe(true);
-    expect(tipSheetMarksSeen({ pictureWaitFallback: true })).toBe(false);
+  it("G1: dismissing any tip sheet marks the tip seen, as on main (the picture-wait fallback too)", () => {
     const dismiss = between(
       camera,
       "const dismissTip = useCallback(",
       "}, []);",
     );
     expect(dismiss).toMatch(
-      /if \(\s*tipSheetMarksSeen\(\{ pictureWaitFallback: pictureWaitFallbackRef\.current \}\)\s*\)\s*markFirstRunTipSeen\(getBrowserStorage\(\)\);/,
+      /tipDialogRef\.current\?\.close\(\);[\s\S]*?\n\s*markFirstRunTipSeen\(getBrowserStorage\(\)\);/,
     );
-    expect(camera).toMatch(
-      /pictureWaitFallbackRef\.current =\s*tipSheetScreen &&\s*camState\.kind === "live" &&\s*pictureTimedOut &&\s*userLengthMm === null;/,
-    );
+    expect(dismiss).not.toMatch(/if \([\s\S]*?\)\s*markFirstRunTipSeen/);
+    expect(camera).not.toContain("pictureWaitFallback");
   });
 
   it("R3: in card mode the fallback sheet gives the card rule, not the paper line", () => {
@@ -862,10 +858,6 @@ describe("round 5: F2 focus after the tour, F3 upload origin, F4 late picture, F
     expect(camera).toMatch(
       /liveDockShownRef\.current =\s*Boolean\(liveChromeLeave\.shown\) &&\s*!liveChromeLeave\.leaving &&\s*!lengthStep;/,
     );
-    expect(camera).toMatch(/input\.addEventListener\("cancel", onCancel\);/);
-    expect(camera).toMatch(
-      /const onCancel = \(\) => \{\s*uploadFromReferenceScreenRef\.current = false;\s*\};/,
-    );
     const pick = between(
       camera,
       "const onFilePicked = useCallback(",
@@ -873,6 +865,30 @@ describe("round 5: F2 focus after the tour, F3 upload origin, F4 late picture, F
     );
     expect(pick).toMatch(
       /if \(!file \|\| manualActiveRef\.current\) \{\s*uploadFromReferenceScreenRef\.current = false;\s*return;\s*\}/,
+    );
+  });
+
+  it("G2: the picker-cancel listener is attached by a callback ref, whenever the input mounts", () => {
+    expect(camera).toMatch(/id="easy-scan-upload"\s*ref=\{attachFileInput\}/);
+    const attach = between(
+      camera,
+      "const attachFileInput = useCallback(",
+      "}, []);",
+    );
+    expect(attach).toContain("fileInputCleanupRef.current?.();");
+    expect(attach).toContain('input.addEventListener("cancel", onCancel);');
+    expect(attach).toMatch(
+      /const onCancel = \(\) => \{\s*uploadFromReferenceScreenRef\.current = false;\s*\};/,
+    );
+    expect(camera).not.toContain("fileInputRef");
+  });
+
+  it("G3: a retake and a resumed loop drop the old card drawing", () => {
+    expect(
+      between(camera, "const retake = useCallback(() => {", "setResult("),
+    ).toContain("setCardShapes([]);");
+    expect(camera).toMatch(
+      /sample fire an auto-capture\.\s*resetLoopState\(\);\s*\/\/ Review G3[^\n]*\n\s*setCardShapes\(\[\]\);/,
     );
   });
 

@@ -19,19 +19,6 @@
  */
 export type TipPresentation = "tour" | "wait" | "sheet";
 
-/**
- * Whether closing the old tip sheet marks the first-run tip as seen (review
- * F1): yes, as on main (camera refused, no camera, upload only, typed
- * length), except the picture-wait fallback while the camera is live, which
- * leaves it unseen so the tour shows later.
- */
-export function tipSheetMarksSeen(screen: {
-  /** The sheet is the picture-wait fallback while the camera is live. */
-  readonly pictureWaitFallback: boolean;
-}): boolean {
-  return !screen.pictureWaitFallback;
-}
-
 /** How long the tour waits for the live picture before the tip sheet, ms (review B1). 候選. */
 export const PICTURE_WAIT_MS = 2500;
 
