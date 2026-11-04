@@ -344,6 +344,7 @@ import { cardReferenceCopy } from "../../lib/copy/card-reference";
 import {
   cardHintText,
   cardLayoutRect,
+  cardStaticShapes,
   evaluateCardLive,
   toViewHand,
   type CardLiveHand,
@@ -363,8 +364,8 @@ import "./easy-scan.css";
 import ScanTour from "./tour/ScanTour";
 import {
   guideRectInViewport,
+  tipPresentation,
   tourReturnFocus,
-  tourScreenShown,
 } from "./tour/tourModel";
 
 // v3.4 (review item 4): the card's photo analysis and its overlay are loaded
@@ -1237,17 +1238,21 @@ export default function EasyScanCamera({
     });
   }, []);
 
-  // v3.4: the scan tour where its targets are (the live camera screen); the
-  // old tip sheet everywhere else: a typed hand length, and also camera
-  // refused / no camera / stream ended or a photo on screen, where the tour
-  // would have nothing to point at (review item 2).
-  const tourScreen = tourScreenShown({
+  // v3.4: the scan tour over the live camera picture (it waits while the
+  // camera is asked for, review item 14); the old tip sheet everywhere else:
+  // a typed hand length, and also camera refused / no camera / stream ended
+  // or a photo on screen, where the tour would have nothing to point at
+  // (review item 2).
+  const tipView = tipPresentation({
     camera: camState.kind,
     result: result.kind,
     typedLength: userLengthMm !== null,
+    pictureReady: videoReady,
   });
+  const tourScreen = tipView === "tour";
+  const tipSheetScreen = tipView === "sheet";
   useEffect(() => {
-    if (tipOpen && deviceFit === "phone" && !lengthStep && !tourScreen) {
+    if (tipOpen && deviceFit === "phone" && !lengthStep && tipSheetScreen) {
       const dialog = tipDialogRef.current;
       if (dialog && !dialog.open) dialog.showModal();
       gotItRef.current?.focus();
@@ -1256,7 +1261,7 @@ export default function EasyScanCamera({
       // its place (it mounts while `tipOpen`).
       tipDialogRef.current?.close();
     }
-  }, [tipOpen, deviceFit, lengthStep, tourScreen]);
+  }, [tipOpen, deviceFit, lengthStep, tourScreen, tipSheetScreen]);
 
   useEffect(() => {
     if (userLengthMm !== null || !focusEntryAfterSwitchRef.current) return;
@@ -1317,7 +1322,7 @@ export default function EasyScanCamera({
   );
   // #21: the first-run tip slides down like the other sheets.
   const tipLeave = useLeaving(
-    tipOpen && deviceFit === "phone" && !lengthStep && !tourScreen
+    tipOpen && deviceFit === "phone" && !lengthStep && tipSheetScreen
       ? true
       : null,
     leaveMs("sheet", reducedMotion),
@@ -4506,7 +4511,13 @@ export default function EasyScanCamera({
             )}
             {cardActive && result.kind === "none" && stageSize && (
               <CardGuideOverlay
-                shapes={cardShapes}
+                // The live loop's drawing once it has one; the static layout
+                // before that and under the tour (review item 14).
+                shapes={
+                  cardShapes.length > 0 && !tipOpen
+                    ? cardShapes
+                    : cardStaticShapes(handChip.hand, stageSize)
+                }
                 width={stageSize.width}
                 height={stageSize.height}
                 copy={cardCopy}

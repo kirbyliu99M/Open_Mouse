@@ -8,23 +8,49 @@
  */
 
 /**
- * Whether the screen the tour points at is there (review item 2): the live
- * camera (or the camera being asked for), with no photo over it and no typed
- * hand length. Every target (cue, reference chip, frame, shutter) lives
- * there; anywhere else (camera refused, no camera, stream ended, a photo on
- * screen) "?" opens the old tip sheet instead, as before the tour.
+ * What the first-run tip / "?" shows now (review items 2 and 14):
+ * - "tour": the live camera picture is on screen (the stream plays, no photo
+ *   over it, no typed hand length): every target is there to point at.
+ * - "wait": the camera is still being asked for (the permission prompt
+ *   first): nothing yet; the tour opens once the picture is live.
+ * - "sheet": the old tip sheet: a typed hand length (as on main, at once),
+ *   and camera refused / no camera / stream ended or a photo on screen, where
+ *   the tour would have nothing to point at.
  */
-export function tourScreenShown(screen: {
+export type TipPresentation = "tour" | "wait" | "sheet";
+
+export function tipPresentation(screen: {
   readonly camera:
     "requesting" | "live" | "cameraError" | "streamEnded" | "noCamera";
   readonly result: string;
   readonly typedLength: boolean;
-}): boolean {
-  return (
-    !screen.typedLength &&
-    (screen.camera === "live" || screen.camera === "requesting") &&
-    screen.result === "none"
-  );
+  /** The video has started playing (a picture is on screen). */
+  readonly pictureReady: boolean;
+}): TipPresentation {
+  if (screen.typedLength) return "sheet";
+  if (screen.result !== "none") return "sheet";
+  if (screen.camera === "live") return screen.pictureReady ? "tour" : "wait";
+  if (screen.camera === "requesting") return "wait";
+  return "sheet";
+}
+
+/** The tour's exit fade, ms (review item 17): short, none under reduced motion. 候選. */
+export const TOUR_EXIT_FADE_MS = 150;
+
+export function tourExitMs(reducedMotion: boolean): number {
+  return reducedMotion ? 0 : TOUR_EXIT_FADE_MS;
+}
+
+/** The person asked for reduced motion (false where it cannot be read). */
+export function prefersReducedMotion(): boolean {
+  try {
+    return (
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**

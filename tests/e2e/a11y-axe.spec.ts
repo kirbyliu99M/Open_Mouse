@@ -240,6 +240,11 @@ const OVER_LIVE_PICTURE: readonly { selector: string; required?: true }[] = [
   // picture): axe names its line of text, and the pill itself carries the fill.
   { selector: ".easyDetectorProgress" },
   { selector: ".easyDetectorText" },
+  // v3.4 card mode only (review item 16): the card guide's words (手放這裡,
+  // 卡片放這裡, 中線, 手腕大約在這附近), HTML pills like the cue: solid white
+  // on rgba(0,0,0,.6), 5.74:1 on a white picture. They were SVG text with a
+  // stroke halo, which this measure cannot model.
+  { selector: ".cardGuideLabel" },
 ];
 const LISTED = OVER_LIVE_PICTURE.map((item) => item.selector);
 const REQUIRED = OVER_LIVE_PICTURE.filter((item) => item.required).map(

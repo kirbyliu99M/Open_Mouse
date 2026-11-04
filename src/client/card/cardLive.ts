@@ -16,6 +16,7 @@ import type {
   GuideEvaluation,
   GuideHand,
   HandSide,
+  OverlayShape,
 } from "./hand/guides/types";
 import { checksAllowShutter, firstProblem } from "./hand/guideState";
 import { movementFraction, type Pt } from "./hand/handGeometry";
@@ -201,4 +202,31 @@ export function cardLayoutRect(side: HandSide): {
   const x1 = Math.max(a.x + a.width, b.x + b.width);
   const y1 = Math.max(a.y + a.height, b.y + b.height);
   return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+}
+
+/**
+ * The G-M2 v3 guide as drawn with no hand reading yet (review item 14): the
+ * hand brackets, the centre tick, the wrist reference line and the card slot
+ * (with `data-tour="card-slot"`), all neutral, from the static layout. Card
+ * mode draws it whenever the live loop has not drawn its own (the loop is
+ * paused under the scan tour, and before the first sample), so the guide
+ * never depends on live detection. No spirit level and no arrows: they
+ * describe a live reading.
+ */
+export function cardStaticShapes(
+  side: HandSide,
+  view: { readonly width: number; readonly height: number },
+): OverlayShape[] {
+  const step = evaluateCardLive({
+    hand: null,
+    previousHand: null,
+    side,
+    view,
+    tiltDeg: null,
+    detectorReady: true,
+    nowMs: 0,
+  });
+  return step.evaluation.overlay
+    .filter((s) => s.kind !== "level" && s.kind !== "polyline")
+    .map((s) => ({ ...s, tone: "neutral" as const }));
 }

@@ -37,8 +37,10 @@ import {
   buildTourSteps,
   inflateRect,
   placeTooltip,
+  prefersReducedMotion,
   rectsClose,
   spotlightRadius,
+  tourExitMs,
   tourTransition,
   unionRect,
   visibleTourSteps,
@@ -148,7 +150,6 @@ export default function ScanTour({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
-  const stepTitleRef = useRef<HTMLHeadingElement>(null);
   const [targets, setTargets] = useState<TargetMap>({});
   const [settled, setSettled] = useState(false);
   const [state, setState] = useState<TourState>({ phase: "closed" });
@@ -166,6 +167,19 @@ export default function ScanTour({
   const live = useRef({ state, steps, reference, onClose });
   live.current = { state, steps, reference, onClose };
 
+  // The exit fade (review item 17): the last screen stays drawn while the
+  // dialog fades out (TOUR_EXIT_MS, none under reduced motion), then the
+  // dialog closes and the parent unmounts it.
+  const [leaving, setLeaving] = useState(false);
+  const leaveTimerRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (leaveTimerRef.current !== null)
+        window.clearTimeout(leaveTimerRef.current);
+    },
+    [],
+  );
+
   const dispatch = useCallback((event: TourEvent) => {
     const now = live.current;
     const { state: next, effects } = tourTransition(
@@ -174,19 +188,31 @@ export default function ScanTour({
       now.steps,
     );
     live.current = { ...now, state: next };
-    setState(next);
+    const closing = effects.some((e) => e.kind === "close");
+    // Closing: the screen it was on stays drawn through the fade.
+    if (!closing) setState(next);
     for (const effect of effects) {
       if (effect.kind === "markSeen") markFirstRunTipSeen(getBrowserStorage());
       else if (effect.kind === "track")
         sendTourEvent(effect.event, now.reference);
-      else {
-        // Closed before the parent unmounts it (review item 10): removing an
-        // open modal runs no close steps, and focus fell to <body>. The
-        // parent then puts focus on "?" or the shutter (`onClose`).
-        if (dialogRef.current?.open) dialogRef.current.close();
-        now.onClose();
-      }
     }
+    if (!closing) return;
+    const finish = () => {
+      leaveTimerRef.current = null;
+      // Closed before the parent unmounts it (review item 10): removing an
+      // open modal runs no close steps, and focus fell to <body>. The
+      // parent then puts focus on "?" or the shutter (`onClose`).
+      if (dialogRef.current?.open) dialogRef.current.close();
+      setState(next);
+      now.onClose();
+    };
+    const ms = tourExitMs(prefersReducedMotion());
+    if (ms === 0 || !dialogRef.current?.open) {
+      finish();
+      return;
+    }
+    setLeaving(true);
+    leaveTimerRef.current = window.setTimeout(finish, ms);
   }, []);
 
   // Follow the targets every frame while open: the dock slides in, the cue
@@ -249,16 +275,6 @@ export default function ScanTour({
 
   const stepIndex = state.phase === "step" ? state.index : -1;
   const step = stepIndex >= 0 ? steps[stepIndex] : undefined;
-
-  // Focus the main button of the question (design §6). On a step, focus goes
-  // to the step's title (tabIndex -1), so a screen reader reads each new step
-  // (review item 9): the 下一步 button is the same element from step to
-  // step, and focusing it again announced nothing.
-  useEffect(() => {
-    if (state.phase === "closed") return;
-    if (state.phase === "step") stepTitleRef.current?.focus();
-    else primaryRef.current?.focus();
-  }, [state.phase, stepIndex]);
 
   // The card's own size, for placing it.
   useLayoutEffect(() => {
@@ -324,6 +340,22 @@ export default function ScanTour({
         )
       : null;
 
+  // Focus the main button of each new screen (design §6), once it can be
+  // seen (review item 15: the card is visibility:hidden on its first paint,
+  // until it is placed, and focus() on it then did nothing). Each step's
+  // 下一步 is a new element (keyed by the step) described by the step's
+  // title and body, so a screen reader reads the new step (review item 9).
+  const screenKey =
+    state.phase === "closed" ? null : `${state.phase}:${stepIndex}`;
+  const focusedScreenRef = useRef<string | null>(null);
+  const placedForFocus = state.phase === "welcome" || placement !== null;
+  useEffect(() => {
+    if (screenKey === null || !placedForFocus) return;
+    if (focusedScreenRef.current === screenKey) return;
+    focusedScreenRef.current = screenKey;
+    primaryRef.current?.focus();
+  }, [screenKey, placedForFocus]);
+
   const total = steps.length;
   const counter =
     state.phase === "step"
@@ -356,6 +388,7 @@ export default function ScanTour({
   return (
     <dialog
       ref={dialogRef}
+      data-leaving={leaving ? "true" : undefined}
       className="scanTour"
       data-phase={state.phase}
       aria-labelledby="scan-tour-title"
@@ -503,13 +536,7 @@ export default function ScanTour({
                 {copy.skip}
               </button>
             </div>
-            <h2
-              key={step.id}
-              id="scan-tour-title"
-              className="scanTourTitle"
-              ref={stepTitleRef}
-              tabIndex={-1}
-            >
+            <h2 id="scan-tour-title" className="scanTourTitle">
               {stepTitle(step, copy, isCard)}
             </h2>
             {step.choices.length > 0 && (
@@ -545,13 +572,15 @@ export default function ScanTour({
                 ))}
               </fieldset>
             )}
-            {stepBody(step, copy, { reference, isCard, noPaperEntry }).map(
-              (line) => (
-                <p key={line} className="scanTourBody">
-                  {line}
-                </p>
-              ),
-            )}
+            <div id="scan-tour-body">
+              {stepBody(step, copy, { reference, isCard, noPaperEntry }).map(
+                (line) => (
+                  <p key={line} className="scanTourBody">
+                    {line}
+                  </p>
+                ),
+              )}
+            </div>
             <div className={`scanTourActions${stepIndex > 0 ? " two" : ""}`}>
               {stepIndex > 0 && (
                 <button
@@ -564,8 +593,10 @@ export default function ScanTour({
               )}
               <button
                 type="button"
+                key={step.id}
                 ref={primaryRef}
                 className="primaryButton"
+                aria-describedby="scan-tour-title scan-tour-body"
                 onClick={() => dispatch({ type: "next" })}
               >
                 {isLast ? copy.start : copy.next}

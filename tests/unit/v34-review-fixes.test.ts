@@ -22,14 +22,18 @@ import {
 import { uploadDebugPhoto } from "../../src/client/camera/debugPhotoUpload";
 import {
   buildTourSteps,
+  TOUR_EXIT_FADE_MS,
+  tipPresentation,
+  tourExitMs,
   tourReturnFocus,
-  tourScreenShown,
   tourTransition,
   type TourEffect,
   type TourEvent,
   type TourState,
 } from "../../src/client/camera/tour/tourModel";
 import { cardReferenceCopy } from "../../src/lib/copy/card-reference";
+import { cardStaticShapes } from "../../src/client/card/cardLive";
+import { CardGuideOverlay } from "../../src/client/card/CardGuideOverlay";
 
 const read = (path: string) =>
   readFileSync(path, "utf8").split("\r\n").join("\n");
@@ -137,25 +141,29 @@ describe("item 1 [major]: a typed hand length never takes the card path", () => 
 });
 
 describe("item 2 [major]: no tour where it has nothing to point at", () => {
-  it("tourScreenShown: the live camera with no photo and no typed length", () => {
-    for (const camera of ["live", "requesting"] as const)
-      expect(
-        tourScreenShown({ camera, result: "none", typedLength: false }),
-      ).toBe(true);
+  it("tipPresentation: the tour over a live picture, a wait while the camera is asked for, else the sheet", () => {
+    const at = (
+      camera:
+        "live" | "requesting" | "cameraError" | "noCamera" | "streamEnded",
+      extra: {
+        result?: string;
+        typedLength?: boolean;
+        pictureReady?: boolean;
+      } = {},
+    ) =>
+      tipPresentation({
+        camera,
+        result: extra.result ?? "none",
+        typedLength: extra.typedLength ?? false,
+        pictureReady: extra.pictureReady ?? true,
+      });
+    expect(at("live")).toBe("tour");
     for (const camera of ["cameraError", "noCamera", "streamEnded"] as const)
-      expect(
-        tourScreenShown({ camera, result: "none", typedLength: false }),
-      ).toBe(false);
-    expect(
-      tourScreenShown({
-        camera: "live",
-        result: "processing",
-        typedLength: false,
-      }),
-    ).toBe(false);
-    expect(
-      tourScreenShown({ camera: "live", result: "none", typedLength: true }),
-    ).toBe(false);
+      expect(at(camera)).toBe("sheet");
+    expect(at("live", { result: "processing" })).toBe("sheet");
+    // A typed hand length: the sheet at once, as on main, whatever the camera.
+    expect(at("requesting", { typedLength: true })).toBe("sheet");
+    expect(at("live", { typedLength: true })).toBe("sheet");
   });
 
   const run = (
@@ -188,16 +196,16 @@ describe("item 2 [major]: no tour where it has nothing to point at", () => {
 
   it("the camera mounts the tour only on that screen, and the old tip sheet everywhere else", () => {
     expect(camera).toMatch(
-      /const tourScreen = tourScreenShown\(\{\s*camera: camState\.kind,\s*result: result\.kind,\s*typedLength: userLengthMm !== null,\s*\}\);/,
+      /const tipView = tipPresentation\(\{\s*camera: camState\.kind,\s*result: result\.kind,\s*typedLength: userLengthMm !== null,\s*pictureReady: videoReady,\s*\}\);\s*const tourScreen = tipView === "tour";\s*const tipSheetScreen = tipView === "sheet";/,
     );
     expect(camera).toMatch(
       /\{tipOpen && deviceFit === "phone" && !lengthStep && tourScreen && \(\s*<ScanTour/,
     );
     expect(camera).toContain(
-      'if (tipOpen && deviceFit === "phone" && !lengthStep && !tourScreen) {',
+      'if (tipOpen && deviceFit === "phone" && !lengthStep && tipSheetScreen) {',
     );
     expect(camera).toMatch(
-      /const tipLeave = useLeaving\(\s*tipOpen && deviceFit === "phone" && !lengthStep && !tourScreen/,
+      /const tipLeave = useLeaving\(\s*tipOpen && deviceFit === "phone" && !lengthStep && tipSheetScreen/,
     );
   });
 });
@@ -375,12 +383,48 @@ describe("item 8 [minor]: a card shot is never uploaded to the debug store", () 
 });
 
 describe("item 9 [minor]: each new step is announced", () => {
-  it("focus goes to the step's title (tabIndex -1, a new node per step)", () => {
+  it("each step's 下一步 is a new element, described by the step's title and body", () => {
     expect(tour).toMatch(
-      /<h2\s+key=\{step\.id\}\s+id="scan-tour-title"\s+className="scanTourTitle"\s+ref=\{stepTitleRef\}\s+tabIndex=\{-1\}/,
+      /<button\s+type="button"\s+key=\{step\.id\}\s+ref=\{primaryRef\}\s+className="primaryButton"\s+aria-describedby="scan-tour-title scan-tour-body"/,
     );
-    expect(tour).toContain(
-      'if (state.phase === "step") stepTitleRef.current?.focus();',
+    expect(tour).toContain('<div id="scan-tour-body">');
+  });
+});
+
+describe("item 15 [minor]: focus lands on the button once the card can be seen", () => {
+  it("focuses each screen once, after the card is placed (not on its hidden first paint)", () => {
+    expect(tour).toMatch(
+      /const placedForFocus = state\.phase === "welcome" \|\| placement !== null;/,
+    );
+    expect(tour).toMatch(
+      /if \(screenKey === null \|\| !placedForFocus\) return;\s*if \(focusedScreenRef\.current === screenKey\) return;\s*focusedScreenRef\.current = screenKey;\s*primaryRef\.current\?\.focus\(\);/,
+    );
+    // Declared before use (the placement is worked out first).
+    expect(tour.indexOf("const placement =")).toBeLessThan(
+      tour.indexOf("const placedForFocus"),
+    );
+  });
+});
+
+describe("item 17 [minor]: the tour fades out (none under reduced motion)", () => {
+  it("tourExitMs: 150 ms, 0 under reduced motion", () => {
+    expect(TOUR_EXIT_FADE_MS).toBeLessThanOrEqual(160);
+    expect(tourExitMs(false)).toBe(TOUR_EXIT_FADE_MS);
+    expect(tourExitMs(true)).toBe(0);
+  });
+
+  it("the dialog keeps its screen, fades (data-leaving), then closes; CSS matches the time", () => {
+    expect(tour).toContain('data-leaving={leaving ? "true" : undefined}');
+    expect(tour).toMatch(
+      /const ms = tourExitMs\(prefersReducedMotion\(\)\);\s*if \(ms === 0 \|\| !dialogRef\.current\?\.open\) \{\s*finish\(\);/,
+    );
+    expect(tour).toContain("if (!closing) setState(next);");
+    const tourCss = read("src/client/camera/tour/scan-tour.css");
+    expect(tourCss).toContain(
+      `animation: easyFadeOut ${TOUR_EXIT_FADE_MS}ms ease-in forwards;`,
+    );
+    expect(tourCss).toMatch(
+      /@media \(prefers-reduced-motion: reduce\) \{\s*\.scanTour\[data-leaving="true"\] \{\s*animation: none;/,
     );
   });
 });
@@ -393,7 +437,7 @@ describe("item 10 [minor]: closing the tour gives focus back", () => {
 
   it("the dialog is closed before the parent unmounts it, and the camera focuses the target", () => {
     expect(tour).toMatch(
-      /if \(dialogRef\.current\?\.open\) dialogRef\.current\.close\(\);\s*now\.onClose\(\);/,
+      /if \(dialogRef\.current\?\.open\) dialogRef\.current\.close\(\);\s*setState\(next\);\s*now\.onClose\(\);/,
     );
     expect(camera).toMatch(
       /tourReturnFocus\(tipTrigger\) === "help"\s*\? helpTriggerRef\.current\s*: \(shutterRef\.current \?\? helpTriggerRef\.current\);/,
@@ -426,6 +470,85 @@ describe("item 13 [minor]: no reference change while a shot is measured", () => 
     );
     expect(camera).toMatch(
       /<ReferenceMenu[\s\S]*?disabled=\{shutterMeasuring\}/,
+    );
+  });
+});
+
+describe("item 14 [major]: the card guide is drawn from the static layout", () => {
+  const view = { width: 390, height: 844 };
+  const copy = cardReferenceCopy("en");
+
+  it("cardStaticShapes: brackets, centre line, wrist line and card slot, all neutral, no level", () => {
+    for (const side of ["right", "left"] as const) {
+      const shapes = cardStaticShapes(side, view);
+      const kinds = shapes.map((s) => s.kind);
+      expect(kinds).toContain("brackets");
+      expect(kinds).toContain("line");
+      expect(kinds).not.toContain("level");
+      expect(shapes.some((s) => s.kind === "zone" && s.card)).toBe(true);
+      expect(shapes.every((s) => !("tone" in s) || s.tone === "neutral")).toBe(
+        true,
+      );
+    }
+  });
+
+  it("drawn with no live reading: the card slot target and the labels exist", () => {
+    const html = renderToStaticMarkup(
+      createElement(CardGuideOverlay, {
+        shapes: cardStaticShapes("right", view),
+        width: view.width,
+        height: view.height,
+        copy,
+      }),
+    );
+    expect(html).toContain('data-tour="card-slot"');
+    expect(html).toContain(copy.handZone);
+    expect(html).toContain(copy.wristLine);
+  });
+
+  it("the camera draws it whenever card mode is on: before the first sample and under the tour", () => {
+    expect(camera).toMatch(
+      /shapes=\{\s*cardShapes\.length > 0 && !tipOpen\s*\? cardShapes\s*: cardStaticShapes\(handChip\.hand, stageSize\)\s*\}/,
+    );
+  });
+});
+
+describe("item 16 [minor]: the card guide's words are measurable pills", () => {
+  it("HTML labels, solid white on rgba(0,0,0,0.6); no SVG text", () => {
+    const html = renderToStaticMarkup(
+      createElement(CardGuideOverlay, {
+        shapes: cardStaticShapes("right", { width: 390, height: 844 }),
+        width: 390,
+        height: 844,
+        copy: cardReferenceCopy("zh-TW"),
+      }),
+    );
+    expect(html).not.toContain("<text");
+    expect(html).not.toContain("<tspan");
+    const labels = [
+      ...html.matchAll(/<span class="cardGuideLabel" style="([^"]*)"/g),
+    ].map((m) => m[1]);
+    expect(labels.length).toBeGreaterThanOrEqual(3);
+    for (const style of labels) {
+      expect(style).toContain("background:rgba(0,0,0,0.6)");
+      expect(style).toContain("color:#fff");
+    }
+  });
+
+  it("is on the reviewed OVER_LIVE_PICTURE list of the axe spec", () => {
+    const axe = read("tests/e2e/a11y-axe.spec.ts");
+    const list = between(axe, "const OVER_LIVE_PICTURE", "];");
+    expect(list).toContain('{ selector: ".cardGuideLabel" }');
+  });
+});
+
+describe("item 3 (e2e): the photo's text carries no numbers before 有", () => {
+  it("no dimension lines (their text) are drawn while the outline check is open", () => {
+    const frozen = read("src/client/camera/FrozenPhoto.tsx");
+    // The only text on the photo is the dimension overlay, drawn from `dimensions`.
+    expect(frozen).toContain('{phase === "measured" && dimensions && (');
+    expect(camera).toContain(
+      "dimensions={measuredView && !cardCheckOpen ? dimensions : null}",
     );
   });
 });
