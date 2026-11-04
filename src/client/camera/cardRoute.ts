@@ -16,6 +16,13 @@ export interface CardRouteInput {
   readonly typedLengthMm: number | null;
   /** A paper frame placed by hand on this photo (the adjustment screen). */
   readonly manualPaperCorners?: unknown;
+  /**
+   * The photo came from the screen that shows the card mode (the live
+   * camera: a shot, or an upload picked there). An upload from a screen that
+   * does not show the reference (no camera, camera refused, the desktop
+   * entry) takes the paper path (review m2). Default true (the live loop).
+   */
+  readonly referenceShown?: boolean;
 }
 
 /**
@@ -26,6 +33,7 @@ export interface CardRouteInput {
 export function cardPathActive(input: CardRouteInput): boolean {
   return (
     input.cardMode &&
+    input.referenceShown !== false &&
     input.typedLengthMm === null &&
     (input.manualPaperCorners === undefined ||
       input.manualPaperCorners === null)

@@ -337,6 +337,8 @@ export default function ScanTour({
           tooltipSize,
           viewport,
           step.placement,
+          // The labels inside a tall ring stay visible (review m1).
+          labelsInside ? labelsBox : null,
         )
       : null;
 

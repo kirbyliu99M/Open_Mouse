@@ -36,7 +36,6 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/client/i18n/LocaleProvider";
 import { useBlankTap } from "@/components/dialog/useBlankTap";
@@ -362,19 +361,20 @@ import "../../app/scan/scan.css";
 import "./camera.css";
 import "./easy-scan.css";
 import ScanTour from "./tour/ScanTour";
+// v3.4 (review items 4, M1): the card's photo analysis and its overlay are
+// loaded only with the card flag on (fetched at mount, never on a flag-off
+// page), not bundled into /scan/easy's first load; a chunk that fails to
+// load never reaches the error page.
+import {
+  LazyCardGuideOverlay as CardGuideOverlay,
+  loadCardGuideOverlay,
+} from "../card/LazyCardGuideOverlay";
 import {
   guideRectInViewport,
+  PICTURE_WAIT_MS,
   tipPresentation,
   tourReturnFocus,
 } from "./tour/tourModel";
-
-// v3.4 (review item 4): the card's photo analysis and its overlay are loaded
-// only with the card flag on (fetched at mount, never on a flag-off page),
-// not bundled into /scan/easy's first load.
-const CardGuideOverlay = dynamic(
-  () => import("../card/CardGuideOverlay").then((m) => m.CardGuideOverlay),
-  { ssr: false },
-);
 
 /** What the frozen photo needs to be drawn where the live frame was. */
 interface PhotoInfo {
@@ -775,6 +775,13 @@ export default function EasyScanCamera({
   // photo exists; the analysis keeps it there (`processing`) until the answer
   // replaces it. No full-screen loader and no minimum time (`measuringShown`).
   const [shutterMeasuring, setShutterMeasuring] = useState(false);
+  // Review m2: whether the photo being analysed came from the live screen
+  // that shows the reference chip (a shot, or an upload picked there).
+  const photoFromReferenceScreenRef = useRef(true);
+  // A shot is being taken (capturingRef, for the render): the reference
+  // menu is disabled then too, not only while 測量中… (review n1).
+  const [capturingUi, setCapturingUi] = useState(false);
+  const referenceScreenRef = useRef(false);
   // Read by the reference switch (review item 13): no change while 測量中….
   const shutterMeasuringRef = useRef(false);
   shutterMeasuringRef.current = shutterMeasuring;
@@ -1227,7 +1234,7 @@ export default function EasyScanCamera({
     void import("../card/runCardPhoto").catch(() => {
       // Retried by the card photo's own import (a failure there is reported).
     });
-    void import("../card/CardGuideOverlay").catch(() => {});
+    void loadCardGuideOverlay();
   }, []);
 
   useEffect(() => {
@@ -1243,13 +1250,34 @@ export default function EasyScanCamera({
   // a typed hand length, and also camera refused / no camera / stream ended
   // or a photo on screen, where the tour would have nothing to point at
   // (review item 2).
+  // Review B1: the picture must start within PICTURE_WAIT_MS of the camera
+  // going live, or the tip sheet shows instead (never a blank screen).
+  const [pictureTimedOut, setPictureTimedOut] = useState(false);
+  useEffect(() => {
+    if (!tipOpen) {
+      setPictureTimedOut(false);
+      return;
+    }
+    if (camState.kind !== "live" || videoReady) return;
+    const timer = window.setTimeout(
+      () => setPictureTimedOut(true),
+      PICTURE_WAIT_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [tipOpen, camState.kind, videoReady]);
   const tipView = tipPresentation({
     camera: camState.kind,
     result: result.kind,
     typedLength: userLengthMm !== null,
     pictureReady: videoReady,
+    pictureTimedOut,
   });
   const tourScreen = tipView === "tour";
+  referenceScreenRef.current =
+    deviceFit === "phone" &&
+    (camState.kind === "live" || camState.kind === "requesting") &&
+    result.kind === "none" &&
+    !lengthStep;
   const tipSheetScreen = tipView === "sheet";
   useEffect(() => {
     if (tipOpen && deviceFit === "phone" && !lengthStep && tipSheetScreen) {
@@ -1953,6 +1981,7 @@ export default function EasyScanCamera({
           cardMode: cardModeRef.current,
           typedLengthMm: userLengthRef.current,
           manualPaperCorners,
+          referenceShown: photoFromReferenceScreenRef.current,
         })
       ) {
         await runCardPipelineRef.current(file, previewUrl);
@@ -2353,6 +2382,8 @@ export default function EasyScanCamera({
       return;
     }
     capturingRef.current = true;
+    // The reference menu is disabled from this moment (review n1).
+    setCapturingUi(true);
     // Whether the photo reached `runPipeline`, which takes 測量中… on; on any
     // other way out the shutter's line goes again (the `finally`).
     let handedOff = false;
@@ -2601,6 +2632,7 @@ export default function EasyScanCamera({
       };
       capturingRef.current = false;
       handedOff = true;
+      photoFromReferenceScreenRef.current = true;
       void runPipeline(file, previewUrl);
       // Two frames on, the frozen picture has been painted.
       requestAnimationFrame(() =>
@@ -2612,6 +2644,7 @@ export default function EasyScanCamera({
     } finally {
       // Whatever happened above, a later press or auto-shutter is not blocked.
       capturingRef.current = false;
+      setCapturingUi(false);
       if (!handedOff) {
         // No photo after all (the photo could not be decoded, or something
         // threw after it was made): the camera is still there, so 測量中…
@@ -2634,6 +2667,9 @@ export default function EasyScanCamera({
       const file = e.target.files?.[0];
       e.target.value = "";
       if (!file || manualActiveRef.current) return;
+      // Card mode only for an upload picked on the live screen that shows it
+      // (review m2); from any other screen the photo takes the paper path.
+      photoFromReferenceScreenRef.current = referenceScreenRef.current;
       stopStream();
       fileRef.current = file;
       debugPhotoRef.current = file;
@@ -3089,7 +3125,8 @@ export default function EasyScanCamera({
     const video = videoRef.current;
     const stream = streamRef.current;
     if (!video || !stream) return;
-    video.srcObject = stream;
+    // Usually attached already (the stream effect below, review B1).
+    if (video.srcObject !== stream) video.srcObject = stream;
     video.play().catch(() => {});
     // A loop resumed after the tip closed starts from a clean slate: a stale
     // last-sample time, ring timer or previous quad would let the very first
@@ -3864,6 +3901,20 @@ export default function EasyScanCamera({
     (result.kind !== "none" ||
       (!lengthStep &&
         (camState.kind === "live" || camState.kind === "requesting")));
+  // Review B1: the live picture plays whenever the camera is live and the
+  // <video> is mounted (also after a retake mounts a new one), whether or not
+  // the tip / tour is open: the tour waits for this picture. Only the live
+  // loop (sampling, auto-capture) stays paused under the tip / tour.
+  useEffect(() => {
+    if (camState.kind !== "live" || !showStage || result.kind !== "none")
+      return;
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream) return;
+    if (video.srcObject !== stream) video.srcObject = stream;
+    video.play().catch(() => {});
+  }, [camState.kind, showStage, result.kind]);
+
   useLayoutEffect(() => {
     if (!showStage) return;
     const el = stageRef.current;
@@ -4871,6 +4922,18 @@ export default function EasyScanCamera({
                 {hintText}
               </p>
             )}
+            {cardActive && deviceTilt.state === "needs-permission" && (
+              // iOS asks for the motion sensor only from a tap; card mode
+              // restored from storage had none (review n2). Optional: card
+              // mode works without the level hint.
+              <button
+                type="button"
+                className="easyTiltPermission"
+                onClick={() => void deviceTilt.request()}
+              >
+                {cardCopy.tiltPermission}
+              </button>
+            )}
 
             <div className="easyBottomRow">
               {userLengthMm === null && CARD_REFERENCE_ENABLED ? (
@@ -4880,7 +4943,7 @@ export default function EasyScanCamera({
                   current={cardMode ? "card" : paperSize}
                   label={referenceLabel}
                   copy={cardCopy}
-                  disabled={shutterMeasuring}
+                  disabled={shutterMeasuring || capturingUi}
                   onSelect={selectReference}
                 />
               ) : userLengthMm === null ? (

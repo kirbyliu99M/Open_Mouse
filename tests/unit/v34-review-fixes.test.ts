@@ -22,7 +22,9 @@ import {
 import { uploadDebugPhoto } from "../../src/client/camera/debugPhotoUpload";
 import {
   buildTourSteps,
+  PICTURE_WAIT_MS,
   TOUR_EXIT_FADE_MS,
+  placeTooltip,
   tipPresentation,
   tourExitMs,
   tourReturnFocus,
@@ -34,6 +36,7 @@ import {
 import { cardReferenceCopy } from "../../src/lib/copy/card-reference";
 import { cardStaticShapes } from "../../src/client/card/cardLive";
 import { CardGuideOverlay } from "../../src/client/card/CardGuideOverlay";
+import { loadCardGuideOverlay } from "../../src/client/card/LazyCardGuideOverlay";
 
 const read = (path: string) =>
   readFileSync(path, "utf8").split("\r\n").join("\n");
@@ -114,7 +117,7 @@ describe("item 1 [major]: a typed hand length never takes the card path", () => 
       "const runId = ++runIdRef.current;",
     );
     expect(runPipeline).toMatch(
-      /cardPathActive\(\{\s*cardMode: cardModeRef\.current,\s*typedLengthMm: userLengthRef\.current,\s*manualPaperCorners,\s*\}\)/,
+      /cardPathActive\(\{\s*cardMode: cardModeRef\.current,\s*typedLengthMm: userLengthRef\.current,\s*manualPaperCorners,\s*referenceShown: photoFromReferenceScreenRef\.current,\s*\}\)/,
     );
     expect(camera).not.toContain(
       "if (cardModeRef.current && !manualPaperCorners)",
@@ -196,8 +199,9 @@ describe("item 2 [major]: no tour where it has nothing to point at", () => {
 
   it("the camera mounts the tour only on that screen, and the old tip sheet everywhere else", () => {
     expect(camera).toMatch(
-      /const tipView = tipPresentation\(\{\s*camera: camState\.kind,\s*result: result\.kind,\s*typedLength: userLengthMm !== null,\s*pictureReady: videoReady,\s*\}\);\s*const tourScreen = tipView === "tour";\s*const tipSheetScreen = tipView === "sheet";/,
+      /const tipView = tipPresentation\(\{\s*camera: camState\.kind,\s*result: result\.kind,\s*typedLength: userLengthMm !== null,\s*pictureReady: videoReady,\s*pictureTimedOut,\s*\}\);\s*const tourScreen = tipView === "tour";/,
     );
+    expect(camera).toContain('const tipSheetScreen = tipView === "sheet";');
     expect(camera).toMatch(
       /\{tipOpen && deviceFit === "phone" && !lengthStep && tourScreen && \(\s*<ScanTour/,
     );
@@ -238,13 +242,17 @@ describe("item 4 [minor]: the card's code is not in /scan/easy's first load", ()
     );
   });
 
-  it("the overlay is next/dynamic; the prefetch runs only with the flag on", () => {
+  it("the overlay is loaded on first use (LazyCardGuideOverlay); the prefetch runs only with the flag on", () => {
     expect(camera).not.toMatch(/^import \{ CardGuideOverlay \}/m);
     expect(camera).toMatch(
-      /const CardGuideOverlay = dynamic\(\s*\(\) => import\("\.\.\/card\/CardGuideOverlay"\)/,
+      /import \{\s*LazyCardGuideOverlay as CardGuideOverlay,\s*loadCardGuideOverlay,\s*\} from "\.\.\/card\/LazyCardGuideOverlay";/,
+    );
+    const lazy = read("src/client/card/LazyCardGuideOverlay.tsx");
+    expect(lazy).toContain(
+      'import type { CardGuideOverlay as Overlay } from "./CardGuideOverlay";',
     );
     expect(camera).toMatch(
-      /if \(!CARD_REFERENCE_ENABLED\) return;\s*void import\("\.\.\/card\/runCardPhoto"\)/,
+      /if \(!CARD_REFERENCE_ENABLED\) return;\s*void import\("\.\.\/card\/runCardPhoto"\)[\s\S]{0,200}?void loadCardGuideOverlay\(\);/,
     );
   });
 });
@@ -469,7 +477,7 @@ describe("item 13 [minor]: no reference change while a shot is measured", () => 
       /CARD_REFERENCE_ENABLED &&\s*!referenceChangeAllowed\(\{\s*capturing: capturingRef\.current,\s*measuring: shutterMeasuringRef\.current,\s*\}\)/,
     );
     expect(camera).toMatch(
-      /<ReferenceMenu[\s\S]*?disabled=\{shutterMeasuring\}/,
+      /<ReferenceMenu[\s\S]*?disabled=\{shutterMeasuring \|\| capturingUi\}/,
     );
   });
 });
@@ -549,6 +557,160 @@ describe("item 3 (e2e): the photo's text carries no numbers before 有", () => {
     expect(frozen).toContain('{phase === "measured" && dimensions && (');
     expect(camera).toContain(
       "dimensions={measuredView && !cardCheckOpen ? dimensions : null}",
+    );
+  });
+});
+
+describe("B1 [blocker]: the first-run tour never waits on a stream nobody attached", () => {
+  it("the stream is attached and played in its own effect, whatever the tip / tour", () => {
+    const effect = between(
+      camera,
+      "// Review B1: the live picture plays whenever the camera is live and the",
+      "useLayoutEffect(() => {",
+    );
+    expect(effect).not.toContain("tipOpen");
+    expect(effect).toMatch(
+      /if \(camState\.kind !== "live" \|\| !showStage \|\| result\.kind !== "none"\)\s*return;/,
+    );
+    expect(effect).toContain(
+      "if (video.srcObject !== stream) video.srcObject = stream;",
+    );
+    expect(effect).toContain("video.play().catch(() => {});");
+    expect(effect).toContain("}, [camState.kind, showStage, result.kind]);");
+    // Only the live loop (sampling, auto-capture) stays paused under the tip.
+    expect(camera).toContain(
+      'if (camState.kind !== "live" || tipOpen || manualActive) return;',
+    );
+  });
+
+  it("no picture within PICTURE_WAIT_MS: the tip sheet, never a blank screen", () => {
+    expect(PICTURE_WAIT_MS).toBe(2500);
+    const at = (pictureReady: boolean, pictureTimedOut: boolean) =>
+      tipPresentation({
+        camera: "live",
+        result: "none",
+        typedLength: false,
+        pictureReady,
+        pictureTimedOut,
+      });
+    expect(at(false, false)).toBe("wait");
+    expect(at(false, true)).toBe("sheet");
+    expect(at(true, false)).toBe("tour");
+    expect(camera).toMatch(
+      /if \(camState\.kind !== "live" \|\| videoReady\) return;\s*const timer = window\.setTimeout\(\s*\(\) => setPictureTimedOut\(true\),\s*PICTURE_WAIT_MS,\s*\);/,
+    );
+    expect(camera).toMatch(/if \(!tipOpen\) \{\s*setPictureTimedOut\(false\);/);
+  });
+});
+
+describe("M1 [major]: a card chunk that fails to load never reaches the error page", () => {
+  it("loadCardGuideOverlay: null on failure, tried again next time, kept once loaded", async () => {
+    let calls = 0;
+    const failing = async () => {
+      calls += 1;
+      throw new Error("ChunkLoadError");
+    };
+    expect(await loadCardGuideOverlay(failing)).toBeNull();
+    expect(await loadCardGuideOverlay(failing)).toBeNull();
+    expect(calls).toBe(2);
+    const ok = await loadCardGuideOverlay(async () => ({ CardGuideOverlay }));
+    expect(ok).toBe(CardGuideOverlay);
+    expect(await loadCardGuideOverlay(failing)).toBe(CardGuideOverlay);
+    expect(calls).toBe(2);
+  });
+
+  it("the card analysis import sits inside the pipeline's try (a normal retry error)", () => {
+    const cardRun = between(
+      camera,
+      "const runCardPipeline = useCallback(",
+      "runCardPipelineRef.current = runCardPipeline;",
+    );
+    const tryAt = cardRun.indexOf("try {");
+    const importAt = cardRun.indexOf('await import("../card/runCardPhoto")');
+    expect(tryAt).toBeGreaterThan(0);
+    expect(importAt).toBeGreaterThan(tryAt);
+    expect(cardRun).toContain('"PROCESSING_FAILED"');
+  });
+});
+
+describe("m1 [minor]: the tour card keeps the placement labels visible", () => {
+  it("a tall ring with labels inside: the card goes where it does not cover them", () => {
+    const viewport = { width: 390, height: 844 };
+    const hole = { x: 10, y: 80, width: 370, height: 740 };
+    const labels = { x: 10, y: 700, width: 370, height: 60 };
+    const tooltip = { width: 358, height: 300 };
+    const without = placeTooltip(hole, tooltip, viewport, "auto");
+    expect(without.overlaps).toBe(true);
+    const placed = placeTooltip(hole, tooltip, viewport, "auto", labels);
+    const coversLabels =
+      placed.y < labels.y + labels.height &&
+      placed.y + tooltip.height > labels.y;
+    expect(coversLabels).toBe(false);
+    // Nothing to keep clear: as before.
+    expect(placeTooltip(hole, tooltip, viewport, "auto", null)).toEqual(
+      without,
+    );
+    expect(tour).toContain("labelsInside ? labelsBox : null,");
+  });
+});
+
+describe("m2 [minor]: uploads from screens without the reference take the paper path", () => {
+  it("cardPathActive: referenceShown false is the paper path", () => {
+    expect(
+      cardPathActive({
+        cardMode: true,
+        typedLengthMm: null,
+        referenceShown: false,
+      }),
+    ).toBe(false);
+    expect(
+      cardPathActive({
+        cardMode: true,
+        typedLengthMm: null,
+        referenceShown: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("an upload records whether it was picked on the live screen; a shot always was", () => {
+    expect(camera).toMatch(
+      /referenceScreenRef\.current =\s*deviceFit === "phone" &&\s*\(camState\.kind === "live" \|\| camState\.kind === "requesting"\) &&\s*result\.kind === "none" &&\s*!lengthStep;/,
+    );
+    const pick = between(
+      camera,
+      "const onFilePicked = useCallback(",
+      "void runPipeline(file, previewUrl);",
+    );
+    expect(pick).toContain(
+      "photoFromReferenceScreenRef.current = referenceScreenRef.current;",
+    );
+    expect(camera).toMatch(
+      /handedOff = true;\s*photoFromReferenceScreenRef\.current = true;\s*void runPipeline\(file, previewUrl\);/,
+    );
+  });
+});
+
+describe("n1, n2: the menu during a shot; the iOS level hint", () => {
+  it("n1: the menu is disabled from the shutter press (capturingUi)", () => {
+    expect(camera).toMatch(
+      /capturingRef\.current = true;[\s\S]{0,120}?setCapturingUi\(true\);/,
+    );
+    expect(camera).toMatch(
+      /capturingRef\.current = false;\s*setCapturingUi\(false\);/,
+    );
+  });
+
+  it("n2: card mode on iOS without the sensor offers a 44 px tap that asks for it", () => {
+    expect(camera).toMatch(
+      /\{cardActive && deviceTilt\.state === "needs-permission" && \([\s\S]*?className="easyTiltPermission"\s*onClick=\{\(\) => void deviceTilt\.request\(\)\}/,
+    );
+    expect(cardReferenceCopy("zh-TW").tiltPermission).toBe("開啟水平提示");
+    expect(between(css, ".easyTiltPermission {", "}")).toContain(
+      "min-height: 44px;",
+    );
+    const axe = read("tests/e2e/a11y-axe.spec.ts");
+    expect(between(axe, "const OVER_LIVE_PICTURE", "];")).toContain(
+      '{ selector: ".easyTiltPermission" }',
     );
   });
 });

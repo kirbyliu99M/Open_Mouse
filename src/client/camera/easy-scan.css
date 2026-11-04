@@ -136,6 +136,19 @@
 .easyReferenceMenuCheck {
   flex-shrink: 0;
 }
+/* iOS, card mode: the tap that asks for the motion sensor (review n2). */
+.easyTiltPermission {
+  min-height: 44px;
+  margin-top: 0.5rem;
+  padding: 0 1rem;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
 
 .easyUploadIconButton {
   display: inline-flex;

@@ -19,6 +19,9 @@
  */
 export type TipPresentation = "tour" | "wait" | "sheet";
 
+/** How long the tour waits for the live picture before the tip sheet, ms (review B1). 候選. */
+export const PICTURE_WAIT_MS = 2500;
+
 export function tipPresentation(screen: {
   readonly camera:
     "requesting" | "live" | "cameraError" | "streamEnded" | "noCamera";
@@ -26,10 +29,19 @@ export function tipPresentation(screen: {
   readonly typedLength: boolean;
   /** The video has started playing (a picture is on screen). */
   readonly pictureReady: boolean;
+  /**
+   * The picture did not start within PICTURE_WAIT_MS of the camera going
+   * live (review B1): the tip sheet, never a blank screen. Cleared when the
+   * tip closes.
+   */
+  readonly pictureTimedOut?: boolean;
 }): TipPresentation {
   if (screen.typedLength) return "sheet";
   if (screen.result !== "none") return "sheet";
-  if (screen.camera === "live") return screen.pictureReady ? "tour" : "wait";
+  if (screen.camera === "live") {
+    if (screen.pictureTimedOut) return "sheet";
+    return screen.pictureReady ? "tour" : "wait";
+  }
   if (screen.camera === "requesting") return "wait";
   return "sheet";
 }
@@ -440,6 +452,33 @@ function centredX(viewport: Size, width: number): number {
  * side has room (design §5, "說明卡一律不蓋亮框").
  */
 export function placeTooltip(
+  avoid: Rect,
+  tooltip: Size,
+  viewport: Size,
+  placement: TourStepDef["placement"],
+  /**
+   * Labels drawn inside the ring (the card placement step, review m1): when
+   * the card cannot stay clear of the ring, it still keeps clear of these,
+   * at the bottom or the top of the screen, whichever does.
+   */
+  keepClear: Rect | null = null,
+): TooltipPlacement {
+  const placed = placeTooltipAround(avoid, tooltip, viewport, placement);
+  if (!placed.overlaps || !keepClear) return placed;
+  const width = tooltipWidth(viewport);
+  const x = centredX(viewport, width);
+  const clear = (y: number) =>
+    y + tooltip.height <= keepClear.y || y >= keepClear.y + keepClear.height;
+  const bottom = Math.max(
+    SCREEN_MARGIN,
+    viewport.height - SCREEN_MARGIN - tooltip.height,
+  );
+  if (clear(bottom)) return { ...placed, x, y: bottom, width };
+  if (clear(SCREEN_MARGIN)) return { ...placed, x, y: SCREEN_MARGIN, width };
+  return placed;
+}
+
+function placeTooltipAround(
   avoid: Rect,
   tooltip: Size,
   viewport: Size,
