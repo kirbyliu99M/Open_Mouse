@@ -117,7 +117,7 @@ export default defineConfig({
     {
       name: "chromium-camera-card",
       testMatch:
-        /v34-card\.spec\.ts|v34-tour-shots\.spec\.ts|a11y-axe\.spec\.ts/,
+        /v34-card\.spec\.ts|v34-tour-shots\.spec\.ts|a11y-axe\.spec\.ts|v34-first-run\.spec\.ts/,
       use: {
         ...devices["Pixel 7"],
         viewport: { width: 390, height: 844 },
