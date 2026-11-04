@@ -65,6 +65,13 @@ async function presetReference(page: Page, value: string) {
 
 async function openCamera(page: Page, url: string) {
   await page.goto(url);
+  // ?debug=1 is used only to keep the ring waiting for a hand (no auto-shot
+  // on the fake scene); its panel is not the product and lies over the dock
+  // on a 390 px screen, so taps go through it to the real controls.
+  if (url.includes("debug=1"))
+    await page.addStyleTag({
+      content: "[data-testid=scan-debug-panel] { pointer-events: none; }",
+    });
   await dismissFirstRun(page);
   await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
 }
@@ -227,6 +234,9 @@ test.describe("card flag ON", () => {
 
     // A reload keeps the card.
     await page.reload();
+    await page.addStyleTag({
+      content: "[data-testid=scan-debug-panel] { pointer-events: none; }",
+    });
     await expect(chip(page)).toHaveText(cardEn.chip);
     await expect(cardSlot(page)).toBeVisible({ timeout: 10_000 });
     await expect(corners(page)).toHaveCount(0);
