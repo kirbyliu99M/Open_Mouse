@@ -183,14 +183,12 @@ for (const item of ITEMS) {
             await page.screenshot({
               path: path.join(tmp, `${item.id}-adjust.png`),
             });
-            if (row.adjustEntry === "review") {
-              row.frameConfirm = true;
-              await page.getByTestId("paper-adjust-confirm").click();
-            } else {
-              // A rescue (the paper was not found by itself): not measured.
-              row.sheet = "paper-rescue";
-              throw new Error(`paper adjustment opened as ${row.adjustEntry}`);
-            }
+            // "review": measured, confirm as it opened. Otherwise the paper
+            // was not taken by itself (a rescue, F14): the person's path is
+            // to check the frame and measure with it, which is what is done
+            // here (recorded, so these rows are told apart).
+            row.frameConfirm = row.adjustEntry === "review";
+            await page.getByTestId("paper-adjust-confirm").click();
           }
           await expect(anySheet).toBeVisible({ timeout: 60_000 });
           if (await page.getByTestId("card-check-yes").isVisible()) {
