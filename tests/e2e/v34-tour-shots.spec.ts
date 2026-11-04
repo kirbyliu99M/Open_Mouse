@@ -1,7 +1,8 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { en as tour } from "../../src/lib/copy/scan-tour";
+import { LOCALE_COOKIE } from "../../src/lib/contracts/locale";
+import { en, zhTW } from "../../src/lib/copy/scan-tour";
 
 /**
  * v3.4 tour screenshots for the design check (opt-in, never CI:
@@ -11,6 +12,9 @@ import { en as tour } from "../../src/lib/copy/scan-tour";
  */
 const OUT = process.env.TOUR_SHOTS;
 const CARD_ON = process.env.NEXT_PUBLIC_CARD_REFERENCE_ENABLED === "1";
+/** TOUR_SHOTS_LOCALE=zh-TW for the Chinese screens (default English). */
+const ZH = process.env.TOUR_SHOTS_LOCALE === "zh-TW";
+const tour = ZH ? zhTW : en;
 
 test("tour screens, one image each", async ({ page }, testInfo) => {
   test.skip(!OUT, "Opt-in: TOUR_SHOTS=<dir>.");
@@ -21,6 +25,14 @@ test("tour screens, one image each", async ({ page }, testInfo) => {
   const kind = cardProject ? "card" : CARD_ON ? "paper-cardbuild" : "paper";
   const dir = path.join(OUT!, kind);
   await mkdir(dir, { recursive: true });
+  if (ZH)
+    await page.context().addCookies([
+      {
+        name: LOCALE_COOKIE,
+        value: "zh-TW",
+        url: `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? 3100}`,
+      },
+    ]);
   await page.goto("/scan/easy");
   const welcome = page.getByRole("dialog", { name: tour.welcomeTitle });
   await expect(welcome).toBeVisible({ timeout: 15_000 });
