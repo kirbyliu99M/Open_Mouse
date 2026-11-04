@@ -14,13 +14,16 @@
  * shape.
  *
  * Why card-only and not card + tilt (coordinator, 2026-11-05, Kirby's 60
- * Galaxy S25 photos with A4 and card in the same frame): card-only corrected
- * length × `CARD_LAB_SCALE.handLength` matched the A4 path at mean −0.14 mm,
- * SD 0.89 mm over 45 pairs (tilt 3–27°); card + tilt was worse (mean
- * −1.21 mm). Width × 1 (card − A4 +0.5 mm). One phone, one hand
- * (candidate 未拍板). Only `handLengthMm` and `palmWidthMm` were compared;
- * the scale is applied to `handLengthMm` only, the other fields stay as
- * corrected (需要 Kirby 決定 whether palm and finger lengths should follow).
+ * Galaxy S25 photos with A4 and card in the same frame): card-only was
+ * closer to the A4 path than card + tilt. One phone, one hand (candidate
+ * 未拍板).
+ *
+ * The scale (review G4): the submitted figures are the corrected ones times
+ * ONE uniform factor, `CARD_TO_PAPER_SCALE`, on every length, so they sit on
+ * the same corrected scale as a paper scan's and the display / fit path
+ * applies `FIT_SCALE_FROM_CORRECTED` once, as for paper. (The lab's ×1.038,
+ * `src/client/lab`, was against the tape and stacked with that fit scale:
+ * the card showed ≈ A4 × 1.046.)
  *
  * Pure; never throws (a failure says why in `error`).
  */
@@ -40,17 +43,16 @@ import type { CardSizeMm } from "./detect/cardMeasure";
 import type { Quad } from "./detect/detectCard";
 
 /**
- * The card path's scale on the corrected figures (lab L14, candidate
- * 未拍板): ×1.038 on the length (lab sessions 1-3 against the tape; the
- * 2026-11-05 paired check put card-only × 1.038 within −0.14 mm of the A4
- * path), width × 1.
+ * The card path's one uniform scale onto the paper path's corrected scale
+ * (review G4, candidate 未拍板), applied to every length of the corrected
+ * card measurements.
+ *
+ * Basis: Kirby 60 S25 photos, A4 + card same frame, 2026-11-05: card-only
+ * corrected / A4 corrected = 1.0078 (length, n=45, SD 0.0045) and 1.0078
+ * (width); 1/1.0078 = 0.9922. After it, shown card − shown A4 = −0.03 mm,
+ * SD 0.84.
  */
-export const CARD_LAB_SCALE = {
-  handLength: 1.038,
-  handWidth: 1,
-  basis:
-    "lab sessions 1-3 (29 shots, 183.0 vs tape 190); paired check 2026-11-05: card-only x1.038 vs A4, 45 pairs, mean -0.14 mm, SD 0.89 mm",
-} as const;
+export const CARD_TO_PAPER_SCALE = 0.9922;
 
 function dist(a: Point2, b: Point2): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
@@ -83,7 +85,7 @@ export function cardOnlyHomography(
 export type CardHandError = "card_homography" | "measurement";
 
 export interface CardHandResult {
-  /** What is submitted: corrected, length × `CARD_LAB_SCALE.handLength`. */
+  /** What is submitted: corrected, every length × `CARD_TO_PAPER_SCALE`. */
   readonly measurements: HandMeasurements | null;
   /** The corrected length and width before the scale, mm. */
   readonly correctedLengthMm: number | null;
@@ -98,16 +100,20 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-/** `measurements` with the card scale applied to the length and the width. */
+/** `measurements` with one uniform scale on every length (every `…Mm` field). */
 export function applyCardScale(
   m: HandMeasurements,
-  scale: { readonly handLength: number; readonly handWidth: number },
+  scale: number,
 ): HandMeasurements {
-  return {
-    ...m,
-    handLengthMm: m.handLengthMm * scale.handLength,
-    palmWidthMm: m.palmWidthMm * scale.handWidth,
-  };
+  const out: Record<string, unknown> = { ...m };
+  for (const [key, value] of Object.entries(m))
+    if (
+      key.endsWith("Mm") &&
+      typeof value === "number" &&
+      Number.isFinite(value)
+    )
+      out[key] = value * scale;
+  return out as HandMeasurements;
 }
 
 /** The hand on the table through the card's corners, nominal focal. */
@@ -143,7 +149,7 @@ export function measureHandWithCard(input: {
     );
     const corrected = measurementsFromSheetMm(c.points);
     return {
-      measurements: applyCardScale(corrected, CARD_LAB_SCALE),
+      measurements: applyCardScale(corrected, CARD_TO_PAPER_SCALE),
       correctedLengthMm: corrected.handLengthMm,
       correctedWidthMm: corrected.palmWidthMm,
       cameraHeightMm,

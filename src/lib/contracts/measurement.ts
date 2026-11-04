@@ -432,9 +432,10 @@ export function estimatePalmLengthMm(handLengthMm: number): number {
  * ID-1-size card laid beside the hand, found from its own edges in the
  * photo (the scan lab's G-M2 v3 detector, `src/client/card/`). The card's
  * four corners alone give the homography (no motion sensor); the landmarks
- * are parallax-corrected at the nominal focal and the hand length is
- * multiplied by the card path's scale (×1.038, Kirby's paired check of
- * 2026-11-05: card vs A4 on the same 45 photos, mean −0.14 mm, SD 0.89 mm;
+ * are parallax-corrected at the nominal focal and every length is
+ * multiplied by one uniform factor onto the paper path's corrected scale
+ * (CARD_TO_PAPER_SCALE 0.9922: Kirby's 60 S25 photos, A4 + card in the same
+ * frame, 2026-11-05, card-only corrected / A4 corrected = 1.0078, n = 45;
  * one phone, one hand). The measurements then have the paper path's scale,
  * so `parallaxCorrected: true` gets `FIT_SCALE_FROM_CORRECTED` as a sheet
  * scan does.

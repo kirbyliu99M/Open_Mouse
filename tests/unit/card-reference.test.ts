@@ -15,10 +15,16 @@ import {
   nominalFocalPxFromLongEdge,
 } from "../../src/client/geometry/nominalFocalShadow";
 import {
-  CARD_LAB_SCALE,
+  CARD_TO_PAPER_SCALE,
   cardOnlyHomography,
   measureHandWithCard,
 } from "../../src/client/card/cardHandMeasure";
+import {
+  correctLandmarksByHandLength,
+  measurementsFromSheetMm,
+} from "../../src/client/geometry/measurements";
+import { shownScanMeasurements } from "../../src/lib/fit/fit-scale";
+import { FIT_SCALE_FROM_CORRECTED } from "../../src/lib/contracts/measurement";
 import {
   cropPrincipalPoint,
   detectCardInPasses,
@@ -99,7 +105,7 @@ const handPx = handTable.map((p, i) => project(p, heights[i]));
 const intrinsics = { fPx: F, cx: W / 2, cy: H / 2 };
 
 describe("card-only measurement (cardHandMeasure.ts)", () => {
-  it("recovers the parallax-corrected hand and applies the card scale to the length only", () => {
+  it("recovers the parallax-corrected hand and applies the one card scale to every length", () => {
     const r = measureHandWithCard({
       landmarksPx: handPx,
       cardCorners: cardPx,
@@ -110,19 +116,77 @@ describe("card-only measurement (cardHandMeasure.ts)", () => {
     expect(Math.abs(r.correctedLengthMm! - trueLength)).toBeLessThan(0.1);
     expect(Math.abs(r.correctedWidthMm! - trueWidth)).toBeLessThan(0.1);
     expect(r.measurements!.handLengthMm).toBeCloseTo(
-      r.correctedLengthMm! * CARD_LAB_SCALE.handLength,
+      r.correctedLengthMm! * CARD_TO_PAPER_SCALE,
       6,
     );
-    expect(r.measurements!.palmWidthMm).toBeCloseTo(r.correctedWidthMm!, 6);
+    expect(r.measurements!.palmWidthMm).toBeCloseTo(
+      r.correctedWidthMm! * CARD_TO_PAPER_SCALE,
+      6,
+    );
     expect(r.cameraHeightMm!).toBeCloseTo(CAM_MM, 0);
     // The same shape as the paper path's measurements.
     expect(r.measurements!.palmLengthMm).toBeGreaterThan(0);
     expect(r.measurements!.middleLengthMm).toBeGreaterThan(0);
   });
 
-  it("the scale is the lab's 1.038 on the length, 1 on the width", () => {
-    expect(CARD_LAB_SCALE.handLength).toBe(1.038);
-    expect(CARD_LAB_SCALE.handWidth).toBe(1);
+  it("G4: the scale is one uniform 0.9922 (1/1.0078), not the lab's 1.038", () => {
+    expect(CARD_TO_PAPER_SCALE).toBe(0.9922);
+    expect(1 / 1.0078).toBeCloseTo(CARD_TO_PAPER_SCALE, 3);
+  });
+
+  it("G4: for the same corrected landmarks, every submitted length is the paper path's corrected one × 0.9922 (no FIT, no 1.038)", () => {
+    const r = measureHandWithCard({
+      landmarksPx: handPx,
+      cardCorners: cardPx,
+      intrinsics,
+      cardSize: ID1,
+    });
+    // What the paper path computes from the same homography (ratio 1).
+    const h = cardOnlyHomography(cardPx, ID1);
+    const paper = measurementsFromSheetMm(
+      correctLandmarksByHandLength(handPx, h, intrinsics).points,
+    );
+    const card = r.measurements!;
+    const keys = Object.keys(paper).filter((k) => k.endsWith("Mm"));
+    expect(keys.length).toBeGreaterThanOrEqual(8);
+    for (const k of keys) {
+      const a = (paper as Record<string, number>)[k];
+      const b = (card as Record<string, number>)[k];
+      expect(b, k).toBeCloseTo(a * CARD_TO_PAPER_SCALE, 9);
+    }
+  });
+
+  it("G4: the shown card length goes through FIT_SCALE_FROM_CORRECTED exactly once", () => {
+    const r = measureHandWithCard({
+      landmarksPx: handPx,
+      cardCorners: cardPx,
+      intrinsics,
+      cardSize: ID1,
+    });
+    const submission = buildCardSubmission({
+      hand: "right",
+      measurements: r.measurements!,
+      cardSize: ID1,
+      searchPass: "slot",
+      cardFitRmsMm: 0.3,
+    });
+    // The submission carries the card-scaled figures as they are.
+    expect(submission.measurements.handLengthMm).toBe(
+      r.measurements!.handLengthMm,
+    );
+    const shown = shownScanMeasurements(
+      submission.measurements,
+      submission.calibration,
+    );
+    const k = FIT_SCALE_FROM_CORRECTED;
+    expect(shown.handLengthMm).toBeCloseTo(
+      r.correctedLengthMm! * CARD_TO_PAPER_SCALE * k.handLength,
+      9,
+    );
+    expect(shown.palmWidthMm).toBeCloseTo(
+      r.correctedWidthMm! * CARD_TO_PAPER_SCALE * k.palmWidth,
+      9,
+    );
   });
 
   it("maps the card to its true size whichever corner the quad starts at", () => {
