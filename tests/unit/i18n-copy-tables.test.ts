@@ -48,6 +48,7 @@ const EXPECTED_MODULES = [
   "scan-common.ts",
   "scan-issues.ts",
   "scan-sheet.ts",
+  "scan-tour.ts",
   "share-card.ts",
   "sheet.ts",
   "site-footer.ts",

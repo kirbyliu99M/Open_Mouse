@@ -5,6 +5,8 @@ import {
   FILTER_SOURCES,
   PAPER_DETECTION_STAGES,
   redactAnalyticsPath,
+  TOUR_REFERENCES,
+  TOUR_STEP_IDS,
 } from "../../src/lib/contracts/analytics";
 
 const READY = {
@@ -413,5 +415,60 @@ describe("V3.2 fields: scan_rejected.paperStage and the shape_toggle filter sour
         source: "toggle",
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("v3.4 scan tour events: enums and small integers only", () => {
+  const s = analyticsEventSchemas;
+
+  it("accept the documented shapes, for every reference", () => {
+    for (const reference of TOUR_REFERENCES) {
+      expect(
+        s.scan_tour_started.safeParse({ trigger: "help", reference }).success,
+      ).toBe(true);
+      for (const stepId of TOUR_STEP_IDS)
+        expect(
+          s.scan_tour_step_viewed.safeParse({ step: 1, stepId, reference })
+            .success,
+        ).toBe(true);
+      expect(s.scan_tour_completed.safeParse({ reference }).success).toBe(true);
+      expect(
+        s.scan_tour_skipped.safeParse({ step: 0, reference }).success,
+      ).toBe(true);
+      expect(
+        s.scan_tour_first_use_answer.safeParse({ answer: "first", reference })
+          .success,
+      ).toBe(true);
+    }
+  });
+
+  it("refuse an unknown reference, trigger, answer or step id", () => {
+    expect(s.scan_tour_completed.safeParse({ reference: "b5" }).success).toBe(
+      false,
+    );
+    expect(
+      s.scan_tour_started.safeParse({ trigger: "deeplink", reference: "a4" })
+        .success,
+    ).toBe(false);
+    expect(
+      s.scan_tour_first_use_answer.safeParse({ answer: "yes", reference: "a4" })
+        .success,
+    ).toBe(false);
+    expect(
+      s.scan_tour_step_viewed.safeParse({
+        step: 1,
+        stepId: "hand",
+        reference: "a4",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("cap the step at 0..4 and refuse fractions and a missing reference", () => {
+    for (const step of [-1, 5, 1.5])
+      expect(
+        s.scan_tour_skipped.safeParse({ step, reference: "a4" }).success,
+        String(step),
+      ).toBe(false);
+    expect(s.scan_tour_skipped.safeParse({ step: 2 }).success).toBe(false);
   });
 });

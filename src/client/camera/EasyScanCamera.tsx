@@ -357,6 +357,8 @@ import { GM2_THRESHOLDS } from "../card/hand/gm2Rules";
 import "../../app/scan/scan.css";
 import "./camera.css";
 import "./easy-scan.css";
+import ScanTour from "./tour/ScanTour";
+import { guideRectInViewport } from "./tour/tourModel";
 
 /** What the frozen photo needs to be drawn where the live frame was. */
 interface PhotoInfo {
@@ -594,6 +596,7 @@ function HandToggle({
     <button
       type="button"
       className={`easyHandChip${inSheet ? " easyHandChipInSheet" : ""}`}
+      data-tour={inSheet ? undefined : "hand-chip"}
       aria-label={handChipAccessibleName(state, locale)}
       disabled={disabled}
       onClick={onClick}
@@ -810,6 +813,10 @@ export default function EasyScanCamera({
   const manualActiveRef = useRef(false);
   manualActiveRef.current = manualActive;
   const [tipOpen, setTipOpen] = useState(Boolean(forceTipOpen));
+  // v3.4 tour (candidate): with paper, the first-run tip is the spotlight
+  // tour (tour/ScanTour.tsx); "auto" asks 第一次掃描嗎？ first, "?" does not.
+  // The typed-length mode keeps the old sheet below.
+  const [tipTrigger, setTipTrigger] = useState<"auto" | "help">("auto");
   const [cue, setCue] = useState<Cue | null>(null);
   // The dots' states live in a small store that only the dots read
   // (EasyCorners.tsx, 2026-10-28): a sample re-renders four dots, not the
@@ -1199,11 +1206,16 @@ export default function EasyScanCamera({
   }, []);
 
   useEffect(() => {
-    if (tipOpen && deviceFit === "phone" && !lengthStep) {
+    if (
+      tipOpen &&
+      deviceFit === "phone" &&
+      !lengthStep &&
+      userLengthMm !== null
+    ) {
       tipDialogRef.current?.showModal();
       gotItRef.current?.focus();
     }
-  }, [tipOpen, deviceFit, lengthStep]);
+  }, [tipOpen, deviceFit, lengthStep, userLengthMm]);
 
   useEffect(() => {
     if (userLengthMm !== null || !focusEntryAfterSwitchRef.current) return;
@@ -1264,7 +1276,9 @@ export default function EasyScanCamera({
   );
   // #21: the first-run tip slides down like the other sheets.
   const tipLeave = useLeaving(
-    tipOpen && deviceFit === "phone" && !lengthStep ? true : null,
+    tipOpen && deviceFit === "phone" && !lengthStep && userLengthMm !== null
+      ? true
+      : null,
     leaveMs("sheet", reducedMotion),
   );
   // #22: the paper adjustment fades out (--motion-out) over the sheet coming
@@ -1474,7 +1488,12 @@ export default function EasyScanCamera({
     enabled: !tipLeave.leaving,
   });
 
-  const openTip = useCallback(() => setTipOpen(true), []);
+  const openTip = useCallback(() => {
+    setTipTrigger("help");
+    setTipOpen(true);
+  }, []);
+  // The tour marks the tip as seen itself (only when skipped or finished).
+  const closeTour = useCallback(() => setTipOpen(false), []);
 
   const clearFocusTimers = useCallback(() => {
     tapFocusRef.current?.cancel();
@@ -4483,6 +4502,7 @@ export default function EasyScanCamera({
           <button
             type="button"
             className="easyHelpButton"
+            data-tour="help"
             ref={helpTriggerRef}
             aria-label={easy.showTip}
             onClick={openTip}
@@ -4696,6 +4716,7 @@ export default function EasyScanCamera({
               className={`cameraCue${cue?.allPass && !captureFailureHint ? " perfect" : ""}${cue && !captureFailureHint && isPlacementCueCode(cue.code) ? " cameraCueSoftHint" : ""}`}
               aria-live="polite"
               data-testid="camera-cue"
+              data-tour="cue"
               data-capture-failure={captureFailureHint ? "true" : undefined}
             >
               {captureFailureHint ? (
@@ -4754,6 +4775,7 @@ export default function EasyScanCamera({
               <button
                 type="button"
                 className="cameraShutter"
+                data-tour="shutter"
                 aria-label={common.takePhoto}
                 onClick={() => void captureNow()}
               >
@@ -5121,6 +5143,26 @@ export default function EasyScanCamera({
           before) and slides down, still painted; its dimmed backdrop belongs
           to the open dialog only, so a scrim of the same colour takes its
           place and fades out with it. */}
+      {tipOpen &&
+        deviceFit === "phone" &&
+        !lengthStep &&
+        userLengthMm === null && (
+          <ScanTour
+            trigger={tipTrigger}
+            reference={cardMode ? "card" : paperSize}
+            cardModeAvailable={CARD_REFERENCE_ENABLED}
+            noPaperEntry={noPaperLabel !== null}
+            onReferenceChange={selectReference}
+            resolvePaperFrame={() =>
+              guideRectInViewport(
+                stageRef.current?.getBoundingClientRect(),
+                guide,
+              )
+            }
+            hand={handChip.hand}
+            onClose={closeTour}
+          />
+        )}
       {tipLeave.leaving && <div className="easyTipScrim" aria-hidden="true" />}
       <dialog
         ref={tipDialogRef}
