@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
-import { appendFile, mkdir, readFile, rm } from "node:fs/promises";
+import { readFileSync } from "node:fs";
+import { appendFile, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { chromium, devices, expect, test, type Page } from "@playwright/test";
@@ -67,20 +68,25 @@ async function finishQuestions(page: Page) {
     .click();
 }
 
-test("v3.4 real photos through the whole easy scan (local only)", async ({
-  baseURL,
-}, testInfo) => {
-  test.skip(process.env.V34_REAL !== "1", "Local measurement: V34_REAL=1.");
-  test.skip(testInfo.project.name !== "chromium", "Opens its own browser.");
-  const items = JSON.parse(
-    await readFile(process.env.V34_REAL_LIST!, "utf8"),
-  ) as Item[];
-  const outFile = process.env.V34_REAL_OUT!;
-  const tmp = process.env.V34_REAL_TMP!;
-  await mkdir(tmp, { recursive: true });
-  test.setTimeout(items.length * 180_000);
+const ITEMS: Item[] =
+  process.env.V34_REAL === "1" && process.env.V34_REAL_LIST
+    ? (JSON.parse(readFileSync(process.env.V34_REAL_LIST, "utf8")) as Item[])
+    : [];
 
-  for (const item of items) {
+test("v3.4 real photos: set V34_REAL=1 and V34_REAL_LIST to run", () => {
+  test.skip(true, "Local measurement only.");
+});
+
+/** One test per photo, so a hang on one photo is that photo's error only. */
+for (const item of ITEMS) {
+  test(`v3.4 real photo ${item.id} (${item.mode}, local only)`, async ({
+    baseURL,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "chromium", "Opens its own browser.");
+    test.setTimeout(300_000);
+    const outFile = process.env.V34_REAL_OUT!;
+    const tmp = process.env.V34_REAL_TMP!;
+    await mkdir(tmp, { recursive: true });
     const y4m = path.join(tmp, `${item.id}.y4m`);
     await toY4m(item, y4m);
     const row: Record<string, unknown> = {
@@ -95,133 +101,148 @@ test("v3.4 real photos through the whole easy scan (local only)", async ({
         `--use-file-for-fake-video-capture=${y4m}`,
       ],
     });
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
     try {
-      const context = await browser.newContext({
-        ...devices["Pixel 7"],
-        viewport:
-          item.stream === "lab"
-            ? { width: 360, height: 589 }
-            : { width: 360, height: 640 },
-        permissions: ["camera"],
-        baseURL,
-        locale: "en-US",
-      });
-      await context.addInitScript(() => {
-        window.localStorage.setItem("openMouse.easyScan.firstRunTipSeen", "1");
-      });
-      if (item.mode === "card") {
-        // Choose the card on the screen with the live loop held (no frame
-        // callback runs, so the photo cannot be taken in A4 first); the page
-        // keeps the choice for the next load, however it stores it.
-        const setup = await context.newPage();
-        await setup.addInitScript(() => {
-          window.requestAnimationFrame = () => 0;
-        });
-        await setup.goto("/scan/easy");
-        await chooseReference(setup, "Card");
-        await setup.close();
-      }
-      const page = await context.newPage();
-      const bodies: Record<string, unknown>[] = [];
-      await page.route("**/api/scans", async (route) => {
-        if (route.request().method() !== "POST") return route.fallback();
-        bodies.push(JSON.parse(route.request().postData() ?? "{}"));
-        await route.fulfill({
-          status: 201,
-          contentType: "application/json",
-          body: JSON.stringify({
-            scanId: "623e4567-e89b-12d3-a456-426614174099",
-          }),
-        });
-      });
-      await page.goto("/scan/easy?debug=1&hints=0");
-      await expect(page.locator('[data-tour="reference-chip"]')).toHaveText(
-        item.mode === "card" ? "Card" : "A4",
-        { timeout: 30_000 },
-      );
-      await expect(page.locator("video.cameraVideo.ready")).toBeVisible({
-        timeout: 30_000,
-      });
-      const t0 = Date.now();
-      const adjust = page.getByTestId("paper-adjust");
-      const anySheet = page.locator("dialog.easyResultSheet[open]");
-      const shot = adjust.or(anySheet).first();
-      let auto = true;
-      try {
-        await expect(shot).toBeVisible({ timeout: 30_000 });
-      } catch {
-        auto = false;
-        row.cueAtTimeout = await page
-          .getByTestId("camera-cue")
-          .innerText()
-          .catch(() => null);
-        await page.getByRole("button", { name: "Take photo" }).click();
-        await expect(shot).toBeVisible({ timeout: 90_000 });
-      }
-      row.autoShot = auto;
-      row.secondsToShot = Math.round((Date.now() - t0) / 100) / 10;
-      if (await adjust.isVisible()) {
-        row.adjustEntry = await adjust.getAttribute("data-entry");
-        await page.screenshot({
-          path: path.join(tmp, `${item.id}-adjust.png`),
-        });
-        if (row.adjustEntry === "review") {
-          row.frameConfirm = true;
-          await page.getByTestId("paper-adjust-confirm").click();
-        } else {
-          // A rescue (the paper was not found by itself): not measured.
-          row.sheet = "paper-rescue";
-          throw new Error(`paper adjustment opened as ${row.adjustEntry}`);
-        }
-      }
-      await expect(anySheet).toBeVisible({ timeout: 60_000 });
-      if (await page.getByTestId("card-check-yes").isVisible()) {
-        row.outlineQuestion = true;
-        await page.screenshot({
-          path: path.join(tmp, `${item.id}-outline.png`),
-        });
-        await page.getByTestId("card-check-yes").click();
-      }
-      const measured = page.getByRole("dialog", { name: "Hand measured" });
-      if (await measured.isVisible().catch(() => false)) {
-        row.sheet = "measured";
-        row.sheetNumbers = await page
-          .getByTestId("easy-sheet-numbers")
-          .innerText()
-          .catch(() => null);
-        const shown = /Hand length\s+(\d+(?:\.\d+)?)\s*mm/.exec(
-          String(row.sheetNumbers ?? ""),
-        );
-        row.shownHandLengthMm = shown ? Number(shown[1]) : null;
-        await finishQuestions(page);
-        await expect.poll(() => bodies.length, { timeout: 30_000 }).toBe(1);
-        const body = bodies[0] as {
-          measurements: Record<string, number>;
-          calibration: Record<string, unknown>;
-          hand: string;
-        };
-        row.hand = body.hand;
-        row.handLengthMm = body.measurements.handLengthMm;
-        row.palmWidthMm = body.measurements.palmWidthMm;
-        row.method = body.calibration.method;
-        row.calibration = body.calibration;
-        row.bodyHasImage = /data:image|base64/.test(JSON.stringify(body));
-      } else {
-        row.sheet = "retake";
-        row.retakeText = (await anySheet.innerText()).slice(0, 300);
-        await page.screenshot({
-          path: path.join(tmp, `${item.id}-retake.png`),
-        });
-      }
+      await Promise.race([
+        new Promise((_, reject) => {
+          watchdog = setTimeout(
+            () => reject(new Error("watchdog: no end within 200 s")),
+            200_000,
+          );
+        }),
+        (async () => {
+          const context = await browser.newContext({
+            ...devices["Pixel 7"],
+            viewport:
+              item.stream === "lab"
+                ? { width: 360, height: 589 }
+                : { width: 360, height: 640 },
+            permissions: ["camera"],
+            baseURL,
+            locale: "en-US",
+          });
+          await context.addInitScript(() => {
+            window.localStorage.setItem(
+              "openMouse.easyScan.firstRunTipSeen",
+              "1",
+            );
+          });
+          if (item.mode === "card") {
+            // Choose the card on the screen with the live loop held (no frame
+            // callback runs, so the photo cannot be taken in A4 first); the page
+            // keeps the choice for the next load, however it stores it.
+            const setup = await context.newPage();
+            await setup.addInitScript(() => {
+              window.requestAnimationFrame = () => 0;
+            });
+            await setup.goto("/scan/easy");
+            await chooseReference(setup, "Card");
+            await setup.close();
+          }
+          const page = await context.newPage();
+          const bodies: Record<string, unknown>[] = [];
+          await page.route("**/api/scans", async (route) => {
+            if (route.request().method() !== "POST") return route.fallback();
+            bodies.push(JSON.parse(route.request().postData() ?? "{}"));
+            await route.fulfill({
+              status: 201,
+              contentType: "application/json",
+              body: JSON.stringify({
+                scanId: "623e4567-e89b-12d3-a456-426614174099",
+              }),
+            });
+          });
+          await page.goto("/scan/easy?debug=1&hints=0");
+          await expect(page.locator('[data-tour="reference-chip"]')).toHaveText(
+            item.mode === "card" ? "Card" : "A4",
+            { timeout: 30_000 },
+          );
+          await expect(page.locator("video.cameraVideo.ready")).toBeVisible({
+            timeout: 30_000,
+          });
+          const t0 = Date.now();
+          const adjust = page.getByTestId("paper-adjust");
+          const anySheet = page.locator("dialog.easyResultSheet[open]");
+          const shot = adjust.or(anySheet).first();
+          let auto = true;
+          try {
+            await expect(shot).toBeVisible({ timeout: 30_000 });
+          } catch {
+            auto = false;
+            row.cueAtTimeout = await page
+              .getByTestId("camera-cue")
+              .innerText()
+              .catch(() => null);
+            await page.getByRole("button", { name: "Take photo" }).click();
+            await expect(shot).toBeVisible({ timeout: 90_000 });
+          }
+          row.autoShot = auto;
+          row.secondsToShot = Math.round((Date.now() - t0) / 100) / 10;
+          if (await adjust.isVisible()) {
+            row.adjustEntry = await adjust.getAttribute("data-entry");
+            await page.screenshot({
+              path: path.join(tmp, `${item.id}-adjust.png`),
+            });
+            if (row.adjustEntry === "review") {
+              row.frameConfirm = true;
+              await page.getByTestId("paper-adjust-confirm").click();
+            } else {
+              // A rescue (the paper was not found by itself): not measured.
+              row.sheet = "paper-rescue";
+              throw new Error(`paper adjustment opened as ${row.adjustEntry}`);
+            }
+          }
+          await expect(anySheet).toBeVisible({ timeout: 60_000 });
+          if (await page.getByTestId("card-check-yes").isVisible()) {
+            row.outlineQuestion = true;
+            await page.screenshot({
+              path: path.join(tmp, `${item.id}-outline.png`),
+            });
+            await page.getByTestId("card-check-yes").click();
+          }
+          const measured = page.getByRole("dialog", { name: "Hand measured" });
+          if (await measured.isVisible().catch(() => false)) {
+            row.sheet = "measured";
+            row.sheetNumbers = await page
+              .getByTestId("easy-sheet-numbers")
+              .innerText()
+              .catch(() => null);
+            const shown = /Hand length\s+(\d+(?:\.\d+)?)\s*mm/.exec(
+              String(row.sheetNumbers ?? ""),
+            );
+            row.shownHandLengthMm = shown ? Number(shown[1]) : null;
+            await finishQuestions(page);
+            await expect.poll(() => bodies.length, { timeout: 30_000 }).toBe(1);
+            const body = bodies[0] as {
+              measurements: Record<string, number>;
+              calibration: Record<string, unknown>;
+              hand: string;
+            };
+            row.hand = body.hand;
+            row.handLengthMm = body.measurements.handLengthMm;
+            row.palmWidthMm = body.measurements.palmWidthMm;
+            row.method = body.calibration.method;
+            row.calibration = body.calibration;
+            row.bodyHasImage = /data:image|base64/.test(JSON.stringify(body));
+          } else {
+            row.sheet = "retake";
+            row.retakeText = (await anySheet.innerText()).slice(0, 300);
+            await page.screenshot({
+              path: path.join(tmp, `${item.id}-retake.png`),
+            });
+          }
+        })(),
+      ]);
     } catch (error) {
       row.error = String(error)
         .replace(new RegExp(String.fromCharCode(27) + "\[[0-9;]*m", "g"), "")
         .slice(0, 400);
     } finally {
-      await browser.close();
+      clearTimeout(watchdog);
+      await browser.close().catch(() => undefined);
       await rm(y4m, { force: true });
     }
     console.log(`V34 REAL ${JSON.stringify(row)}`);
     await appendFile(outFile, JSON.stringify(row) + "\n");
-  }
-});
+  });
+}
