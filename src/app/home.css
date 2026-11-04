@@ -853,19 +853,19 @@ body:has(.landing-page) .siteFooter-horizon::after {
 }
 .home-how-page .home-hero-corner.tl {
   top: 11.5%;
-  left: 15%;
+  left: 14.3%;
 }
 .home-how-page .home-hero-corner.tr {
   top: 11.5%;
-  left: 86%;
+  left: 85%;
 }
 .home-how-page .home-hero-corner.bl {
   top: 83%;
-  left: 15%;
+  left: 14.3%;
 }
 .home-how-page .home-hero-corner.br {
   top: 83%;
-  left: 86%;
+  left: 85%;
 }
 .home-how-page .home-hero-badge {
   top: auto;
