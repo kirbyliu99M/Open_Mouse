@@ -26,6 +26,7 @@ import {
   TOUR_EXIT_FADE_MS,
   placeTooltip,
   tipPresentation,
+  tipSheetMarksSeen,
   tourExitMs,
   tourReturnFocus,
   tourTransition,
@@ -138,7 +139,8 @@ describe("item 1 [major]: a typed hand length never takes the card path", () => 
     expect(camera).toMatch(
       /\{cardActive && result\.kind === "none" && stageSize && \(\s*\/\/ The scan tour's spotlight target/,
     );
-    expect(camera).toContain("outlineCorners={cardActive}");
+    // R4: the outline only on a card result.
+    expect(camera).toContain("outlineCorners={cardResult}");
     expect(camera).not.toMatch(/\{cardMode && result\.kind === "none"/);
   });
 });
@@ -672,18 +674,33 @@ describe("m2 [minor]: uploads from screens without the reference take the paper 
     ).toBe(true);
   });
 
-  it("an upload records whether it was picked on the live screen; a shot always was", () => {
-    expect(camera).toMatch(
-      /referenceScreenRef\.current =\s*deviceFit === "phone" &&\s*\(camState\.kind === "live" \|\| camState\.kind === "requesting"\) &&\s*result\.kind === "none" &&\s*!lengthStep;/,
+  it("R1: an upload's origin is recorded at the tap (live dock true, the other screens false), read and cleared when the file returns; a shot always counts", () => {
+    const dock = between(camera, 'className="easyUploadIconButton"', "<span");
+    expect(dock).toMatch(
+      /onPointerDown=\{\(\) => \{\s*uploadFromReferenceScreenRef\.current = true;\s*\}\}/,
     );
+    expect(dock).toMatch(
+      /onClick=\{\(\) => \{\s*uploadFromReferenceScreenRef\.current = true;\s*\}\}/,
+    );
+    const fallbacks = [
+      ...camera.matchAll(
+        /className="easyUploadFallbackButton"\s*htmlFor="easy-scan-upload"\s*onPointerDown=\{\(\) => \{\s*uploadFromReferenceScreenRef\.current = false;/g,
+      ),
+    ];
+    expect(fallbacks).toHaveLength(2);
     const pick = between(
       camera,
       "const onFilePicked = useCallback(",
       "void runPipeline(file, previewUrl);",
     );
-    expect(pick).toContain(
-      "photoFromReferenceScreenRef.current = referenceScreenRef.current;",
+    expect(pick).toMatch(
+      /photoFromReferenceScreenRef\.current =\s*uploadFromReferenceScreenRef\.current;\s*uploadFromReferenceScreenRef\.current = false;/,
     );
+    // Read before the stream is stopped, and nothing reads the live screen at file time.
+    expect(pick.indexOf("uploadFromReferenceScreenRef.current;")).toBeLessThan(
+      pick.indexOf("stopStream();"),
+    );
+    expect(camera).not.toContain("referenceScreenRef.current =\n");
     expect(camera).toMatch(
       /handedOff = true;\s*photoFromReferenceScreenRef\.current = true;\s*void runPipeline\(file, previewUrl\);/,
     );
@@ -711,6 +728,107 @@ describe("n1, n2: the menu during a shot; the iOS level hint", () => {
     const axe = read("tests/e2e/a11y-axe.spec.ts");
     expect(between(axe, "const OVER_LIVE_PICTURE", "];")).toContain(
       '{ selector: ".easyTiltPermission" }',
+    );
+  });
+});
+
+describe("round 4: R2 dock while the tip is open, R3 fallback sheet, R4 card results", () => {
+  it("R2: the live dock is inert while the tip / tour is open or waiting", () => {
+    expect(camera).toMatch(
+      /const dock = dockRef\.current;\s*if \(dock\) dock\.inert = liveChromeLeave\.leaving \|\| tipOpen;\s*\}, \[tipOpen, liveChromeLeave\.leaving, liveChromeLeave\.shown\]\);/,
+    );
+    // The leaving pin of the motion pass stays as it was.
+    expect(camera).toMatch(
+      /className="easyBottomDock easyBottomDock-withHandle"[\s\S]{0,200}?inert=\{liveChromeLeave\.leaving\}/,
+    );
+  });
+
+  it("R3: a picture that arrives after the fallback sheet brings the tour", () => {
+    expect(
+      tipPresentation({
+        camera: "live",
+        result: "none",
+        typedLength: false,
+        pictureReady: true,
+        pictureTimedOut: true,
+      }),
+    ).toBe("tour");
+    // The sheet is closed for the tour while untouched (tipOpen still true).
+    expect(camera).toMatch(
+      /\} else if \(tourScreen\) \{[\s\S]{0,200}?tipDialogRef\.current\?\.close\(\);/,
+    );
+  });
+
+  it("R3: closing the fallback sheet does not mark the tip seen; the typed-length tip does", () => {
+    expect(tipSheetMarksSeen({ typedLength: false })).toBe(false);
+    expect(tipSheetMarksSeen({ typedLength: true })).toBe(true);
+    const dismiss = between(
+      camera,
+      "const dismissTip = useCallback(",
+      "}, []);",
+    );
+    expect(dismiss).toMatch(
+      /if \(tipSheetMarksSeen\(\{ typedLength: userLengthRef\.current !== null \}\)\)\s*markFirstRunTipSeen\(getBrowserStorage\(\)\);/,
+    );
+  });
+
+  it("R3: in card mode the fallback sheet gives the card rule, not the paper line", () => {
+    expect(camera).toMatch(
+      /\{cardActive\s*\? cardCopy\.cardRule\s*: easy\.tipPaperOnTable\(PAPER_SIZE_LABELS\[paperSize\]\)\}/,
+    );
+  });
+
+  it("R4: card results carry reference card; the outline follows the result, not the stored mode", () => {
+    const cardRun = between(
+      camera,
+      "const runCardPipeline = useCallback(",
+      "runCardPipelineRef.current = runCardPipeline;",
+    );
+    expect(cardRun.match(/reference: "card",/g)?.length).toBe(
+      cardRun.match(/setResult\(\{\s*kind: "(measured|gateFailure)"/g)?.length,
+    );
+    const paperRun = between(
+      camera,
+      "const runPipeline = useCallback(",
+      "const runCardPipeline = useCallback(",
+    );
+    expect(paperRun).not.toContain('reference: "card"');
+    expect(camera).toMatch(
+      /const cardResult =\s*\(result\.kind === "measured" \|\| result\.kind === "gateFailure"\) &&\s*result\.reference === "card";/,
+    );
+  });
+});
+
+describe("R5 (a11y): the outline question is a modal sheet like the others", () => {
+  const check = between(camera, "{cardCheckOpen && (", "</dialog>");
+
+  it("a <dialog> labelled by the question, with Esc as 沒有，重拍", () => {
+    expect(check).toMatch(
+      /<dialog\s+ref=\{cardCheckDialogRef\}\s+className="easySheet easyResultSheet easyCardCheck"\s+aria-labelledby="easy-card-check-title"\s+data-testid="card-check"/,
+    );
+    expect(check).not.toContain('role="dialog"');
+    expect(check).toContain('id="easy-card-check-title"');
+    expect(check).toMatch(
+      /onCancel=\{\(e\) => \{\s*e\.preventDefault\(\);\s*retake\(\);\s*\}\}/,
+    );
+    // The No button does the same.
+    expect(
+      between(check, 'data-testid="card-check-no"', "</button>"),
+    ).toContain("onClick={retake}");
+  });
+
+  it("opened with showModal, focus on 有, closed before it unmounts", () => {
+    expect(camera).toMatch(
+      /useLayoutEffect\(\(\) => \{\s*if \(!cardCheckOpen\) return;\s*const dialog = cardCheckDialogRef\.current;\s*if \(!dialog\) return;\s*if \(!dialog\.open\) dialog\.showModal\(\);\s*cardCheckYesRef\.current\?\.focus\(\);\s*return \(\) => \{\s*if \(dialog\.open\) dialog\.close\(\);\s*\};\s*\}, \[cardCheckOpen\]\);/,
+    );
+    expect(check).toMatch(
+      /ref=\{cardCheckYesRef\}\s*data-testid="card-check-yes"/,
+    );
+  });
+
+  it("the photo stays visible behind it (the result sheets' transparent backdrop)", () => {
+    expect(between(css, ".easySheet::backdrop {", "}")).toContain(
+      "background: transparent;",
     );
   });
 });
