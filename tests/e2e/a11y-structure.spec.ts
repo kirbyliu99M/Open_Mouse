@@ -70,7 +70,10 @@ test("the camera screen is the <main>, with a visually hidden h1, and the hand-l
   test.skip(info.project.name !== "mobile", "Runs in the mobile project.");
   await page.goto("/scan/easy");
   await expect(
-    page.getByRole("dialog", { name: "One blank sheet is all you need" }),
+    page.getByRole("dialog", {
+      // v3.4: the tour's first-use question took the paper tip's place.
+      name: /^(One blank sheet is all you need|First time scanning\?)$/,
+    }),
   ).toBeVisible();
   await expect(page.getByRole("main")).toHaveCount(1);
   await expect(page.locator("main.cameraViewfinder")).toHaveCount(1);

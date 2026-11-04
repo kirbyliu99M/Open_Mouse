@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { numberUnitPairs } from "./fixtures/number-unit";
+import { dismissFirstRun } from "./fixtures/first-run";
 
 /**
  * A measurement and its unit ("84 mm", "13 g") must never wrap onto two lines.
@@ -125,8 +126,9 @@ test("the hand-length step keeps '18.6 cm = 186 mm' together", async ({
 }, info) => {
   test.skip(info.project.name !== "mobile", "Uses the phone's tip dialog.");
   await page.goto("/scan/easy/length-failure-demo");
+  // v3.4: the paper tip is the tour question now; the link is on the screen.
+  await dismissFirstRun(page);
   await page
-    .getByRole("dialog", { name: "One blank sheet is all you need" })
     .getByRole("button", { name: "No paper? Use a ruler instead" })
     .click();
   await expect(page.getByLabel("Hand length (mm)")).toBeVisible();
@@ -138,8 +140,9 @@ test("the retake message keeps the typed length with its unit", async ({
 }, info) => {
   test.skip(info.project.name !== "mobile", "Uses the upload path.");
   await page.goto("/scan/easy/length-failure-demo");
+  // v3.4: the paper tip is the tour question now; the link is on the screen.
+  await dismissFirstRun(page);
   await page
-    .getByRole("dialog", { name: "One blank sheet is all you need" })
     .getByRole("button", { name: "No paper? Use a ruler instead" })
     .click();
   await page.getByLabel("Hand length (mm)").fill("186");

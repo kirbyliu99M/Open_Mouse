@@ -117,8 +117,9 @@ test("typed-length flow reaches hand detection gate with no requests after camer
     res.url().includes("/mediapipe/models/hand_landmarker.task"),
   );
   await page.waitForLoadState("networkidle");
+  // v3.4: the paper tip is the tour question now; the link is on the screen.
+  await dismissFirstRun(page);
   await page
-    .getByRole("dialog", { name: "One blank sheet is all you need" })
     .getByRole("button", { name: "No paper? Use a ruler instead" })
     .click();
   await expect(
@@ -804,8 +805,9 @@ test("a palm that does not fit the typed length gets one instruction and a way t
 }, info) => {
   test.skip(info.project.name !== "mobile", "Uses the upload path.");
   await page.goto("/scan/easy/length-failure-demo");
+  // v3.4: the paper tip is the tour question now; the link is on the screen.
+  await dismissFirstRun(page);
   await page
-    .getByRole("dialog", { name: "One blank sheet is all you need" })
     .getByRole("button", { name: "No paper? Use a ruler instead" })
     .click();
   await page.getByLabel("Hand length (mm)").fill("186");

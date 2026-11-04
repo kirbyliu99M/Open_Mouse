@@ -143,7 +143,10 @@ test.describe("easy-scan shell screenshots", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/scan/easy");
     await expect(
-      page.getByRole("dialog", { name: "One blank sheet is all you need" }),
+      page.getByRole("dialog", {
+        // v3.4: the tour's first-use question took the paper tip's place.
+        name: /^(One blank sheet is all you need|First time scanning\?)$/,
+      }),
     ).toBeVisible();
     await page.screenshot({ path: `${OUTPUT}/easy-scan-tip.png` });
   });
