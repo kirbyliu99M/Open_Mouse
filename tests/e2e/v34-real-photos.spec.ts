@@ -188,7 +188,9 @@ for (const item of ITEMS) {
                 t.processing = performance.now();
               if (
                 t.sheet === undefined &&
-                document.querySelector("dialog.easyResultSheet[open]")
+                document.querySelector(
+                  "dialog.easyResultSheet[open], [data-testid=card-check]",
+                )
               )
                 t.sheet = performance.now();
             }).observe(document, {
@@ -225,7 +227,9 @@ for (const item of ITEMS) {
           });
           const t0 = Date.now();
           const adjust = page.getByTestId("paper-adjust");
-          const anySheet = page.locator("dialog.easyResultSheet[open]");
+          const anySheet = page
+            .locator("dialog.easyResultSheet[open], [data-testid=card-check]")
+            .first();
           const shot = adjust.or(anySheet).first();
           let auto = true;
           try {

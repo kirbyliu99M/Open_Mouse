@@ -140,7 +140,7 @@ test("card, first visit: picture, tour over it, Card chosen in the tour, then th
   );
   await expect(page.locator('[data-tour="card-slot"]')).toBeVisible();
   await page.getByRole("button", { name: "Take photo" }).click();
-  await expect(page.locator("dialog.easyResultSheet[open]")).toContainText(
+  await expect(page.getByTestId("card-check")).toContainText(
     cardEn.confirmQuestion,
     { timeout: 30_000 },
   );

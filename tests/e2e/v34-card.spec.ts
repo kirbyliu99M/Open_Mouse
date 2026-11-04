@@ -34,7 +34,11 @@ test.beforeEach(async ({ page }, testInfo) => {
 const chip = referenceChip;
 const cardSlot = (page: Page) => page.locator('[data-tour="card-slot"]');
 /** The open bottom sheet (the outline question is one too). */
-const question = (page: Page) => page.locator("dialog.easyResultSheet[open]");
+/** The outline question: its own (non-modal) sheet, role=dialog. */
+const question = (page: Page) => page.getByTestId("card-check");
+/** Any bottom sheet: the question, or a native result sheet that is open. */
+const anySheet = (page: Page) =>
+  page.locator("dialog.easyResultSheet[open], [data-testid=card-check]");
 
 /** Before the outline is confirmed, no number of the hand is on screen. */
 async function expectNoNumbersYet(page: Page) {
@@ -88,7 +92,7 @@ test("[real detector] choosing the card shows the slot beside the hand box, the 
   await expect(page.getByTestId("easy-hint")).toHaveText(cardEn.cardRule);
   await expect(page.getByTestId("camera-cue")).toContainText(cardEn.hintNoHand);
   await page.waitForTimeout(6_000);
-  await expect(page.locator("dialog.easyResultSheet[open]")).toHaveCount(0);
+  await expect(anySheet(page)).toHaveCount(0);
 });
 
 test("[real detector] a manual shot is analysed by the real card path: no hand -> retake sheet -> back to the card camera", async ({
@@ -122,7 +126,7 @@ test("[injected] outline question NO: back to the card camera with nothing measu
     cardEn.confirmYes,
   );
   await page.getByTestId("card-check-no").click();
-  await expect(page.locator("dialog.easyResultSheet[open]")).toHaveCount(0, {
+  await expect(anySheet(page)).toHaveCount(0, {
     timeout: 10_000,
   });
   // Retake: the live card camera again.
@@ -195,7 +199,7 @@ test("[injected] switching away from the card after a NO starts the paper loop c
     timeout: 30_000,
   });
   await page.getByTestId("card-check-no").click();
-  await expect(page.locator("dialog.easyResultSheet[open]")).toHaveCount(0, {
+  await expect(anySheet(page)).toHaveCount(0, {
     timeout: 10_000,
   });
   await chooseReference(page, "A4");
