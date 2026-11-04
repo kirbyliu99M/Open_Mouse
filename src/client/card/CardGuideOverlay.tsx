@@ -38,45 +38,27 @@ export function overlayLabel(text: string, copy: CardReferenceCopy): string {
   }
 }
 
-function Lines({
-  text,
-  x,
-  y,
-  anchor,
-  fill,
-  size,
-}: {
+/**
+ * A label of the guide (review item 16). Drawn as HTML over the svg, white
+ * on the same translucent black pill as the cue and the controls
+ * (rgba(0,0,0,0.6): 5.74:1 over a white picture), so it keeps its contrast
+ * over any picture and the camera screen's contrast check can measure it
+ * (`.cardGuideLabel` is on its reviewed OVER_LIVE_PICTURE list). It was SVG
+ * text with a stroke halo, which no check could measure.
+ */
+interface LabelSpec {
   readonly text: string;
   readonly x: number;
   readonly y: number;
   readonly anchor: "start" | "middle" | "end";
-  readonly fill: string;
   readonly size: number;
-}) {
-  const lines = text.split("\n");
-  const top = y - ((lines.length - 1) * size * 1.2) / 2;
-  return (
-    <text
-      x={x}
-      y={top}
-      textAnchor={anchor}
-      fill={fill}
-      fontSize={size}
-      fontWeight={600}
-      style={{
-        paintOrder: "stroke",
-        stroke: "rgba(0,0,0,0.55)",
-        strokeWidth: 3,
-      }}
-    >
-      {lines.map((line, i) => (
-        <tspan key={i} x={x} dy={i === 0 ? 0 : size * 1.2}>
-          {line}
-        </tspan>
-      ))}
-    </text>
-  );
 }
+
+const LABEL_SHIFT: Record<LabelSpec["anchor"], string> = {
+  start: "0%",
+  middle: "-50%",
+  end: "-100%",
+};
 
 export function CardGuideOverlay({
   shapes,
@@ -92,7 +74,12 @@ export function CardGuideOverlay({
   if (!(width > 0) || !(height > 0)) return null;
   const X = (x: number) => x * width;
   const Y = (y: number) => y * height;
-  return (
+  const labels: LabelSpec[] = [];
+  const addLabel = (label: LabelSpec): null => {
+    labels.push(label);
+    return null;
+  };
+  const drawing = (
     <svg
       className="cardGuideOverlay"
       width={width}
@@ -139,16 +126,14 @@ export function CardGuideOverlay({
                   strokeWidth={4}
                   strokeLinecap="round"
                 />
-                {s.label && (
-                  <Lines
-                    text={overlayLabel(s.label, copy)}
-                    x={(x0 + x1) / 2}
-                    y={(y0 + y1) / 2}
-                    anchor="middle"
-                    fill={TONE.neutral}
-                    size={18}
-                  />
-                )}
+                {s.label &&
+                  addLabel({
+                    text: overlayLabel(s.label, copy),
+                    x: (x0 + x1) / 2,
+                    y: (y0 + y1) / 2,
+                    anchor: "middle",
+                    size: 18,
+                  })}
               </g>
             );
           }
@@ -214,31 +199,26 @@ export function CardGuideOverlay({
                     opacity={0.7}
                   />
                 )}
-                {s.label && !s.faded && (
-                  <Lines
-                    text={overlayLabel(s.label, copy)}
-                    x={x + w / 2}
-                    y={y + h + 22}
-                    anchor="middle"
-                    fill={TONE.neutral}
-                    size={15}
-                  />
-                )}
+                {s.label &&
+                  !s.faded &&
+                  addLabel({
+                    text: overlayLabel(s.label, copy),
+                    x: x + w / 2,
+                    y: y + h + 22,
+                    anchor: "middle",
+                    size: 15,
+                  })}
               </g>
             );
           }
           case "label":
-            return (
-              <Lines
-                key={i}
-                text={overlayLabel(s.text, copy)}
-                x={X(s.at.x)}
-                y={Y(s.at.y)}
-                anchor={s.anchor ?? "start"}
-                fill={TONE[s.tone]}
-                size={13}
-              />
-            );
+            return addLabel({
+              text: overlayLabel(s.text, copy),
+              x: X(s.at.x),
+              y: Y(s.at.y),
+              anchor: s.anchor ?? "start",
+              size: 13,
+            });
           case "dot":
             return (
               <circle
@@ -295,5 +275,46 @@ export function CardGuideOverlay({
         }
       })}
     </svg>
+  );
+  return (
+    <>
+      {drawing}
+      <div
+        className="cardGuideLabels"
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "none",
+          zIndex: 2,
+        }}
+      >
+        {labels.map((label, i) => (
+          <span
+            key={i}
+            className="cardGuideLabel"
+            style={{
+              position: "absolute",
+              left: label.x,
+              top: label.y,
+              transform: `translate(${LABEL_SHIFT[label.anchor]}, -50%)`,
+              padding: "0.125rem 0.5rem",
+              borderRadius: 6,
+              background: "rgba(0,0,0,0.6)",
+              // Solid white: 5.74:1 on the pill over a white picture (a
+              // tone colour would not keep 4.5:1 there).
+              color: "#fff",
+              fontSize: label.size,
+              fontWeight: 600,
+              lineHeight: 1.2,
+              whiteSpace: "pre-line",
+              textAlign: "center",
+            }}
+          >
+            {label.text}
+          </span>
+        ))}
+      </div>
+    </>
   );
 }

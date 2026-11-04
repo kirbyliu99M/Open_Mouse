@@ -349,3 +349,15 @@
     background: CanvasText;
   }
 }
+
+/* Review item 17: the tour fades out when it closes (150 ms, the same as
+   TOUR_EXIT_FADE_MS; easyFadeOut is easy-scan.css's), none under reduced
+   motion (the script then closes it at once). */
+.scanTour[data-leaving="true"] {
+  animation: easyFadeOut 150ms ease-in forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scanTour[data-leaving="true"] {
+    animation: none;
+  }
+}

@@ -71,6 +71,72 @@
   cursor: pointer;
 }
 
+/* v3.4 (candidate, card flag on only): the reference chip's menu, above the
+   chip (Pencil card-reference-menu). */
+.easyReferenceMenuWrap {
+  position: relative;
+}
+.easyPaperToggle:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.easyReferenceMenu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 0.75rem);
+  z-index: 6;
+  width: min(17.5rem, calc(100vw - 2rem));
+  padding: 0.5rem;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(10, 10, 12, 0.96);
+  color: #fff;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.easyReferenceMenuTitle {
+  margin: 0.375rem 0.75rem 0.25rem;
+  font-size: 0.875rem;
+  color: var(--scan-muted, #b5b5bd);
+}
+.easyReferenceMenuItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.easyReferenceMenuItem.on {
+  background: rgba(255, 255, 255, 0.1);
+}
+.easyReferenceMenuItem:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+.easyReferenceMenuText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+.easyReferenceMenuName {
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+.easyReferenceMenuDetail {
+  font-size: 0.8125rem;
+  color: var(--scan-muted, #b5b5bd);
+}
+.easyReferenceMenuCheck {
+  flex-shrink: 0;
+}
+
 .easyUploadIconButton {
   display: inline-flex;
   align-items: center;

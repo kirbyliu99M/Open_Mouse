@@ -2266,10 +2266,21 @@ test.describe("V3.2 motion pass: the scan flow leaves the way it came", () => {
       await recordLeaving(page);
       await captureAndMeasure(page);
       const before = await leavingRecords(page);
-      // #21: the first-run tip slides down, closed at once, over a fading scrim.
-      expectLeft(before, "easyTipSheet", "easySheetSlideOut", "0.24s", false);
-      expect(leftWith(before, "easyTipSheet")!.inert).toBe(true);
-      expectLeft(before, "easyTipScrim", "easyFadeOut", "0.24s");
+      // #21 (v3.4, review item 17): the first-run tip is now the scan tour
+      // over the live picture. It fades out (150 ms, TOUR_EXIT_FADE_MS),
+      // still an open modal while it fades, then closes; under reduced
+      // motion it closes at once, with no exit motion and no record.
+      const tourLeft = leftWith(before, "scanTour");
+      if (reduced) expect(tourLeft, "scanTour left").toBeUndefined();
+      else
+        expect(
+          [
+            tourLeft?.animationName,
+            tourLeft?.animationDuration,
+            tourLeft?.open,
+          ],
+          "scanTour",
+        ).toEqual(["easyFadeOut", "0.15s", true]);
       // #3: the cue goes up and the dock down when the photo is taken.
       expectLeft(before, "cameraCueWrap", "easyLiftOut", "0.15s");
       expectLeft(before, "easyBottomDock", "easySinkOut", "0.15s");

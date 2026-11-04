@@ -7,6 +7,60 @@
  * Nothing here touches the DOM; `ScanTour.tsx` measures and renders.
  */
 
+/**
+ * What the first-run tip / "?" shows now (review items 2 and 14):
+ * - "tour": the live camera picture is on screen (the stream plays, no photo
+ *   over it, no typed hand length): every target is there to point at.
+ * - "wait": the camera is still being asked for (the permission prompt
+ *   first): nothing yet; the tour opens once the picture is live.
+ * - "sheet": the old tip sheet: a typed hand length (as on main, at once),
+ *   and camera refused / no camera / stream ended or a photo on screen, where
+ *   the tour would have nothing to point at.
+ */
+export type TipPresentation = "tour" | "wait" | "sheet";
+
+export function tipPresentation(screen: {
+  readonly camera:
+    "requesting" | "live" | "cameraError" | "streamEnded" | "noCamera";
+  readonly result: string;
+  readonly typedLength: boolean;
+  /** The video has started playing (a picture is on screen). */
+  readonly pictureReady: boolean;
+}): TipPresentation {
+  if (screen.typedLength) return "sheet";
+  if (screen.result !== "none") return "sheet";
+  if (screen.camera === "live") return screen.pictureReady ? "tour" : "wait";
+  if (screen.camera === "requesting") return "wait";
+  return "sheet";
+}
+
+/** The tour's exit fade, ms (review item 17): short, none under reduced motion. 候選. */
+export const TOUR_EXIT_FADE_MS = 150;
+
+export function tourExitMs(reducedMotion: boolean): number {
+  return reducedMotion ? 0 : TOUR_EXIT_FADE_MS;
+}
+
+/** The person asked for reduced motion (false where it cannot be read). */
+export function prefersReducedMotion(): boolean {
+  try {
+    return (
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Where focus goes when the tour closes (review item 10): back to "?" when
+ * it opened the tour, else (the first-use question) to the shutter.
+ */
+export function tourReturnFocus(trigger: TourTrigger): "help" | "shutter" {
+  return trigger === "help" ? "help" : "shutter";
+}
+
 /** What the person measures against. "card" exists only with card mode. */
 export type TourReference = "a4" | "letter" | "card";
 
@@ -216,6 +270,20 @@ export function tourTransition(
       ]);
     case "answerFirst":
       if (state.phase !== "welcome") return { state, effects: [] };
+      // Nothing to point at (review item 2): the answer is kept, but no tour
+      // started, and the tip is not marked seen, so it can show once the
+      // camera screen is there.
+      if (steps.length === 0)
+        return {
+          state: CLOSED,
+          effects: [
+            {
+              kind: "track",
+              event: { name: "scan_tour_first_use_answer", answer: "first" },
+            },
+            { kind: "close" },
+          ],
+        };
       return enterStep(0, "auto", steps, [
         {
           kind: "track",
