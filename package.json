@@ -85,6 +85,9 @@
     },
     "@vercel/cli-config": {
       "zod": "$zod"
+    },
+    "@sentry/bundler-plugins": {
+      "glob": "14.0.3"
     }
   }
 }
