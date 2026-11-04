@@ -199,16 +199,30 @@ test("the spotlit control is locked: a tap on the chip under the spotlight chang
   await expect(chip(page)).toHaveText(before);
 });
 
-test("A4-only build: step 1 is the paper-size step with no choice, and no step points at a card slot", async ({
+test("A4-only build: step 1 is the paper-size step (A4 / Letter only, no Card), and no step points at a card slot", async ({
   page,
 }) => {
   test.skip(CARD_ON, "Pins the flag-off build.");
   await page.goto("/scan/easy?debug=1");
   await button(page, tour.welcomeFirst).click();
   await expect(card(page)).toContainText(tour.paperSizeTitle);
-  await expect(card(page).getByRole("radio")).toHaveCount(0);
+  const radios = card(page).getByRole("radio");
+  await expect(radios).toHaveCount(2);
+  await expect(card(page).getByRole("radio", { name: "A4" })).toBeChecked();
+  await expect(
+    card(page).getByRole("radio", { name: tour.referenceLetter }),
+  ).toBeVisible();
+  await expect(
+    card(page).getByRole("radio", { name: tour.referenceCard }),
+  ).toHaveCount(0);
+  // Letter chosen in the tour is the chip's Letter at once, and back.
+  await card(page).getByRole("radio", { name: tour.referenceLetter }).check();
+  await expect(chip(page)).toHaveText("Letter");
+  await card(page).getByRole("radio", { name: "A4" }).check();
+  await expect(chip(page)).toHaveText("A4");
   await expect(card(page).locator(".scanTourCounter")).toHaveText("1 / 4");
   await expect(page.locator('[data-tour="card-slot"]')).toHaveCount(0);
+  await expect(page.locator('[data-tour="card-layout"]')).toHaveCount(0);
   expect(await stepIds(page)).toEqual([
     "reference",
     "placement",
@@ -255,9 +269,12 @@ test("card build: choosing Card inside the tour switches the camera to the card 
   await button(page, tour.next).click();
   await expect(card(page)).toHaveAttribute("data-step", "placement");
   await expect(card(page)).toContainText(tour.placeCardTitle);
+  // Design (card-2): the spotlight is on the hand-and-slot layout, or on the
+  // slot alone where the layout is not drawn.
   const slot = page.locator('[data-tour="card-slot"]');
   await expect(slot).toBeVisible();
-  await expectSpotlightOn(page, slot);
+  const layout = page.locator('[data-tour="card-layout"]');
+  await expectSpotlightOn(page, (await layout.count()) > 0 ? layout : slot);
   await expect(page.locator("body")).toContainText(tour.placeCardCentreLabel);
   // Back to step 1, A4 again: the placement is the paper frame again.
   await button(page, tour.back).click();
