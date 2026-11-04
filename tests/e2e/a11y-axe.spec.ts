@@ -17,6 +17,7 @@ import {
   uploadGreyPhoto,
 } from "./fixtures/slow-model";
 import { dismissFirstRun } from "./fixtures/first-run";
+import { chooseReference } from "./fixtures/reference";
 
 /**
  * WCAG 2.2 AA rules (and the A rules under them) on the main pages and on
@@ -795,11 +796,9 @@ const V34_STATES: readonly (readonly [
     "v3.4 card mode, live camera",
     true,
     async (page) => {
-      await page.addInitScript(() =>
-        window.localStorage.setItem("openMouse.easyScan.paperSize", "card"),
-      );
-      await page.goto("/scan/easy?debug=1");
+      await page.goto("/scan/easy");
       await dismissFirstRun(page);
+      await chooseReference(page, "Card");
       await expect(page.locator('[data-tour="card-slot"]')).toBeVisible({
         timeout: 15_000,
       });
@@ -812,11 +811,9 @@ const V34_STATES: readonly (readonly [
     "v3.4 card outline question",
     true,
     async (page) => {
-      await page.addInitScript(() =>
-        window.localStorage.setItem("openMouse.easyScan.paperSize", "card"),
-      );
       await page.goto("/scan/easy/card-live-demo");
       await dismissFirstRun(page);
+      await chooseReference(page, "Card");
       await expect(page.locator('[data-tour="card-slot"]')).toBeVisible({
         timeout: 15_000,
       });
@@ -829,14 +826,77 @@ const V34_STATES: readonly (readonly [
 ];
 NEEDS_REVIEW["v3.4 card mode, live camera"] = LIVE_CAMERA_REVIEW;
 
+/**
+ * The tour is a modal <dialog>: a full-screen blocker (transparent, it takes
+ * the taps outside the card) lies under the card, so axe cannot tell what is
+ * behind the card's text. Measured here instead: every node axe left open
+ * must be inside the tour, and its text colour against the first opaque
+ * background up its own ancestors (the card, the sheet or the button) keeps
+ * 4.5:1; a translucent first background fails closed.
+ */
+const TOUR_SURFACE_REVIEW: Review = {
+  why: "The tour's text sits on its own opaque card above a transparent tap blocker (and a dim) that axe reads as overlapping it; each open node is measured against its own opaque surface.",
+  check: async (page, targets) => {
+    const rows = await page.evaluate((selectors) => {
+      const out: {
+        target: string;
+        inTour: boolean;
+        color: string;
+        bg: string | null;
+      }[] = [];
+      for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        if (!el) {
+          out.push({ target: sel, inTour: false, color: "", bg: null });
+          continue;
+        }
+        let bg: string | null = null;
+        for (let n: Element | null = el; n; n = n.parentElement) {
+          const c = getComputedStyle(n).backgroundColor;
+          const alpha = Number((c.match(/[\d.]+/g) ?? [])[3] ?? 1);
+          if (c && c !== "transparent" && alpha > 0) {
+            bg = alpha >= 1 ? c : null;
+            break;
+          }
+        }
+        out.push({
+          target: sel,
+          inTour: Boolean(el.closest("[data-testid=scan-tour]")),
+          color: getComputedStyle(el).color,
+          bg,
+        });
+      }
+      return out;
+    }, targets as string[]);
+    for (const r of rows) {
+      expect(r.inTour, `${r.target} is inside the tour`).toBe(true);
+      expect(r.bg, `${r.target} has an opaque surface`).not.toBeNull();
+      expect(
+        contrast(r.color, r.bg!),
+        `${r.target}: ${r.color} on ${r.bg}`,
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+  },
+};
+for (const state of [
+  "v3.4 tour, first-use question",
+  "v3.4 tour, step 1 (spotlight on the reference chip)",
+  "v3.4 tour, last step",
+])
+  NEEDS_REVIEW[state] = { "color-contrast": TOUR_SURFACE_REVIEW };
+
 for (const [state, needsCard, setup] of V34_STATES) {
   for (const colorScheme of SCHEMES) {
     test(`phone: ${state} has no violations in ${colorScheme} mode`, async ({
       page,
     }, info) => {
+      // The card states run on the card fake camera (no sheet in view, so
+      // nothing is taken in A4 before the card is chosen); the tour states on
+      // the paper one.
       test.skip(
-        info.project.name !== "chromium-camera-paper-edge",
-        "Needs the fake camera project.",
+        info.project.name !==
+          (needsCard ? "chromium-camera-card" : "chromium-camera-paper-edge"),
+        "Needs its fake camera project.",
       );
       test.skip(needsCard && !V34_CARD_ON, "Needs the card build.");
       await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });

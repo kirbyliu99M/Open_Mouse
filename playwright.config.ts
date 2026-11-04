@@ -116,7 +116,8 @@ export default defineConfig({
     // themselves unless the card build is on (see the webServer env below).
     {
       name: "chromium-camera-card",
-      testMatch: /v34-card\.spec\.ts|v34-tour-shots\.spec\.ts/,
+      testMatch:
+        /v34-card\.spec\.ts|v34-tour-shots\.spec\.ts|a11y-axe\.spec\.ts/,
       use: {
         ...devices["Pixel 7"],
         viewport: { width: 390, height: 844 },
