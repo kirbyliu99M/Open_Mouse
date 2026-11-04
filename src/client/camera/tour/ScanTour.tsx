@@ -86,6 +86,8 @@ const ALL_TARGETS: readonly TourTargetId[] = [
 const SETTLE_MS = 400;
 /** One label's height plus the gap under it (card placement labels). */
 const LABEL_STEP = 44;
+/** From this spotlight height the card-step labels sit inside it. */
+const LABELS_INSIDE_MIN_HEIGHT = 200;
 
 function measureElement(target: TourTargetId): Measured | null {
   if (typeof document === "undefined") return null;
@@ -270,20 +272,27 @@ export default function ScanTour({
     step?.target === "card-slot"
       ? [copy.placeCardCentreLabel, copy.placeCardHandLabel]
       : [];
+  // A tall spotlight (hand and slot, as drawn) holds the labels inside its
+  // lower edge; a small one (the slot alone) gets them just below it, and the
+  // card then keeps clear of them too.
+  const labelsInside = hole !== null && hole.height >= LABELS_INSIDE_MIN_HEIGHT;
+  const labelsHeight = cardLabels.length * LABEL_STEP;
   const labelsBox: Rect | null =
     hole && cardLabels.length > 0
       ? {
           x: hole.x,
-          y: hole.y + hole.height + 8,
+          y: labelsInside
+            ? hole.y + hole.height - SPOTLIGHT_PAD - 8 - labelsHeight
+            : hole.y + hole.height + 8,
           width: hole.width,
-          height: cardLabels.length * LABEL_STEP,
+          height: labelsHeight,
         }
       : null;
 
   const placement =
     step && hole && tooltipSize && viewport.width > 0
       ? placeTooltip(
-          unionRect(hole, labelsBox),
+          unionRect(hole, labelsInside ? null : labelsBox),
           tooltipSize,
           viewport,
           step.placement,
