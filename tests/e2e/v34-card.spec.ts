@@ -212,3 +212,40 @@ test("[injected] switching away from the card after a NO starts the paper loop c
   );
   await expect(page.getByTestId("easy-corners")).toBeVisible();
 });
+
+test("[injected] the outline question is a modal: focus starts on Yes, focus stays inside, and Escape is No (retake)", async ({
+  page,
+}) => {
+  await openCard(page, CARD_DEMO);
+  await shoot(page);
+  const check = question(page);
+  await expect(check).toContainText(cardEn.confirmQuestion, {
+    timeout: 30_000,
+  });
+  // A modal dialog (like the other result sheets), opened with showModal.
+  expect(
+    await check.evaluate(
+      (el) => el instanceof HTMLDialogElement && el.matches(":modal"),
+    ),
+  ).toBe(true);
+  await expect(page.getByTestId("card-check-yes")).toBeFocused();
+  for (let i = 0; i < 4; i++) {
+    await page.keyboard.press("Tab");
+    expect(
+      await page.evaluate(
+        () => !!document.activeElement?.closest("[data-testid=card-check]"),
+      ),
+    ).toBe(true);
+  }
+  expect(await cardCalls(page)).toBe(1);
+  await page.keyboard.press("Escape");
+  await expect(anySheet(page)).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
+  await expect(cardSlot(page)).toBeVisible({ timeout: 10_000 });
+  // Nothing was measured or sent: a new shot asks again.
+  await shoot(page);
+  await expect(question(page)).toContainText(cardEn.confirmQuestion, {
+    timeout: 30_000,
+  });
+  expect(await cardCalls(page)).toBe(2);
+});
