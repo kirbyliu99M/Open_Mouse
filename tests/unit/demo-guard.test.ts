@@ -163,6 +163,8 @@ const DEMO_ROUTES = [
   ...LEARNING_ROUTES,
   ...PRINTED_SHEET_ROUTES,
   "/results/demo",
+  // v3.4 (candidate): the easy scan in card mode with a fixed result, for e2e.
+  "/scan/easy/card-live-demo",
   "/scan/easy/hand-mismatch-demo",
   "/scan/easy/length-failure-demo",
   "/scan/easy/live-measured-demo",
