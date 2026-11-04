@@ -355,9 +355,13 @@ test("a user in no-paper mode can go back to paper, and the tip stops talking ab
 
   await page.getByRole("button", { name: "Use paper instead" }).click();
   await expect(page.getByText("186 mm entered")).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: /^(A4|Letter)/ }),
-  ).toBeVisible();
+  // The paper-size chip is back (v3.4: with the card build its accessible
+  // name is "Reference: A4 (tap to change)", so it is found by its role in
+  // the tour and read by its text).
+  await expect(page.locator('[data-tour="reference-chip"]')).toBeVisible();
+  await expect(page.locator('[data-tour="reference-chip"]')).toHaveText(
+    /^(A4|Letter)$/,
+  );
   await expect(
     page.getByRole("button", { name: "No paper? Use a ruler instead" }),
   ).toBeVisible();
