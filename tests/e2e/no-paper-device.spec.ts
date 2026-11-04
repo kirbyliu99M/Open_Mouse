@@ -528,7 +528,9 @@ test("the length step is themed: focus ring, link, hint and button keep their co
 test("the tip's no-paper link and the measured sheet's precision note keep their contrast on the dark theme", async ({
   page,
 }, info) => {
-  test.skip(info.project.name !== "chromium-camera-paper-edge");
+  // v3.4: with a camera the first-run screen is the tour's question; the
+  // paper tip (and its link) shows where there is no camera screen.
+  test.skip(info.project.name !== "mobile");
   await page.goto("/scan/easy");
   await page.waitForLoadState("networkidle");
   await page.emulateMedia({ colorScheme: "dark" });
@@ -805,9 +807,10 @@ test("a palm that does not fit the typed length gets one instruction and a way t
 }, info) => {
   test.skip(info.project.name !== "mobile", "Uses the upload path.");
   await page.goto("/scan/easy/length-failure-demo");
-  // v3.4: the paper tip is the tour question now; the link is on the screen.
-  await dismissFirstRun(page);
+  // v3.4: without a camera screen (no camera here) the first-run screen
+  // stays the paper tip, with its "no paper" entry.
   await page
+    .getByRole("dialog", { name: "One blank sheet is all you need" })
     .getByRole("button", { name: "No paper? Use a ruler instead" })
     .click();
   await page.getByLabel("Hand length (mm)").fill("186");

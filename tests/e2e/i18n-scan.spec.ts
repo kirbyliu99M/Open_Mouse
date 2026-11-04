@@ -65,6 +65,8 @@ test.describe("desktop entry of the easy scan", () => {
   });
 });
 
+// v3.4: without a camera screen (this project has no camera) the first-run
+// screen stays the paper tip, which carries the "no paper" entry.
 test.describe("easy scan on a phone without a camera", () => {
   test("zh-TW: first-run tip, length step, and a failure sheet", async ({
     page,
@@ -76,16 +78,13 @@ test.describe("easy scan on a phone without a camera", () => {
     await expect(
       page.getByRole("heading", { name: easyZh.heading, includeHidden: true }),
     ).toBeAttached();
-    // v3.4: the first-run screen is the tour's question (the paper tip is
-    // gone); its words and the photo promise are in Chinese.
-    const tour = page.getByRole("dialog", { name: tourZh.welcomeTitle });
-    await expect(tour).toBeVisible();
+    const tip = page.getByRole("dialog", { name: easyZh.tipTitlePaper });
+    await expect(tip).toBeVisible();
     await expect(
-      tour.getByRole("button", { name: tourZh.welcomeFirst }),
+      tip.getByRole("button", { name: easyZh.tipGotIt }),
     ).toBeVisible();
-    await expect(tour).toContainText(tourZh.welcomeFinePrint);
-    await tour.getByRole("button", { name: tourZh.welcomeReturning }).click();
-    await page.getByRole("button", { name: easyZh.noPaperEntry }).click();
+    await expect(tip).toContainText(commonZh.privacyAndCameraStays);
+    await tip.getByRole("button", { name: easyZh.noPaperEntry }).click();
 
     await expect(
       page.getByRole("heading", { name: easyZh.lengthHeading }),
@@ -120,10 +119,9 @@ test.describe("easy scan on a phone without a camera", () => {
     await setLocale(page, "zh-TW");
     await page.goto("/scan/easy/length-failure-demo");
     await page
-      .getByRole("dialog", { name: tourZh.welcomeTitle })
-      .getByRole("button", { name: tourZh.welcomeReturning })
+      .getByRole("dialog", { name: easyZh.tipTitlePaper })
+      .getByRole("button", { name: easyZh.noPaperEntry })
       .click();
-    await page.getByRole("button", { name: easyZh.noPaperEntry }).click();
     await page.getByLabel(easyZh.lengthFieldLabel).fill("5");
     await page.getByRole("button", { name: easyZh.lengthContinue }).click();
     await expect(page.locator("#easy-length-error")).toHaveText(
@@ -138,9 +136,9 @@ test.describe("easy scan on a phone without a camera", () => {
     await setLocale(page, "en");
     await page.goto("/scan/easy/length-failure-demo");
     expect(await htmlLang(page)).toBe("en");
-    const tour = page.getByRole("dialog", { name: tourEn.welcomeTitle });
-    await expect(tour).toBeVisible();
-    await expect(tour).not.toContainText(CJK);
+    const tip = page.getByRole("dialog", { name: easyEn.tipTitlePaper });
+    await expect(tip).toBeVisible();
+    await expect(tip).not.toContainText(CJK);
   });
 });
 
