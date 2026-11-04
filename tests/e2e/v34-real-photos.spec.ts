@@ -136,10 +136,68 @@ for (const item of ITEMS) {
               window.requestAnimationFrame = () => 0;
             });
             await setup.goto("/scan/easy");
+            await expect(
+              setup.locator('[data-tour="reference-chip"]'),
+            ).toBeVisible({ timeout: 30_000 });
+            // How long the card mode takes to come up the first time in this
+            // browser (its code is loaded on first use): choice -> card guide
+            // drawn, and the script files fetched for it.
+            const chosenAt = await setup.evaluate(() => performance.now());
+            const t0Choice = Date.now();
             await chooseReference(setup, "Card");
+            await expect(
+              setup
+                .locator('[data-tour="card-slot"], [data-tour="card-layout"]')
+                .first(),
+            ).toBeAttached({ timeout: 30_000 });
+            row.cardGuideMs = Date.now() - t0Choice;
+            row.cardChunks = await setup.evaluate(
+              (since) =>
+                performance
+                  .getEntriesByType("resource")
+                  .filter(
+                    (e) => e.startTime >= since && /\.js(\?|$)/.test(e.name),
+                  )
+                  .map((e) => ({
+                    file: e.name.split("/").pop(),
+                    ms: Math.round(e.duration),
+                    kb: Math.round(
+                      ((e as PerformanceResourceTiming).transferSize || 0) /
+                        1024,
+                    ),
+                  })),
+              chosenAt,
+            );
             await setup.close();
           }
           const page = await context.newPage();
+          // Times (performance.now) when the stage turns "processing" (the
+          // shot is taken) and when a bottom sheet opens (the outline
+          // question, the measured sheet or a retake).
+          await page.addInitScript(() => {
+            const w = window as Window & {
+              __v34Times?: { processing?: number; sheet?: number };
+            };
+            w.__v34Times = {};
+            new MutationObserver(() => {
+              const t = w.__v34Times!;
+              if (
+                t.processing === undefined &&
+                document.querySelector('.easyStage[data-phase="processing"]')
+              )
+                t.processing = performance.now();
+              if (
+                t.sheet === undefined &&
+                document.querySelector("dialog.easyResultSheet[open]")
+              )
+                t.sheet = performance.now();
+            }).observe(document, {
+              subtree: true,
+              childList: true,
+              attributes: true,
+              attributeFilter: ["data-phase", "open"],
+            });
+          });
           const bodies: Record<string, unknown>[] = [];
           await page.route("**/api/scans", async (route) => {
             if (route.request().method() !== "POST") return route.fallback();
@@ -196,6 +254,18 @@ for (const item of ITEMS) {
             await page.getByTestId("paper-adjust-confirm").click();
           }
           await expect(anySheet).toBeVisible({ timeout: 60_000 });
+          const times = await page.evaluate(
+            () =>
+              (
+                window as Window & {
+                  __v34Times?: { processing?: number; sheet?: number };
+                }
+              ).__v34Times,
+          );
+          row.shutterToSheetMs =
+            times?.processing !== undefined && times.sheet !== undefined
+              ? Math.round(times.sheet - times.processing)
+              : null;
           if (await page.getByTestId("card-check-yes").isVisible()) {
             row.outlineQuestion = true;
             await page.screenshot({
