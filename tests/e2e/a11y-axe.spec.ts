@@ -845,7 +845,7 @@ NEEDS_REVIEW["v3.4 card mode, live camera"] = LIVE_CAMERA_REVIEW;
  * 4.5:1; a translucent first background fails closed.
  */
 const TOUR_SURFACE_REVIEW: Review = {
-  why: "The tour's text sits on its own opaque card above a transparent tap blocker (and a dim) that axe reads as overlapping it; each open node is measured against its own opaque surface.",
+  why: "The tour's text sits on its own opaque card (translucent segments composited over it) above a transparent tap blocker and a dim that axe reads as overlapping it; each open node is measured against the composited surface under it.",
   check: async (page, targets) => {
     const rows = await page.evaluate((selectors) => {
       const out: {
@@ -860,14 +860,30 @@ const TOUR_SURFACE_REVIEW: Review = {
           out.push({ target: sel, inTour: false, color: "", bg: null });
           continue;
         }
+        // Translucent fills are laid over the next one up, until an opaque
+        // one; none opaque up to the tour's root fails closed (null). An
+        // element's own opacity (other than 1) also fails closed.
         let bg: string | null = null;
+        const layers: number[][] = [];
         for (let n: Element | null = el; n; n = n.parentElement) {
-          const c = getComputedStyle(n).backgroundColor;
-          const alpha = Number((c.match(/[\d.]+/g) ?? [])[3] ?? 1);
-          if (c && c !== "transparent" && alpha > 0) {
-            bg = alpha >= 1 ? c : null;
+          const cs = getComputedStyle(n);
+          if (Number(cs.opacity) < 1) break;
+          const v = (cs.backgroundColor.match(/[\d.]+/g) ?? []).map(Number);
+          const alpha = v[3] ?? 1;
+          if (v.length >= 3 && alpha > 0)
+            layers.push([v[0], v[1], v[2], alpha]);
+          if (v.length >= 3 && alpha >= 1) {
+            let [r, g, b] = layers[layers.length - 1];
+            for (let i = layers.length - 2; i >= 0; i--) {
+              const [lr, lg, lb, la] = layers[i];
+              r = lr * la + r * (1 - la);
+              g = lg * la + g * (1 - la);
+              b = lb * la + b * (1 - la);
+            }
+            bg = `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
             break;
           }
+          if (n.matches("[data-testid=scan-tour]")) break;
         }
         out.push({
           target: sel,
