@@ -9,6 +9,7 @@ import {
   CAPTURE_FAILURE_HINT_THRESHOLD,
   type CaptureFailureLanguage,
 } from "../../src/client/camera/captureFailure";
+import { dismissFirstRun } from "./fixtures/first-run";
 
 /**
  * The capture-failure hint in the real component: what the pure counting
@@ -92,9 +93,7 @@ for (const { locale, language } of CASES) {
         res.url().includes("/mediapipe/models/hand_landmarker.task"),
       );
       await page.waitForLoadState("networkidle");
-      await page
-        .getByRole("button", { name: easyScanCopy(language).tipGotIt })
-        .click();
+      await dismissFirstRun(page);
 
       // The 4th capture attempt happens after 3 failures were counted.
       await expect

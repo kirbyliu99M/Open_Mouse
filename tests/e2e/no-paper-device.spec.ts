@@ -265,8 +265,10 @@ async function openLengthStepFromTip(page: Page) {
     res.url().includes("/mediapipe/models/hand_landmarker.task"),
   );
   await page.waitForLoadState("networkidle");
+  // v3.4: the paper tip (which carried this link) is now the tour's
+  // question; answer it, then use the same link on the camera screen.
+  await dismissFirstRun(page);
   await page
-    .getByRole("dialog", { name: "One blank sheet is all you need" })
     .getByRole("button", { name: "No paper? Use a ruler instead" })
     .click();
   await expect(

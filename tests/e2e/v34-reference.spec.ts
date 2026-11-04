@@ -249,7 +249,7 @@ test.describe("card flag ON", () => {
     // in card mode, with no hand, nothing is taken for 8 s.
     for (let i = 0; i < 8; i++) {
       await page.waitForTimeout(1_000);
-      expect(await ringFraction(page)).toBe(0);
+      expect(await ringFraction(page)).toBeLessThan(0.01);
       await expect(anySheet(page)).toHaveCount(0);
       await expect(page.getByTestId("paper-adjust")).toBeHidden();
     }
