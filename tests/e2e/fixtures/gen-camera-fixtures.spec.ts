@@ -40,6 +40,7 @@ import { test } from "@playwright/test";
 import type { Homography } from "../../../src/client/geometry/homography";
 import { buildCameraScenePng } from "./camera-scene";
 import { buildPaperScenePng } from "./paper-scene";
+import { buildCardScenePng } from "./card-scene";
 
 const run = promisify(execFile);
 
@@ -196,4 +197,40 @@ test("generates the committed fake-camera .y4m fixtures under tests/e2e/fixtures
   await rm(fullPngPath);
   await rm(paperEdgePngPath);
   await rm(paperEdgePartialPngPath);
+});
+
+// v3.4 card reference (candidate): the card-mode fixture. Same 800 x 1300
+// frame as the paper-edge one, so the 390 x 844 fake phone shows columns
+// 99.6-700.3 of it (object-fit: cover). The card is drawn centred in the
+// G-M2 card slot of a right hand (x 0.68-0.90, centre y 0.42 of the view,
+// src/client/card/hand/gm2Rules.ts). Its own switch, so generating it never
+// rewrites the paper fixtures above:
+//
+//   GEN_CARD_FIXTURE=1 npx playwright test tests/e2e/fixtures/gen-camera-fixtures.spec.ts --project=chromium
+const CARD_CANVAS = { width: 800, height: 1300 };
+const CARD_VISIBLE_WIDTH = (390 / 844) * CARD_CANVAS.height;
+
+test("generates the committed card-mode fixture camera/card-beside-hand.y4m", async ({
+  page,
+}) => {
+  test.skip(
+    process.env.GEN_CARD_FIXTURE !== "1",
+    "Fixture generation is opt-in — set GEN_CARD_FIXTURE=1 to run it.",
+  );
+  await mkdir(OUT_DIR, { recursive: true });
+  const png = await buildCardScenePng(page, {
+    canvasWidth: CARD_CANVAS.width,
+    canvasHeight: CARD_CANVAS.height,
+    visible: {
+      x: (CARD_CANVAS.width - CARD_VISIBLE_WIDTH) / 2,
+      width: CARD_VISIBLE_WIDTH,
+    },
+    scale: 2.6,
+    cardCentre: { x: 0.79, y: 0.42 },
+  });
+  const pngPath = path.join(OUT_DIR, "_card.png");
+  await writeFile(pngPath, png);
+  await pngToY4m(pngPath, path.join(OUT_DIR, "card-beside-hand.y4m"));
+  if (process.env.KEEP_CARD_PNG === "1") return;
+  await rm(pngPath);
 });

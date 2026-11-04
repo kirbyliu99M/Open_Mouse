@@ -466,8 +466,11 @@ const MOBILE_STATES: readonly (readonly [
     "camera screen, first-run tip open",
     async (page) => {
       await page.goto("/scan/easy");
+      // v3.4: the tour's first-use question took the paper tip's place.
       await expect(
-        page.getByRole("dialog", { name: "One blank sheet is all you need" }),
+        page.getByRole("dialog", {
+          name: /^(One blank sheet is all you need|First time scanning\?)$/,
+        }),
       ).toBeVisible();
     },
   ],
@@ -739,4 +742,111 @@ for (const colorScheme of SCHEMES) {
       }),
     );
   });
+}
+
+// ── v3.4 (candidate): the scan tour and the card reference ──────────────────
+//
+// The tour is a modal <dialog> over the live camera (its dim is 60 % black,
+// so nothing behind it is read for contrast except through the spotlight);
+// the card mode is the live camera with the card guide drawn over it, and the
+// card outline question is a bottom sheet. The card states need the card
+// build (`NEXT_PUBLIC_CARD_REFERENCE_ENABLED=1`, see v34-reference.spec.ts).
+
+const V34_CARD_ON = process.env.NEXT_PUBLIC_CARD_REFERENCE_ENABLED === "1";
+
+const V34_STATES: readonly (readonly [
+  string,
+  boolean,
+  (page: Page) => Promise<void>,
+])[] = [
+  [
+    "v3.4 tour, first-use question",
+    false,
+    async (page) => {
+      await page.goto("/scan/easy?debug=1");
+      await expect(
+        page.getByRole("dialog", { name: "First time scanning?" }),
+      ).toBeVisible({ timeout: 15_000 });
+    },
+  ],
+  [
+    "v3.4 tour, step 1 (spotlight on the reference chip)",
+    false,
+    async (page) => {
+      await page.goto("/scan/easy?debug=1");
+      await page.getByRole("button", { name: "First time, show me" }).click();
+      await expect(page.getByTestId("scan-tour-spotlight")).toBeVisible();
+    },
+  ],
+  [
+    "v3.4 tour, last step",
+    false,
+    async (page) => {
+      await page.goto("/scan/easy?debug=1");
+      await page.getByRole("button", { name: "First time, show me" }).click();
+      for (let i = 0; i < 3; i++)
+        await page.getByRole("button", { name: "Next", exact: true }).click();
+      await expect(
+        page.getByRole("button", { name: "Start scanning", exact: true }),
+      ).toBeVisible();
+    },
+  ],
+  [
+    "v3.4 card mode, live camera",
+    true,
+    async (page) => {
+      await page.addInitScript(() =>
+        window.localStorage.setItem("openMouse.easyScan.paperSize", "card"),
+      );
+      await page.goto("/scan/easy?debug=1");
+      await dismissFirstRun(page);
+      await expect(page.locator('[data-tour="card-slot"]')).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(page.locator("video.cameraVideo.ready")).toBeVisible({
+        timeout: 20_000,
+      });
+    },
+  ],
+  [
+    "v3.4 card outline question",
+    true,
+    async (page) => {
+      await page.addInitScript(() =>
+        window.localStorage.setItem("openMouse.easyScan.paperSize", "card"),
+      );
+      await page.goto("/scan/easy/card-live-demo");
+      await dismissFirstRun(page);
+      await expect(page.locator('[data-tour="card-slot"]')).toBeVisible({
+        timeout: 15_000,
+      });
+      await page.getByRole("button", { name: "Take photo" }).click();
+      await expect(page.getByTestId("card-check-yes")).toBeVisible({
+        timeout: 30_000,
+      });
+    },
+  ],
+];
+NEEDS_REVIEW["v3.4 card mode, live camera"] = LIVE_CAMERA_REVIEW;
+
+for (const [state, needsCard, setup] of V34_STATES) {
+  for (const colorScheme of SCHEMES) {
+    test(`phone: ${state} has no violations in ${colorScheme} mode`, async ({
+      page,
+    }, info) => {
+      test.skip(
+        info.project.name !== "chromium-camera-paper-edge",
+        "Needs the fake camera project.",
+      );
+      test.skip(needsCard && !V34_CARD_ON, "Needs the card build.");
+      await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
+      await setup(page);
+      await audit(
+        page,
+        info,
+        state,
+        state === "v3.4 card mode, live camera" ? [checkLivePicture] : [],
+      );
+    });
+  }
 }
