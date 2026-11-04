@@ -2464,7 +2464,8 @@ test.describe("V3.2 motion pass: interrupted transitions end usable", () => {
     // Nothing under the sheet's old place acted: no manual-entry sheet, the
     // paper size as it was, no second camera opening.
     await expect(page.getByTestId("manual-entry-sheet")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /^A4/ })).toBeVisible();
+    // v3.4: the paper chip (in the card build its name is "Reference: A4…").
+    await expect(page.locator('[data-tour="reference-chip"]')).toHaveText("A4");
     expect((await cameraOpens())! - opensBefore!).toBe(1);
     await expect(page.locator(".easyLeaveShield")).toHaveCount(0);
     await cameraUsable(page);
