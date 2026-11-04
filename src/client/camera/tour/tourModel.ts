@@ -19,6 +19,18 @@
  */
 export type TipPresentation = "tour" | "wait" | "sheet";
 
+/**
+ * Whether closing the old tip sheet marks the first-run tip as seen (review
+ * R3): only the typed-length tip, which is the real tip there. The sheet
+ * shown in the tour's place (camera refused, no picture yet) does not, so
+ * the tour shows next time.
+ */
+export function tipSheetMarksSeen(screen: {
+  readonly typedLength: boolean;
+}): boolean {
+  return screen.typedLength;
+}
+
 /** How long the tour waits for the live picture before the tip sheet, ms (review B1). 候選. */
 export const PICTURE_WAIT_MS = 2500;
 
@@ -39,8 +51,10 @@ export function tipPresentation(screen: {
   if (screen.typedLength) return "sheet";
   if (screen.result !== "none") return "sheet";
   if (screen.camera === "live") {
-    if (screen.pictureTimedOut) return "sheet";
-    return screen.pictureReady ? "tour" : "wait";
+    // A picture that arrives after the fallback sheet: the tour after all
+    // (review R3; the sheet is closed for it while still untouched).
+    if (screen.pictureReady) return "tour";
+    return screen.pictureTimedOut ? "sheet" : "wait";
   }
   if (screen.camera === "requesting") return "wait";
   return "sheet";

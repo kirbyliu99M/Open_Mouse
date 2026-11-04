@@ -373,6 +373,7 @@ import {
   guideRectInViewport,
   PICTURE_WAIT_MS,
   tipPresentation,
+  tipSheetMarksSeen,
   tourReturnFocus,
 } from "./tour/tourModel";
 
@@ -538,9 +539,13 @@ type ResultState =
        * 繼續 show only once they say yes (no: retake).
        */
       cardCheck?: "pending";
+      /** v3.4: the result came from the card pipeline (review R4). */
+      reference?: "card";
     }
   | {
       kind: "gateFailure";
+      /** v3.4: the result came from the card pipeline (review R4). */
+      reference?: "card";
       previewUrl: string;
       overlay: PhotoOverlay | null;
       errors: readonly PipelineIssue[];
@@ -778,10 +783,13 @@ export default function EasyScanCamera({
   // Review m2: whether the photo being analysed came from the live screen
   // that shows the reference chip (a shot, or an upload picked there).
   const photoFromReferenceScreenRef = useRef(true);
+  // Review R1: where the upload was tapped, recorded at the tap (Android's
+  // picker hides the page, which ends the stream before the file returns):
+  // true only on the live dock's upload button.
+  const uploadFromReferenceScreenRef = useRef(false);
   // A shot is being taken (capturingRef, for the render): the reference
   // menu is disabled then too, not only while 測量中… (review n1).
   const [capturingUi, setCapturingUi] = useState(false);
-  const referenceScreenRef = useRef(false);
   // Read by the reference switch (review item 13): no change while 測量中….
   const shutterMeasuringRef = useRef(false);
   shutterMeasuringRef.current = shutterMeasuring;
@@ -1273,11 +1281,6 @@ export default function EasyScanCamera({
     pictureTimedOut,
   });
   const tourScreen = tipView === "tour";
-  referenceScreenRef.current =
-    deviceFit === "phone" &&
-    (camState.kind === "live" || camState.kind === "requesting") &&
-    result.kind === "none" &&
-    !lengthStep;
   const tipSheetScreen = tipView === "sheet";
   useEffect(() => {
     if (tipOpen && deviceFit === "phone" && !lengthStep && tipSheetScreen) {
@@ -1549,7 +1552,11 @@ export default function EasyScanCamera({
   const dismissTip = useCallback(() => {
     setTipOpen(false);
     tipDialogRef.current?.close();
-    markFirstRunTipSeen(getBrowserStorage());
+    // Only the typed-length tip counts as seen; the sheet shown in the
+    // tour's place (no camera picture) does not, so the tour shows next
+    // time (review R3).
+    if (tipSheetMarksSeen({ typedLength: userLengthRef.current !== null }))
+      markFirstRunTipSeen(getBrowserStorage());
     // No explicit focus() to the "?" trigger here: the tip auto-opens on
     // mount (nothing "opened" it the way a click opens the nav menu), and
     // Chromium's :focus-visible heuristic treats a script-triggered focus
@@ -2668,8 +2675,11 @@ export default function EasyScanCamera({
       e.target.value = "";
       if (!file || manualActiveRef.current) return;
       // Card mode only for an upload picked on the live screen that shows it
-      // (review m2); from any other screen the photo takes the paper path.
-      photoFromReferenceScreenRef.current = referenceScreenRef.current;
+      // (review m2), as recorded when its button was tapped (review R1);
+      // from any other screen the photo takes the paper path.
+      photoFromReferenceScreenRef.current =
+        uploadFromReferenceScreenRef.current;
+      uploadFromReferenceScreenRef.current = false;
       stopStream();
       fileRef.current = file;
       debugPhotoRef.current = file;
@@ -2951,6 +2961,7 @@ export default function EasyScanCamera({
             ...(r.overlay.paperCorners
               ? { cardCheck: "pending" as const }
               : {}),
+            reference: "card",
           });
         } else {
           const errors =
@@ -2969,6 +2980,7 @@ export default function EasyScanCamera({
           });
           setResult({
             kind: "gateFailure",
+            reference: "card",
             previewUrl,
             overlay: r.overlay,
             errors,
@@ -2994,6 +3006,7 @@ export default function EasyScanCamera({
         });
         setResult({
           kind: "gateFailure",
+          reference: "card",
           previewUrl,
           overlay: null,
           errors: [
@@ -4178,6 +4191,9 @@ export default function EasyScanCamera({
   // The card's overlay, layout target and outline drawing: only while the
   // card path is in charge (not under a typed hand length, review item 1).
   const cardActive = cardPathActive({ cardMode, typedLengthMm: userLengthMm });
+  const cardResult =
+    (result.kind === "measured" || result.kind === "gateFailure") &&
+    result.reference === "card";
   const referenceLabel = cardMode
     ? cardCopy.chip
     : PAPER_SIZE_LABELS[paperSize];
@@ -4513,7 +4529,8 @@ export default function EasyScanCamera({
         dimensions={measuredView && !cardCheckOpen ? dimensions : null}
         problem={measuredView ? problem : null}
         ariaLabel={noPaperMode ? easy.photoLabelNoPaper : easy.photoLabelPaper}
-        outlineCorners={cardActive}
+        // The card's outline only on a card result (review R4).
+        outlineCorners={cardResult}
       />
     ) : null;
   // V3.2 motion pass #2: the photo as it is drawn now (where it is, how it is
@@ -4815,6 +4832,12 @@ export default function EasyScanCamera({
             <label
               className="easyUploadFallbackButton"
               htmlFor="easy-scan-upload"
+              onPointerDown={() => {
+                uploadFromReferenceScreenRef.current = false;
+              }}
+              onClick={() => {
+                uploadFromReferenceScreenRef.current = false;
+              }}
             >
               {common.uploadInstead}
             </label>
@@ -4829,6 +4852,12 @@ export default function EasyScanCamera({
             <label
               className="easyUploadFallbackButton"
               htmlFor="easy-scan-upload"
+              onPointerDown={() => {
+                uploadFromReferenceScreenRef.current = false;
+              }}
+              onClick={() => {
+                uploadFromReferenceScreenRef.current = false;
+              }}
             >
               {common.uploadPhoto}
             </label>
@@ -4914,7 +4943,9 @@ export default function EasyScanCamera({
             ref={dockRef}
             className="easyBottomDock easyBottomDock-withHandle"
             data-leaving={liveChromeLeave.leaving ? "true" : undefined}
-            inert={liveChromeLeave.leaving}
+            // Review R2: not usable while the first-run tip / tour is open
+            // or waiting for the picture (main's modal tip blocked it).
+            inert={liveChromeLeave.leaving || tipOpen}
             aria-hidden={liveChromeLeave.leaving || undefined}
           >
             {hintText && (
@@ -4985,6 +5016,12 @@ export default function EasyScanCamera({
               <label
                 className="easyUploadIconButton"
                 htmlFor="easy-scan-upload"
+                onPointerDown={() => {
+                  uploadFromReferenceScreenRef.current = true;
+                }}
+                onClick={() => {
+                  uploadFromReferenceScreenRef.current = true;
+                }}
               >
                 <span className="visuallyHidden">{common.uploadInstead}</span>
                 <svg
@@ -5385,7 +5422,9 @@ export default function EasyScanCamera({
             <>
               <li>
                 <span aria-hidden="true">📄</span>{" "}
-                {easy.tipPaperOnTable(PAPER_SIZE_LABELS[paperSize])}
+                {cardActive
+                  ? cardCopy.cardRule
+                  : easy.tipPaperOnTable(PAPER_SIZE_LABELS[paperSize])}
               </li>
               <li>
                 <HandIcon width={18} height={18} /> {easy.tipHandFlat}
