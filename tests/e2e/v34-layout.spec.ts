@@ -64,6 +64,17 @@ for (const size of SIZES) {
     await page.setViewportSize(size);
     await zh(page);
     await skipFirstRun(page);
+    // FORCE_TILT=1: an iOS-like browser whose motion sensor needs a tap to
+    // allow (the request never answers), so the tilt button stays on screen.
+    if (process.env.FORCE_TILT === "1")
+      await page.addInitScript(() => {
+        const ask = () => new Promise<string>(() => undefined);
+        for (const name of ["DeviceMotionEvent", "DeviceOrientationEvent"]) {
+          const ctor = (window as unknown as Record<string, unknown>)[name] as
+            { requestPermission?: unknown } | undefined;
+          if (ctor) ctor.requestPermission = ask;
+        }
+      });
     await page.goto("/scan/easy");
     await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible({
       timeout: 20_000,
@@ -87,6 +98,10 @@ for (const size of SIZES) {
           page.locator(".cardGuideLabel", { hasText: /放這裡/ }),
         ),
         boxOf("chip", page.locator('[data-tour="reference-chip"]')),
+        boxOf("level ring", page.locator('.cardGuideOverlay circle[r="18"]')),
+        boxOf("close", page.locator(".cameraCloseButton")),
+        boxOf("help", page.locator('[data-tour="help"]')),
+        boxOf("hand chip", page.locator('[data-tour="hand-chip"]')),
         boxOf("shutter", page.locator('[data-tour="shutter"]')),
         boxOf("upload", page.locator(".easyUploadIconButton")),
       ])
@@ -94,7 +109,14 @@ for (const size of SIZES) {
     if (OUT) {
       const dir = path.join(OUT, `${size.width}x${size.height}`);
       await mkdir(dir, { recursive: true });
-      await page.screenshot({ path: path.join(dir, "card-live.png") });
+      await page.screenshot({
+        path: path.join(
+          dir,
+          process.env.FORCE_TILT === "1"
+            ? "card-live-tilt-button.png"
+            : "card-live.png",
+        ),
+      });
     }
     console.log(
       `LAYOUT ${size.width}x${size.height} ${JSON.stringify(boxes.map((b) => [b.name, Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]))}`,
