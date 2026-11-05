@@ -12,6 +12,7 @@
  */
 import type { CardReferenceCopy } from "../../lib/copy/card-reference";
 import { GUIDE_COPY } from "./hand/guideCopy";
+import { guideLabelTop } from "./cardChromeLayout";
 import type { OverlayShape, Tone } from "./hand/guides/types";
 
 const TONE: Record<Tone, string> = {
@@ -54,6 +55,16 @@ interface LabelSpec {
   readonly size: number;
 }
 
+const NEWLINE = String.fromCharCode(10);
+
+/** A label's height as drawn: its lines at 1.2, 0.125rem padding × 2. */
+export function labelHeightPx(label: {
+  readonly text: string;
+  readonly size: number;
+}): number {
+  return label.text.split(NEWLINE).length * label.size * 1.2 + 4;
+}
+
 const LABEL_SHIFT: Record<LabelSpec["anchor"], string> = {
   start: "0%",
   middle: "-50%",
@@ -65,11 +76,14 @@ export function CardGuideOverlay({
   width,
   height,
   copy,
+  labelFloorPx = null,
 }: {
   readonly shapes: readonly OverlayShape[];
   readonly width: number;
   readonly height: number;
   readonly copy: CardReferenceCopy;
+  /** The dock's top in this layer, px: no label goes below it (review G5). */
+  readonly labelFloorPx?: number | null;
 }) {
   if (!(width > 0) || !(height > 0)) return null;
   const X = (x: number) => x * width;
@@ -296,8 +310,9 @@ export function CardGuideOverlay({
             style={{
               position: "absolute",
               left: label.x,
-              top: label.y,
-              transform: `translate(${LABEL_SHIFT[label.anchor]}, -50%)`,
+              // Centred on its point, but kept above the dock (review G5).
+              top: guideLabelTop(label.y, labelHeightPx(label), labelFloorPx),
+              transform: `translateX(${LABEL_SHIFT[label.anchor]})`,
               padding: "0.125rem 0.5rem",
               borderRadius: 6,
               background: "rgba(0,0,0,0.6)",

@@ -1616,6 +1616,26 @@ export default function EasyScanCamera({
       input.removeEventListener("cancel", onCancel);
   }, []);
 
+  // Review G5: the dock's top on the stage, so the card guide's labels stay
+  // above it (the wrist label on short screens).
+  const [dockTopPx, setDockTopPx] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const dock = dockRef.current;
+    const stage = stageRef.current;
+    if (!dock || !stage || !cardMode) return;
+    const measure = () => {
+      const top =
+        dock.getBoundingClientRect().top - stage.getBoundingClientRect().top;
+      setDockTopPx((prev) => (prev === top ? prev : top));
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(dock);
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, [cardMode, liveChromeLeave.shown, stageSize]);
+
   // Review R2: the live dock is not usable while the first-run tip / tour is
   // open or waiting for the picture (main's modal tip blocked it from
   // mount). Set after React's own inert (the leave), so both hold; the dock
@@ -4275,7 +4295,9 @@ export default function EasyScanCamera({
     userLengthMm !== null
       ? ""
       : cardMode
-        ? cardCopy.cardRule
+        ? // Review G5: the card rule sits under the cue instead (not in
+          // the dock, where it ran into the wrist label and the shutter).
+          ""
         : easyHintText({
             cueCode: cue?.code ?? null,
             ringFraction,
@@ -4646,6 +4668,7 @@ export default function EasyScanCamera({
                     ? cardShapes
                     : cardStaticShapes(handChip.hand, stageSize)
                 }
+                labelFloorPx={dockTopPx}
                 width={stageSize.width}
                 height={stageSize.height}
                 copy={cardCopy}
@@ -4993,6 +5016,28 @@ export default function EasyScanCamera({
                 cueLabel
               )}
             </div>
+            {cardActive && !tipOpen && (
+              // Review G5: under the cue pill, in the top band (clear of the
+              // wrist label and the dock). Hidden under the tour, which
+              // explains both.
+              <>
+                <p className="easyCardRule" data-testid="card-rule">
+                  {cardCopy.cardRule}
+                </p>
+                {cardActive && deviceTilt.state === "needs-permission" && (
+                  // iOS asks for the motion sensor only from a tap; card mode
+                  // restored from storage had none (review n2). Optional:
+                  // card mode works without the level hint.
+                  <button
+                    type="button"
+                    className="easyTiltPermission"
+                    onClick={() => void deviceTilt.request()}
+                  >
+                    {cardCopy.tiltPermission}
+                  </button>
+                )}
+              </>
+            )}
           </div>
           {!liveChromeLeave.leaving && (
             <p className="visuallyHiddenLive" aria-live="polite">
@@ -5011,19 +5056,6 @@ export default function EasyScanCamera({
                 {hintText}
               </p>
             )}
-            {cardActive && deviceTilt.state === "needs-permission" && (
-              // iOS asks for the motion sensor only from a tap; card mode
-              // restored from storage had none (review n2). Optional: card
-              // mode works without the level hint.
-              <button
-                type="button"
-                className="easyTiltPermission"
-                onClick={() => void deviceTilt.request()}
-              >
-                {cardCopy.tiltPermission}
-              </button>
-            )}
-
             <div className="easyBottomRow">
               {userLengthMm === null && CARD_REFERENCE_ENABLED ? (
                 // Card flag on: a menu of A4 / Letter / 卡片 (review items
@@ -5108,7 +5140,8 @@ export default function EasyScanCamera({
                   ref={liveChromeLeave.leaving ? undefined : noPaperEntryRef}
                   onClick={startLengthStep}
                 >
-                  {noPaperLabel}
+                  {/* Review G9: card mode says "no card" (paper unchanged). */}
+                  {cardActive ? cardCopy.noCardEntry : noPaperLabel}
                 </button>
                 {noPaperMode && (
                   <button
