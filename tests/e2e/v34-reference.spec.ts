@@ -230,9 +230,7 @@ test.describe("card flag ON", () => {
     await expect(cue(page)).not.toContainText(cardEn.hintNoHand);
 
     const noCardRule = () =>
-      expect(
-        page.getByTestId("easy-hint").filter({ hasText: cardEn.cardRule }),
-      ).toHaveCount(0);
+      expect(page.getByTestId("card-rule")).toHaveCount(0);
     const expectPaper = async (label: "A4" | "Letter") => {
       await expect(chip(page)).toHaveText(label);
       await expect(chip(page)).toHaveAttribute(
@@ -255,7 +253,9 @@ test.describe("card flag ON", () => {
       await expect(foundCorners(page)).toHaveCount(0);
       // The card slot and the card's own words.
       await expect(cardSlot(page)).toBeVisible({ timeout: 10_000 });
-      await expect(page.getByTestId("easy-hint")).toHaveText(cardEn.cardRule);
+      // The card rule line: its own element (data-testid card-rule) since 3fb670a9.
+      await expect(page.getByTestId("card-rule")).toBeVisible();
+      await expect(page.getByTestId("card-rule")).toHaveText(cardEn.cardRule);
       // MediaPipe finds no hand in the fake scene: the card cue asks for one.
       await expect(cue(page)).toContainText(cardEn.hintNoHand);
     };

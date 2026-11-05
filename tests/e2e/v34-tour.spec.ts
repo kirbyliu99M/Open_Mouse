@@ -274,7 +274,23 @@ test("card build: choosing Card inside the tour switches the camera to the card 
   const slot = page.locator('[data-tour="card-slot"]');
   const layout = page.locator('[data-tour="card-layout"]');
   await expect(layout.or(slot).first()).toBeAttached();
-  await expectSpotlightOn(page, (await layout.count()) > 0 ? layout : slot);
+  // Since review round 7 the spotlight may be cut short above the tooltip
+  // pinned at the bottom: it must still hold the whole card slot.
+  await expect(spotlight(page)).toBeVisible();
+  await expect
+    .poll(async () => {
+      const s = await spotlight(page).boundingBox();
+      const t = await slot.boundingBox();
+      if (!s || !t) return false;
+      return (
+        t.x >= s.x - 2 &&
+        t.y >= s.y - 2 &&
+        t.x + t.width <= s.x + s.width + 2 &&
+        t.y + t.height <= s.y + s.height + 2
+      );
+    })
+    .toBe(true);
+  void layout;
   await expect(page.locator("body")).toContainText(tour.placeCardCentreLabel);
   // Back to step 1, A4 again: the placement is the paper frame again.
   await button(page, tour.back).click();

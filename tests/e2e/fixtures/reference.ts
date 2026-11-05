@@ -25,9 +25,18 @@ export async function openReferenceChip(page: Page): Promise<boolean> {
     );
 }
 
+/** The chip's text for a choice, in either language ("Card" is 卡片 in zh-TW). */
+const LABELS: Record<ReferenceLabel, readonly string[]> = {
+  A4: ["A4"],
+  Letter: ["Letter"],
+  Card: ["Card", "卡片"],
+};
+const isLabel = (text: string, target: ReferenceLabel) =>
+  LABELS[target].includes(text.trim());
+
 export async function chooseReference(page: Page, target: ReferenceLabel) {
   const chip = referenceChip(page);
-  if ((await chip.innerText()).trim() === target) return;
+  if (isLabel(await chip.innerText(), target)) return;
   if (await openReferenceChip(page)) {
     const key = { A4: "a4", Letter: "letter", Card: "card" }[target];
     await referenceMenu(page)
@@ -36,8 +45,10 @@ export async function chooseReference(page: Page, target: ReferenceLabel) {
     await expect(referenceMenu(page)).toBeHidden();
   } else {
     // A toggle (or a cycling chip): the first tap already stepped once.
-    for (let i = 0; i < 3 && (await chip.innerText()).trim() !== target; i++)
+    for (let i = 0; i < 3 && !isLabel(await chip.innerText(), target); i++)
       await chip.click();
   }
-  await expect(chip).toHaveText(target);
+  await expect
+    .poll(async () => isLabel(await chip.innerText(), target))
+    .toBe(true);
 }
