@@ -94,7 +94,8 @@ export const zhTW: ScanTourCopy = {
   referenceCard: "卡片",
   referenceBodyPaper: "用一張空白的影印紙，放在深色桌面上。",
   referenceBodyCard:
-    "卡片請用悠遊卡、一卡通這類標準大小。證件、信用卡有個資，不要用；名片大小不對。",
+    // Review G8 (candidate): the same rule as the live card line.
+    "用悠遊卡、一卡通這類標準大小的淺色或亮面卡片，背面朝上放；證件、信用卡有個資不要用，名片大小不對。",
   placePaperTitle: "紙放在框裡，手放在紙上",
   placePaperBody:
     "空白紙放平在深色桌面。手背朝上、手指伸直併攏，整隻手都在紙內。",
@@ -145,7 +146,7 @@ export const en: ScanTourCopy = {
   referenceCard: "Card",
   referenceBodyPaper: "Use a blank sheet of printer paper on a dark table.",
   referenceBodyCard:
-    "Use a standard-size transit card. Don't use an ID or a credit card (personal details); business cards are the wrong size.",
+    "Use a light or glossy standard-size card such as a transit card, back side up. Don't use an ID or a credit card (personal details); business cards are the wrong size.",
   placePaperTitle: "Paper in the frame, hand on the paper",
   placePaperBody:
     "Lay blank paper flat on a dark table. Back of the hand up, fingers straight and together, the whole hand on the paper.",

@@ -21,6 +21,9 @@ import { GUIDE_COPY } from "../guideCopy";
 import { LM, type Pt } from "../handGeometry";
 import type { GuideCheck, HandGuideVersion, OverlayShape, Tone } from "./types";
 
+/** How far above the wrist line its label sits, view height (review G5). */
+export const GM2_WRIST_LABEL_RISE = 0.025;
+
 /** A check's level as an overlay tone; neutral when the check did not run. */
 export function toneOf(check: GuideCheck | undefined): Tone {
   if (!check) return "neutral";
@@ -137,15 +140,17 @@ export const gm2: HandGuideVersion = {
         dashed: true,
         width: 1.5,
       },
+      // v3.4 review G5: at the line's left end, just above it, so it never
+      // meets the dock (the shutter row) below the line.
       {
         kind: "label",
         at: {
-          x: l.handZone.x + l.handZone.width / 2,
-          y: l.wristLineY + 0.03,
+          x: l.handZone.x + 0.01,
+          y: l.wristLineY - GM2_WRIST_LABEL_RISE,
         },
         text: "手腕大約在這附近",
         tone: "neutral",
-        anchor: "middle",
+        anchor: "start",
       },
       {
         kind: "zone",

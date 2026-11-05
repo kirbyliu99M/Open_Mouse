@@ -250,6 +250,8 @@ const OVER_LIVE_PICTURE: readonly { selector: string; required?: true }[] = [
   // v3.4 card mode on iOS only (review n2): 開啟水平提示, white on
   // rgba(0,0,0,.6) as the pills above (5.74:1 on a white picture).
   { selector: ".easyTiltPermission" },
+  // v3.4 card mode (review G5): the card rule under the cue, the same pill.
+  { selector: ".easyCardRule" },
 ];
 const LISTED = OVER_LIVE_PICTURE.map((item) => item.selector);
 const REQUIRED = OVER_LIVE_PICTURE.filter((item) => item.required).map(

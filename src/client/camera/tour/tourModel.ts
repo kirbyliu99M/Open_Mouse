@@ -570,3 +570,126 @@ export function rectsClose(a: Rect | null, b: Rect | null): boolean {
     Math.abs(a.height - b.height) < 0.5
   );
 }
+
+/** The gap kept between a cropped spotlight and the card pinned below it, px (review G6/G7). */
+export const HOLE_TOOLTIP_GAP = 14;
+/** A spotlight is not cropped to less than this, px. */
+const MIN_CROPPED_HOLE = 80;
+
+export interface SpotlightLayout {
+  readonly placement: TooltipPlacement & {
+    /** The card's own height limit when it scrolls inside (short screens). */
+    readonly maxHeight?: number;
+  };
+  /** The spotlight as drawn: cropped above a card pinned at the bottom. */
+  readonly hole: Rect;
+}
+
+/**
+ * Whether a line at `y` (the paper's real bottom edge) can be drawn: not
+ * under the card (review H2: never draw it anywhere else).
+ */
+export function edgeVisible(
+  y: number,
+  card: { readonly y: number; readonly height: number },
+): boolean {
+  return y < card.y || y > card.y + card.height;
+}
+
+/**
+ * The card and the spotlight together, never overlapping (Toutour hard
+ * rule; review G6, G7 and the G8 note):
+ * - it fits above or below the ring: as `placeTooltip`;
+ * - a tall ring (the paper, the card layout): the card is pinned to the
+ *   bottom and the ring is cropped to end HOLE_TOOLTIP_GAP above it (the
+ *   upper part, where the fingers and the slot are, stays lit);
+ * - a small ring (a chip): the card goes on the side with more room and
+ *   scrolls inside (`maxHeight`) rather than cover the ring.
+ * `avoid` is the ring plus any labels drawn beside it (not inside).
+ */
+export function layoutSpotlight(
+  hole: Rect,
+  avoid: Rect,
+  tooltip: Size,
+  viewport: Size,
+  placement: TourStepDef["placement"],
+  /**
+   * Which end of a tall ring must stay lit (review H2): "top" (the card
+   * layout: fingers and slot; the card is pinned at the bottom) or "bottom"
+   * (the paper: its real bottom edge, where the wrist goes; the card is
+   * pinned at the top and the ring cropped from above).
+   */
+  keep: "top" | "bottom" = "top",
+): SpotlightLayout {
+  const placed = placeTooltip(avoid, tooltip, viewport, placement);
+  if (!placed.overlaps) return { placement: placed, hole };
+  const width = tooltipWidth(viewport);
+  const x = centredX(viewport, width);
+  const tall =
+    placement === "dock-bottom" || hole.height >= viewport.height * 0.4;
+  if (tall && keep === "bottom") {
+    const y = SCREEN_MARGIN;
+    const top = y + tooltip.height + HOLE_TOOLTIP_GAP;
+    const bottom = hole.y + hole.height;
+    if (bottom - Math.max(top, hole.y) >= MIN_CROPPED_HOLE)
+      return {
+        placement: { x, y, width, arrow: null, overlaps: false },
+        hole: {
+          ...hole,
+          y: Math.max(top, hole.y),
+          height: bottom - Math.max(top, hole.y),
+        },
+      };
+    return { placement: placed, hole };
+  }
+  if (tall) {
+    const y = Math.max(
+      SCREEN_MARGIN,
+      viewport.height - SCREEN_MARGIN - tooltip.height,
+    );
+    const bottom = y - HOLE_TOOLTIP_GAP;
+    if (bottom - hole.y >= MIN_CROPPED_HOLE)
+      return {
+        placement: { x, y, width, arrow: null, overlaps: false },
+        hole: { ...hole, height: Math.min(hole.height, bottom - hole.y) },
+      };
+    return { placement: placed, hole };
+  }
+  const roomAbove = avoid.y - SCREEN_MARGIN - TOOLTIP_GAP;
+  const roomBelow =
+    viewport.height - SCREEN_MARGIN - (avoid.y + avoid.height) - TOOLTIP_GAP;
+  const centreX = avoid.x + avoid.width / 2;
+  const cx = Math.round(
+    Math.min(
+      Math.max(centreX - width / 2, SCREEN_MARGIN),
+      viewport.width - SCREEN_MARGIN - width,
+    ),
+  );
+  const offset = Math.min(Math.max(centreX - cx, 24), width - 24);
+  if (roomAbove >= roomBelow) {
+    const maxHeight = Math.max(0, roomAbove);
+    return {
+      placement: {
+        x: cx,
+        y: Math.round(avoid.y - TOOLTIP_GAP - maxHeight),
+        width,
+        arrow: { side: "bottom", offset },
+        overlaps: false,
+        maxHeight,
+      },
+      hole,
+    };
+  }
+  const maxHeight = Math.max(0, roomBelow);
+  return {
+    placement: {
+      x: cx,
+      y: Math.round(avoid.y + avoid.height + TOOLTIP_GAP),
+      width,
+      arrow: { side: "top", offset },
+      overlaps: false,
+      maxHeight,
+    },
+    hole,
+  };
+}

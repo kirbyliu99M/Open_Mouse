@@ -1596,8 +1596,12 @@ export default function EasyScanCamera({
     enabled: !tipLeave.leaving,
   });
 
+  // Review H5: "?" while the first-run tip is already open (its wait for
+  // the picture) keeps it the first-run variant.
+  const tipOpenRef = useRef(tipOpen);
+  tipOpenRef.current = tipOpen;
   const openTip = useCallback(() => {
-    setTipTrigger("help");
+    if (!tipOpenRef.current) setTipTrigger("help");
     setTipOpen(true);
   }, []);
   // Review F3/G2: a picker closed with no file leaves no stale origin
@@ -1615,6 +1619,28 @@ export default function EasyScanCamera({
     fileInputCleanupRef.current = () =>
       input.removeEventListener("cancel", onCancel);
   }, []);
+
+  // Review G5: the dock's top on the stage, so the card guide's labels stay
+  // above it (the wrist label on short screens).
+  const [dockTopPx, setDockTopPx] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const dock = dockRef.current;
+    const stage = stageRef.current;
+    if (!dock || !stage || !cardMode) return;
+    // Review H3: without the dock's transform (its rise-in animation moves
+    // it 24 px): the stage's height less the dock's own height (the dock is
+    // pinned to the bottom).
+    const measure = () => {
+      const top = stage.clientHeight - dock.offsetHeight;
+      setDockTopPx((prev) => (prev === top ? prev : top));
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(dock);
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, [cardMode, liveChromeLeave.shown, stageSize]);
 
   // Review R2: the live dock is not usable while the first-run tip / tour is
   // open or waiting for the picture (main's modal tip blocked it from
@@ -4275,7 +4301,9 @@ export default function EasyScanCamera({
     userLengthMm !== null
       ? ""
       : cardMode
-        ? cardCopy.cardRule
+        ? // Review G5: the card rule sits under the cue instead (not in
+          // the dock, where it ran into the wrist label and the shutter).
+          ""
         : easyHintText({
             cueCode: cue?.code ?? null,
             ringFraction,
@@ -4646,6 +4674,7 @@ export default function EasyScanCamera({
                     ? cardShapes
                     : cardStaticShapes(handChip.hand, stageSize)
                 }
+                labelFloorPx={dockTopPx}
                 width={stageSize.width}
                 height={stageSize.height}
                 copy={cardCopy}
@@ -4968,6 +4997,10 @@ export default function EasyScanCamera({
         <>
           <div
             className="cameraCueWrap"
+            // Review H1: card mode stacks the card rule and the level-hint
+            // button under the cue (a column); paper keeps main's row.
+            data-card={cardActive && !tipOpen ? "true" : undefined}
+            data-hand={cardActive && !tipOpen ? handChip.hand : undefined}
             data-leaving={liveChromeLeave.leaving ? "true" : undefined}
             inert={liveChromeLeave.leaving}
             aria-hidden={liveChromeLeave.leaving || undefined}
@@ -4993,6 +5026,28 @@ export default function EasyScanCamera({
                 cueLabel
               )}
             </div>
+            {cardActive && !tipOpen && (
+              // Review G5: under the cue pill, in the top band (clear of the
+              // wrist label and the dock). Hidden under the tour, which
+              // explains both.
+              <>
+                <p className="easyCardRule" data-testid="card-rule">
+                  {cardCopy.cardRule}
+                </p>
+                {cardActive && deviceTilt.state === "needs-permission" && (
+                  // iOS asks for the motion sensor only from a tap; card mode
+                  // restored from storage had none (review n2). Optional:
+                  // card mode works without the level hint.
+                  <button
+                    type="button"
+                    className="easyTiltPermission"
+                    onClick={() => void deviceTilt.request()}
+                  >
+                    {cardCopy.tiltPermission}
+                  </button>
+                )}
+              </>
+            )}
           </div>
           {!liveChromeLeave.leaving && (
             <p className="visuallyHiddenLive" aria-live="polite">
@@ -5011,19 +5066,6 @@ export default function EasyScanCamera({
                 {hintText}
               </p>
             )}
-            {cardActive && deviceTilt.state === "needs-permission" && (
-              // iOS asks for the motion sensor only from a tap; card mode
-              // restored from storage had none (review n2). Optional: card
-              // mode works without the level hint.
-              <button
-                type="button"
-                className="easyTiltPermission"
-                onClick={() => void deviceTilt.request()}
-              >
-                {cardCopy.tiltPermission}
-              </button>
-            )}
-
             <div className="easyBottomRow">
               {userLengthMm === null && CARD_REFERENCE_ENABLED ? (
                 // Card flag on: a menu of A4 / Letter / 卡片 (review items
@@ -5108,7 +5150,8 @@ export default function EasyScanCamera({
                   ref={liveChromeLeave.leaving ? undefined : noPaperEntryRef}
                   onClick={startLengthStep}
                 >
-                  {noPaperLabel}
+                  {/* Review G9: card mode says "no card" (paper unchanged). */}
+                  {cardActive ? cardCopy.noCardEntry : noPaperLabel}
                 </button>
                 {noPaperMode && (
                   <button
