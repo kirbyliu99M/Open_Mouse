@@ -4,6 +4,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { LOCALE_COOKIE } from "../../src/lib/contracts/locale";
 import { zhTW as cardZh } from "../../src/lib/copy/card-reference";
 import { zhTW as tourZh } from "../../src/lib/copy/scan-tour";
+import { GM2_WRIST_LINE_Y } from "../../src/client/card/hand/gm2Rules";
 import { skipFirstRun } from "./fixtures/first-run";
 import { chooseReference } from "./fixtures/reference";
 
@@ -123,10 +124,24 @@ for (const size of SIZES) {
     );
     // Each named control is on screen (the tilt button only where the page
     // offers it).
+    // The wrist label may be dropped only where its line lies under the
+    // dock row (short screens; Kirby's design call 2026-11-05).
+    const names = boxes.map((b) => b.name);
+    if (!names.includes("wrist label")) {
+      const stage = (await page.locator(".easyStage").boundingBox())!;
+      const dockRow = (await page.locator(".easyBottomRow").boundingBox())!;
+      const lineY = stage.y + GM2_WRIST_LINE_Y * stage.height;
+      console.log(
+        `WRIST LABEL absent ${size.width}x${size.height}: line ${lineY.toFixed(1)}, dock row top ${dockRow.y.toFixed(1)}`,
+      );
+      expect(
+        lineY,
+        "wrist label absent while its line is above the dock",
+      ).toBeGreaterThanOrEqual(dockRow.y);
+    }
     for (const name of [
       "cue",
       "card-rule",
-      "wrist label",
       "slot label",
       "chip",
       "shutter",
