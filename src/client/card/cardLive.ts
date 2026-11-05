@@ -185,8 +185,9 @@ export function cardFailureText(
 
 /**
  * The G-M2 v3 layout's whole area for the scan tour (`data-tour=
- * "card-layout"`): the union of the hand brackets and the card slot, view
- * 0..1, mirrored for the left hand with the layout.
+ * "card-layout"`): the hand brackets and the card slot, from the brackets'
+ * top down to the wrist reference line (review G6), view 0..1, mirrored for
+ * the left hand with the layout.
  */
 export function cardLayoutRect(side: HandSide): {
   readonly x: number;
@@ -200,7 +201,9 @@ export function cardLayoutRect(side: HandSide): {
   const x0 = Math.min(a.x, b.x);
   const y0 = Math.min(a.y, b.y);
   const x1 = Math.max(a.x + a.width, b.x + b.width);
-  const y1 = Math.max(a.y + a.height, b.y + b.height);
+  // Review G6: down to the wrist reference line, not the brackets' bottom
+  // (which reaches past the shutter): the tour's card then fits below.
+  const y1 = Math.max(l.wristLineY, b.y + b.height);
   return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
 }
 

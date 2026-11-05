@@ -36,7 +36,7 @@ import {
   SPOTLIGHT_PAD,
   buildTourSteps,
   inflateRect,
-  placeTooltip,
+  layoutSpotlight,
   prefersReducedMotion,
   rectsClose,
   spotlightRadius,
@@ -282,10 +282,13 @@ export default function ScanTour({
     if (!el) return;
     const update = () => {
       const box = el.getBoundingClientRect();
+      // The card's natural height (scrollHeight), so a maxHeight set from it
+      // does not feed back into the next placement.
+      const height = Math.max(box.height, el.scrollHeight);
       setTooltipSize((s) =>
-        s && s.width === box.width && s.height === box.height
+        s && s.width === box.width && s.height === height
           ? s
-          : { width: box.width, height: box.height },
+          : { width: box.width, height },
       );
     };
     update();
@@ -296,12 +299,7 @@ export default function ScanTour({
   }, [state.phase, stepIndex]);
 
   const measured = step ? (targets[step.target] ?? null) : null;
-  const hole = measured ? inflateRect(measured.rect, SPOTLIGHT_PAD) : null;
-  const fixedRadius = step ? FIXED_SPOTLIGHT_RADIUS[step.target] : undefined;
-  const radius =
-    measured && hole
-      ? (fixedRadius ?? spotlightRadius(measured.radius, hole))
-      : 0;
+  const ring = measured ? inflateRect(measured.rect, SPOTLIGHT_PAD) : null;
 
   // Labels drawn beside the spotlight on the placement step.
   const cardLabels =
@@ -316,30 +314,50 @@ export default function ScanTour({
   // A tall spotlight (hand and slot, as drawn) holds the labels inside its
   // lower edge; a small one (the slot alone) gets them just below it, and the
   // card then keeps clear of them too.
-  const labelsInside = hole !== null && hole.height >= LABELS_INSIDE_MIN_HEIGHT;
+  const labelsInside = ring !== null && ring.height >= LABELS_INSIDE_MIN_HEIGHT;
   const labelsHeight = cardLabels.length * LABEL_STEP;
-  const labelsBox: Rect | null =
-    hole && cardLabels.length > 0
+  // Labels drawn just below a small ring: the card keeps clear of them too.
+  const labelsBelow: Rect | null =
+    ring && cardLabels.length > 0 && !labelsInside
       ? {
-          x: hole.x,
-          y: labelsInside
-            ? hole.y + hole.height - SPOTLIGHT_PAD - 8 - labelsHeight
-            : hole.y + hole.height + 8,
-          width: hole.width,
+          x: ring.x,
+          y: ring.y + ring.height + 8,
+          width: ring.width,
           height: labelsHeight,
         }
       : null;
 
-  const placement =
-    step && hole && tooltipSize && viewport.width > 0
-      ? placeTooltip(
-          unionRect(hole, labelsInside ? null : labelsBox),
+  // Review G6/G7: the card never covers the ring; a tall ring is cropped to
+  // end above a card pinned at the bottom (labels and the paper's wrist line
+  // then sit at the cropped edge), a small one gets a card that scrolls.
+  const layout =
+    step && ring && tooltipSize && viewport.width > 0
+      ? layoutSpotlight(
+          ring,
+          unionRect(ring, labelsBelow),
           tooltipSize,
           viewport,
           step.placement,
-          // The labels inside a tall ring stay visible (review m1).
-          labelsInside ? labelsBox : null,
         )
+      : null;
+  const placement = layout?.placement ?? null;
+  const hole = layout?.hole ?? ring;
+  const fixedRadius = step ? FIXED_SPOTLIGHT_RADIUS[step.target] : undefined;
+  const radius =
+    measured && hole
+      ? (fixedRadius ?? spotlightRadius(measured.radius, hole))
+      : 0;
+  // Labels inside a tall ring: at its (cropped) lower edge.
+  const labelsBox: Rect | null =
+    hole && cardLabels.length > 0
+      ? labelsInside
+        ? {
+            x: hole.x,
+            y: hole.y + hole.height - SPOTLIGHT_PAD - 8 - labelsHeight,
+            width: hole.width,
+            height: labelsHeight,
+          }
+        : labelsBelow
       : null;
 
   // Focus the main button of each new screen (design §6), once it can be
@@ -351,12 +369,19 @@ export default function ScanTour({
     state.phase === "closed" ? null : `${state.phase}:${stepIndex}`;
   const focusedScreenRef = useRef<string | null>(null);
   const placedForFocus = state.phase === "welcome" || placement !== null;
+  // Review G10 (card steps showed no ring): also when focus is not in the
+  // tour's dialog at all once the card has moved (the card steps re-render
+  // as their targets appear), it goes back to the main button.
+  const placedAt = placement ? `${placement.x}:${placement.y}` : null;
   useEffect(() => {
     if (screenKey === null || !placedForFocus) return;
-    if (focusedScreenRef.current === screenKey) return;
+    const inDialog =
+      dialogRef.current?.contains(document.activeElement) === true &&
+      document.activeElement !== dialogRef.current;
+    if (focusedScreenRef.current === screenKey && inDialog) return;
     focusedScreenRef.current = screenKey;
     primaryRef.current?.focus();
-  }, [screenKey, placedForFocus]);
+  }, [screenKey, placedForFocus, placedAt]);
 
   const total = steps.length;
   const counter =
@@ -383,7 +408,16 @@ export default function ScanTour({
     : undefined;
 
   const tooltipStyle: CSSProperties = placement
-    ? { left: placement.x, top: placement.y, width: placement.width }
+    ? {
+        left: placement.x,
+        top: placement.y,
+        width: placement.width,
+        // Short screens: the card scrolls inside rather than cover the ring
+        // (the G8 note: the chip at 360 × 640).
+        ...(placement.maxHeight !== undefined
+          ? { maxHeight: placement.maxHeight, overflowY: "auto" as const }
+          : {}),
+      }
     : // First paint: measured off-screen, not seen.
       { left: 16, top: 0, visibility: "hidden" };
 
