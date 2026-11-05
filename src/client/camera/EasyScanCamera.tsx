@@ -347,6 +347,7 @@ import { cardReferenceCopy } from "../../lib/copy/card-reference";
 import {
   cardHintText,
   cardLayoutRect,
+  cardRuleLineShown,
   cardStaticShapes,
   evaluateCardLive,
   toViewHand,
@@ -5027,13 +5028,16 @@ export default function EasyScanCamera({
               )}
             </div>
             {cardActive && !tipOpen && (
-              // Review G5: under the cue pill, in the top band (clear of the
-              // wrist label and the dock). Hidden under the tour, which
-              // explains both.
-              <>
-                <p className="easyCardRule" data-testid="card-rule">
-                  {cardCopy.cardRule}
-                </p>
+              // Review K1/K3: one row under the cue, above the card slot: the
+              // short card rule on the hand's side (only until a hand is in
+              // the frame), the level-hint button on the card side (only when
+              // needed). The full rule stays in the tour and the tips.
+              <div className="easyCardRow">
+                {cardRuleLineShown(cardHint, cardCopy) && (
+                  <p className="easyCardRule" data-testid="card-rule">
+                    {cardCopy.cardRuleShort}
+                  </p>
+                )}
                 {cardActive && deviceTilt.state === "needs-permission" && (
                   // iOS asks for the motion sensor only from a tap; card mode
                   // restored from storage had none (review n2). Optional:
@@ -5046,7 +5050,7 @@ export default function EasyScanCamera({
                     {cardCopy.tiltPermission}
                   </button>
                 )}
-              </>
+              </div>
             )}
           </div>
           {!liveChromeLeave.leaving && (
