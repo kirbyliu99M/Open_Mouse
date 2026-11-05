@@ -47,12 +47,16 @@ import type { Quad } from "./detect/detectCard";
  * (review G4, candidate 未拍板), applied to every length of the corrected
  * card measurements.
  *
- * Basis: Kirby 60 S25 photos, A4 + card same frame, 2026-11-05: card-only
- * corrected / A4 corrected = 1.0078 (length, n=45, SD 0.0045) and 1.0078
- * (width); 1/1.0078 = 0.9922. After it, shown card − shown A4 = −0.03 mm,
- * SD 0.84.
+ * Basis (2026-11-05, Kirby's Galaxy S25, one person): LIVE camera frames,
+ * the product's own input (lab tav1l11vp, card on an A4 sheet, 7 frames with
+ * both found): card-only corrected / A4 corrected = 0.9958 for the length
+ * (SD 0.0032) and 0.9959 for the width (SD 0.0044); 1/0.9958 = 1.0042.
+ * The 60 native-camera S25 STILL photos read 1.0078 instead (n=45), which
+ * gave the earlier 0.9922 and left live card scans ≈ 1.2 % short; still
+ * photos are not what the scan sees, so the live figure is used. One phone
+ * and one session: other phones are not known yet.
  */
-export const CARD_TO_PAPER_SCALE = 0.9922;
+export const CARD_TO_PAPER_SCALE = 1.0042;
 
 function dist(a: Point2, b: Point2): number {
   return Math.hypot(a.x - b.x, a.y - b.y);

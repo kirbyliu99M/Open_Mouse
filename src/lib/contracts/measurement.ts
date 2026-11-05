@@ -434,9 +434,9 @@ export function estimatePalmLengthMm(handLengthMm: number): number {
  * four corners alone give the homography (no motion sensor); the landmarks
  * are parallax-corrected at the nominal focal and every length is
  * multiplied by one uniform factor onto the paper path's corrected scale
- * (CARD_TO_PAPER_SCALE 0.9922: Kirby's 60 S25 photos, A4 + card in the same
- * frame, 2026-11-05, card-only corrected / A4 corrected = 1.0078, n = 45;
- * one phone, one hand). The measurements then have the paper path's scale,
+ * (CARD_TO_PAPER_SCALE 1.0042: Kirby's Galaxy S25 live camera frames, card on
+ * an A4 sheet, 2026-11-05, card-only corrected / A4 corrected = 0.9958,
+ * n = 7; one phone, one hand). The measurements then have the paper path's scale,
  * so `parallaxCorrected: true` gets `FIT_SCALE_FROM_CORRECTED` as a sheet
  * scan does.
  *

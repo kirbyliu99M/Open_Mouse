@@ -129,12 +129,12 @@ describe("card-only measurement (cardHandMeasure.ts)", () => {
     expect(r.measurements!.middleLengthMm).toBeGreaterThan(0);
   });
 
-  it("G4: the scale is one uniform 0.9922 (1/1.0078), not the lab's 1.038", () => {
-    expect(CARD_TO_PAPER_SCALE).toBe(0.9922);
-    expect(1 / 1.0078).toBeCloseTo(CARD_TO_PAPER_SCALE, 3);
+  it("G4: the scale is one uniform 1.0042 (1/0.9958, live frames), not the lab's 1.038", () => {
+    expect(CARD_TO_PAPER_SCALE).toBe(1.0042);
+    expect(1 / 0.9958).toBeCloseTo(CARD_TO_PAPER_SCALE, 3);
   });
 
-  it("G4: for the same corrected landmarks, every submitted length is the paper path's corrected one × 0.9922 (no FIT, no 1.038)", () => {
+  it("G4: for the same corrected landmarks, every submitted length is the paper path's corrected one × CARD_TO_PAPER_SCALE (no FIT, no 1.038)", () => {
     const r = measureHandWithCard({
       landmarksPx: handPx,
       cardCorners: cardPx,
