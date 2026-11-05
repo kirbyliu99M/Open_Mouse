@@ -89,7 +89,9 @@ test("[real detector] choosing the card shows the slot beside the hand box, the 
   expect(cx).toBeLessThan(0.9);
   expect(cy).toBeGreaterThan(0.3);
   expect(cy).toBeLessThan(0.55);
-  await expect(page.getByTestId("easy-hint")).toHaveText(cardEn.cardRule);
+  // The card rule line: its own element (data-testid card-rule) since 3fb670a9.
+  await expect(page.getByTestId("card-rule")).toBeVisible();
+  await expect(page.getByTestId("card-rule")).toHaveText(cardEn.cardRule);
   await expect(page.getByTestId("camera-cue")).toContainText(cardEn.hintNoHand);
   await page.waitForTimeout(6_000);
   await expect(anySheet(page)).toHaveCount(0);
@@ -204,9 +206,7 @@ test("[injected] switching away from the card after a NO starts the paper loop c
   });
   await chooseReference(page, "A4");
   await expect(cardSlot(page)).toHaveCount(0);
-  await expect(
-    page.getByTestId("easy-hint").filter({ hasText: cardEn.cardRule }),
-  ).toHaveCount(0);
+  await expect(page.getByTestId("card-rule")).toHaveCount(0);
   await expect(page.getByTestId("camera-cue")).not.toContainText(
     cardEn.hintNoHand,
   );
