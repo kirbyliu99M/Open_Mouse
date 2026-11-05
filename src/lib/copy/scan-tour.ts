@@ -102,7 +102,8 @@ export const zhTW: ScanTourCopy = {
   placePaperWristLabel: "手腕貼齊這條邊",
   placeCardTitle: "手和卡片這樣放",
   placeCardBody:
-    "手背朝上貼平桌面，手指自然伸直、微開；中指大約對準中線，前臂從畫面下方伸出去。卡片直放在小指旁的虛線框裡，平放在桌上，不要拿著。",
+    // Kirby 2026-11-05: the card posture matches A4 (fingers straight and together).
+    "手背朝上貼平桌面，手指伸直併攏；中指大約對準中線，前臂從畫面下方伸出去。卡片直放在小指旁的虛線框裡，平放在桌上，不要拿著。",
   placeCardCentreLabel: "卡片中心對齊指根",
   placeCardHandLabel: "示範右手｜量左手時卡片放左邊",
   placeCardHandLabelLeft: "示範左手｜量右手時卡片放右邊",
@@ -153,7 +154,7 @@ export const en: ScanTourCopy = {
   placePaperWristLabel: "Wrist along this edge",
   placeCardTitle: "Place your hand and the card like this",
   placeCardBody:
-    "Back of the hand flat on the table, fingers naturally straight and slightly apart; middle finger roughly on the centre line, forearm out past the bottom of the screen. Card upright in the dashed box beside your little finger, flat on the table, not held.",
+    "Back of the hand flat on the table, fingers straight and together; middle finger roughly on the centre line, forearm out past the bottom of the screen. Card upright in the dashed box beside your little finger, flat on the table, not held.",
   placeCardCentreLabel: "Card centre level with the finger roots",
   placeCardHandLabel: "Right hand shown | for the left hand, card on the left",
   placeCardHandLabelLeft:

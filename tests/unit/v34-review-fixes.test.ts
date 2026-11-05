@@ -1362,3 +1362,23 @@ describe("phone test T1/T2: step 1 holds still; card step 2 readable on short ph
     );
   });
 });
+
+describe("Kirby 2026-11-05: card posture matches A4 (fingers straight and together)", () => {
+  it("the card tour step 2 body and the live finger hint say 伸直併攏, never 微開 / 自然張開", () => {
+    const tourCopy = read("src/lib/copy/scan-tour.ts");
+    expect(tourCopy).toContain(
+      "手背朝上貼平桌面，手指伸直併攏；中指大約對準中線，前臂從畫面下方伸出去。卡片直放在小指旁的虛線框裡，平放在桌上，不要拿著。",
+    );
+    expect(tourCopy).toContain("fingers straight and together");
+    expect(tourCopy).not.toMatch(/微開|slightly apart/);
+    expect(cardReferenceCopy("zh-TW").hintFingers).toContain("伸直併攏");
+    expect(cardReferenceCopy("en").hintFingers).toContain(
+      "straight and together",
+    );
+    const guide = read("src/client/card/hand/guideCopy.ts");
+    expect(guide).not.toMatch(
+      /"[^"]*自然張開[^"]*",\n\];\n\n\/\*\* The shared pre-shot steps \(A4/,
+    );
+    expect(read("src/client/card/hand/gm2Rules.ts")).not.toContain("自然張開");
+  });
+});

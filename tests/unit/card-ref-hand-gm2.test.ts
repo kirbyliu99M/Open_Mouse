@@ -359,7 +359,8 @@ describe("G-M2 checks", () => {
     const f = gm2FingersCheck(bent, VIEW);
     expect(f.level).toBe("fail");
     expect(f.value).toBeLessThan(0.9);
-    expect(f.hint).toMatch(/自然/);
+    // Kirby 2026-11-05: the hint asks for the A4 posture.
+    expect(f.hint).toMatch(/伸直併攏/);
     // Fingers fanned out but straight: fine (the spread is only recorded).
     const fanned = viewHand({
       edit: (p) => {
@@ -436,10 +437,10 @@ describe("G-M2 checks", () => {
     ).not.toThrow();
   });
 
-  it("uses natural-posture wording only", () => {
+  it("asks for the A4 posture: fingers straight and together (Kirby 2026-11-05)", () => {
     const text = [...gm2.instructions, ...Object.values(GM2_COPY)].join("");
-    expect(text).not.toMatch(/手指併攏|併攏手指|微開/);
-    expect(gm2.instructions.join("")).toMatch(/自然/);
+    expect(text).not.toMatch(/自然張開|微開|不用併攏/);
+    expect(gm2.instructions.join("")).toMatch(/伸直併攏/);
   });
 });
 

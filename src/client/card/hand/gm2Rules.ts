@@ -190,10 +190,15 @@ export const GM2_COPY = {
   sideLeft: "看起來是左手，請確認左右手的選擇",
 } as const;
 
-/** The pre-shot card for G-M2 (natural posture, Kirby decision 3). */
+/**
+ * The pre-shot card for G-M2. Kirby 2026-11-05: in card mode the hand
+ * posture matches A4, fingers straight and together (伸直併攏); this
+ * replaces decision 3's natural spread. The live checks do not judge the
+ * spread (only straightness), so nothing else changes.
+ */
 export const GM2_STEPS: readonly string[] = [
   "① 卡片直放在小指那一側的桌上、虛線區裡，大約對齊指根；不要拿在手上、不要墊高",
-  "② 手背朝上，手掌和手腕整段貼桌；手指自然伸直、自然張開（不用併攏，也不用刻意張開）",
+  "② 手背朝上，手掌和手腕整段貼桌；手指伸直併攏",
   "③ 中指大約對準中線，整隻手放進框裡，前臂從畫面下方伸出去",
   "④ 手機直拿、在正上方放平，整隻手和卡片都入鏡",
 ];
