@@ -1,0 +1,752 @@
+/**
+ * The scan tour's pure parts (v3.4, Toutour method; design: Pencil section
+ * 14c, scan-tutorial-2026-11-04/v3/): which steps there are, the state
+ * machine with its side effects as data, and the geometry of the spotlight
+ * and the tooltip. All candidates (未拍板) except what the paper design fixes.
+ *
+ * Nothing here touches the DOM; `ScanTour.tsx` measures and renders.
+ */
+
+/**
+ * What the first-run tip / "?" shows now (review items 2 and 14):
+ * - "tour": the live camera picture is on screen (the stream plays, no photo
+ *   over it, no typed hand length): every target is there to point at.
+ * - "wait": the camera is still being asked for (the permission prompt
+ *   first): nothing yet; the tour opens once the picture is live.
+ * - "sheet": the old tip sheet: a typed hand length (as on main, at once),
+ *   and camera refused / no camera / stream ended or a photo on screen, where
+ *   the tour would have nothing to point at.
+ */
+export type TipPresentation = "tour" | "wait" | "sheet";
+
+/** How long the tour waits for the live picture before the tip sheet, ms (review B1). 候選. */
+export const PICTURE_WAIT_MS = 2500;
+
+export function tipPresentation(screen: {
+  readonly camera:
+    "requesting" | "live" | "cameraError" | "streamEnded" | "noCamera";
+  readonly result: string;
+  readonly typedLength: boolean;
+  /** The video has started playing (a picture is on screen). */
+  readonly pictureReady: boolean;
+  /**
+   * The picture did not start within PICTURE_WAIT_MS of the camera going
+   * live (review B1): the tip sheet, never a blank screen. Cleared when the
+   * tip closes.
+   */
+  readonly pictureTimedOut?: boolean;
+  /** The fallback sheet was tapped or typed in (review F4). */
+  readonly sheetTouched?: boolean;
+}): TipPresentation {
+  if (screen.typedLength) return "sheet";
+  if (screen.result !== "none") return "sheet";
+  if (screen.camera === "live") {
+    // A picture that arrives after the fallback sheet: the tour after all
+    // (review R3; the sheet is closed for it while still untouched).
+    // Only while the sheet is untouched (review F4).
+    if (screen.pictureReady && !(screen.pictureTimedOut && screen.sheetTouched))
+      return "tour";
+    return screen.pictureTimedOut ? "sheet" : "wait";
+  }
+  if (screen.camera === "requesting") return "wait";
+  return "sheet";
+}
+
+/** The tour's exit fade, ms (review item 17): short, none under reduced motion. 候選. */
+export const TOUR_EXIT_FADE_MS = 150;
+
+export function tourExitMs(reducedMotion: boolean): number {
+  return reducedMotion ? 0 : TOUR_EXIT_FADE_MS;
+}
+
+/** The person asked for reduced motion (false where it cannot be read). */
+export function prefersReducedMotion(): boolean {
+  try {
+    return (
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Where focus goes when the tour closes (review item 10): back to "?" when
+ * it opened the tour, else (the first-use question) to the shutter.
+ */
+export function tourReturnFocus(trigger: TourTrigger): "help" | "shutter" {
+  return trigger === "help" ? "help" : "shutter";
+}
+
+/** What the person measures against. "card" exists only with card mode. */
+export type TourReference = "a4" | "letter" | "card";
+
+/**
+ * Where a step's spotlight goes. Every id but "paper-frame" is a
+ * `data-tour="<id>"` attribute on the camera screen (shared list, V34
+ * program). "paper-frame" has no element of its own: it is the guide
+ * rectangle on the stage, worked out by `guideRectInViewport`.
+ */
+export type TourTargetId =
+  | "reference-chip"
+  | "paper-frame"
+  | "card-slot"
+  /** The hand zone plus the card slot (card line); card step 2 prefers it. */
+  | "card-layout"
+  | "cue"
+  | "shutter";
+
+export type TourStepId = "reference" | "placement" | "cue" | "shutter";
+
+export interface TourStepDef {
+  readonly id: TourStepId;
+  readonly target: TourTargetId;
+  /** Used when `target` is not on screen (card-layout → card-slot). */
+  readonly fallbackTarget?: TourTargetId;
+  /**
+   * "dock-bottom": the target is about as tall as the screen (the paper
+   * frame), so the card sits at the bottom with no arrow. "auto": above or
+   * below the target, whichever has the room, with an arrow to its centre.
+   */
+  readonly placement: "auto" | "dock-bottom";
+  /**
+   * The choice drawn inside the card (step 1 only; empty elsewhere). The
+   * spotlit chip is locked, so the switch lives here: A4/Letter, plus card
+   * once card mode exists. Choosing changes the real setting at once.
+   */
+  readonly choices: readonly TourReference[];
+}
+
+export interface TourOptions {
+  readonly reference: TourReference;
+  /** Card mode is built and switched on (A line's feature flag). */
+  readonly cardModeAvailable: boolean;
+}
+
+/**
+ * The four steps for this reference, before the "is the target on screen"
+ * filter. Paper and card differ in step 1 (card joins the choice once card
+ * mode exists)
+ * and step 2 (the paper frame, or the card slot).
+ */
+export function buildTourSteps(options: TourOptions): TourStepDef[] {
+  const card = options.cardModeAvailable && options.reference === "card";
+  return [
+    {
+      id: "reference",
+      target: "reference-chip",
+      placement: "auto",
+      choices: options.cardModeAvailable
+        ? ["a4", "letter", "card"]
+        : ["a4", "letter"],
+    },
+    card
+      ? {
+          id: "placement",
+          target: "card-layout",
+          fallbackTarget: "card-slot",
+          placement: "auto",
+          choices: [],
+        }
+      : {
+          id: "placement",
+          target: "paper-frame",
+          placement: "dock-bottom",
+          choices: [],
+        },
+    { id: "cue", target: "cue", placement: "auto", choices: [] },
+    { id: "shutter", target: "shutter", placement: "auto", choices: [] },
+  ];
+}
+
+/**
+ * Toutour's `when` rule: a step whose target is not on screen is dropped
+ * before the steps are counted, so "n／total" never counts a step that is not
+ * shown.
+ */
+export function visibleTourSteps(
+  steps: readonly TourStepDef[],
+  isPresent: (target: TourTargetId) => boolean,
+): TourStepDef[] {
+  const out: TourStepDef[] = [];
+  for (const step of steps) {
+    if (isPresent(step.target)) out.push(step);
+    else if (step.fallbackTarget && isPresent(step.fallbackTarget))
+      out.push({ ...step, target: step.fallbackTarget });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// State machine
+
+export type TourTrigger = "auto" | "help";
+
+export type TourState =
+  | { readonly phase: "closed" }
+  /** "第一次掃描嗎？" — not counted as a step. */
+  | { readonly phase: "welcome" }
+  | {
+      readonly phase: "step";
+      readonly index: number;
+      readonly trigger: TourTrigger;
+    };
+
+export type TourEvent =
+  /** First use: the welcome question. */
+  | { readonly type: "openAuto" }
+  /** "?": straight to step 1, no question. */
+  | { readonly type: "openHelp" }
+  | { readonly type: "answerFirst" }
+  | { readonly type: "answerReturning" }
+  | { readonly type: "next" }
+  | { readonly type: "back" }
+  /** "略過教學", or Escape. */
+  | { readonly type: "skip" }
+  /** The visible step list changed (a target came or went). */
+  | { readonly type: "stepsChanged" };
+
+export type TourAnalyticsEvent =
+  | { readonly name: "scan_tour_started"; readonly trigger: TourTrigger }
+  | {
+      readonly name: "scan_tour_step_viewed";
+      readonly step: number;
+      readonly stepId: TourStepId;
+    }
+  | { readonly name: "scan_tour_completed" }
+  | { readonly name: "scan_tour_skipped"; readonly step: number }
+  | {
+      readonly name: "scan_tour_first_use_answer";
+      readonly answer: "first" | "returning";
+    };
+
+export type TourEffect =
+  /** Write `openMouse.easyScan.firstRunTipSeen`. */
+  | { readonly kind: "markSeen" }
+  /** The tour is over: resume the live loop. */
+  | { readonly kind: "close" }
+  | { readonly kind: "track"; readonly event: TourAnalyticsEvent };
+
+export interface TourTransition {
+  readonly state: TourState;
+  readonly effects: readonly TourEffect[];
+}
+
+const CLOSED: TourState = { phase: "closed" };
+
+function enterStep(
+  index: number,
+  trigger: TourTrigger,
+  steps: readonly TourStepDef[],
+  extra: readonly TourEffect[] = [],
+): TourTransition {
+  const step = steps[index];
+  if (!step) return { state: CLOSED, effects: [...extra, { kind: "close" }] };
+  return {
+    state: { phase: "step", index, trigger },
+    effects: [
+      ...extra,
+      {
+        kind: "track",
+        event: {
+          name: "scan_tour_step_viewed",
+          step: index + 1,
+          stepId: step.id,
+        },
+      },
+    ],
+  };
+}
+
+/**
+ * One transition. `steps` is the visible list (after `visibleTourSteps`).
+ * Skipping and finishing both mark the tip as seen (design §3); a tour with
+ * no step to show closes without marking it, so it can show once the camera
+ * screen is there.
+ */
+export function tourTransition(
+  state: TourState,
+  event: TourEvent,
+  steps: readonly TourStepDef[],
+): TourTransition {
+  switch (event.type) {
+    case "openAuto":
+      // The question needs no target, so it shows even before the camera
+      // screen has laid out; "教我" with nothing to point at closes.
+      if (state.phase !== "closed") return { state, effects: [] };
+      return { state: { phase: "welcome" }, effects: [] };
+    case "openHelp":
+      if (state.phase !== "closed") return { state, effects: [] };
+      if (steps.length === 0)
+        return { state: CLOSED, effects: [{ kind: "close" }] };
+      return enterStep(0, "help", steps, [
+        {
+          kind: "track",
+          event: { name: "scan_tour_started", trigger: "help" },
+        },
+      ]);
+    case "answerFirst":
+      if (state.phase !== "welcome") return { state, effects: [] };
+      // Nothing to point at (review item 2): the answer is kept, but no tour
+      // started, and the tip is not marked seen, so it can show once the
+      // camera screen is there.
+      if (steps.length === 0)
+        return {
+          state: CLOSED,
+          effects: [
+            {
+              kind: "track",
+              event: { name: "scan_tour_first_use_answer", answer: "first" },
+            },
+            { kind: "close" },
+          ],
+        };
+      return enterStep(0, "auto", steps, [
+        {
+          kind: "track",
+          event: { name: "scan_tour_first_use_answer", answer: "first" },
+        },
+        {
+          kind: "track",
+          event: { name: "scan_tour_started", trigger: "auto" },
+        },
+      ]);
+    case "answerReturning":
+      if (state.phase !== "welcome") return { state, effects: [] };
+      return {
+        state: CLOSED,
+        effects: [
+          {
+            kind: "track",
+            event: { name: "scan_tour_first_use_answer", answer: "returning" },
+          },
+          { kind: "markSeen" },
+          { kind: "close" },
+        ],
+      };
+    case "next":
+      if (state.phase !== "step") return { state, effects: [] };
+      if (state.index >= steps.length - 1)
+        return {
+          state: CLOSED,
+          effects: [
+            { kind: "track", event: { name: "scan_tour_completed" } },
+            { kind: "markSeen" },
+            { kind: "close" },
+          ],
+        };
+      return enterStep(state.index + 1, state.trigger, steps);
+    case "back":
+      if (state.phase !== "step" || state.index === 0)
+        return { state, effects: [] };
+      return enterStep(state.index - 1, state.trigger, steps);
+    case "skip":
+      if (state.phase === "closed") return { state, effects: [] };
+      return {
+        state: CLOSED,
+        effects: [
+          {
+            kind: "track",
+            event: {
+              name: "scan_tour_skipped",
+              step: state.phase === "step" ? state.index + 1 : 0,
+            },
+          },
+          { kind: "markSeen" },
+          { kind: "close" },
+        ],
+      };
+    case "stepsChanged":
+      if (state.phase !== "step") return { state, effects: [] };
+      if (steps.length === 0)
+        return { state: CLOSED, effects: [{ kind: "close" }] };
+      if (state.phase === "step" && state.index > steps.length - 1)
+        return enterStep(steps.length - 1, state.trigger, steps);
+      return { state, effects: [] };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Geometry
+
+export interface Rect {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+export interface Size {
+  readonly width: number;
+  readonly height: number;
+}
+
+/** Design §5: the ring is 6 px outside the target, its corners follow it. */
+export const SPOTLIGHT_PAD = 6;
+/** Space between the ring and the card, which carries the arrow. */
+export const TOOLTIP_GAP = 14;
+/** Distance from the screen's edges. */
+export const SCREEN_MARGIN = 16;
+/** The card's widest (a column like the sheets' 28rem). */
+export const TOOLTIP_MAX_WIDTH = 448;
+
+export function inflateRect(rect: Rect, by: number): Rect {
+  return {
+    x: rect.x - by,
+    y: rect.y - by,
+    width: rect.width + 2 * by,
+    height: rect.height + 2 * by,
+  };
+}
+
+/** Spotlight radius fixed by the design (Pencil card-2: r18), not derived. */
+export const FIXED_SPOTLIGHT_RADIUS: Partial<Record<TourTargetId, number>> = {
+  "card-layout": 18,
+};
+
+/**
+ * The spotlight's corner radius: the target's own radius plus the pad,
+ * capped at half the smaller side (a pill stays a pill, a circle a circle).
+ */
+export function spotlightRadius(targetRadius: number, hole: Rect): number {
+  const r = Math.max(0, targetRadius) + SPOTLIGHT_PAD;
+  return Math.min(r, Math.min(hole.width, hole.height) / 2);
+}
+
+/** The bounding box of the stage-pixel guide corners, in the viewport. */
+export function guideRectInViewport(
+  stage: { readonly left: number; readonly top: number } | null | undefined,
+  guide: readonly { readonly x: number; readonly y: number }[] | null,
+): Rect | null {
+  if (!stage || !guide || guide.length === 0) return null;
+  const xs = guide.map((p) => p.x);
+  const ys = guide.map((p) => p.y);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  const width = Math.max(...xs) - minX;
+  const height = Math.max(...ys) - minY;
+  if (!(width > 0 && height > 0)) return null;
+  return { x: stage.left + minX, y: stage.top + minY, width, height };
+}
+
+export interface TooltipPlacement {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  /** Where the arrow is, or null (docked card). */
+  readonly arrow: {
+    readonly side: "top" | "bottom";
+    /** From the card's left edge to the arrow's centre. */
+    readonly offset: number;
+  } | null;
+  /** True only when neither side had room: the card then covers the ring. */
+  readonly overlaps: boolean;
+}
+
+function tooltipWidth(viewport: Size): number {
+  return Math.min(viewport.width - 2 * SCREEN_MARGIN, TOOLTIP_MAX_WIDTH);
+}
+
+function centredX(viewport: Size, width: number): number {
+  return Math.round((viewport.width - width) / 2);
+}
+
+/**
+ * Where the card goes. `avoid` is everything that must stay uncovered: the
+ * ring, plus any labels drawn beside it. The card never covers it when either
+ * side has room (design §5, "說明卡一律不蓋亮框").
+ */
+export function placeTooltip(
+  avoid: Rect,
+  tooltip: Size,
+  viewport: Size,
+  placement: TourStepDef["placement"],
+  /**
+   * Labels drawn inside the ring (the card placement step, review m1): when
+   * the card cannot stay clear of the ring, it still keeps clear of these,
+   * at the bottom or the top of the screen, whichever does.
+   */
+  keepClear: Rect | null = null,
+): TooltipPlacement {
+  const placed = placeTooltipAround(avoid, tooltip, viewport, placement);
+  if (!placed.overlaps || !keepClear) return placed;
+  const width = tooltipWidth(viewport);
+  const x = centredX(viewport, width);
+  const clear = (y: number) =>
+    y + tooltip.height <= keepClear.y || y >= keepClear.y + keepClear.height;
+  const bottom = Math.max(
+    SCREEN_MARGIN,
+    viewport.height - SCREEN_MARGIN - tooltip.height,
+  );
+  if (clear(bottom)) return { ...placed, x, y: bottom, width };
+  if (clear(SCREEN_MARGIN)) return { ...placed, x, y: SCREEN_MARGIN, width };
+  return placed;
+}
+
+function placeTooltipAround(
+  avoid: Rect,
+  tooltip: Size,
+  viewport: Size,
+  placement: TourStepDef["placement"],
+): TooltipPlacement {
+  const width = tooltipWidth(viewport);
+  const minY = SCREEN_MARGIN;
+  const maxBottom = viewport.height - SCREEN_MARGIN;
+  const roomBelow = maxBottom - (avoid.y + avoid.height);
+  const roomAbove = avoid.y - minY;
+
+  if (placement === "dock-bottom") {
+    const x = centredX(viewport, width);
+    const docked = maxBottom - tooltip.height;
+    if (docked >= avoid.y + avoid.height + TOOLTIP_GAP / 2)
+      return { x, y: docked, width, arrow: null, overlaps: false };
+    if (roomAbove >= tooltip.height + TOOLTIP_GAP / 2)
+      return { x, y: minY, width, arrow: null, overlaps: false };
+    return {
+      x,
+      y: Math.max(minY, docked),
+      width,
+      arrow: null,
+      overlaps: true,
+    };
+  }
+
+  const centreX = avoid.x + avoid.width / 2;
+  const x = Math.round(
+    Math.min(
+      Math.max(centreX - width / 2, SCREEN_MARGIN),
+      viewport.width - SCREEN_MARGIN - width,
+    ),
+  );
+  const offset = Math.min(Math.max(centreX - x, 24), width - 24);
+  const need = tooltip.height + TOOLTIP_GAP;
+  const below = roomBelow >= need;
+  const above = roomAbove >= need;
+  if (below && (!above || roomBelow >= roomAbove))
+    return {
+      x,
+      y: Math.round(avoid.y + avoid.height + TOOLTIP_GAP),
+      width,
+      arrow: { side: "top", offset },
+      overlaps: false,
+    };
+  if (above)
+    return {
+      x,
+      y: Math.round(avoid.y - TOOLTIP_GAP - tooltip.height),
+      width,
+      arrow: { side: "bottom", offset },
+      overlaps: false,
+    };
+  return {
+    x: centredX(viewport, width),
+    y: Math.max(minY, maxBottom - tooltip.height),
+    width,
+    arrow: null,
+    overlaps: true,
+  };
+}
+
+export function unionRect(a: Rect, b: Rect | null): Rect {
+  if (!b) return a;
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  return {
+    x,
+    y,
+    width: Math.max(a.x + a.width, b.x + b.width) - x,
+    height: Math.max(a.y + a.height, b.y + b.height) - y,
+  };
+}
+
+export function rectsClose(a: Rect | null, b: Rect | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    Math.abs(a.x - b.x) < 0.5 &&
+    Math.abs(a.y - b.y) < 0.5 &&
+    Math.abs(a.width - b.width) < 0.5 &&
+    Math.abs(a.height - b.height) < 0.5
+  );
+}
+
+/** The gap kept between a cropped spotlight and the card pinned below it, px (review G6/G7). */
+export const HOLE_TOOLTIP_GAP = 14;
+/** A spotlight is not cropped to less than this, px. */
+const MIN_CROPPED_HOLE = 80;
+
+export interface SpotlightLayout {
+  readonly placement: TooltipPlacement & {
+    /** The card's own height limit when it scrolls inside (short screens). */
+    readonly maxHeight?: number;
+  };
+  /** The spotlight as drawn: cropped above a card pinned at the bottom. */
+  readonly hole: Rect;
+}
+
+/**
+ * Whether a line at `y` (the paper's real bottom edge) can be drawn: not
+ * under the card (review H2: never draw it anywhere else).
+ */
+export function edgeVisible(
+  y: number,
+  card: { readonly y: number; readonly height: number },
+): boolean {
+  return y < card.y || y > card.y + card.height;
+}
+
+/**
+ * The card and the spotlight together, never overlapping (Toutour hard
+ * rule; review G6, G7 and the G8 note):
+ * - it fits above or below the ring: as `placeTooltip`;
+ * - a tall ring (the paper, the card layout): the card is pinned to the
+ *   bottom and the ring is cropped to end HOLE_TOOLTIP_GAP above it (the
+ *   upper part, where the fingers and the slot are, stays lit);
+ * - a small ring (a chip): the card goes on the side with more room and
+ *   scrolls inside (`maxHeight`) rather than cover the ring.
+ * `avoid` is the ring plus any labels drawn beside it (not inside).
+ */
+export function layoutSpotlight(
+  hole: Rect,
+  avoid: Rect,
+  tooltip: Size,
+  viewport: Size,
+  placement: TourStepDef["placement"],
+  /**
+   * Which end of a tall ring must stay lit (review H2): "top" (the card
+   * layout: fingers and slot; the card is pinned at the bottom) or "bottom"
+   * (the paper: its real bottom edge, where the wrist goes; the card is
+   * pinned at the top and the ring cropped from above).
+   */
+  keep: "top" | "bottom" = "top",
+): SpotlightLayout {
+  const placed = placeTooltip(avoid, tooltip, viewport, placement);
+  if (!placed.overlaps) return { placement: placed, hole };
+  const width = tooltipWidth(viewport);
+  const x = centredX(viewport, width);
+  const tall =
+    placement === "dock-bottom" || hole.height >= viewport.height * 0.4;
+  if (tall && keep === "bottom") {
+    const y = SCREEN_MARGIN;
+    const top = y + tooltip.height + HOLE_TOOLTIP_GAP;
+    const bottom = hole.y + hole.height;
+    if (bottom - Math.max(top, hole.y) >= MIN_CROPPED_HOLE)
+      return {
+        placement: { x, y, width, arrow: null, overlaps: false },
+        hole: {
+          ...hole,
+          y: Math.max(top, hole.y),
+          height: bottom - Math.max(top, hole.y),
+        },
+      };
+    return { placement: placed, hole };
+  }
+  if (tall) {
+    const y = Math.max(
+      SCREEN_MARGIN,
+      viewport.height - SCREEN_MARGIN - tooltip.height,
+    );
+    const bottom = y - HOLE_TOOLTIP_GAP;
+    if (bottom - hole.y >= MIN_CROPPED_HOLE)
+      return {
+        placement: { x, y, width, arrow: null, overlaps: false },
+        hole: { ...hole, height: Math.min(hole.height, bottom - hole.y) },
+      };
+    return { placement: placed, hole };
+  }
+  const roomAbove = avoid.y - SCREEN_MARGIN - TOOLTIP_GAP;
+  const roomBelow =
+    viewport.height - SCREEN_MARGIN - (avoid.y + avoid.height) - TOOLTIP_GAP;
+  const centreX = avoid.x + avoid.width / 2;
+  const cx = Math.round(
+    Math.min(
+      Math.max(centreX - width / 2, SCREEN_MARGIN),
+      viewport.width - SCREEN_MARGIN - width,
+    ),
+  );
+  const offset = Math.min(Math.max(centreX - cx, 24), width - 24);
+  if (roomAbove >= roomBelow) {
+    const maxHeight = Math.max(0, roomAbove);
+    return {
+      placement: {
+        x: cx,
+        y: Math.round(avoid.y - TOOLTIP_GAP - maxHeight),
+        width,
+        arrow: { side: "bottom", offset },
+        overlaps: false,
+        maxHeight,
+      },
+      hole,
+    };
+  }
+  const maxHeight = Math.max(0, roomBelow);
+  return {
+    placement: {
+      x: cx,
+      y: Math.round(avoid.y + avoid.height + TOOLTIP_GAP),
+      width,
+      arrow: { side: "top", offset },
+      overlaps: false,
+      maxHeight,
+    },
+    hole,
+  };
+}
+
+/** At or below this viewport height (css px) the tour card is compact (review T2). */
+export const TOUR_COMPACT_VIEWPORT_MAX = 740;
+/** The compact card's height limit, px: it scrolls inside beyond it (review T2). */
+export const TOUR_COMPACT_CARD_MAX = 232;
+
+/** The card's height the placement uses: the compact limit on a short viewport. */
+export function tourCardHeight(
+  measuredHeight: number,
+  viewportHeight: number,
+): number {
+  return viewportHeight <= TOUR_COMPACT_VIEWPORT_MAX
+    ? Math.min(measuredHeight, TOUR_COMPACT_CARD_MAX)
+    : measuredHeight;
+}
+
+/**
+ * Whether the step's placement is frozen once measured (review T1): step 1,
+ * where choosing the card in the radios changes the chip and the overlay
+ * under the card; the next step or a resize places it again.
+ */
+export function freezesPlacement(stepId: TourStepId | undefined): boolean {
+  return stepId === "reference";
+}
+
+/**
+ * The live cue under the tour (review T2(b)): hidden while the tour is up,
+ * except on the cue step, which points at it.
+ */
+export function tourCueHidden(
+  stepId: string | null | undefined,
+  tourOpen: boolean,
+): boolean {
+  return tourOpen && stepId !== "cue";
+}
+
+/**
+ * The card step's card height limit so the spotlight still holds the whole
+ * card slot (review T2(c)): the card is pinned at the bottom and the ring
+ * ends HOLE_TOOLTIP_GAP above it, so the card may reach up to that far
+ * below the slot's (padded) bottom. `null` without a slot.
+ */
+export function cardStepCardMax(
+  viewportHeight: number,
+  slotBottom: number | null,
+): number | null {
+  if (slotBottom === null || !Number.isFinite(slotBottom)) return null;
+  return Math.max(
+    0,
+    Math.floor(
+      viewportHeight -
+        SCREEN_MARGIN -
+        HOLE_TOOLTIP_GAP -
+        (slotBottom + SPOTLIGHT_PAD),
+    ),
+  );
+}

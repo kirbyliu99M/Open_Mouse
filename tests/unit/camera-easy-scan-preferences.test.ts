@@ -6,6 +6,10 @@ import {
   writeStoredPaperSize,
   readFirstRunTipSeen,
   markFirstRunTipSeen,
+  nextReference,
+  readStoredReference,
+  referenceChoices,
+  writeStoredReference,
   type StorageLike,
 } from "../../src/client/camera/easyScanPreferences";
 
@@ -101,5 +105,73 @@ describe("clearAttempts — the attempt log goes when the person deletes their d
         },
       }),
     ).not.toThrow();
+  });
+});
+
+describe("v3.4 scan reference (A4 / Letter / card)", () => {
+  it("steps A4 → Letter → card → A4 with the card on, and skips the card off", () => {
+    expect(referenceChoices(true)).toEqual(["a4", "letter", "card"]);
+    expect(referenceChoices(false)).toEqual(["a4", "letter"]);
+    expect(nextReference("a4", true)).toBe("letter");
+    expect(nextReference("letter", true)).toBe("card");
+    expect(nextReference("card", true)).toBe("a4");
+    expect(nextReference("letter", false)).toBe("a4");
+    // A card left over from a build with the flag on starts over at A4.
+    expect(nextReference("card", false)).toBe("a4");
+  });
+
+  it("keeps the card choice under its own key; the paper size under it survives (review items 5+6)", () => {
+    const storage = fakeStorage();
+    writeStoredReference(storage, "letter", true);
+    writeStoredReference(storage, "card", true);
+    expect(readStoredReference(storage, true)).toBe("card");
+    // Flag off (or rolled back): the Letter choice is still there.
+    expect(readStoredReference(storage, false)).toBe("letter");
+    // The paper-size reader (used by the tour and on load) never sees "card".
+    expect(readStoredPaperSize(storage)).toBe("letter");
+    writeStoredReference(storage, "a4", true);
+    expect(readStoredReference(storage, true)).toBe("a4");
+    expect(readStoredPaperSize(storage)).toBe("a4");
+  });
+
+  it("with the flag off a paper choice writes only the paper-size key, as main did", () => {
+    const writes: [string, string][] = [];
+    const storage: StorageLike = {
+      getItem: () => null,
+      setItem: (k, v) => void writes.push([k, v]),
+    };
+    writeStoredReference(storage, "letter", false);
+    expect(writes).toEqual([["openMouse.easyScan.paperSize", "letter"]]);
+  });
+
+  it('an older build\'s "card" under the paper-size key reads as A4 plus the card', () => {
+    const legacy = fakeStorage({ "openMouse.easyScan.paperSize": "card" });
+    expect(readStoredReference(legacy, true)).toBe("card");
+    expect(readStoredReference(legacy, false)).toBe("a4");
+    expect(readStoredPaperSize(legacy)).toBe("a4");
+    // Choosing Letter afterwards: Letter, the card off.
+    writeStoredReference(legacy, "letter", true);
+    expect(readStoredReference(legacy, true)).toBe("letter");
+  });
+
+  it("falls back without storage, on junk and on a store that throws", () => {
+    expect(readStoredReference(null, true)).toBe("a4");
+    expect(
+      readStoredReference(
+        fakeStorage({ "openMouse.easyScan.paperSize": "x" }),
+        true,
+      ),
+    ).toBe("a4");
+    const throwing: StorageLike = {
+      getItem: () => {
+        throw new Error("blocked");
+      },
+      setItem: () => {
+        throw new Error("blocked");
+      },
+    };
+    expect(readStoredReference(throwing, true)).toBe("a4");
+    expect(() => writeStoredReference(throwing, "card", true)).not.toThrow();
+    expect(() => writeStoredReference(throwing, "a4", true)).not.toThrow();
   });
 });

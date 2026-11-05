@@ -352,6 +352,24 @@ const resultsPage = {
   filtered: z.boolean(),
 };
 
+/**
+ * The scan page's spotlight tour (v3.4; Kirby 2026-11-05: a tour funnel via
+ * the existing track(); names candidate). `reference` is what the person
+ * measures against at the time of the event, so paper and card funnels can
+ * be read apart. `step` is the 1-based step number (0: skipped on the
+ * first-use question), `stepId` which step it was. Nothing about the hand or
+ * the photo.
+ */
+export const TOUR_REFERENCES = ["a4", "letter", "card"] as const;
+export const TOUR_STEP_IDS = [
+  "reference",
+  "placement",
+  "cue",
+  "shutter",
+] as const;
+const tourReference = z.enum(TOUR_REFERENCES);
+const tourStep = z.int().min(0).max(4);
+
 export const analyticsEventSchemas = {
   /** A page view, captured on every App Router navigation. No properties of
    * its own: the path comes from PostHog's redacted `$current_url`. */
@@ -610,6 +628,30 @@ export const analyticsEventSchemas = {
    * no page fields, because there is no list. */
   status_rescan_clicked: z.strictObject({
     state: z.enum(RESCAN_STATES),
+  }),
+
+  /** The tour began: after 「第一次，教我怎麼拍」 (auto) or from 「?」 (help). */
+  scan_tour_started: z.strictObject({
+    trigger: z.enum(["auto", "help"]),
+    reference: tourReference,
+  }),
+  /** A tour step was shown. */
+  scan_tour_step_viewed: z.strictObject({
+    step: tourStep,
+    stepId: z.enum(TOUR_STEP_IDS),
+    reference: tourReference,
+  }),
+  /** 「開始掃描」 on the last step. */
+  scan_tour_completed: z.strictObject({ reference: tourReference }),
+  /** 「略過教學」 or Escape, on `step` (0: the first-use question). */
+  scan_tour_skipped: z.strictObject({
+    step: tourStep,
+    reference: tourReference,
+  }),
+  /** The answer to 「第一次掃描嗎？」. */
+  scan_tour_first_use_answer: z.strictObject({
+    answer: z.enum(["first", "returning"]),
+    reference: tourReference,
   }),
 } as const;
 

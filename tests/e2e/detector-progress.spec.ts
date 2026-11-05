@@ -8,6 +8,7 @@ import {
   slowModel,
   uploadGreyPhoto,
 } from "./fixtures/slow-model";
+import { dismissFirstRun } from "./fixtures/first-run";
 
 // Kirby 2026-10-26 (candidate / 未拍板): the loading says nothing. The files
 // are warmed from the landing page (detector-warmup.spec.ts); a load still
@@ -20,7 +21,7 @@ test("a slow load shows only a faint bar, no words, after 2 s; it goes when the 
   await page.goto("/scan/easy");
   // Nothing at first.
   await expect(pill(page)).toHaveCount(0);
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
   await release(page, 3);
   // Then the faint bar: a progress bar for screen readers, no visible words.
   await expect(pill(page)).toHaveClass(/easyDetectorQuiet/, {
@@ -178,7 +179,7 @@ for (const scale of ["100%", "150%"]) {
             });
           });
         await page.goto("/scan/easy");
-        await page.getByRole("button", { name: "Got it" }).click();
+        await dismissFirstRun(page);
         await page.addStyleTag({ content: `html { font-size: ${scale}; }` });
         const notice = pill(page);
         await expect(notice).toBeVisible({ timeout: 30_000 });
@@ -231,7 +232,7 @@ test("coming back to the scan screen in the same session downloads nothing again
   );
   await page.goto("/scan/easy");
   await modelResponse;
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
   await expect(pill(page)).toHaveCount(0, { timeout: 20_000 });
 
   await page
@@ -239,7 +240,12 @@ test("coming back to the scan screen in the same session downloads nothing again
     .click();
   await expect(page).toHaveURL(/\/$/);
   await page.getByRole("link", { name: "Scan my hand" }).first().click();
-  await expect(page).toHaveURL(/\/scan\/easy$/);
+  // v3.4: under `next dev` the first client navigation compiles the
+  // /scan/easy route on demand; on main it already landed at ~4.98 s of the
+  // default 5 s, and the larger v3.4 route pushes the first compile past it
+  // (the RSC request is sent at once; traces 2026-11-05). Timing only: the
+  // navigation itself is what this line checks, so it gets a longer wait.
+  await expect(page).toHaveURL(/\/scan\/easy$/, { timeout: 20_000 });
   await expect(page.getByRole("main")).toBeVisible();
   await expect(pill(page)).toHaveCount(0);
   expect(
@@ -262,7 +268,7 @@ test("the download stays on this origin under the unchanged connect-src 'self'",
   expect(response!.headers()["content-security-policy"]).toContain(
     "connect-src 'self'",
   );
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
   await expect(pill(page)).toHaveCount(0, { timeout: 20_000 });
   expect([...origins]).toEqual([new URL(page.url()).origin]);
 });

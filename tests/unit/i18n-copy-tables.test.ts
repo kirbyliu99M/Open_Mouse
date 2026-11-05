@@ -15,6 +15,7 @@ const modules = import.meta.glob<Record<string, unknown>>(
 const EXPECTED_MODULES = [
   "account.ts",
   "camera-cues.ts",
+  "card-reference.ts",
   "cookie-consent.ts",
   "easy-scan.ts",
   "errors.ts",
@@ -47,6 +48,7 @@ const EXPECTED_MODULES = [
   "scan-common.ts",
   "scan-issues.ts",
   "scan-sheet.ts",
+  "scan-tour.ts",
   "share-card.ts",
   "sheet.ts",
   "site-footer.ts",

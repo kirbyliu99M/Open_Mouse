@@ -7,6 +7,7 @@
  * hint, if any, is "Place your hand on the paper".
  */
 import { expect, test, type Page } from "@playwright/test";
+import { dismissFirstRun } from "./fixtures/first-run";
 
 const LIVE_DEMO = "/scan/easy/live-measured-demo";
 const HAND_HINTS = [
@@ -64,7 +65,7 @@ test("hints off (no ?debug=1): no hand hint and no banner, the photo is taken as
 }) => {
   await watchCue(page);
   await page.goto(LIVE_DEMO);
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
   await measuredSheet(page);
   const seen = await cueSeen(page);
   for (const hint of HAND_HINTS) expect(seen).not.toContain(hint);
@@ -77,7 +78,7 @@ test("hints on (?debug=1): a hand hint holds the auto-capture (Kirby 2026-10-27)
 }) => {
   await watchCue(page);
   await page.goto(`${LIVE_DEMO}?debug=1`);
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
   // The fixture's "hand" is a skin-tone blob: the detector finds no hand, so
   // 「請把手放在紙上」 shows and the ring does not fill.
   await expect(page.locator(".cameraCueSoftHint")).toHaveText(
@@ -109,7 +110,7 @@ test("hints on: a banner, when one shows, closes with its button and leaves Cont
   page,
 }) => {
   await page.goto(`${LIVE_DEMO}?debug=1`);
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
   // With the hints on the ring waits for a hand (see above): press the shutter.
   await expect(page.locator(".cameraCueSoftHint")).toBeVisible({
     timeout: 30_000,

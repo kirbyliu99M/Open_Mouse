@@ -15,6 +15,10 @@ const FAKE_VIDEO_FIXTURE_PAPER_EDGE = path.join(
   __dirname,
   "tests/e2e/fixtures/camera/paper-edge-full.y4m",
 );
+const FAKE_VIDEO_FIXTURE_CARD = path.join(
+  __dirname,
+  "tests/e2e/fixtures/camera/card-beside-hand.y4m",
+);
 
 function fakeMediaLaunchOptions(fixturePath: string) {
   return {
@@ -99,12 +103,26 @@ export default defineConfig({
     {
       name: "chromium-camera-paper-edge",
       testMatch:
-        /camera-paper-edge\.spec\.ts|camera-screenshots\.spec\.ts|easy-scan\.spec\.ts|easy-scan-v2\.spec\.ts|easy-scan-v2-screenshots\.spec\.ts|easy-scan-soft-hints\.spec\.ts|easy-scan-screenshots\.spec\.ts|capture-failure-hint\.spec\.ts|scan-fov\.spec\.ts|no-paper-device\.spec\.ts|a11y-structure\.spec\.ts|a11y-axe\.spec\.ts|i18n-scan\.spec\.ts|manual-entry-flow\.spec\.ts/,
+        /camera-paper-edge\.spec\.ts|camera-screenshots\.spec\.ts|easy-scan\.spec\.ts|easy-scan-v2\.spec\.ts|easy-scan-v2-screenshots\.spec\.ts|easy-scan-soft-hints\.spec\.ts|easy-scan-screenshots\.spec\.ts|capture-failure-hint\.spec\.ts|scan-fov\.spec\.ts|no-paper-device\.spec\.ts|a11y-structure\.spec\.ts|a11y-axe\.spec\.ts|i18n-scan\.spec\.ts|manual-entry-flow\.spec\.ts|v34-reference\.spec\.ts|v34-tour\.spec\.ts|v34-tour-shots\.spec\.ts|v34-first-run\.spec\.ts|v34-layout\.spec\.ts/,
       use: {
         ...devices["Pixel 7"],
         viewport: { width: 390, height: 844 },
         permissions: ["camera"],
         launchOptions: fakeMediaLaunchOptions(FAKE_VIDEO_FIXTURE_PAPER_EDGE),
+      },
+    },
+    // v3.4 card reference (candidate): a light ID-1 card in the G-M2 card
+    // slot beside a skin-tone blob (fixtures/card-scene.ts). Its specs skip
+    // themselves unless the card build is on (see the webServer env below).
+    {
+      name: "chromium-camera-card",
+      testMatch:
+        /v34-card\.spec\.ts|v34-tour-shots\.spec\.ts|a11y-axe\.spec\.ts|v34-first-run\.spec\.ts|v34-layout\.spec\.ts/,
+      use: {
+        ...devices["Pixel 7"],
+        viewport: { width: 390, height: 844 },
+        permissions: ["camera"],
+        launchOptions: fakeMediaLaunchOptions(FAKE_VIDEO_FIXTURE_CARD),
       },
     },
   ],
@@ -119,6 +137,16 @@ export default defineConfig({
     // tests/unit/flags.test.ts (a build-time flag can't be toggled within one
     // dev server). With PLAYWRIGHT_REUSE_SERVER=1 the attached `npm run dev`
     // must be started with the same variable.
-    env: { NEXT_PUBLIC_TYPED_HAND_LENGTH_ENTRY: "1" },
+    //
+    // v3.4 (candidate): the card reference is a build-time flag too. The
+    // default run is the production build (card OFF); a second run with
+    // `NEXT_PUBLIC_CARD_REFERENCE_ENABLED=1` in the environment builds the
+    // card ON, and the v3.4 specs pick their tests by the same variable. Kill
+    // any dev server (and let `.next` rebuild) between the two runs.
+    env: {
+      NEXT_PUBLIC_TYPED_HAND_LENGTH_ENTRY: "1",
+      NEXT_PUBLIC_CARD_REFERENCE_ENABLED:
+        process.env.NEXT_PUBLIC_CARD_REFERENCE_ENABLED ?? "",
+    },
   },
 });

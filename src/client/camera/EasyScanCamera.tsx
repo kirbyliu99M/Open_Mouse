@@ -290,11 +290,21 @@ import {
 } from "./handInference";
 import {
   getBrowserStorage,
+  referenceSelect,
+  referenceSwitch,
   readStoredPaperSize,
-  writeStoredPaperSize,
+  readStoredReference,
+  writeStoredReference,
+  type ScanReference,
   readFirstRunTipSeen,
   markFirstRunTipSeen,
 } from "./easyScanPreferences";
+import {
+  cardCheckUnanswered,
+  cardPathActive,
+  referenceChangeAllowed,
+} from "./cardRoute";
+import { ReferenceMenu } from "./ReferenceMenu";
 import { GripPage, ThicknessPage } from "../scan/AnswerPages";
 import {
   INITIAL_ANSWERS,
@@ -332,9 +342,45 @@ import { DetectorProgress } from "./DetectorProgress";
 import { measuredSheetNumbers } from "../photo/unverified-note";
 import { shownScanMeasurements } from "../../lib/fit/fit-scale";
 import { measuringShown } from "./measuringIndicator";
+import { CARD_REFERENCE_ENABLED } from "../../lib/flags";
+import { cardReferenceCopy } from "../../lib/copy/card-reference";
+import {
+  cardHintText,
+  cardLayoutRect,
+  cardRuleLineShown,
+  cardStaticShapes,
+  evaluateCardLive,
+  toViewHand,
+  type CardLiveHand,
+} from "../card/cardLive";
+import type { runCardPhoto } from "../card/runCardPhoto";
+import { useDeviceTilt } from "../card/useDeviceTilt";
+import type { OverlayShape } from "../card/hand/guides/types";
+import {
+  advanceHint,
+  INITIAL_HINT,
+  type HintState,
+} from "../card/hand/guideState";
+import { GM2_THRESHOLDS } from "../card/hand/gm2Rules";
 import "../../app/scan/scan.css";
 import "./camera.css";
 import "./easy-scan.css";
+import ScanTour from "./tour/ScanTour";
+// v3.4 (review items 4, M1): the card's photo analysis and its overlay are
+// loaded only with the card flag on (fetched at mount, never on a flag-off
+// page), not bundled into /scan/easy's first load; a chunk that fails to
+// load never reaches the error page.
+import {
+  LazyCardGuideOverlay as CardGuideOverlay,
+  loadCardGuideOverlay,
+} from "../card/LazyCardGuideOverlay";
+import {
+  guideRectInViewport,
+  PICTURE_WAIT_MS,
+  tipPresentation,
+  tourCueHidden,
+  tourReturnFocus,
+} from "./tour/tourModel";
 
 /** What the frozen photo needs to be drawn where the live frame was. */
 interface PhotoInfo {
@@ -492,9 +538,19 @@ type ResultState =
         readonly code: SoftHintBannerCode | null;
         readonly at: string;
       };
+      /**
+       * v3.4 card mode (candidate): `pending` while the sheet asks whether
+       * the drawn outline frames the card the person placed; the numbers and
+       * 繼續 show only once they say yes (no: retake).
+       */
+      cardCheck?: "pending";
+      /** v3.4: the result came from the card pipeline (review R4). */
+      reference?: "card";
     }
   | {
       kind: "gateFailure";
+      /** v3.4: the result came from the card pipeline (review R4). */
+      reference?: "card";
       previewUrl: string;
       overlay: PhotoOverlay | null;
       errors: readonly PipelineIssue[];
@@ -566,6 +622,7 @@ function HandToggle({
     <button
       type="button"
       className={`easyHandChip${inSheet ? " easyHandChipInSheet" : ""}`}
+      data-tour={inSheet ? undefined : "hand-chip"}
       aria-label={handChipAccessibleName(state, locale)}
       disabled={disabled}
       onClick={onClick}
@@ -580,6 +637,11 @@ export interface EasyScanCameraProps {
   readonly runPhotoPipelineImpl?: (
     input: RunPhotoPipelineInput,
   ) => Promise<PipelineResult>;
+  /**
+   * Test/demo injection point for the card path (v3.4) — real pages never
+   * pass this. Same role as `runPhotoPipelineImpl` for the paper path.
+   */
+  readonly runCardPhotoImpl?: typeof runCardPhoto;
   /** Seeds the measured bottom sheet directly, skipping the camera and
    * pipeline entirely — for `/scan/easy/measured-demo` (screenshots and
    * e2e; no synthetic photo makes MediaPipe detect a hand, same reason
@@ -659,6 +721,7 @@ function fullScore(canvas: HTMLCanvasElement, bitmap: ImageBitmap): number {
 
 export default function EasyScanCamera({
   runPhotoPipelineImpl = runPhotoPipeline,
+  runCardPhotoImpl,
   demoMeasured,
   deviceHint,
   debugPhotosAllowed = false,
@@ -683,6 +746,31 @@ export default function EasyScanCamera({
     INITIAL_HAND_CHIP_STATE,
   );
   const [paperSize, setPaperSize] = useState<PaperSize>("a4");
+  // v3.4 (candidate): the card reference instead of a sheet. Only ever true
+  // while `CARD_REFERENCE_ENABLED`.
+  const [cardMode, setCardMode] = useState(false);
+  const cardModeRef = useRef(false);
+  cardModeRef.current = cardMode;
+  const deviceTilt = useDeviceTilt(CARD_REFERENCE_ENABLED && cardMode);
+  const deviceTiltRef = useRef(deviceTilt);
+  deviceTiltRef.current = deviceTilt;
+  // The G-M2 v3 overlay and hint of the latest card-mode sample.
+  const [cardShapes, setCardShapes] = useState<readonly OverlayShape[]>([]);
+  const [cardHint, setCardHint] = useState<string | null>(null);
+  const cardHandsRef = useRef<{
+    latest: CardLiveHand | null;
+    previous: CardLiveHand | null;
+    lastReadAtMs: number | null;
+  }>({ latest: null, previous: null, lastReadAtMs: null });
+  const cardHintRef = useRef<HintState>(INITIAL_HINT);
+  const cardShapesAtRef = useRef(0);
+  // The shutter's moment (performance.now), for the motion window (recorded only).
+  const cardShutterAtRef = useRef<number | null>(null);
+  // The card photo's analysis (defined after the paper path's; read when a
+  // card-mode photo arrives).
+  const runCardPipelineRef = useRef<
+    (file: File, previewUrl: string) => Promise<void>
+  >(async () => {});
   const [deviceFit, setDeviceFit] = useState<DeviceFit | null>(null);
   const locale = useLocale();
   // The live loop and the capture callbacks outlive a render: they read the
@@ -697,6 +785,21 @@ export default function EasyScanCamera({
   // photo exists; the analysis keeps it there (`processing`) until the answer
   // replaces it. No full-screen loader and no minimum time (`measuringShown`).
   const [shutterMeasuring, setShutterMeasuring] = useState(false);
+  // Review m2: whether the photo being analysed came from the live screen
+  // that shows the reference chip (a shot, or an upload picked there).
+  const photoFromReferenceScreenRef = useRef(true);
+  // Review R1: where the upload was tapped, recorded at the tap (Android's
+  // picker hides the page, which ends the stream before the file returns):
+  // true only on the live dock's upload button.
+  const uploadFromReferenceScreenRef = useRef(false);
+  // Whether the live dock (with its upload button) is on screen now (F3).
+  const liveDockShownRef = useRef(false);
+  // A shot is being taken (capturingRef, for the render): the reference
+  // menu is disabled then too, not only while 測量中… (review n1).
+  const [capturingUi, setCapturingUi] = useState(false);
+  // Read by the reference switch (review item 13): no change while 測量中….
+  const shutterMeasuringRef = useRef(false);
+  shutterMeasuringRef.current = shutterMeasuring;
   const [pageUrl, setPageUrl] = useState("");
   const [userLengthMm, setUserLengthMm] = useState<number | null>(null);
   const [lengthStep, setLengthStep] = useState(false);
@@ -751,6 +854,15 @@ export default function EasyScanCamera({
   const manualActiveRef = useRef(false);
   manualActiveRef.current = manualActive;
   const [tipOpen, setTipOpen] = useState(Boolean(forceTipOpen));
+  // v3.4 tour (candidate): with paper, the first-run tip is the spotlight
+  // tour (tour/ScanTour.tsx); "auto" asks 第一次掃描嗎？ first, "?" does not.
+  // The typed-length mode keeps the old sheet below.
+  const [tipTrigger, setTipTrigger] = useState<"auto" | "help">("auto");
+  // Review T2: what the scan tour shows now (null without it).
+  const [tourView, setTourView] = useState<{
+    stepId: string | null;
+    holeBottom: number | null;
+  } | null>(null);
   const [cue, setCue] = useState<Cue | null>(null);
   // The dots' states live in a small store that only the dots read
   // (EasyCorners.tsx, 2026-10-28): a sample re-renders four dots, not the
@@ -1095,6 +1207,7 @@ export default function EasyScanCamera({
   const sheetResumedRef = useRef(false);
   const tipDialogRef = useRef<HTMLDialogElement>(null);
   const helpTriggerRef = useRef<HTMLButtonElement>(null);
+  const shutterRef = useRef<HTMLButtonElement>(null);
   const gotItRef = useRef<HTMLButtonElement>(null);
   const tryAgainRef = useRef<HTMLButtonElement>(null);
   // 手動調整邊框 (V3.2 F2, candidate): which adjustment is open over the photo
@@ -1119,7 +1232,11 @@ export default function EasyScanCamera({
   useEffect(() => {
     if (demoMeasured) return;
     const storage = getBrowserStorage();
+    // The paper size as on main; the card on top of it (its own key), so a
+    // Letter user who chose the card comes back to Letter (review item 6).
     setPaperSize(readStoredPaperSize(storage));
+    if (readStoredReference(storage, CARD_REFERENCE_ENABLED) === "card")
+      setCardMode(true);
     if (!forceTipOpen && !readFirstRunTipSeen(storage)) setTipOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1129,6 +1246,17 @@ export default function EasyScanCamera({
   // load happens well before a capture, not while the camera is "open"
   // (hard rule 5: no network request may fire while the camera is open,
   // except the single submit).
+  // v3.4 (review item 4): with the card flag on, the card's code is fetched
+  // here too, on mount, not when the camera is open or the shot is taken.
+  // With the flag off it is never fetched.
+  useEffect(() => {
+    if (!CARD_REFERENCE_ENABLED) return;
+    void import("../card/runCardPhoto").catch(() => {
+      // Retried by the card photo's own import (a failure there is reported).
+    });
+    void loadCardGuideOverlay();
+  }, []);
+
   useEffect(() => {
     void getHandLandmarker().catch(() => {
       // Not swallowed: the load state goes to "failed", and DetectorProgress
@@ -1137,12 +1265,51 @@ export default function EasyScanCamera({
     });
   }, []);
 
+  // v3.4: the scan tour over the live camera picture (it waits while the
+  // camera is asked for, review item 14); the old tip sheet everywhere else:
+  // a typed hand length, and also camera refused / no camera / stream ended
+  // or a photo on screen, where the tour would have nothing to point at
+  // (review item 2).
+  // Review B1: the picture must start within PICTURE_WAIT_MS of the camera
+  // going live, or the tip sheet shows instead (never a blank screen).
+  const [pictureTimedOut, setPictureTimedOut] = useState(false);
+  // Review F4: the fallback sheet was touched (a tap or a key in it): a late
+  // picture no longer replaces it with the tour.
+  const [tipSheetTouched, setTipSheetTouched] = useState(false);
   useEffect(() => {
-    if (tipOpen && deviceFit === "phone" && !lengthStep) {
-      tipDialogRef.current?.showModal();
-      gotItRef.current?.focus();
+    if (!tipOpen) {
+      setPictureTimedOut(false);
+      setTipSheetTouched(false);
+      return;
     }
-  }, [tipOpen, deviceFit, lengthStep]);
+    if (camState.kind !== "live" || videoReady) return;
+    const timer = window.setTimeout(
+      () => setPictureTimedOut(true),
+      PICTURE_WAIT_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [tipOpen, camState.kind, videoReady]);
+  const tipView = tipPresentation({
+    camera: camState.kind,
+    result: result.kind,
+    typedLength: userLengthMm !== null,
+    pictureReady: videoReady,
+    pictureTimedOut,
+    sheetTouched: tipSheetTouched,
+  });
+  const tourScreen = tipView === "tour";
+  const tipSheetScreen = tipView === "sheet";
+  useEffect(() => {
+    if (tipOpen && deviceFit === "phone" && !lengthStep && tipSheetScreen) {
+      const dialog = tipDialogRef.current;
+      if (dialog && !dialog.open) dialog.showModal();
+      gotItRef.current?.focus();
+    } else if (tourScreen) {
+      // The camera screen came back under an open tip sheet: the tour takes
+      // its place (it mounts while `tipOpen`).
+      tipDialogRef.current?.close();
+    }
+  }, [tipOpen, deviceFit, lengthStep, tourScreen, tipSheetScreen]);
 
   useEffect(() => {
     if (userLengthMm !== null || !focusEntryAfterSwitchRef.current) return;
@@ -1172,10 +1339,30 @@ export default function EasyScanCamera({
   // #1: the measured / failure sheet slides down when a retake, a question
   // page or the paper adjustment takes its place, instead of a native close()
   // or an unmount that made it vanish.
+  // v3.4 card mode: while the outline question is open, the sheet waits.
+  const cardCheckOpen =
+    result.kind === "measured" && result.cardCheck === "pending";
+  // Review R5: the outline question is a modal like the other sheets. It
+  // opens with focus on 有; closed before it unmounts, so the browser's own
+  // focus return runs; after 有 the measured sheet takes focus (its title),
+  // after 沒有 the camera comes back as on any retake.
+  const cardCheckDialogRef = useRef<HTMLDialogElement>(null);
+  const cardCheckYesRef = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    if (!cardCheckOpen) return;
+    const dialog = cardCheckDialogRef.current;
+    if (!dialog) return;
+    if (!dialog.open) dialog.showModal();
+    cardCheckYesRef.current?.focus();
+    return () => {
+      if (dialog.open) dialog.close();
+    };
+  }, [cardCheckOpen]);
   const sheetNow =
     (result.kind === "measured" || result.kind === "gateFailure") &&
     onSheet &&
-    !adjustOpen
+    !adjustOpen &&
+    !cardCheckOpen
       ? result
       : null;
   const sheetLeave = useLeaving(sheetNow, leaveMs("sheet", reducedMotion));
@@ -1199,7 +1386,9 @@ export default function EasyScanCamera({
   );
   // #21: the first-run tip slides down like the other sheets.
   const tipLeave = useLeaving(
-    tipOpen && deviceFit === "phone" && !lengthStep ? true : null,
+    tipOpen && deviceFit === "phone" && !lengthStep && tipSheetScreen
+      ? true
+      : null,
     leaveMs("sheet", reducedMotion),
   );
   // #22: the paper adjustment fades out (--motion-out) over the sheet coming
@@ -1368,7 +1557,10 @@ export default function EasyScanCamera({
     closeAsIfRemoved(sheetDialogRef.current);
     setSheetHeight(null);
     setBarBottom(null);
-  }, [result.kind, onSheet, adjustOpen]);
+    // v3.4 card mode: `cardCheckOpen` keeps the sheet unmounted while the
+    // outline question is open; answering 有 mounts it with the same
+    // `result.kind`, so the effect must run again to open it (showModal).
+  }, [result.kind, onSheet, adjustOpen, cardCheckOpen]);
 
   // A question page is a modal of its own, opened the moment it mounts, and
   // opened again if the browser closed it by itself while it should be open
@@ -1393,6 +1585,8 @@ export default function EasyScanCamera({
   const dismissTip = useCallback(() => {
     setTipOpen(false);
     tipDialogRef.current?.close();
+    // Any tip sheet dismissed is seen, as on main (review G1), the
+    // picture-wait fallback included.
     markFirstRunTipSeen(getBrowserStorage());
     // No explicit focus() to the "?" trigger here: the tip auto-opens on
     // mount (nothing "opened" it the way a click opens the nav menu), and
@@ -1409,7 +1603,79 @@ export default function EasyScanCamera({
     enabled: !tipLeave.leaving,
   });
 
-  const openTip = useCallback(() => setTipOpen(true), []);
+  // Review H5: "?" while the first-run tip is already open (its wait for
+  // the picture) keeps it the first-run variant.
+  const tipOpenRef = useRef(tipOpen);
+  tipOpenRef.current = tipOpen;
+  const openTip = useCallback(() => {
+    if (!tipOpenRef.current) setTipTrigger("help");
+    setTipOpen(true);
+  }, []);
+  // Review F3/G2: a picker closed with no file leaves no stale origin
+  // behind. A callback ref, so the listener is attached whenever the input
+  // mounts (it is not rendered on the first, placeholder render).
+  const fileInputCleanupRef = useRef<(() => void) | null>(null);
+  const attachFileInput = useCallback((input: HTMLInputElement | null) => {
+    fileInputCleanupRef.current?.();
+    fileInputCleanupRef.current = null;
+    if (!input) return;
+    const onCancel = () => {
+      uploadFromReferenceScreenRef.current = false;
+    };
+    input.addEventListener("cancel", onCancel);
+    fileInputCleanupRef.current = () =>
+      input.removeEventListener("cancel", onCancel);
+  }, []);
+
+  // Review G5: the dock's top on the stage, so the card guide's labels stay
+  // above it (the wrist label on short screens).
+  const [dockTopPx, setDockTopPx] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const dock = dockRef.current;
+    const stage = stageRef.current;
+    if (!dock || !stage || !cardMode) return;
+    // Review H3: without the dock's transform (its rise-in animation moves
+    // it 24 px): the stage's height less the dock's own height (the dock is
+    // pinned to the bottom).
+    const measure = () => {
+      const top = stage.clientHeight - dock.offsetHeight;
+      setDockTopPx((prev) => (prev === top ? prev : top));
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(dock);
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, [cardMode, liveChromeLeave.shown, stageSize]);
+
+  // Review R2: the live dock is not usable while the first-run tip / tour is
+  // open or waiting for the picture (main's modal tip blocked it from
+  // mount). Set after React's own inert (the leave), so both hold; the dock
+  // is mounted again when the live chrome comes back. A layout effect, so it
+  // is cleared before the focus below goes to the shutter (review F2).
+  useLayoutEffect(() => {
+    const dock = dockRef.current;
+    if (dock) dock.inert = liveChromeLeave.leaving || tipOpen;
+  }, [tipOpen, liveChromeLeave.leaving, liveChromeLeave.shown]);
+
+  // The tour marks the tip as seen itself (only when skipped or finished).
+  // Focus then goes back to "?" when it opened the tour, else to the shutter
+  // (review item 10; `tourReturnFocus`), once the tour has unmounted.
+  const tourClosedRef = useRef(false);
+  const closeTour = useCallback(() => {
+    tourClosedRef.current = true;
+    setTipOpen(false);
+  }, []);
+  useEffect(() => {
+    if (tipOpen || !tourClosedRef.current) return;
+    tourClosedRef.current = false;
+    const to =
+      tourReturnFocus(tipTrigger) === "help"
+        ? helpTriggerRef.current
+        : (shutterRef.current ?? helpTriggerRef.current);
+    to?.focus();
+  }, [tipOpen, tipTrigger]);
 
   const clearFocusTimers = useCallback(() => {
     tapFocusRef.current?.cancel();
@@ -1510,6 +1776,8 @@ export default function EasyScanCamera({
     lastCueCodeRef.current = null;
     firstSheetSeenAtRef.current = null;
     cornerStore.set(INITIAL_CORNER_STATES);
+    cardHandsRef.current = { latest: null, previous: null, lastReadAtMs: null };
+    cardHintRef.current = INITIAL_HINT;
     aimRing(0, false);
     setCue(null);
     // What a screen reader was last told ("Photo taken", the last cue) is not
@@ -1792,6 +2060,21 @@ export default function EasyScanCamera({
       if (manualActiveRef.current) {
         URL.revokeObjectURL(previewUrl);
         setShutterMeasuring(false);
+        return;
+      }
+      // v3.4: card mode measures against the card. A typed hand length and a
+      // placed paper frame always take the paper path (cardRoute.ts), and
+      // the mode is read here, before any await: the reference chip is
+      // locked from the shutter until the photo is shown (review item 13).
+      if (
+        cardPathActive({
+          cardMode: cardModeRef.current,
+          typedLengthMm: userLengthRef.current,
+          manualPaperCorners,
+          referenceShown: photoFromReferenceScreenRef.current,
+        })
+      ) {
+        await runCardPipelineRef.current(file, previewUrl);
         return;
       }
       const runId = ++runIdRef.current;
@@ -2189,11 +2472,20 @@ export default function EasyScanCamera({
       return;
     }
     capturingRef.current = true;
+    // The reference menu is disabled from this moment (review n1).
+    setCapturingUi(true);
     // Whether the photo reached `runPipeline`, which takes 測量中… on; on any
     // other way out the shutter's line goes again (the `finally`).
     let handedOff = false;
     try {
       const firedAt = performance.now();
+      if (
+        cardPathActive({
+          cardMode: cardModeRef.current,
+          typedLengthMm: userLengthRef.current,
+        })
+      )
+        cardShutterAtRef.current = firedAt;
       // 測量中… (F10; F7 put a full-screen loader here): up as soon as there
       // IS a photo (the frame made, or the camera's photo taken), before it is
       // decoded and before the camera stops. Not at the press itself: a frame
@@ -2430,6 +2722,7 @@ export default function EasyScanCamera({
       };
       capturingRef.current = false;
       handedOff = true;
+      photoFromReferenceScreenRef.current = true;
       void runPipeline(file, previewUrl);
       // Two frames on, the frozen picture has been painted.
       requestAnimationFrame(() =>
@@ -2441,6 +2734,7 @@ export default function EasyScanCamera({
     } finally {
       // Whatever happened above, a later press or auto-shutter is not blocked.
       capturingRef.current = false;
+      setCapturingUi(false);
       if (!handedOff) {
         // No photo after all (the photo could not be decoded, or something
         // threw after it was made): the camera is still there, so 測量中…
@@ -2462,7 +2756,16 @@ export default function EasyScanCamera({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       e.target.value = "";
-      if (!file || manualActiveRef.current) return;
+      if (!file || manualActiveRef.current) {
+        uploadFromReferenceScreenRef.current = false;
+        return;
+      }
+      // Card mode only for an upload picked on the live screen that shows it
+      // (review m2), as recorded when its button was tapped (review R1);
+      // from any other screen the photo takes the paper path.
+      photoFromReferenceScreenRef.current =
+        uploadFromReferenceScreenRef.current;
+      uploadFromReferenceScreenRef.current = false;
       stopStream();
       fileRef.current = file;
       debugPhotoRef.current = file;
@@ -2496,6 +2799,9 @@ export default function EasyScanCamera({
   );
 
   const retake = useCallback(() => {
+    // Review G3: the last shot's live card drawing goes; the static guide
+    // shows until the first new sample.
+    setCardShapes([]);
     // V3.3 WP3b: a retake after a banner is what the banner asked for.
     if (result.kind === "measured" && result.softHint)
       noteSoftHintOutcome(result.softHint.at, { after: "retake" });
@@ -2603,10 +2909,216 @@ export default function EasyScanCamera({
     [adjustOpen, adjustDirect, logAttempt, runPipeline],
   );
 
-  const changePaperSize = useCallback((size: PaperSize) => {
-    setPaperSize(size);
-    writeStoredPaperSize(getBrowserStorage(), size);
-  }, []);
+  // The reference: A4 / Letter (/ 卡片 with the flag on). Between A4 and
+  // Letter this is exactly the old toggle. Crossing into or out of
+  // the card the live loop starts over (`referenceSwitch`); choosing the
+  // card is a tap, which is where iOS lets the page ask for the motion
+  // sensor (a live "phone level" hint only; card mode works without it).
+  // `selectReference` sets one directly (the scan tour's radios, and the
+  // chip's menu with the flag on: review items 5+6); with the flag off the
+  // chip calls `changePaperSize()` with no argument, main's A4 ↔ Letter.
+  const selectReference = useCallback(
+    (target: ScanReference) => {
+      // A shot being taken or measured keeps the mode it was taken in (card
+      // flag on; with it off the chip is main's A4 ↔ Letter toggle as it was).
+      if (
+        CARD_REFERENCE_ENABLED &&
+        !referenceChangeAllowed({
+          capturing: capturingRef.current,
+          measuring: shutterMeasuringRef.current,
+        })
+      )
+        return;
+      const step = referenceSelect(
+        { cardMode: cardModeRef.current, paperSize: paperSizeRef.current },
+        target,
+        CARD_REFERENCE_ENABLED,
+      );
+      if (!step.resetLoop) {
+        setPaperSize(step.paperSize);
+        writeStoredReference(
+          getBrowserStorage(),
+          step.next,
+          CARD_REFERENCE_ENABLED,
+        );
+        return;
+      }
+      writeStoredReference(
+        getBrowserStorage(),
+        step.next,
+        CARD_REFERENCE_ENABLED,
+      );
+      cardModeRef.current = step.cardMode;
+      resetLoopState();
+      setCardShapes([]);
+      setCardHint(null);
+      setCardMode(step.cardMode);
+      setPaperSize(step.paperSize);
+      if (step.cardMode) void deviceTiltRef.current.request();
+    },
+    [resetLoopState],
+  );
+  const changePaperSize = useCallback(
+    (target?: ScanReference) =>
+      selectReference(
+        target ??
+          referenceSwitch(
+            { cardMode: cardModeRef.current, paperSize: paperSizeRef.current },
+            CARD_REFERENCE_ENABLED,
+          ).next,
+      ),
+    [selectReference],
+  );
+
+  // v3.4 card mode (candidate 未拍板): the photo is measured against the
+  // card (cardPhoto.ts) instead of a sheet, in this tab; the result takes
+  // the paper path's shape, so the sheet, the questions and the send are
+  // the same. 測量中… stays up while the card is searched.
+  const runCardPipeline = useCallback(
+    async (file: File, previewUrl: string) => {
+      // A card shot is never uploaded, not even to the preview's opt-in debug
+      // store (?debug=1&photos=1): the card in it may be an ID or a bank card
+      // (review item 8). `uploadDebugPhoto` sends nothing without a photo;
+      // the local attempt record is kept as for paper.
+      debugPhotoRef.current = null;
+      const runId = ++runIdRef.current;
+      attemptCountRef.current += 1;
+      const attempt = clampAttempt(attemptCountRef.current);
+      const info = captureInfoRef.current;
+      track("scan_capture_attempted", {
+        flow: "easy",
+        method: info?.method ?? "upload",
+        attempt,
+        liveWait: liveWaitBucket(info?.liveWaitMs),
+      });
+      setResult({ kind: "processing", previewUrl });
+      setShutterMeasuring(false);
+      dispatchAnswers({ type: "reset" });
+      // The motion window around the shutter, as much of it as has arrived
+      // (recorded only: nothing measured depends on it).
+      const shutterAt = cardShutterAtRef.current;
+      cardShutterAtRef.current = null;
+      const frame =
+        info?.captureSource === "frame" && info.frame
+          ? {
+              stream: info.frame.stream,
+              crop: {
+                x: Math.round(info.frame.visibleInStream.x),
+                y: Math.round(info.frame.visibleInStream.y),
+              },
+            }
+          : null;
+      try {
+        const analyse =
+          runCardPhotoImpl ??
+          (await import("../card/runCardPhoto")).runCardPhoto;
+        const outcome = await analyse(file, {
+          selectedHand: handChipRef.current.hand,
+          handExplicit: handChipRef.current.locked,
+          handednessFixInstruction: HAND_BUTTON_FIX_INSTRUCTION,
+          sensor:
+            shutterAt !== null
+              ? deviceTiltRef.current.snapshot(shutterAt)
+              : null,
+          frame,
+          locale: localeRef.current,
+        });
+        const r = outcome.result;
+        void logAttempt(info, { kind: "result", result: r });
+        if (runId !== runIdRef.current) return;
+        if (manualActiveRef.current) {
+          URL.revokeObjectURL(previewUrl);
+          setResult((prev) => (prev.kind === "processing" ? NO_RESULT : prev));
+          return;
+        }
+        setHandChip((prev) =>
+          applyDetectedHandedness(prev, r.overlay.handedness),
+        );
+        if (r.status === "ok") {
+          // No `scan_measured` event: its `paper` enum has no card value
+          // (an analytics-contract change, 需要 Kirby 決定).
+          setResult({
+            kind: "measured",
+            previewUrl,
+            overlay: r.overlay,
+            measurements: r.measurements,
+            submission: r.submission,
+            imageWidth: r.overlay.imageWidth,
+            imageHeight: r.overlay.imageHeight,
+            // The outline check comes first (a card the person did not place
+            // must not be measured).
+            ...(r.overlay.paperCorners
+              ? { cardCheck: "pending" as const }
+              : {}),
+            reference: "card",
+          });
+        } else {
+          const errors =
+            r.status === "error"
+              ? r.errors
+              : [
+                  {
+                    code: "UNEXPECTED",
+                    message: "Something went wrong. Try again.",
+                  },
+                ];
+          track("scan_rejected", {
+            flow: "easy",
+            attempt,
+            codes: [...new Set(errors.map((e) => e.code))].slice(0, 8),
+          });
+          setResult({
+            kind: "gateFailure",
+            reference: "card",
+            previewUrl,
+            overlay: r.overlay,
+            errors,
+            imageWidth: r.overlay.imageWidth,
+            imageHeight: r.overlay.imageHeight,
+          });
+        }
+      } catch (error) {
+        const detectorFailed = error instanceof HandLandmarkerLoadError;
+        reportCaught(error, "easy-scan.card");
+        void logAttempt(info, {
+          kind: "thrown",
+          code: detectorFailed ? "DETECTOR_LOAD_FAILED" : "PROCESSING_FAILED",
+          message: error instanceof Error ? error.message : "",
+        });
+        if (runId !== runIdRef.current) return;
+        track("scan_rejected", {
+          flow: "easy",
+          attempt,
+          codes: [
+            detectorFailed ? "DETECTOR_LOAD_FAILED" : "PROCESSING_FAILED",
+          ],
+        });
+        setResult({
+          kind: "gateFailure",
+          reference: "card",
+          previewUrl,
+          overlay: null,
+          errors: [
+            detectorFailed
+              ? {
+                  code: "DETECTOR_LOAD_FAILED",
+                  message: DETECTOR_LOAD_FAILED_MESSAGE,
+                }
+              : {
+                  code: "PROCESSING_FAILED",
+                  message:
+                    "Something went wrong while measuring that photo. Try again.",
+                },
+          ],
+          imageWidth: 0,
+          imageHeight: 0,
+        });
+      }
+    },
+    [logAttempt, runCardPhotoImpl],
+  );
+
+  runCardPipelineRef.current = runCardPipeline;
 
   // The scan is sent from the last question page, with whatever was answered
   // (answers.ts): a skipped question leaves its field out. A typed pair is
@@ -2715,12 +3227,15 @@ export default function EasyScanCamera({
     const video = videoRef.current;
     const stream = streamRef.current;
     if (!video || !stream) return;
-    video.srcObject = stream;
+    // Usually attached already (the stream effect below, review B1).
+    if (video.srcObject !== stream) video.srcObject = stream;
     video.play().catch(() => {});
     // A loop resumed after the tip closed starts from a clean slate: a stale
     // last-sample time, ring timer or previous quad would let the very first
     // sample fire an auto-capture.
     resetLoopState();
+    // Review G3: nor an old card drawing (the static guide until a sample).
+    setCardShapes([]);
 
     let cancelled = false;
     const minIntervalMs = 1000 / CAMERA_CONSTANTS.liveLoop.maxSamplesPerSecond;
@@ -2844,6 +3359,92 @@ export default function EasyScanCamera({
         .catch(() => done(null));
     }
 
+    // v3.4 card mode (candidate 未拍板): no sheet is looked for. The hand
+    // is read every `handSampleIntervalMs` (as the paper path's F14
+    // reading), judged with G-M2 v3 (cardLive.ts), and the product's own
+    // ring fills while no blocking check fails; when it is full the same
+    // shutter fires. The phone's tilt is a live hint only (a missing
+    // sensor never holds the ring).
+    function cardSample(
+      canvas: HTMLCanvasElement,
+      width: number,
+      height: number,
+      now: number,
+      dtMs: number,
+    ) {
+      const hands = cardHandsRef.current;
+      if (
+        shouldSampleHand({
+          detectorReady: isHandLandmarkerReady(),
+          lastReadingAtMs: hands.lastReadAtMs,
+          nowMs: now,
+        })
+      ) {
+        const reading = readLiveHand(canvas, width, height);
+        if (reading !== undefined) {
+          const hand = reading
+            ? toViewHand(reading.points, { width, height }, now)
+            : null;
+          cardHandsRef.current = {
+            latest: hand,
+            previous: hand ? (hands.latest ?? hands.previous) : hands.previous,
+            lastReadAtMs: now,
+          };
+        }
+      }
+      const latest = cardHandsRef.current.latest;
+      const stale =
+        latest !== null &&
+        now - latest.atMs > CAMERA_CONSTANTS.noSheetCapture.handStaleMs;
+      const step = evaluateCardLive({
+        hand: stale ? null : latest,
+        previousHand: stale ? null : cardHandsRef.current.previous,
+        side: handChipRef.current.hand,
+        view: { width, height },
+        tiltDeg: deviceTiltRef.current.liveTiltDeg(),
+        detectorReady: isHandLandmarkerReady(),
+        nowMs: now,
+      });
+      const passing = step.passing && previewSettledRef.current;
+      autoCaptureRef.current = advanceAutoCapture(
+        autoCaptureRef.current,
+        passing,
+        dtMs,
+      );
+      aimRing(
+        autoCaptureRingFraction(autoCaptureRef.current),
+        autoCaptureRef.current.elapsedMs > 0 && !autoCaptureRef.current.fired,
+        now,
+      );
+      // The overlay is redrawn at most every 250 ms (the hand is read
+      // every 500 ms; the level moves in between).
+      if (now - cardShapesAtRef.current >= 250) {
+        cardShapesAtRef.current = now;
+        setCardShapes(step.evaluation.overlay);
+      }
+      const copy = cardReferenceCopy(localeRef.current);
+      const text = cardHintText(step.problem, copy);
+      const hintState = advanceHint(
+        cardHintRef.current,
+        {
+          text,
+          checkId: step.problem?.id ?? null,
+          level: step.problem?.level ?? "ok",
+        },
+        now,
+        GM2_THRESHOLDS.hintHoldMs,
+      );
+      if (hintState.shown?.text !== cardHintRef.current.shown?.text) {
+        setCardHint(hintState.shown?.text ?? null);
+        setAnnounced(hintState.shown?.text ?? "");
+      }
+      cardHintRef.current = hintState;
+      if (autoCaptureRef.current.fired && previewSettledRef.current) {
+        pendingShutterRef.current = "auto";
+        void captureNow();
+      }
+    }
+
     function tick(now: number) {
       if (cancelled) return;
       rafRef.current = requestAnimationFrame(tick);
@@ -2908,6 +3509,16 @@ export default function EasyScanCamera({
       if (userLengthRef.current !== null) {
         setCue(null);
         setAnnounced(cameraCuesCopy(localeRef.current).handFlat);
+        return;
+      }
+
+      if (
+        cardPathActive({
+          cardMode: cardModeRef.current,
+          typedLengthMm: userLengthRef.current,
+        })
+      ) {
+        cardSample(canvas, width, height, now, dtMs);
         return;
       }
 
@@ -3394,6 +4005,20 @@ export default function EasyScanCamera({
     (result.kind !== "none" ||
       (!lengthStep &&
         (camState.kind === "live" || camState.kind === "requesting")));
+  // Review B1: the live picture plays whenever the camera is live and the
+  // <video> is mounted (also after a retake mounts a new one), whether or not
+  // the tip / tour is open: the tour waits for this picture. Only the live
+  // loop (sampling, auto-capture) stays paused under the tip / tour.
+  useEffect(() => {
+    if (camState.kind !== "live" || !showStage || result.kind !== "none")
+      return;
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream) return;
+    if (video.srcObject !== stream) video.srcObject = stream;
+    video.play().catch(() => {});
+  }, [camState.kind, showStage, result.kind]);
+
   useLayoutEffect(() => {
     if (!showStage) return;
     const el = stageRef.current;
@@ -3653,9 +4278,23 @@ export default function EasyScanCamera({
     startLengthStep();
   };
 
-  const cueLabel = cue
-    ? easyCueText(cue, { tapToFocus: focusSupport.tapToFocus, locale })
-    : cameraCuesCopy(locale).pointAtPaper;
+  const cardCopy = cardReferenceCopy(locale);
+  // The card's overlay, layout target and outline drawing: only while the
+  // card path is in charge (not under a typed hand length, review item 1).
+  const cardActive = cardPathActive({ cardMode, typedLengthMm: userLengthMm });
+  liveDockShownRef.current =
+    Boolean(liveChromeLeave.shown) && !liveChromeLeave.leaving && !lengthStep;
+  const cardResult =
+    (result.kind === "measured" || result.kind === "gateFailure") &&
+    result.reference === "card";
+  const referenceLabel = cardMode
+    ? cardCopy.chip
+    : PAPER_SIZE_LABELS[paperSize];
+  const cueLabel = cardMode
+    ? (cardHint ?? cardCopy.hintNoHand)
+    : cue
+      ? easyCueText(cue, { tapToFocus: focusSupport.tapToFocus, locale })
+      : cameraCuesCopy(locale).pointAtPaper;
   // From the third failed frame capture in a row, the cue line says so instead
   // of its usual words (same slot, same live region); it is plain text, so
   // there is nothing to animate.
@@ -3668,12 +4307,16 @@ export default function EasyScanCamera({
   const hintText = hintUnderViewfinder(
     userLengthMm !== null
       ? ""
-      : easyHintText({
-          cueCode: cue?.code ?? null,
-          ringFraction,
-          tapToFocus: focusSupport.tapToFocus,
-          locale,
-        }),
+      : cardMode
+        ? // Review G5: the card rule sits under the cue instead (not in
+          // the dock, where it ran into the wrist label and the shutter).
+          ""
+        : easyHintText({
+            cueCode: cue?.code ?? null,
+            ringFraction,
+            tapToFocus: focusSupport.tapToFocus,
+            locale,
+          }),
     captureFailures,
   );
 
@@ -3898,7 +4541,8 @@ export default function EasyScanCamera({
     ? overlayUnitsPerPx(frozenLayout, overlayToStill, layerScale)
     : 1;
   // F15: no length is drawn on the photo before the frame is confirmed (the
-  // adjustment screen is open over it).
+  // adjustment screen is open over it). v3.4: nor before the card outline is
+  // confirmed (review item 3; held back where the photo is drawn, below).
   const dimensions: readonly DimensionSpec[] | null =
     result.kind === "measured" && result.overlay.landmarksPx && !adjustOpen
       ? [
@@ -3944,6 +4588,7 @@ export default function EasyScanCamera({
   // they are); an uploaded photo never had them.
   const showCorners =
     userLengthMm === null &&
+    !cardMode &&
     stageSize !== null &&
     (result.kind === "none" || photoForResult?.stream != null);
 
@@ -3976,9 +4621,11 @@ export default function EasyScanCamera({
         overlayToStill={overlayToStill}
         overlayToStillY={overlayToStillY}
         layerScale={measuredView ? layerScale : 1}
-        dimensions={measuredView ? dimensions : null}
+        dimensions={measuredView && !cardCheckOpen ? dimensions : null}
         problem={measuredView ? problem : null}
         ariaLabel={noPaperMode ? easy.photoLabelNoPaper : easy.photoLabelPaper}
+        // The card's outline only on a card result (review R4).
+        outlineCorners={cardResult}
       />
     ) : null;
   // V3.2 motion pass #2: the photo as it is drawn now (where it is, how it is
@@ -4024,6 +4671,42 @@ export default function EasyScanCamera({
               />
             ) : (
               renderPhoto(!crossFade)
+            )}
+            {cardActive && result.kind === "none" && stageSize && (
+              <CardGuideOverlay
+                // The live loop's drawing once it has one; the static layout
+                // before that and under the tour (review item 14).
+                shapes={
+                  cardShapes.length > 0 && !tipOpen
+                    ? cardShapes
+                    : cardStaticShapes(handChip.hand, stageSize)
+                }
+                labelFloorPx={dockTopPx}
+                // Review T2: a label the tour's spotlight would cut is left out.
+                labelCutoffPx={tourView?.holeBottom ?? null}
+                width={stageSize.width}
+                height={stageSize.height}
+                copy={cardCopy}
+              />
+            )}
+            {cardActive && result.kind === "none" && stageSize && (
+              // The scan tour's spotlight target for the card layout: the
+              // hand brackets and the card slot together (invisible).
+              <div
+                data-tour="card-layout"
+                aria-hidden="true"
+                style={(() => {
+                  const r = cardLayoutRect(handChip.hand);
+                  return {
+                    position: "absolute",
+                    left: r.x * stageSize.width,
+                    top: r.y * stageSize.height,
+                    width: r.width * stageSize.width,
+                    height: r.height * stageSize.height,
+                    pointerEvents: "none",
+                  };
+                })()}
+              />
             )}
             {showCorners && guide && (
               <div className="cameraOverlay">
@@ -4105,6 +4788,7 @@ export default function EasyScanCamera({
           <button
             type="button"
             className="easyHelpButton"
+            data-tour="help"
             ref={helpTriggerRef}
             aria-label={easy.showTip}
             onClick={openTip}
@@ -4246,6 +4930,12 @@ export default function EasyScanCamera({
             <label
               className="easyUploadFallbackButton"
               htmlFor="easy-scan-upload"
+              onPointerDown={() => {
+                uploadFromReferenceScreenRef.current = false;
+              }}
+              onClick={() => {
+                uploadFromReferenceScreenRef.current = false;
+              }}
             >
               {common.uploadInstead}
             </label>
@@ -4260,6 +4950,12 @@ export default function EasyScanCamera({
             <label
               className="easyUploadFallbackButton"
               htmlFor="easy-scan-upload"
+              onPointerDown={() => {
+                uploadFromReferenceScreenRef.current = false;
+              }}
+              onClick={() => {
+                uploadFromReferenceScreenRef.current = false;
+              }}
             >
               {common.uploadPhoto}
             </label>
@@ -4310,6 +5006,10 @@ export default function EasyScanCamera({
         <>
           <div
             className="cameraCueWrap"
+            // Review H1: card mode stacks the card rule and the level-hint
+            // button under the cue (a column); paper keeps main's row.
+            data-card={cardActive && !tipOpen ? "true" : undefined}
+            data-hand={cardActive && !tipOpen ? handChip.hand : undefined}
             data-leaving={liveChromeLeave.leaving ? "true" : undefined}
             inert={liveChromeLeave.leaving}
             aria-hidden={liveChromeLeave.leaving || undefined}
@@ -4318,12 +5018,22 @@ export default function EasyScanCamera({
               className={`cameraCue${cue?.allPass && !captureFailureHint ? " perfect" : ""}${cue && !captureFailureHint && isPlacementCueCode(cue.code) ? " cameraCueSoftHint" : ""}`}
               aria-live="polite"
               data-testid="camera-cue"
+              // Review T2(b): under the tour the live cue shows only on the
+              // cue step (it piled up with the card step's spotlight).
+              data-tour-hidden={
+                tourCueHidden(tourView?.stepId, tourView !== null)
+                  ? "true"
+                  : undefined
+              }
+              data-tour="cue"
               data-capture-failure={captureFailureHint ? "true" : undefined}
             >
               {captureFailureHint ? (
                 captureFailureHint
               ) : userLengthMm !== null ? (
                 cameraCuesCopy(locale).handFlat
+              ) : cardMode ? (
+                cueLabel
               ) : cue?.allPass ? (
                 <>
                   <CheckIcon width={16} height={16} /> {cueLabel}
@@ -4332,6 +5042,31 @@ export default function EasyScanCamera({
                 cueLabel
               )}
             </div>
+            {cardActive && !tipOpen && (
+              // Review K1/K3: one row under the cue, above the card slot: the
+              // short card rule on the hand's side (only until a hand is in
+              // the frame), the level-hint button on the card side (only when
+              // needed). The full rule stays in the tour and the tips.
+              <div className="easyCardRow">
+                {cardRuleLineShown(cardHint, cardCopy) && (
+                  <p className="easyCardRule" data-testid="card-rule">
+                    {cardCopy.cardRuleShort}
+                  </p>
+                )}
+                {cardActive && deviceTilt.state === "needs-permission" && (
+                  // iOS asks for the motion sensor only from a tap; card mode
+                  // restored from storage had none (review n2). Optional:
+                  // card mode works without the level hint.
+                  <button
+                    type="button"
+                    className="easyTiltPermission"
+                    onClick={() => void deviceTilt.request()}
+                  >
+                    {cardCopy.tiltPermission}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           {!liveChromeLeave.leaving && (
             <p className="visuallyHiddenLive" aria-live="polite">
@@ -4350,17 +5085,26 @@ export default function EasyScanCamera({
                 {hintText}
               </p>
             )}
-
             <div className="easyBottomRow">
-              {userLengthMm === null ? (
+              {userLengthMm === null && CARD_REFERENCE_ENABLED ? (
+                // Card flag on: a menu of A4 / Letter / 卡片 (review items
+                // 5+6), locked while a shot is measured (item 13).
+                <ReferenceMenu
+                  current={cardMode ? "card" : paperSize}
+                  label={referenceLabel}
+                  copy={cardCopy}
+                  disabled={shutterMeasuring || capturingUi}
+                  onSelect={selectReference}
+                />
+              ) : userLengthMm === null ? (
+                // Card flag off: main's A4 ↔ Letter toggle.
                 <button
                   type="button"
                   className="easyPaperToggle"
-                  onClick={() =>
-                    changePaperSize(paperSize === "a4" ? "letter" : "a4")
-                  }
+                  data-tour="reference-chip"
+                  onClick={() => changePaperSize()}
                 >
-                  {PAPER_SIZE_LABELS[paperSize]}
+                  {referenceLabel}
                 </button>
               ) : (
                 <span className="easyLengthChip">
@@ -4370,6 +5114,8 @@ export default function EasyScanCamera({
               <button
                 type="button"
                 className="cameraShutter"
+                ref={shutterRef}
+                data-tour="shutter"
                 aria-label={common.takePhoto}
                 onClick={() => void captureNow()}
               >
@@ -4389,6 +5135,12 @@ export default function EasyScanCamera({
               <label
                 className="easyUploadIconButton"
                 htmlFor="easy-scan-upload"
+                onPointerDown={() => {
+                  uploadFromReferenceScreenRef.current = true;
+                }}
+                onClick={() => {
+                  uploadFromReferenceScreenRef.current = true;
+                }}
               >
                 <span className="visuallyHidden">{common.uploadInstead}</span>
                 <svg
@@ -4417,7 +5169,8 @@ export default function EasyScanCamera({
                   ref={liveChromeLeave.leaving ? undefined : noPaperEntryRef}
                   onClick={startLengthStep}
                 >
-                  {noPaperLabel}
+                  {/* Review G9: card mode says "no card" (paper unchanged). */}
+                  {cardActive ? cardCopy.noCardEntry : noPaperLabel}
                 </button>
                 {noPaperMode && (
                   <button
@@ -4447,9 +5200,15 @@ export default function EasyScanCamera({
 
       <input
         id="easy-scan-upload"
+        ref={attachFileInput}
         type="file"
         accept="image/*"
         onChange={onFilePicked}
+        // Review F3: the input itself activated (a label click reaches it
+        // too): the live dock's upload when the dock is on screen.
+        onClick={() => {
+          uploadFromReferenceScreenRef.current = liveDockShownRef.current;
+        }}
         className="visuallyHidden"
         inert={lengthStep}
         // Matches the visible label of whichever upload control is on screen
@@ -4481,6 +5240,59 @@ export default function EasyScanCamera({
       )}
       {measuringLeave.leaving && <LeaveShield target={pillRef} />}
 
+      {/* v3.4 card mode (candidate): before the numbers, the person checks
+          the outline drawn on the photo frames the card they placed. */}
+      {cardCheckOpen && (
+        // Review R5: a modal <dialog> like the other result sheets (opened
+        // with showModal, focus on 有, Esc = 沒有，重拍); the photo stays
+        // visible behind it.
+        <dialog
+          ref={cardCheckDialogRef}
+          className="easySheet easyResultSheet easyCardCheck"
+          aria-labelledby="easy-card-check-title"
+          data-testid="card-check"
+          onCancel={(e) => {
+            e.preventDefault();
+            retake();
+          }}
+          // Review F5: closed without an answer (the browser closed it), the
+          // photo must not stay with no buttons: a retake.
+          onClose={() => {
+            if (cardCheckUnanswered(resultRef.current)) retake();
+          }}
+        >
+          <p className="easySheetTitle" id="easy-card-check-title">
+            {cardCopy.confirmQuestion}
+          </p>
+          <div className="easySheetActions easyStickyActions">
+            <button
+              type="button"
+              className="easyTryAgainButton easyAdjustFrameButton"
+              data-testid="card-check-no"
+              onClick={retake}
+            >
+              {cardCopy.confirmNo}
+            </button>
+            <div className="easySeeMatches">
+              <button
+                type="button"
+                className="primaryButton"
+                ref={cardCheckYesRef}
+                data-testid="card-check-yes"
+                onClick={() =>
+                  setResult((prev) =>
+                    prev.kind === "measured" && prev.cardCheck
+                      ? { ...prev, cardCheck: undefined }
+                      : prev,
+                  )
+                }
+              >
+                {cardCopy.confirmYes}
+              </button>
+            </div>
+          </div>
+        </dialog>
+      )}
       {/* V3.2 motion pass #1: drawn from `sheetResult`, the result it showed,
           so it keeps its content while it slides down after a retake. */}
       {sheetResult && (
@@ -4697,6 +5509,24 @@ export default function EasyScanCamera({
           before) and slides down, still painted; its dimmed backdrop belongs
           to the open dialog only, so a scrim of the same colour takes its
           place and fades out with it. */}
+      {tipOpen && deviceFit === "phone" && !lengthStep && tourScreen && (
+        <ScanTour
+          trigger={tipTrigger}
+          reference={cardMode ? "card" : paperSize}
+          cardModeAvailable={CARD_REFERENCE_ENABLED}
+          noPaperEntry={noPaperLabel !== null}
+          onReferenceChange={selectReference}
+          resolvePaperFrame={() =>
+            guideRectInViewport(
+              stageRef.current?.getBoundingClientRect(),
+              guide,
+            )
+          }
+          hand={handChip.hand}
+          onClose={closeTour}
+          onView={setTourView}
+        />
+      )}
       {tipLeave.leaving && <div className="easyTipScrim" aria-hidden="true" />}
       <dialog
         ref={tipDialogRef}
@@ -4707,6 +5537,8 @@ export default function EasyScanCamera({
         inert={tipLeave.leaving}
         aria-hidden={tipLeave.leaving || undefined}
         {...tipBlankTap}
+        onPointerDownCapture={() => setTipSheetTouched(true)}
+        onKeyDownCapture={() => setTipSheetTouched(true)}
         onCancel={(e) => {
           e.preventDefault();
           dismissTip();
@@ -4732,7 +5564,9 @@ export default function EasyScanCamera({
             <>
               <li>
                 <span aria-hidden="true">📄</span>{" "}
-                {easy.tipPaperOnTable(PAPER_SIZE_LABELS[paperSize])}
+                {cardActive
+                  ? cardCopy.cardRule
+                  : easy.tipPaperOnTable(PAPER_SIZE_LABELS[paperSize])}
               </li>
               <li>
                 <HandIcon width={18} height={18} /> {easy.tipHandFlat}

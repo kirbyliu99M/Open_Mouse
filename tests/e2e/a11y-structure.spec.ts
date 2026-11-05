@@ -3,6 +3,7 @@ import { en as siteMetaEn } from "../../src/lib/copy/site-meta";
 import { SITE_NAME } from "../../src/lib/site";
 import { contrast } from "./fixtures/contrast";
 import { installLoopFreeze, loopFrozen } from "./fixtures/freeze-loop";
+import { dismissFirstRun, skipFirstRun } from "./fixtures/first-run";
 
 // ── Page titles: each page names itself; the template adds the site ────────
 
@@ -69,7 +70,10 @@ test("the camera screen is the <main>, with a visually hidden h1, and the hand-l
   test.skip(info.project.name !== "mobile", "Runs in the mobile project.");
   await page.goto("/scan/easy");
   await expect(
-    page.getByRole("dialog", { name: "One blank sheet is all you need" }),
+    page.getByRole("dialog", {
+      // v3.4: the tour's first-use question took the paper tip's place.
+      name: /^(One blank sheet is all you need|First time scanning\?)$/,
+    }),
   ).toBeVisible();
   await expect(page.getByRole("main")).toHaveCount(1);
   await expect(page.locator("main.cameraViewfinder")).toHaveCount(1);
@@ -128,7 +132,7 @@ test("with a camera, the upload icon is named by hidden text and the input's nam
 }, info) => {
   test.skip(info.project.name !== "chromium-camera-paper-edge");
   await page.goto("/scan/easy");
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
   await expect(page.locator(".cameraFrame")).toBeVisible();
   const { name, labels } = await uploadNames(page);
   expect(labels).toHaveLength(1);
@@ -148,7 +152,7 @@ test("with no camera to open, the visible label says 'Upload a photo' and so doe
     Object.defineProperty(navigator, "mediaDevices", { value: undefined });
   });
   await page.goto("/scan/easy");
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
   const { name, labels } = await uploadNames(page);
   expect(labels.map((l) => l.text)).toEqual(["Upload a photo"]);
   expect(name).toBe("Upload a photo");
@@ -160,7 +164,7 @@ test("when the camera is refused, the visible label and the input's name agree",
 }, info) => {
   test.skip(info.project.name !== "mobile", "Runs in the mobile project.");
   await page.goto("/scan/easy");
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
   await expect(page.locator(".cameraErrorCard")).toBeVisible();
   const { name, labels } = await uploadNames(page);
   expect(labels.map((l) => l.text)).toEqual(["Upload a photo instead"]);
@@ -214,7 +218,7 @@ for (const colorScheme of ["dark"] as const) {
     test.skip(info.project.name !== "mobile", "Runs in the mobile project.");
     await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
     await page.goto("/scan/easy");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     await expect(page.locator(".cameraErrorCard")).toBeVisible();
     await tabToUpload(page);
     const ring = await focusRing(page);
@@ -234,7 +238,7 @@ for (const colorScheme of ["dark"] as const) {
       Object.defineProperty(navigator, "mediaDevices", { value: undefined });
     });
     await page.goto("/scan/easy");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     await expect(page.locator(".easyScanNoCamera")).toBeVisible();
     await tabToUpload(page);
     const ring = await focusRing(page);
@@ -263,8 +267,8 @@ test("Tab to the upload input shows a ring on the upload icon next to a live cam
     selector: "video.cameraVideo.ready",
     count: 1,
   });
+  await skipFirstRun(page);
   await page.goto("/scan/easy");
-  await page.getByRole("button", { name: "Got it" }).click();
   await expect(page.locator(".cameraFrame")).toBeVisible();
   await expect(page.locator("video.cameraVideo.ready")).toBeVisible({
     timeout: 20_000,

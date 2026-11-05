@@ -1,0 +1,376 @@
+/* The scan tour (v3.4, candidate). Design: Pencil section 14c, spec §5:
+   60 % black dim cut around the target with a box-shadow, a 2 px accent ring
+   plus a 1 px white halo, the card on --bg with a 20 px radius. Dark only,
+   like the camera screen. */
+
+.scanTour {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #f5f5f7);
+  overflow: hidden;
+}
+.scanTour::backdrop {
+  background: transparent;
+}
+
+.scanTourBlocker {
+  position: absolute;
+  inset: 0;
+}
+
+.scanTourDim {
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 60%);
+  pointer-events: none;
+}
+
+.scanTourHole {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  /* The ring: accent inside, a 1 px white halo outside it, then the dim. */
+  border: 2px solid var(--accent-text);
+  box-shadow:
+    0 0 0 1px #fff,
+    0 0 0 200vmax rgb(0 0 0 / 60%);
+  transition:
+    transform var(--motion-base, 220ms) var(--ease-out, ease-out),
+    width var(--motion-base, 220ms) var(--ease-out, ease-out),
+    height var(--motion-base, 220ms) var(--ease-out, ease-out),
+    border-radius var(--motion-base, 220ms) var(--ease-out, ease-out);
+}
+
+/* Paper step: the edge the wrist goes against. */
+.scanTourEdge {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent-text);
+  pointer-events: none;
+}
+
+.scanTourLabel {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 0.875rem;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 82%);
+  color: #ffc24a;
+  font-size: 0.875rem;
+  font-weight: 700;
+  white-space: nowrap;
+  max-width: calc(100vw - 32px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.scanTourLabelLight {
+  background: #f5f5f7;
+  color: #111;
+}
+
+.scanTourCard {
+  position: absolute;
+  box-sizing: border-box;
+  padding: 1.25rem 1.25rem 1.25rem;
+  border-radius: 20px;
+  background: var(--bg, #060709);
+  border: 1px solid rgb(255 255 255 / 14%);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 45%);
+  animation: scanTourIn var(--motion-base, 220ms) var(--ease-out, ease-out) both;
+}
+
+.scanTourArrow {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  margin-left: -8px;
+  background: var(--bg, #060709);
+  transform: rotate(45deg);
+}
+.scanTourArrow-top {
+  top: -8px;
+  border-left: 1px solid rgb(255 255 255 / 14%);
+  border-top: 1px solid rgb(255 255 255 / 14%);
+}
+.scanTourArrow-bottom {
+  bottom: -8px;
+  border-right: 1px solid rgb(255 255 255 / 14%);
+  border-bottom: 1px solid rgb(255 255 255 / 14%);
+}
+
+.scanTourHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.scanTourProgress {
+  flex: 1;
+  min-width: 0;
+}
+.scanTourBars {
+  display: flex;
+  gap: 6px;
+  max-width: 16rem;
+  margin-top: 0.5rem;
+}
+.scanTourBar {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 18%);
+}
+.scanTourBar.on {
+  background: #f5f5f7;
+}
+.scanTourCounter {
+  margin: 0.5rem 0 0;
+  color: var(--accent-text);
+  font-weight: 700;
+  font-size: 0.9375rem;
+}
+.scanTourSkip {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 0.25rem;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #a1a1a6);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.scanTourTitle,
+.scanTourWelcomeTitle {
+  margin: 0.75rem 0 0.5rem;
+  font-size: 1.25rem;
+  line-height: 1.35;
+  font-weight: 700;
+}
+.scanTourBody {
+  margin: 0 0 0.5rem;
+  color: var(--text-secondary, #a1a1a6);
+  line-height: 1.55;
+}
+
+.scanTourChoice {
+  display: flex;
+  gap: 4px;
+  margin: 0.25rem 0 0.75rem;
+  padding: 4px;
+  border: none;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 10%);
+}
+.scanTourChoiceOption {
+  position: relative;
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 44px;
+  border-radius: 999px;
+  color: var(--text-secondary, #a1a1a6);
+  font-weight: 700;
+  cursor: pointer;
+}
+.scanTourChoiceOption input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.scanTourChoiceOption.on {
+  background: #f5f5f7;
+  color: #111;
+}
+.scanTourChoiceOption:has(input:focus-visible) {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+.scanTourActions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.scanTourActions.two {
+  grid-template-columns: minmax(0, 0.55fr) minmax(0, 1fr);
+}
+.scanTourActions .primaryButton,
+.scanTourWide {
+  width: 100%;
+  min-height: 52px;
+}
+.scanTourSecondary {
+  min-height: 52px;
+  min-width: 44px;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--control-border, #ffffff59);
+  background: transparent;
+  color: var(--text-primary, #f5f5f7);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.scanTour button:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+}
+
+/* First use: a bottom sheet, the same shape as the camera's other sheets. */
+.scanTourWelcome {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 1.5rem 1.5rem calc(1.5rem + env(safe-area-inset-bottom));
+  border-radius: 1.25rem 1.25rem 0 0;
+  background: var(--bg, #060709);
+  animation: scanTourSheetIn var(--motion-sheet-in, 320ms)
+    var(--ease-out, ease-out) both;
+}
+@media (min-width: 720px) {
+  .scanTourWelcome {
+    width: min(100%, 28rem);
+    margin-inline: auto;
+  }
+}
+.scanTourWelcomeTitle {
+  margin-top: 0;
+  font-size: 1.5rem;
+}
+.scanTourLead {
+  margin: 0 0 1rem;
+  color: var(--text-secondary, #a1a1a6);
+  line-height: 1.5;
+}
+.scanTourRows {
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.scanTourRows li {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  line-height: 1.4;
+}
+.scanTourRowIcon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgb(31 107 240 / 28%);
+  color: var(--accent-text);
+}
+.scanTourWelcome .scanTourSecondary {
+  margin-top: 0.75rem;
+}
+.scanTourFinePrint {
+  margin: 1rem 0 0;
+  text-align: center;
+  color: var(--text-secondary, #a1a1a6);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+@keyframes scanTourIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes scanTourSheetIn {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* Design §6: no sliding under reduced motion, a short fade at most. */
+@media (prefers-reduced-motion: reduce) {
+  .scanTourHole {
+    transition: none;
+  }
+  .scanTourCard,
+  .scanTourWelcome {
+    animation: scanTourFade var(--motion-reduced, 120ms) linear both;
+  }
+}
+@keyframes scanTourFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (forced-colors: active) {
+  .scanTourHole {
+    border-color: Highlight;
+  }
+  .scanTourBar.on {
+    background: CanvasText;
+  }
+}
+
+/* Review item 17: the tour fades out when it closes (150 ms, the same as
+   TOUR_EXIT_FADE_MS; easyFadeOut is easy-scan.css's), none under reduced
+   motion (the script then closes it at once). */
+.scanTour[data-leaving="true"] {
+  animation: easyFadeOut 150ms ease-in forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scanTour[data-leaving="true"] {
+    animation: none;
+  }
+}
+
+/* Review T2(c): short viewports (<= 740 css px tall, TOUR_COMPACT_VIEWPORT_MAX)
+   get a compact card: a smaller title and body; the card itself scrolls past
+   TOUR_COMPACT_CARD_MAX, so the spotlight keeps the hand zone and the slot. */
+.scanTour[data-compact="true"] .scanTourTitle {
+  margin: 0.375rem 0 0.25rem;
+  font-size: 1.0625rem;
+}
+.scanTour[data-compact="true"] .scanTourBody {
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}

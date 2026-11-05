@@ -17,6 +17,7 @@ import {
   type Page,
 } from "@playwright/test";
 import { ATTEMPT_LOG_KEY } from "../../src/client/camera/attemptLog";
+import { dismissFirstRun } from "./fixtures/first-run";
 
 /**
  * Measurement, not a test of the suite: does a FRAME OF THE VIDEO, cut to the
@@ -164,7 +165,7 @@ test("a frame of the video cut to the part on screen goes through the real pipel
       });
       const page = await context.newPage();
       await page.goto("/scan/easy?debug=1&hints=0");
-      await page.getByRole("button", { name: "Got it" }).click();
+      await dismissFirstRun(page);
       // F15: a measured photo's frame is confirmed first, as it opened.
       await confirmAutoFrameIfShown(page, 90_000);
       const sheet = page.getByRole("dialog", {

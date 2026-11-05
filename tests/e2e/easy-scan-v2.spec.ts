@@ -13,6 +13,7 @@ import {
   leftWith,
   recordLeaving,
 } from "./fixtures/leaving";
+import { dismissFirstRun } from "./fixtures/first-run";
 
 /**
  * Scan v2 (docs/design/scan-v2-2026-09-30/README.md): the stage that never
@@ -63,7 +64,7 @@ const maxDelta = (a: Record<string, number>, b: Record<string, number>) =>
 
 async function openLive(page: Page, url = LIVE_DEMO) {
   await page.goto(url);
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
   await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
 }
 
@@ -175,7 +176,7 @@ test.describe("AC6: the debug panel", () => {
     for (const [i, url] of urls.entries()) {
       await page.goto(url);
       // The tip shows once per browser.
-      if (i === 0) await page.getByRole("button", { name: "Got it" }).click();
+      if (i === 0) await dismissFirstRun(page);
       await expect(page.locator(".easyStage")).toBeVisible();
       await page.waitForTimeout(600);
       await expect(page.getByTestId("scan-debug-panel"), url).toHaveCount(0);
@@ -194,7 +195,7 @@ test.describe("AC6: the debug panel", () => {
       res.url().includes("/mediapipe/models/hand_landmarker.task"),
     );
     await page.waitForLoadState("networkidle");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
 
     const requests: string[] = [];
     page.on("request", (req) => {
@@ -615,7 +616,7 @@ test.describe("AC3 and AC4: focus", () => {
     await fakeFocusSupport(page, true);
     await armLoopFreeze(page);
     await page.goto("/scan/easy");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
     await freezeLoop(page);
 
@@ -679,7 +680,7 @@ test.describe("AC3 and AC4: focus", () => {
     await fakeFocusSupport(page, false);
     await armLoopFreeze(page);
     await page.goto("/scan/easy");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
     await freezeLoop(page);
     await page
@@ -709,7 +710,7 @@ test.describe("AC3 and AC4: focus", () => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(String(error)));
     await page.goto("/scan/easy?debug=1&hints=0");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
     await expect(page.getByTestId("scan-debug-panel")).toContainText(
       "continuous no (OverconstrainedError)",
@@ -809,7 +810,7 @@ test.describe("the measured and retake layouts", () => {
     page,
   }) => {
     await page.goto("/scan/easy");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     await expect(
       page.getByRole("dialog", { name: "Retake needed" }),
     ).toBeVisible({ timeout: 20_000 });
@@ -927,7 +928,7 @@ test.describe("fix round 1: a retake starts clean", () => {
       };
     });
     await page.goto("/scan/easy");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     const sheet = page.getByRole("dialog", { name: "Retake needed" });
     await expect(sheet).toBeVisible({ timeout: 20_000 });
 
@@ -1148,7 +1149,7 @@ test.describe("fix round 1: the reticle is the spec's", () => {
     await fakeFocusSupport(page, true);
     await armLoopFreeze(page);
     await page.goto("/scan/easy");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
     await freezeLoop(page);
     await page
@@ -1274,7 +1275,7 @@ test.describe("fix round 1: a browser whose getSettings throws", () => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(String(error)));
     await page.goto("/scan/easy?debug=1&hints=0");
-    await page.getByRole("button", { name: "Got it" }).click();
+    await dismissFirstRun(page);
     await expect(page.locator(".easyStage video.cameraVideo")).toBeVisible();
     await expect(page.getByTestId("scan-debug-panel")).toBeVisible();
     // The scan carries on to a result.
@@ -2265,10 +2266,21 @@ test.describe("V3.2 motion pass: the scan flow leaves the way it came", () => {
       await recordLeaving(page);
       await captureAndMeasure(page);
       const before = await leavingRecords(page);
-      // #21: the first-run tip slides down, closed at once, over a fading scrim.
-      expectLeft(before, "easyTipSheet", "easySheetSlideOut", "0.24s", false);
-      expect(leftWith(before, "easyTipSheet")!.inert).toBe(true);
-      expectLeft(before, "easyTipScrim", "easyFadeOut", "0.24s");
+      // #21 (v3.4, review item 17): the first-run tip is now the scan tour
+      // over the live picture. It fades out (150 ms, TOUR_EXIT_FADE_MS),
+      // still an open modal while it fades, then closes; under reduced
+      // motion it closes at once, with no exit motion and no record.
+      const tourLeft = leftWith(before, "scanTour");
+      if (reduced) expect(tourLeft, "scanTour left").toBeUndefined();
+      else
+        expect(
+          [
+            tourLeft?.animationName,
+            tourLeft?.animationDuration,
+            tourLeft?.open,
+          ],
+          "scanTour",
+        ).toEqual(["easyFadeOut", "0.15s", true]);
       // #3: the cue goes up and the dock down when the photo is taken.
       expectLeft(before, "cameraCueWrap", "easyLiftOut", "0.15s");
       expectLeft(before, "easyBottomDock", "easySinkOut", "0.15s");
@@ -2452,7 +2464,8 @@ test.describe("V3.2 motion pass: interrupted transitions end usable", () => {
     // Nothing under the sheet's old place acted: no manual-entry sheet, the
     // paper size as it was, no second camera opening.
     await expect(page.getByTestId("manual-entry-sheet")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /^A4/ })).toBeVisible();
+    // v3.4: the paper chip (in the card build its name is "Reference: A4…").
+    await expect(page.locator('[data-tour="reference-chip"]')).toHaveText("A4");
     expect((await cameraOpens())! - opensBefore!).toBe(1);
     await expect(page.locator(".easyLeaveShield")).toHaveCount(0);
     await cameraUsable(page);

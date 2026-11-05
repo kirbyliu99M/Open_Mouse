@@ -4,6 +4,7 @@ import {
   PHOTO_PRIVACY_COPY,
   PHOTO_PRIVACY_COPY_THIS_DEVICE,
 } from "../../src/components/privacy-copy";
+import { dismissFirstRun } from "./fixtures/first-run";
 
 const output = "docs/design/easy-scan-shell-2026-09-25/built";
 
@@ -116,8 +117,9 @@ test("typed-length flow reaches hand detection gate with no requests after camer
     res.url().includes("/mediapipe/models/hand_landmarker.task"),
   );
   await page.waitForLoadState("networkidle");
+  // v3.4: the paper tip is the tour question now; the link is on the screen.
+  await dismissFirstRun(page);
   await page
-    .getByRole("dialog", { name: "One blank sheet is all you need" })
     .getByRole("button", { name: "No paper? Use a ruler instead" })
     .click();
   await expect(
@@ -264,8 +266,10 @@ async function openLengthStepFromTip(page: Page) {
     res.url().includes("/mediapipe/models/hand_landmarker.task"),
   );
   await page.waitForLoadState("networkidle");
+  // v3.4: the paper tip (which carried this link) is now the tour's
+  // question; answer it, then use the same link on the camera screen.
+  await dismissFirstRun(page);
   await page
-    .getByRole("dialog", { name: "One blank sheet is all you need" })
     .getByRole("button", { name: "No paper? Use a ruler instead" })
     .click();
   await expect(
@@ -351,9 +355,13 @@ test("a user in no-paper mode can go back to paper, and the tip stops talking ab
 
   await page.getByRole("button", { name: "Use paper instead" }).click();
   await expect(page.getByText("186 mm entered")).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: /^(A4|Letter)/ }),
-  ).toBeVisible();
+  // The paper-size chip is back (v3.4: with the card build its accessible
+  // name is "Reference: A4 (tap to change)", so it is found by its role in
+  // the tour and read by its text).
+  await expect(page.locator('[data-tour="reference-chip"]')).toBeVisible();
+  await expect(page.locator('[data-tour="reference-chip"]')).toHaveText(
+    /^(A4|Letter)$/,
+  );
   await expect(
     page.getByRole("button", { name: "No paper? Use a ruler instead" }),
   ).toBeVisible();
@@ -406,7 +414,7 @@ test("without a usable camera, the length step goes back to the upload screen, n
     Object.defineProperty(navigator, "mediaDevices", { value: undefined });
   });
   await page.goto("/scan/easy");
-  await page.getByRole("button", { name: "Got it" }).click();
+  await dismissFirstRun(page);
   const paperCopy =
     "Upload a top-down photo of your hand on a blank sheet of paper.";
   await expect(page.getByText(paperCopy)).toBeVisible();
@@ -524,7 +532,9 @@ test("the length step is themed: focus ring, link, hint and button keep their co
 test("the tip's no-paper link and the measured sheet's precision note keep their contrast on the dark theme", async ({
   page,
 }, info) => {
-  test.skip(info.project.name !== "chromium-camera-paper-edge");
+  // v3.4: with a camera the first-run screen is the tour's question; the
+  // paper tip (and its link) shows where there is no camera screen.
+  test.skip(info.project.name !== "mobile");
   await page.goto("/scan/easy");
   await page.waitForLoadState("networkidle");
   await page.emulateMedia({ colorScheme: "dark" });
@@ -801,6 +811,8 @@ test("a palm that does not fit the typed length gets one instruction and a way t
 }, info) => {
   test.skip(info.project.name !== "mobile", "Uses the upload path.");
   await page.goto("/scan/easy/length-failure-demo");
+  // v3.4: without a camera screen (no camera here) the first-run screen
+  // stays the paper tip, with its "no paper" entry.
   await page
     .getByRole("dialog", { name: "One blank sheet is all you need" })
     .getByRole("button", { name: "No paper? Use a ruler instead" })
