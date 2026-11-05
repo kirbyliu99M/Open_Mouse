@@ -301,6 +301,7 @@ export default function ScanTour({
 
   const stepIndex = state.phase === "step" ? state.index : -1;
   const step = stepIndex >= 0 ? steps[stepIndex] : undefined;
+  const stepId = step?.id ?? "";
 
   // The card's own size, for placing it.
   useLayoutEffect(() => {
@@ -312,7 +313,7 @@ export default function ScanTour({
       // does not feed back into the next placement.
       const height = Math.max(box.height, el.scrollHeight);
       tooltipMeasuredForRef.current =
-        state.phase === "step" ? `${stepIndex}:${step?.id ?? ""}` : null;
+        state.phase === "step" ? `${stepIndex}:${stepId}` : null;
       setTooltipSize((s) =>
         s && s.width === box.width && s.height === height
           ? s
@@ -324,7 +325,7 @@ export default function ScanTour({
     const observer = new ResizeObserver(update);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [state.phase, stepIndex]);
+  }, [state.phase, stepIndex, stepId]);
 
   const measured = step ? (targets[step.target] ?? null) : null;
   const ring = measured ? inflateRect(measured.rect, SPOTLIGHT_PAD) : null;
