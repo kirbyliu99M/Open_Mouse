@@ -693,3 +693,60 @@ export function layoutSpotlight(
     hole,
   };
 }
+
+/** At or below this viewport height (css px) the tour card is compact (review T2). */
+export const TOUR_COMPACT_VIEWPORT_MAX = 740;
+/** The compact card's height limit, px: it scrolls inside beyond it (review T2). */
+export const TOUR_COMPACT_CARD_MAX = 232;
+
+/** The card's height the placement uses: the compact limit on a short viewport. */
+export function tourCardHeight(
+  measuredHeight: number,
+  viewportHeight: number,
+): number {
+  return viewportHeight <= TOUR_COMPACT_VIEWPORT_MAX
+    ? Math.min(measuredHeight, TOUR_COMPACT_CARD_MAX)
+    : measuredHeight;
+}
+
+/**
+ * Whether the step's placement is frozen once measured (review T1): step 1,
+ * where choosing the card in the radios changes the chip and the overlay
+ * under the card; the next step or a resize places it again.
+ */
+export function freezesPlacement(stepId: TourStepId | undefined): boolean {
+  return stepId === "reference";
+}
+
+/**
+ * The live cue under the tour (review T2(b)): hidden while the tour is up,
+ * except on the cue step, which points at it.
+ */
+export function tourCueHidden(
+  stepId: string | null | undefined,
+  tourOpen: boolean,
+): boolean {
+  return tourOpen && stepId !== "cue";
+}
+
+/**
+ * The card step's card height limit so the spotlight still holds the whole
+ * card slot (review T2(c)): the card is pinned at the bottom and the ring
+ * ends HOLE_TOOLTIP_GAP above it, so the card may reach up to that far
+ * below the slot's (padded) bottom. `null` without a slot.
+ */
+export function cardStepCardMax(
+  viewportHeight: number,
+  slotBottom: number | null,
+): number | null {
+  if (slotBottom === null || !Number.isFinite(slotBottom)) return null;
+  return Math.max(
+    0,
+    Math.floor(
+      viewportHeight -
+        SCREEN_MARGIN -
+        HOLE_TOOLTIP_GAP -
+        (slotBottom + SPOTLIGHT_PAD),
+    ),
+  );
+}

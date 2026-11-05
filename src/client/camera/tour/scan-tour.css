@@ -361,3 +361,16 @@
     animation: none;
   }
 }
+
+/* Review T2(c): short viewports (<= 740 css px tall, TOUR_COMPACT_VIEWPORT_MAX)
+   get a compact card: a smaller title and body; the card itself scrolls past
+   TOUR_COMPACT_CARD_MAX, so the spotlight keeps the hand zone and the slot. */
+.scanTour[data-compact="true"] .scanTourTitle {
+  margin: 0.375rem 0 0.25rem;
+  font-size: 1.0625rem;
+}
+.scanTour[data-compact="true"] .scanTourBody {
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}

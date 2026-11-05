@@ -75,6 +75,18 @@ const WRIST_LABEL_TEXT = "手腕大約在這附近";
 export function labelTopPx(
   label: LabelSpec,
   floorPx: number | null,
+  cutoffPx: number | null = null,
+): number | null {
+  const top = labelTopUncut(label, floorPx);
+  if (top === null) return null;
+  // Review T2: a label the tour's spotlight would cut in half is left out.
+  if (cutoffPx !== null && top + labelHeightPx(label) > cutoffPx) return null;
+  return top;
+}
+
+function labelTopUncut(
+  label: LabelSpec,
+  floorPx: number | null,
 ): number | null {
   const height = labelHeightPx(label);
   if (label.wristLineY === undefined) return label.y - height / 2;
@@ -102,6 +114,7 @@ export function CardGuideOverlay({
   height,
   copy,
   labelFloorPx = null,
+  labelCutoffPx = null,
 }: {
   readonly shapes: readonly OverlayShape[];
   readonly width: number;
@@ -109,6 +122,11 @@ export function CardGuideOverlay({
   readonly copy: CardReferenceCopy;
   /** The dock's top in this layer, px: no label goes below it (review G5). */
   readonly labelFloorPx?: number | null;
+  /**
+   * The scan tour's spotlight bottom, px (review T2): a label that would
+   * reach past it (cut by the dim) is left out.
+   */
+  readonly labelCutoffPx?: number | null;
 }) {
   if (!(width > 0) || !(height > 0)) return null;
   const X = (x: number) => x * width;
@@ -332,7 +350,7 @@ export function CardGuideOverlay({
         }}
       >
         {labels.map((label, i) => {
-          const top = labelTopPx(label, labelFloorPx);
+          const top = labelTopPx(label, labelFloorPx, labelCutoffPx);
           return top === null ? null : (
             <span
               key={i}

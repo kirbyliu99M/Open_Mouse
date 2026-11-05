@@ -25,7 +25,13 @@ import {
   buildTourSteps,
   HOLE_TOOLTIP_GAP,
   PICTURE_WAIT_MS,
+  TOUR_COMPACT_CARD_MAX,
+  TOUR_COMPACT_VIEWPORT_MAX,
   TOUR_EXIT_FADE_MS,
+  cardStepCardMax,
+  freezesPlacement,
+  tourCardHeight,
+  tourCueHidden,
   edgeVisible,
   layoutSpotlight,
   placeTooltip,
@@ -38,6 +44,8 @@ import {
   type TourState,
 } from "../../src/client/camera/tour/tourModel";
 import { cardReferenceCopy } from "../../src/lib/copy/card-reference";
+import { GM2_CARD_ZONE } from "../../src/client/card/hand/gm2Rules";
+import { cardLayoutRect } from "../../src/client/card/cardLive";
 import {
   cardRuleLineShown,
   cardStaticShapes,
@@ -1248,6 +1256,109 @@ describe("round 8: K1 one short rule line, K2 level ring, K3 level-hint row", ()
     expect(b.tilt!.y + b.tilt!.height).toBeLessThanOrEqual(b.slot!.y);
     expect(between(css, ".easyCardRow {", "}")).toMatch(
       /display: flex;[\s\S]*justify-content: space-between;/,
+    );
+  });
+});
+
+describe("phone test T1/T2: step 1 holds still; card step 2 readable on short phones", () => {
+  it("T1: step 1's placement is frozen once its card was measured; other steps are not", () => {
+    expect(freezesPlacement("reference")).toBe(true);
+    expect(freezesPlacement("placement")).toBe(false);
+    expect(freezesPlacement("cue")).toBe(false);
+    expect(tour).toMatch(
+      /frozen\.key === stepKeyNow &&\s*frozen\.vw === viewport\.width &&\s*frozen\.vh === viewport\.height\s*\) \{\s*layout = frozen\.layout;/,
+    );
+    expect(tour).toMatch(
+      /freezesPlacement\(step\?\.id\) &&\s*tooltipMeasuredForRef\.current === stepKeyNow/,
+    );
+    // A frozen card above its target is held by its bottom edge.
+    expect(tour).toMatch(
+      /frozenNow && placement\.arrow\?\.side === "bottom"[\s\S]{0,120}?bottom: viewport\.height - \(placement\.y \+ frozenNow\.cardHeight\)/,
+    );
+  });
+
+  it("T2(a): the card step draws no labels of its own", () => {
+    expect(tour).toContain("const cardLabels: readonly string[] = [];");
+  });
+
+  it("T2(b): the live cue is hidden under the tour except on the cue step", () => {
+    expect(tourCueHidden("placement", true)).toBe(true);
+    expect(tourCueHidden(null, true)).toBe(true);
+    expect(tourCueHidden("cue", true)).toBe(false);
+    expect(tourCueHidden(undefined, false)).toBe(false);
+    expect(camera).toMatch(
+      /data-tour-hidden=\{\s*tourCueHidden\(tourView\?\.stepId, tourView !== null\)/,
+    );
+    expect(camera).toContain("onView={setTourView}");
+    // Opacity, not visibility: the tour still measures the cue.
+    expect(
+      between(css, '.cameraCue[data-tour-hidden="true"] {', "}"),
+    ).toContain("opacity: 0;");
+  });
+
+  it("T2(c): on 384×700, 360×640 and 390×844 the card step's spotlight holds the whole slot, never under the card; a cut slot label is left out", () => {
+    const zone = GM2_CARD_ZONE;
+    for (const viewport of [
+      { width: 384, height: 700 },
+      { width: 360, height: 640 },
+      { width: 390, height: 844 },
+    ])
+      for (const side of ["right", "left"] as const) {
+        const r = cardLayoutRect(side);
+        const ring = {
+          x: r.x * viewport.width - 6,
+          y: r.y * viewport.height - 6,
+          width: r.width * viewport.width + 12,
+          height: r.height * viewport.height + 12,
+        };
+        // The card step's natural card is tall (its body is long); it is
+        // capped as ScanTour caps it (compact viewport, and the slot kept).
+        const slotBottomPx = (zone.cy + zone.height / 2) * viewport.height;
+        const card = {
+          width: viewport.width - 32,
+          height: Math.min(
+            tourCardHeight(330, viewport.height),
+            cardStepCardMax(viewport.height, slotBottomPx)!,
+          ),
+        };
+        const { placement, hole } = layoutSpotlight(
+          ring,
+          ring,
+          card,
+          viewport,
+          "auto",
+          "top",
+        );
+        const slotY0 = (zone.cy - zone.height / 2) * viewport.height;
+        const slotY1 = (zone.cy + zone.height / 2) * viewport.height;
+        const where = `${viewport.width}×${viewport.height} ${side}`;
+        expect(hole.y, where).toBeLessThanOrEqual(slotY0);
+        expect(hole.y + hole.height, where).toBeGreaterThanOrEqual(slotY1);
+        expect(
+          placement.y >= hole.y + hole.height ||
+            placement.y + card.height <= hole.y,
+          where,
+        ).toBe(true);
+        // The slot label (2 lines, 15 px) under the slot: inside the hole or left out.
+        const slotLabel = {
+          text: "Card" + String.fromCharCode(10) + "here",
+          x: 0,
+          y: slotY1 + 22,
+          anchor: "middle" as const,
+          size: 15,
+        };
+        const top = labelTopPx(slotLabel, null, hole.y + hole.height);
+        if (top !== null)
+          expect(top + labelHeightPx(slotLabel)).toBeLessThanOrEqual(
+            hole.y + hole.height,
+          );
+      }
+    expect(tourCardHeight(330, 700)).toBe(TOUR_COMPACT_CARD_MAX);
+    expect(tourCardHeight(330, 844)).toBe(330);
+    expect(TOUR_COMPACT_VIEWPORT_MAX).toBe(740);
+    expect(camera).toContain("labelCutoffPx={tourView?.holeBottom ?? null}");
+    expect(tour).toMatch(
+      /step\?\.target === "card-layout"\s*\? cardStepCardMax\(/,
     );
   });
 });

@@ -2327,3 +2327,9 @@ main.easyScanShell {
     border: 2px solid #fff;
   }
 }
+
+/* Review T2(b): the live cue is hidden under the scan tour except on its cue
+   step (opacity, so the tour can still measure it). */
+.cameraCue[data-tour-hidden="true"] {
+  opacity: 0;
+}

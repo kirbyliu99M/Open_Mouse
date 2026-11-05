@@ -37,8 +37,15 @@ import {
   buildTourSteps,
   inflateRect,
   edgeVisible,
+  TOUR_COMPACT_CARD_MAX,
+  TOUR_COMPACT_VIEWPORT_MAX,
+  cardStepCardMax,
+  freezesPlacement,
   layoutSpotlight,
   prefersReducedMotion,
+  tourCardHeight,
+  type SpotlightLayout,
+  type TourStepId,
   rectsClose,
   spotlightRadius,
   tourExitMs,
@@ -71,6 +78,15 @@ export interface ScanTourProps {
   readonly hand?: "left" | "right";
   /** The tour is over (finished, skipped, or nothing to point at). */
   readonly onClose: () => void;
+  /**
+   * What the tour shows now (review T2): the step (null on the question),
+   * and the spotlight's bottom edge in viewport px (null without one); null
+   * once the tour is gone. The camera hides its live cue and the guide
+   * labels the spotlight would cut.
+   */
+  readonly onView?: (
+    view: { stepId: TourStepId | null; holeBottom: number | null } | null,
+  ) => void;
 }
 
 interface Measured {
@@ -144,8 +160,8 @@ export default function ScanTour({
   noPaperEntry,
   onReferenceChange,
   resolvePaperFrame,
-  hand = "right",
   onClose,
+  onView,
 }: ScanTourProps) {
   const copy = scanTourCopy(useLocale());
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -158,6 +174,15 @@ export default function ScanTour({
     width: number;
     height: number;
   } | null>(null);
+  // Review T1: the step-1 placement, frozen once its card was measured.
+  const freezeRef = useRef<{
+    key: string;
+    vw: number;
+    vh: number;
+    layout: SpotlightLayout;
+    cardHeight: number;
+  } | null>(null);
+  const tooltipMeasuredForRef = useRef<string | null>(null);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
 
   const allSteps = buildTourSteps({ reference, cardModeAvailable });
@@ -286,6 +311,8 @@ export default function ScanTour({
       // The card's natural height (scrollHeight), so a maxHeight set from it
       // does not feed back into the next placement.
       const height = Math.max(box.height, el.scrollHeight);
+      tooltipMeasuredForRef.current =
+        state.phase === "step" ? `${stepIndex}:${step?.id ?? ""}` : null;
       setTooltipSize((s) =>
         s && s.width === box.width && s.height === height
           ? s
@@ -302,16 +329,9 @@ export default function ScanTour({
   const measured = step ? (targets[step.target] ?? null) : null;
   const ring = measured ? inflateRect(measured.rect, SPOTLIGHT_PAD) : null;
 
-  // Labels drawn beside the spotlight on the placement step.
-  const cardLabels =
-    step?.target === "card-slot" || step?.target === "card-layout"
-      ? [
-          copy.placeCardCentreLabel,
-          hand === "left"
-            ? copy.placeCardHandLabelLeft
-            : copy.placeCardHandLabel,
-        ]
-      : [];
+  // Review T2(a): the card step draws no labels of its own any more (the
+  // body says the same, and on a short phone they piled up and were cut).
+  const cardLabels: readonly string[] = [];
   // A tall spotlight (hand and slot, as drawn) holds the labels inside its
   // lower edge; a small one (the slot alone) gets them just below it, and the
   // card then keeps clear of them too.
@@ -331,12 +351,43 @@ export default function ScanTour({
   // Review G6/G7: the card never covers the ring; a tall ring is cropped to
   // end above a card pinned at the bottom (labels and the paper's wrist line
   // then sit at the cropped edge), a small one gets a card that scrolls.
-  const layout =
-    step && ring && tooltipSize && viewport.width > 0
+  // Review T2(c): a short viewport gets the compact card (its height limit).
+  // On the card step the card is also capped so the spotlight keeps the
+  // whole slot (cardStepCardMax).
+  const slotRect = targets["card-slot"]?.rect ?? null;
+  const cardStepMax =
+    step?.target === "card-layout"
+      ? cardStepCardMax(
+          viewport.height,
+          slotRect ? slotRect.y + slotRect.height : null,
+        )
+      : null;
+  const cardMax = Math.min(
+    viewport.height > 0 && viewport.height <= TOUR_COMPACT_VIEWPORT_MAX
+      ? TOUR_COMPACT_CARD_MAX
+      : Infinity,
+    cardStepMax ?? Infinity,
+  );
+  const cardSize = tooltipSize
+    ? {
+        width: tooltipSize.width,
+        height: Math.min(
+          tourCardHeight(tooltipSize.height, viewport.height),
+          cardMax,
+        ),
+      }
+    : null;
+  const compact =
+    (viewport.height > 0 && viewport.height <= TOUR_COMPACT_VIEWPORT_MAX) ||
+    (cardStepMax !== null &&
+      tooltipSize !== null &&
+      tooltipSize.height > cardStepMax);
+  const computedLayout =
+    step && ring && cardSize && viewport.width > 0
       ? layoutSpotlight(
           ring,
           unionRect(ring, labelsBelow),
-          tooltipSize,
+          cardSize,
           viewport,
           step.placement,
           // Review H2: the paper keeps its real bottom edge lit (the wrist
@@ -344,8 +395,56 @@ export default function ScanTour({
           step.target === "paper-frame" ? "bottom" : "top",
         )
       : null;
+  // Review T1: step 1's card and spotlight stay where they were placed when
+  // the step opened (choosing the card in its radios changes the chip and
+  // the overlay under it); the next step or a resize places them again.
+  const stepKeyNow =
+    state.phase === "step" ? `${stepIndex}:${step?.id ?? ""}` : null;
+  let layout = computedLayout;
+  const frozen = freezeRef.current;
+  if (
+    frozen &&
+    stepKeyNow !== null &&
+    frozen.key === stepKeyNow &&
+    frozen.vw === viewport.width &&
+    frozen.vh === viewport.height
+  ) {
+    layout = frozen.layout;
+  } else if (
+    computedLayout &&
+    cardSize &&
+    stepKeyNow !== null &&
+    freezesPlacement(step?.id) &&
+    tooltipMeasuredForRef.current === stepKeyNow
+  ) {
+    freezeRef.current = {
+      key: stepKeyNow,
+      vw: viewport.width,
+      vh: viewport.height,
+      layout: computedLayout,
+      cardHeight: cardSize.height,
+    };
+  }
+  const frozenNow =
+    freezeRef.current !== null &&
+    freezeRef.current.key === stepKeyNow &&
+    layout === freezeRef.current.layout
+      ? freezeRef.current
+      : null;
   const placement = layout?.placement ?? null;
   const hole = layout?.hole ?? ring;
+
+  // Review T2: tell the camera what is on screen (it hides its live cue
+  // away from the cue step, and the guide labels the spotlight would cut).
+  const onViewRef = useRef(onView);
+  onViewRef.current = onView;
+  const viewStepId = state.phase === "step" ? (step?.id ?? null) : null;
+  const holeBottom = hole ? Math.round(hole.y + hole.height) : null;
+  const viewOpen = state.phase !== "closed";
+  useEffect(() => {
+    onViewRef.current?.(viewOpen ? { stepId: viewStepId, holeBottom } : null);
+  }, [viewOpen, viewStepId, holeBottom]);
+  useEffect(() => () => onViewRef.current?.(null), []);
   const fixedRadius = step ? FIXED_SPOTLIGHT_RADIUS[step.target] : undefined;
   const radius =
     measured && hole
@@ -414,13 +513,22 @@ export default function ScanTour({
   const tooltipStyle: CSSProperties = placement
     ? {
         left: placement.x,
-        top: placement.y,
+        // Review T1: a frozen card above its target is held by its bottom
+        // edge, so a longer body grows upward, never over the target.
+        ...(frozenNow && placement.arrow?.side === "bottom"
+          ? {
+              bottom: viewport.height - (placement.y + frozenNow.cardHeight),
+            }
+          : { top: placement.y }),
         width: placement.width,
         // Short screens: the card scrolls inside rather than cover the ring
-        // (the G8 note: the chip at 360 × 640).
+        // (the G8 note: the chip at 360 × 640); a short viewport gets the
+        // compact card (review T2).
         ...(placement.maxHeight !== undefined
           ? { maxHeight: placement.maxHeight, overflowY: "auto" as const }
-          : {}),
+          : compact && Number.isFinite(cardMax)
+            ? { maxHeight: cardMax, overflowY: "auto" as const }
+            : {}),
       }
     : // First paint: measured off-screen, not seen.
       { left: 16, top: 0, visibility: "hidden" };
@@ -431,6 +539,7 @@ export default function ScanTour({
       data-leaving={leaving ? "true" : undefined}
       className="scanTour"
       data-phase={state.phase}
+      data-compact={compact ? "true" : undefined}
       aria-labelledby="scan-tour-title"
       onCancel={onCancel}
       data-testid="scan-tour"

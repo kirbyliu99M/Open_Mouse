@@ -378,6 +378,7 @@ import {
   guideRectInViewport,
   PICTURE_WAIT_MS,
   tipPresentation,
+  tourCueHidden,
   tourReturnFocus,
 } from "./tour/tourModel";
 
@@ -857,6 +858,11 @@ export default function EasyScanCamera({
   // tour (tour/ScanTour.tsx); "auto" asks 第一次掃描嗎？ first, "?" does not.
   // The typed-length mode keeps the old sheet below.
   const [tipTrigger, setTipTrigger] = useState<"auto" | "help">("auto");
+  // Review T2: what the scan tour shows now (null without it).
+  const [tourView, setTourView] = useState<{
+    stepId: string | null;
+    holeBottom: number | null;
+  } | null>(null);
   const [cue, setCue] = useState<Cue | null>(null);
   // The dots' states live in a small store that only the dots read
   // (EasyCorners.tsx, 2026-10-28): a sample re-renders four dots, not the
@@ -4676,6 +4682,8 @@ export default function EasyScanCamera({
                     : cardStaticShapes(handChip.hand, stageSize)
                 }
                 labelFloorPx={dockTopPx}
+                // Review T2: a label the tour's spotlight would cut is left out.
+                labelCutoffPx={tourView?.holeBottom ?? null}
                 width={stageSize.width}
                 height={stageSize.height}
                 copy={cardCopy}
@@ -5010,6 +5018,13 @@ export default function EasyScanCamera({
               className={`cameraCue${cue?.allPass && !captureFailureHint ? " perfect" : ""}${cue && !captureFailureHint && isPlacementCueCode(cue.code) ? " cameraCueSoftHint" : ""}`}
               aria-live="polite"
               data-testid="camera-cue"
+              // Review T2(b): under the tour the live cue shows only on the
+              // cue step (it piled up with the card step's spotlight).
+              data-tour-hidden={
+                tourCueHidden(tourView?.stepId, tourView !== null)
+                  ? "true"
+                  : undefined
+              }
               data-tour="cue"
               data-capture-failure={captureFailureHint ? "true" : undefined}
             >
@@ -5509,6 +5524,7 @@ export default function EasyScanCamera({
           }
           hand={handChip.hand}
           onClose={closeTour}
+          onView={setTourView}
         />
       )}
       {tipLeave.leaving && <div className="easyTipScrim" aria-hidden="true" />}
