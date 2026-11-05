@@ -143,23 +143,41 @@
 .easyScanStaged .cameraCueWrap[data-card="true"] {
   flex-direction: column;
   align-items: center;
+  padding-top: 0;
 }
-.cameraCueWrap[data-card="true"] .easyCardRule,
-.cameraCueWrap[data-card="true"] .easyTiltPermission {
-  align-self: flex-start;
+/* Review K1/K3: one row under the cue: the short rule on the hand's side,
+   the level-hint button on the card side. */
+.easyCardRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 0.375rem;
+}
+.cameraCueWrap[data-hand="left"] .easyCardRow {
+  flex-direction: row-reverse;
+}
+.easyCardRow .easyCardRule,
+.easyCardRow .easyTiltPermission {
+  margin: 0;
+  font-size: 0.75rem;
+}
+.easyCardRow .easyTiltPermission {
+  margin-left: auto;
+  padding: 0 0.625rem;
+}
+.cameraCueWrap[data-hand="left"] .easyCardRow .easyTiltPermission {
   margin-left: 0;
-  margin-right: 0;
-}
-.cameraCueWrap[data-card="true"][data-hand="left"] .easyCardRule,
-.cameraCueWrap[data-card="true"][data-hand="left"] .easyTiltPermission {
-  align-self: flex-end;
+  margin-right: auto;
 }
 /* v3.4 card mode (review G5): the card rule under the cue pill, in the top
    band; white on rgba(0,0,0,.6) like the pills (5.74:1 on a white picture). */
 .easyCardRule {
-  max-width: calc(64% - 1rem);
+  white-space: nowrap;
   margin: 0.5rem auto 0;
-  padding: 0.375rem 0.75rem;
+  padding: 0.25rem 0.625rem;
   border-radius: 0.75rem;
   background: rgba(0, 0, 0, 0.6);
   color: #fff;

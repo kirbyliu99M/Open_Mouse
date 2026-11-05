@@ -155,6 +155,19 @@ export function cardHintKey(problem: GuideCheck | null): CardHintKey {
   }
 }
 
+/**
+ * Whether the short card rule shows under the cue (review K1): while there is
+ * no hand in the frame (no hint yet, the detector loading, or "no hand"),
+ * which is also the state after a retake when the card was not found; gone
+ * once a hand is read.
+ */
+export function cardRuleLineShown(
+  hint: string | null,
+  copy: CardReferenceCopy,
+): boolean {
+  return hint === null || hint === copy.hintNoHand || hint === copy.hintLoading;
+}
+
 /** The words for a G-M2 check's hint. */
 export function cardHintText(
   problem: GuideCheck | null,

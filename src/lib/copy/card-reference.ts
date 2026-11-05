@@ -29,8 +29,10 @@ export interface CardReferenceCopy {
   tiltPermission: string;
   /** The typed-length entry in card mode (review G9; paper keeps its own). */
   noCardEntry: string;
-  /** The one line under the viewfinder in card mode: which card and how. */
+  /** The full card rule: which card and how (the tour, the tips). */
   cardRule: string;
+  /** The one short line under the cue on the live screen (review K1). */
+  cardRuleShort: string;
   /** Overlay labels. */
   handZone: string;
   cardZone: string;
@@ -76,6 +78,7 @@ export const zhTW: CardReferenceCopy = {
   noCardEntry: "沒有卡片？改用尺量手長",
   cardRule:
     "卡片要淺色或亮面、標準大小，背面朝上放在小指那側。不要用名片，也不要露出有名字或號碼的那面。",
+  cardRuleShort: "淺色卡片、背面朝上，放進虛線框",
   handZone: "手放這裡",
   cardZone: "卡片\n放這裡",
   axis: "中線",
@@ -113,10 +116,11 @@ export const en: CardReferenceCopy = {
   menuLetterDetail: "US letter size",
   menuCard: "Card",
   menuCardDetail: "The size of a transit card",
-  tiltPermission: "Turn on the level hint",
+  tiltPermission: "Level hint",
   noCardEntry: "No card? Use a ruler instead",
   cardRule:
     "Use a light or glossy standard-size card, back side up, beside your little finger. Not a business card, and never the side with a name or number.",
+  cardRuleShort: "Light card, back up, in the box",
   handZone: "Hand here",
   cardZone: "Card\nhere",
   axis: "Centre",

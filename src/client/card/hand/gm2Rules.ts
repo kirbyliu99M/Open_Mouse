@@ -78,8 +78,11 @@ export const GM2_AXIS_X = 0.35;
  * the long edge), not to scale, so nobody uses it as a distance target.
  */
 export const GM2_CARD_ZONE = { x0: 0.68, x1: 0.9, cy: 0.42, height: 0.32 };
-/** The spirit level, right hand (top-right corner). */
-export const GM2_LEVEL_AT = { x: 0.88, y: 0.07 };
+/**
+ * The spirit level, right hand: inside the card slot's top, centred on it
+ * (v3.4 review K2: the lab's top-right corner sat on the hand chip).
+ */
+export const GM2_LEVEL_AT = { x: 0.79, y: 0.285 };
 
 export interface Gm2Layout {
   readonly side: HandSide;

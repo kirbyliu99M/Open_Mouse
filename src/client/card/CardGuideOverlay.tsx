@@ -14,6 +14,7 @@ import type { CardReferenceCopy } from "../../lib/copy/card-reference";
 import { GUIDE_COPY } from "./hand/guideCopy";
 import { guideLabelTop } from "./cardChromeLayout";
 import { GM2_WRIST_LABEL_RISE } from "./hand/guides/gm2";
+import { GM2_LEVEL_AT } from "./hand/gm2Rules";
 import type { OverlayShape, Tone } from "./hand/guides/types";
 
 const TONE: Record<Tone, string> = {
@@ -275,7 +276,7 @@ export function CardGuideOverlay({
           case "skeleton":
             return null;
           case "level": {
-            const at = s.at ?? { x: 0.88, y: 0.07 };
+            const at = s.at ?? GM2_LEVEL_AT;
             const cx = X(at.x);
             const cy = Y(at.y);
             const r = 18;

@@ -38,10 +38,14 @@ import {
   type TourState,
 } from "../../src/client/camera/tour/tourModel";
 import { cardReferenceCopy } from "../../src/lib/copy/card-reference";
-import { cardStaticShapes } from "../../src/client/card/cardLive";
+import {
+  cardRuleLineShown,
+  cardStaticShapes,
+} from "../../src/client/card/cardLive";
 import { CardGuideOverlay } from "../../src/client/card/CardGuideOverlay";
 import { loadCardGuideOverlay } from "../../src/client/card/LazyCardGuideOverlay";
 import {
+  CARD_CHROME_ALLOWED_PAIRS,
   boxesOverlap,
   cardChromeBoxes,
   guideLabelTop,
@@ -956,11 +960,8 @@ describe("round 6: G5 card screen layout, G6/G7 spotlight crop, G8–G10", () =>
     b: { y: number; height: number },
   ) => a.y < b.y + b.height && b.y < a.y + a.height;
 
-  it("G5: no two of cue, card rule, wrist label, level-hint button, chip, shutter, upload overlap (360/390/430 wide; short and tall)", () => {
-    const rules = [
-      cardReferenceCopy("zh-TW").cardRule,
-      cardReferenceCopy("en").cardRule,
-    ];
+  it("G5/K1–K3: no two of top bar, cue, short rule, level-hint button, level ring, wrist label, chip, shutter, upload, slot, slot label overlap (360/390/430 wide; short and tall)", () => {
+    const locales = [cardReferenceCopy("zh-TW"), cardReferenceCopy("en")];
     const sizes = [
       { width: 360, height: 640 },
       { width: 360, height: 780 },
@@ -968,12 +969,13 @@ describe("round 6: G5 card screen layout, G6/G7 spotlight crop, G8–G10", () =>
       { width: 430, height: 932 },
     ];
     for (const viewport of sizes)
-      for (const ruleText of rules)
+      for (const words of locales)
         for (const tilt of [false, true])
           for (const typedEntry of [false, true])
             for (const side of ["right", "left"] as const) {
               const boxes = cardChromeBoxes(viewport, {
-                ruleText,
+                ruleText: words.cardRuleShort,
+                tiltText: words.tiltPermission,
                 tilt,
                 typedEntry,
                 side,
@@ -981,12 +983,17 @@ describe("round 6: G5 card screen layout, G6/G7 spotlight crop, G8–G10", () =>
               const list = Object.entries(boxes).filter(
                 (e): e is [string, NonNullable<(typeof e)[1]>] => e[1] !== null,
               );
+              const allowed = (x: string, y: string) =>
+                CARD_CHROME_ALLOWED_PAIRS.some(
+                  ([p, q]) => (p === x && q === y) || (p === y && q === x),
+                );
               for (let a = 0; a < list.length; a++)
                 for (let b = a + 1; b < list.length; b++)
-                  expect(
-                    boxesOverlap(list[a][1], list[b][1]),
-                    `${list[a][0]} × ${list[b][0]} at ${viewport.width}×${viewport.height} tilt=${tilt} typed=${typedEntry} ${side}`,
-                  ).toBe(false);
+                  if (!allowed(list[a][0], list[b][0]))
+                    expect(
+                      boxesOverlap(list[a][1], list[b][1]),
+                      `${list[a][0]} × ${list[b][0]} at ${viewport.width}×${viewport.height} tilt=${tilt} typed=${typedEntry} ${side}`,
+                    ).toBe(false);
             }
   });
 
@@ -1131,8 +1138,9 @@ describe("round 7: H1 column wrap, H3 dock top, H4 wrist label only, H5 '?' duri
     ).toMatch(/flex-direction: column;\s*align-items: center;/);
     // No unconditional change to the wrap.
     expect(css).not.toMatch(/\.cameraCueWrap \{[^}]*flex-direction: column/);
+    // K1: one line.
     expect(between(css, ".easyCardRule {", "}")).toContain(
-      "max-width: calc(64% - 1rem);",
+      "white-space: nowrap;",
     );
   });
 
@@ -1175,6 +1183,71 @@ describe("round 7: H1 column wrap, H3 dock top, H4 wrist label only, H5 '?' duri
     const open = between(camera, "const openTip = useCallback(", "}, []);");
     expect(open).toMatch(
       /if \(!tipOpenRef\.current\) setTipTrigger\("help"\);\s*setTipOpen\(true\);/,
+    );
+  });
+});
+
+describe("round 8: K1 one short rule line, K2 level ring, K3 level-hint row", () => {
+  const zh = cardReferenceCopy("zh-TW");
+  const en = cardReferenceCopy("en");
+
+  it("K1: the live line is the short rule; the full rule stays for the tour and the tips", () => {
+    expect(zh.cardRuleShort).toBe("淺色卡片、背面朝上，放進虛線框");
+    expect(en.cardRuleShort.length).toBeLessThan(40);
+    const row = between(camera, 'className="easyCardRow"', "</div>");
+    expect(row).toContain("{cardCopy.cardRuleShort}");
+    expect(row).not.toContain("{cardCopy.cardRule}");
+    // The fallback tip sheet keeps the full rule.
+    expect(camera).toContain("? cardCopy.cardRule");
+  });
+
+  it("K1: the line shows while there is no hand, and goes once a hand is read", () => {
+    expect(cardRuleLineShown(null, zh)).toBe(true);
+    expect(cardRuleLineShown(zh.hintNoHand, zh)).toBe(true);
+    expect(cardRuleLineShown(zh.hintLoading, zh)).toBe(true);
+    expect(cardRuleLineShown(zh.hintCloser, zh)).toBe(false);
+    expect(cardRuleLineShown(zh.hintOk, zh)).toBe(false);
+    expect(camera).toContain("{cardRuleLineShown(cardHint, cardCopy) && (");
+  });
+
+  it("K2: the level ring sits inside the card slot's top, clear of the top bar, both hands", () => {
+    for (const side of ["right", "left"] as const)
+      for (const viewport of [
+        { width: 360, height: 640 },
+        { width: 390, height: 844 },
+        { width: 430, height: 932 },
+      ]) {
+        const b = cardChromeBoxes(viewport, {
+          ruleText: zh.cardRuleShort,
+          tiltText: zh.tiltPermission,
+          tilt: true,
+          typedEntry: true,
+          side,
+        });
+        expect(boxesOverlap(b.level!, b.topBar!)).toBe(false);
+        // Its centre is inside the slot.
+        const cx = b.level!.x + 18;
+        const cy = b.level!.y + 18;
+        expect(cx > b.slot!.x && cx < b.slot!.x + b.slot!.width).toBe(true);
+        expect(cy > b.slot!.y && cy < b.slot!.y + b.slot!.height).toBe(true);
+      }
+  });
+
+  it("K3: the level-hint button is in the rule's row, on the card side, above the slot", () => {
+    const b = cardChromeBoxes(
+      { width: 360, height: 640 },
+      {
+        ruleText: zh.cardRuleShort,
+        tiltText: zh.tiltPermission,
+        tilt: true,
+        typedEntry: true,
+        side: "right",
+      },
+    );
+    expect(b.tilt!.x).toBeGreaterThan(b.rule!.x + b.rule!.width);
+    expect(b.tilt!.y + b.tilt!.height).toBeLessThanOrEqual(b.slot!.y);
+    expect(between(css, ".easyCardRow {", "}")).toMatch(
+      /display: flex;[\s\S]*justify-content: space-between;/,
     );
   });
 });
