@@ -26,6 +26,7 @@ import {
   HOLE_TOOLTIP_GAP,
   PICTURE_WAIT_MS,
   TOUR_EXIT_FADE_MS,
+  edgeVisible,
   layoutSpotlight,
   placeTooltip,
   tipPresentation,
@@ -45,7 +46,10 @@ import {
   cardChromeBoxes,
   guideLabelTop,
 } from "../../src/client/card/cardChromeLayout";
-import { labelHeightPx } from "../../src/client/card/CardGuideOverlay";
+import {
+  labelHeightPx,
+  labelTopPx,
+} from "../../src/client/card/CardGuideOverlay";
 
 const read = (path: string) =>
   readFileSync(path, "utf8").split("\r\n").join("\n");
@@ -732,7 +736,7 @@ describe("n1, n2: the menu during a shot; the iOS level hint", () => {
       /\{cardActive && deviceTilt\.state === "needs-permission" && \([\s\S]*?className="easyTiltPermission"\s*onClick=\{\(\) => void deviceTilt\.request\(\)\}/,
     );
     expect(cardReferenceCopy("zh-TW").tiltPermission).toBe("開啟水平提示");
-    expect(between(css, ".easyTiltPermission {", "}")).toContain(
+    expect(between(css, "/* iOS, card mode: the tap that asks", "}")).toContain(
       "min-height: 44px;",
     );
     const axe = read("tests/e2e/a11y-axe.spec.ts");
@@ -966,22 +970,24 @@ describe("round 6: G5 card screen layout, G6/G7 spotlight crop, G8–G10", () =>
     for (const viewport of sizes)
       for (const ruleText of rules)
         for (const tilt of [false, true])
-          for (const typedEntry of [false, true]) {
-            const boxes = cardChromeBoxes(viewport, {
-              ruleText,
-              tilt,
-              typedEntry,
-            });
-            const list = Object.entries(boxes).filter(
-              (e): e is [string, NonNullable<(typeof e)[1]>] => e[1] !== null,
-            );
-            for (let a = 0; a < list.length; a++)
-              for (let b = a + 1; b < list.length; b++)
-                expect(
-                  boxesOverlap(list[a][1], list[b][1]),
-                  `${list[a][0]} × ${list[b][0]} at ${viewport.width}×${viewport.height} tilt=${tilt} typed=${typedEntry}`,
-                ).toBe(false);
-          }
+          for (const typedEntry of [false, true])
+            for (const side of ["right", "left"] as const) {
+              const boxes = cardChromeBoxes(viewport, {
+                ruleText,
+                tilt,
+                typedEntry,
+                side,
+              });
+              const list = Object.entries(boxes).filter(
+                (e): e is [string, NonNullable<(typeof e)[1]>] => e[1] !== null,
+              );
+              for (let a = 0; a < list.length; a++)
+                for (let b = a + 1; b < list.length; b++)
+                  expect(
+                    boxesOverlap(list[a][1], list[b][1]),
+                    `${list[a][0]} × ${list[b][0]} at ${viewport.width}×${viewport.height} tilt=${tilt} typed=${typedEntry} ${side}`,
+                  ).toBe(false);
+            }
   });
 
   it("G5: guideLabelTop keeps a label above the dock; with no floor it is centred", () => {
@@ -1046,7 +1052,7 @@ describe("round 6: G5 card screen layout, G6/G7 spotlight crop, G8–G10", () =>
     expect(inter(hole, { y: placement.y, height: tooltip.height })).toBe(false);
   });
 
-  it("G7: the paper ring (dock-bottom) the same way; the wrist edge and pill follow the cropped edge", () => {
+  it("H2: the paper ring keeps its real bottom edge lit (the card pinned at the top, the ring cropped from above); the wrist line is at that edge", () => {
     const viewport = { width: 390, height: 844 };
     const ring = { x: 18, y: 98, width: 354, height: 640 };
     const tooltip = { width: 358, height: 208 };
@@ -1056,12 +1062,21 @@ describe("round 6: G5 card screen layout, G6/G7 spotlight crop, G8–G10", () =>
       tooltip,
       viewport,
       "dock-bottom",
+      "bottom",
     );
-    expect(placement.y).toBe(620);
-    expect(hole.y + hole.height).toBe(606);
+    expect(placement.y).toBe(16);
+    expect(hole.y + hole.height).toBe(ring.y + ring.height);
+    expect(hole.y).toBe(16 + 208 + HOLE_TOOLTIP_GAP);
+    expect(inter(hole, { y: placement.y, height: tooltip.height })).toBe(false);
+    // The line is drawn at the paper's real bottom edge, only when the ring's
+    // bottom is the paper's own and the card does not cover it.
     expect(tour).toMatch(
-      /step\.target === "paper-frame"[\s\S]{0,400}?hole\.y \+ hole\.height - SPOTLIGHT_PAD - 2/,
+      /step\.target === "paper-frame" &&\s*ring &&[\s\S]{0,200}?hole\.y \+ hole\.height === ring\.y \+ ring\.height &&[\s\S]{0,300}?edgeVisible\(ring\.y \+ ring\.height - SPOTLIGHT_PAD/,
     );
+    expect(tour).toMatch(/hole\.y \+ hole\.height - SPOTLIGHT_PAD - 2/);
+    expect(tour).toContain('step.target === "paper-frame" ? "bottom" : "top",');
+    expect(edgeVisible(700, { y: 620, height: 208 })).toBe(false);
+    expect(edgeVisible(600, { y: 620, height: 208 })).toBe(true);
   });
 
   it("G8 note: a small ring (the chip) on a short screen: the card scrolls inside instead of covering it", () => {
@@ -1102,6 +1117,64 @@ describe("round 6: G5 card screen layout, G6/G7 spotlight crop, G8–G10", () =>
     );
     expect(camera).toContain(
       "{cardActive ? cardCopy.noCardEntry : noPaperLabel}",
+    );
+  });
+});
+
+describe("round 7: H1 column wrap, H3 dock top, H4 wrist label only, H5 '?' during the wait", () => {
+  it("H1: card mode makes the cue band a column (data-card); paper keeps main's row", () => {
+    expect(camera).toContain(
+      'data-card={cardActive && !tipOpen ? "true" : undefined}',
+    );
+    expect(
+      between(css, '.easyScanStaged .cameraCueWrap[data-card="true"] {', "}"),
+    ).toMatch(/flex-direction: column;\s*align-items: center;/);
+    // No unconditional change to the wrap.
+    expect(css).not.toMatch(/\.cameraCueWrap \{[^}]*flex-direction: column/);
+    expect(between(css, ".easyCardRule {", "}")).toContain(
+      "max-width: calc(64% - 1rem);",
+    );
+  });
+
+  it("H3: the dock's top is measured without its transform", () => {
+    expect(camera).toContain(
+      "const top = stage.clientHeight - dock.offsetHeight;",
+    );
+    expect(camera).not.toMatch(
+      /dock\.getBoundingClientRect\(\)\.top - stage\.getBoundingClientRect\(\)\.top/,
+    );
+  });
+
+  it("H4: only the wrist label is kept above the dock; left out when its line is under it; others stay centred", () => {
+    const wrist = {
+      text: "Wrist about here",
+      x: 10,
+      y: 450,
+      anchor: "start" as const,
+      size: 13,
+      wristLineY: 470,
+    };
+    const h = labelHeightPx(wrist);
+    expect(labelTopPx(wrist, null)).toBeCloseTo(450 - h / 2, 9);
+    expect(labelTopPx(wrist, 455)).toBeNull();
+    expect(labelTopPx(wrist, 480)).toBeCloseTo(
+      Math.min(450 - h / 2, 480 - 8 - h),
+      9,
+    );
+    const slot = {
+      text: "Card" + String.fromCharCode(10) + "here",
+      x: 280,
+      y: 400,
+      anchor: "middle" as const,
+      size: 15,
+    };
+    expect(labelTopPx(slot, 300)).toBeCloseTo(400 - labelHeightPx(slot) / 2, 9);
+  });
+
+  it("H5: '?' while the first-run tip is open keeps the first-run variant", () => {
+    const open = between(camera, "const openTip = useCallback(", "}, []);");
+    expect(open).toMatch(
+      /if \(!tipOpenRef\.current\) setTipTrigger\("help"\);\s*setTipOpen\(true\);/,
     );
   });
 });

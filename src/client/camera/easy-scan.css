@@ -136,10 +136,28 @@
 .easyReferenceMenuCheck {
   flex-shrink: 0;
 }
+/* v3.4 card mode (review H1): the cue's band is a column, the cue centred,
+   the card rule and the level-hint button under it on the hand's side (the
+   card slot is on the other), CARD_CHROME in cardChromeLayout.ts. Paper
+   keeps main's row (no data-card). */
+.easyScanStaged .cameraCueWrap[data-card="true"] {
+  flex-direction: column;
+  align-items: center;
+}
+.cameraCueWrap[data-card="true"] .easyCardRule,
+.cameraCueWrap[data-card="true"] .easyTiltPermission {
+  align-self: flex-start;
+  margin-left: 0;
+  margin-right: 0;
+}
+.cameraCueWrap[data-card="true"][data-hand="left"] .easyCardRule,
+.cameraCueWrap[data-card="true"][data-hand="left"] .easyTiltPermission {
+  align-self: flex-end;
+}
 /* v3.4 card mode (review G5): the card rule under the cue pill, in the top
    band; white on rgba(0,0,0,.6) like the pills (5.74:1 on a white picture). */
 .easyCardRule {
-  max-width: calc(100% - 2rem);
+  max-width: calc(64% - 1rem);
   margin: 0.5rem auto 0;
   padding: 0.375rem 0.75rem;
   border-radius: 0.75rem;

@@ -36,6 +36,7 @@ import {
   SPOTLIGHT_PAD,
   buildTourSteps,
   inflateRect,
+  edgeVisible,
   layoutSpotlight,
   prefersReducedMotion,
   rectsClose,
@@ -338,6 +339,9 @@ export default function ScanTour({
           tooltipSize,
           viewport,
           step.placement,
+          // Review H2: the paper keeps its real bottom edge lit (the wrist
+          // line goes there); the card layout keeps its upper part.
+          step.target === "paper-frame" ? "bottom" : "top",
         )
       : null;
   const placement = layout?.placement ?? null;
@@ -494,28 +498,38 @@ export default function ScanTour({
                 aria-hidden="true"
                 data-testid="scan-tour-spotlight"
               />
-              {step.target === "paper-frame" && (
-                <>
-                  <span
-                    className="scanTourEdge"
-                    aria-hidden="true"
-                    style={{
-                      transform: `translate(${hole.x + 24}px, ${hole.y + hole.height - SPOTLIGHT_PAD - 2}px)`,
-                      width: Math.max(0, hole.width - 48),
-                    }}
-                  />
-                  <span
-                    className="scanTourLabel scanTourLabelLight"
-                    style={{
-                      left: hole.x + hole.width / 2,
-                      top: hole.y + hole.height - SPOTLIGHT_PAD - 62,
-                      transform: "translateX(-50%)",
-                    }}
-                  >
-                    {copy.placePaperWristLabel}
-                  </span>
-                </>
-              )}
+              {step.target === "paper-frame" &&
+                ring &&
+                // Review H2: only at the paper's real bottom edge, and only
+                // when the card does not cover it; never anywhere else.
+                hole.y + hole.height === ring.y + ring.height &&
+                (!placement ||
+                  !tooltipSize ||
+                  edgeVisible(ring.y + ring.height - SPOTLIGHT_PAD, {
+                    y: placement.y,
+                    height: tooltipSize.height,
+                  })) && (
+                  <>
+                    <span
+                      className="scanTourEdge"
+                      aria-hidden="true"
+                      style={{
+                        transform: `translate(${hole.x + 24}px, ${hole.y + hole.height - SPOTLIGHT_PAD - 2}px)`,
+                        width: Math.max(0, hole.width - 48),
+                      }}
+                    />
+                    <span
+                      className="scanTourLabel scanTourLabelLight"
+                      style={{
+                        left: hole.x + hole.width / 2,
+                        top: hole.y + hole.height - SPOTLIGHT_PAD - 62,
+                        transform: "translateX(-50%)",
+                      }}
+                    >
+                      {copy.placePaperWristLabel}
+                    </span>
+                  </>
+                )}
               {labelsBox &&
                 cardLabels.map((label, i) => (
                   <span

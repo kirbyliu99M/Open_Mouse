@@ -1596,8 +1596,12 @@ export default function EasyScanCamera({
     enabled: !tipLeave.leaving,
   });
 
+  // Review H5: "?" while the first-run tip is already open (its wait for
+  // the picture) keeps it the first-run variant.
+  const tipOpenRef = useRef(tipOpen);
+  tipOpenRef.current = tipOpen;
   const openTip = useCallback(() => {
-    setTipTrigger("help");
+    if (!tipOpenRef.current) setTipTrigger("help");
     setTipOpen(true);
   }, []);
   // Review F3/G2: a picker closed with no file leaves no stale origin
@@ -1623,9 +1627,11 @@ export default function EasyScanCamera({
     const dock = dockRef.current;
     const stage = stageRef.current;
     if (!dock || !stage || !cardMode) return;
+    // Review H3: without the dock's transform (its rise-in animation moves
+    // it 24 px): the stage's height less the dock's own height (the dock is
+    // pinned to the bottom).
     const measure = () => {
-      const top =
-        dock.getBoundingClientRect().top - stage.getBoundingClientRect().top;
+      const top = stage.clientHeight - dock.offsetHeight;
       setDockTopPx((prev) => (prev === top ? prev : top));
     };
     measure();
@@ -4991,6 +4997,10 @@ export default function EasyScanCamera({
         <>
           <div
             className="cameraCueWrap"
+            // Review H1: card mode stacks the card rule and the level-hint
+            // button under the cue (a column); paper keeps main's row.
+            data-card={cardActive && !tipOpen ? "true" : undefined}
+            data-hand={cardActive && !tipOpen ? handChip.hand : undefined}
             data-leaving={liveChromeLeave.leaving ? "true" : undefined}
             inert={liveChromeLeave.leaving}
             aria-hidden={liveChromeLeave.leaving || undefined}

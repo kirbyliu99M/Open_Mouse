@@ -586,6 +586,17 @@ export interface SpotlightLayout {
 }
 
 /**
+ * Whether a line at `y` (the paper's real bottom edge) can be drawn: not
+ * under the card (review H2: never draw it anywhere else).
+ */
+export function edgeVisible(
+  y: number,
+  card: { readonly y: number; readonly height: number },
+): boolean {
+  return y < card.y || y > card.y + card.height;
+}
+
+/**
  * The card and the spotlight together, never overlapping (Toutour hard
  * rule; review G6, G7 and the G8 note):
  * - it fits above or below the ring: as `placeTooltip`;
@@ -602,6 +613,13 @@ export function layoutSpotlight(
   tooltip: Size,
   viewport: Size,
   placement: TourStepDef["placement"],
+  /**
+   * Which end of a tall ring must stay lit (review H2): "top" (the card
+   * layout: fingers and slot; the card is pinned at the bottom) or "bottom"
+   * (the paper: its real bottom edge, where the wrist goes; the card is
+   * pinned at the top and the ring cropped from above).
+   */
+  keep: "top" | "bottom" = "top",
 ): SpotlightLayout {
   const placed = placeTooltip(avoid, tooltip, viewport, placement);
   if (!placed.overlaps) return { placement: placed, hole };
@@ -609,6 +627,21 @@ export function layoutSpotlight(
   const x = centredX(viewport, width);
   const tall =
     placement === "dock-bottom" || hole.height >= viewport.height * 0.4;
+  if (tall && keep === "bottom") {
+    const y = SCREEN_MARGIN;
+    const top = y + tooltip.height + HOLE_TOOLTIP_GAP;
+    const bottom = hole.y + hole.height;
+    if (bottom - Math.max(top, hole.y) >= MIN_CROPPED_HOLE)
+      return {
+        placement: { x, y, width, arrow: null, overlaps: false },
+        hole: {
+          ...hole,
+          y: Math.max(top, hole.y),
+          height: bottom - Math.max(top, hole.y),
+        },
+      };
+    return { placement: placed, hole };
+  }
   if (tall) {
     const y = Math.max(
       SCREEN_MARGIN,

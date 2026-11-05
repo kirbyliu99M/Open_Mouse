@@ -13,6 +13,7 @@
 import type { CardReferenceCopy } from "../../lib/copy/card-reference";
 import { GUIDE_COPY } from "./hand/guideCopy";
 import { guideLabelTop } from "./cardChromeLayout";
+import { GM2_WRIST_LABEL_RISE } from "./hand/guides/gm2";
 import type { OverlayShape, Tone } from "./hand/guides/types";
 
 const TONE: Record<Tone, string> = {
@@ -47,15 +48,38 @@ export function overlayLabel(text: string, copy: CardReferenceCopy): string {
  * (`.cardGuideLabel` is on its reviewed OVER_LIVE_PICTURE list). It was SVG
  * text with a stroke halo, which no check could measure.
  */
-interface LabelSpec {
+export interface LabelSpec {
   readonly text: string;
   readonly x: number;
   readonly y: number;
   readonly anchor: "start" | "middle" | "end";
   readonly size: number;
+  /**
+   * The wrist label's own line, px (review H4): only this label is kept
+   * above the dock, and it is left out when its line is under the dock.
+   */
+  readonly wristLineY?: number;
 }
 
 const NEWLINE = String.fromCharCode(10);
+
+/** The lab's words for the wrist reference line's label (gm2.ts). */
+const WRIST_LABEL_TEXT = "手腕大約在這附近";
+
+/**
+ * A label's top, px, or `null` when it is left out (review H4): every label
+ * centred on its point; only the wrist label is kept above the dock
+ * (`floorPx`), and left out when its line is under the dock.
+ */
+export function labelTopPx(
+  label: LabelSpec,
+  floorPx: number | null,
+): number | null {
+  const height = labelHeightPx(label);
+  if (label.wristLineY === undefined) return label.y - height / 2;
+  if (floorPx !== null && label.wristLineY >= floorPx) return null;
+  return guideLabelTop(label.y, height, floorPx);
+}
 
 /** A label's height as drawn: its lines at 1.2, 0.125rem padding × 2. */
 export function labelHeightPx(label: {
@@ -232,6 +256,9 @@ export function CardGuideOverlay({
               y: Y(s.at.y),
               anchor: s.anchor ?? "start",
               size: 13,
+              ...(s.text === WRIST_LABEL_TEXT
+                ? { wristLineY: Y(s.at.y + GM2_WRIST_LABEL_RISE) }
+                : {}),
             });
           case "dot":
             return (
@@ -303,32 +330,36 @@ export function CardGuideOverlay({
           zIndex: 2,
         }}
       >
-        {labels.map((label, i) => (
-          <span
-            key={i}
-            className="cardGuideLabel"
-            style={{
-              position: "absolute",
-              left: label.x,
-              // Centred on its point, but kept above the dock (review G5).
-              top: guideLabelTop(label.y, labelHeightPx(label), labelFloorPx),
-              transform: `translateX(${LABEL_SHIFT[label.anchor]})`,
-              padding: "0.125rem 0.5rem",
-              borderRadius: 6,
-              background: "rgba(0,0,0,0.6)",
-              // Solid white: 5.74:1 on the pill over a white picture (a
-              // tone colour would not keep 4.5:1 there).
-              color: "#fff",
-              fontSize: label.size,
-              fontWeight: 600,
-              lineHeight: 1.2,
-              whiteSpace: "pre-line",
-              textAlign: "center",
-            }}
-          >
-            {label.text}
-          </span>
-        ))}
+        {labels.map((label, i) => {
+          const top = labelTopPx(label, labelFloorPx);
+          return top === null ? null : (
+            <span
+              key={i}
+              className="cardGuideLabel"
+              style={{
+                position: "absolute",
+                left: label.x,
+                // Centred on its point; the wrist label kept above the dock
+                // (review G5, H4).
+                top,
+                transform: `translateX(${LABEL_SHIFT[label.anchor]})`,
+                padding: "0.125rem 0.5rem",
+                borderRadius: 6,
+                background: "rgba(0,0,0,0.6)",
+                // Solid white: 5.74:1 on the pill over a white picture (a
+                // tone colour would not keep 4.5:1 there).
+                color: "#fff",
+                fontSize: label.size,
+                fontWeight: 600,
+                lineHeight: 1.2,
+                whiteSpace: "pre-line",
+                textAlign: "center",
+              }}
+            >
+              {label.text}
+            </span>
+          );
+        })}
       </div>
     </>
   );
