@@ -200,7 +200,7 @@ test.describe("results in zh-TW", () => {
     await expect(heading).toBeFocused();
     await expect(
       page.getByText(
-        "這次掃描、它的測量資料，以及數值相符的不記名副本都已永久移除。你傳送過的照片要用刪除碼另外刪除。",
+        "這次掃描、它的測量資料，以及數值相符的不記名副本（如果有）都已永久移除。你傳送過的照片要用刪除碼另外刪除。",
       ),
     ).toBeVisible();
   });

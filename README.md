@@ -56,8 +56,10 @@ photo measurement is validated.
 
 ## Privacy
 
-- **Photos never leave your browser.** No endpoint accepts an image. The submit
-  route takes numbers only and rejects any field it does not expect. In the
+- **Photos stay in your browser by default.** The only endpoint that accepts an
+  image is the opt-in error-photo upload (`src/lib/contracts/error-photo.ts`),
+  used only when you choose "send this photo" after a failed scan or a "numbers
+  look wrong?" report. The scan submit route takes numbers only and rejects any field it does not expect. In the
   no-paper mode the calibration that is sent is `user-length`, which includes
   `referenceMm`: the hand length you typed (the same number is then stored as your
   hand length).

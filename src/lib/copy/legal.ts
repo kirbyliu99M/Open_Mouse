@@ -18,6 +18,12 @@
  *     PostHog's United States (src/server/analytics/proxy.ts);
  *   - Gemini receives the numbers, the grip and the picks only.
  * The terms are unchanged.
+ *
+ * RELEASE ORDER: ships in the SAME deploy as NEXT_PUBLIC_ERROR_PHOTO_ENABLED=1
+ * (#241); never deploy this policy with the flag off. The policy describes the
+ * opt-in photo upload and points to the 「刪除我傳送的照片」 form, which
+ * src/app/privacy/page.tsx renders only under that flag
+ * (tests/unit/legal-pages.test.ts documents the coupling).
  */
 import type { Locale } from "../contracts/locale";
 import { pickCopy } from "../i18n/copy";
@@ -54,7 +60,7 @@ export const zhTW: LegalCopy = {
     {
       heading: "一、重點摘要",
       paragraphs: [
-        "照片預設不離開你的裝置。掃描時，照片只在你的瀏覽器裡分析。只有你在掃描失敗或回報數字不對時，自己按下「傳送這張照片，幫我們修正」並勾選同意，照片才會上傳。",
+        "照片預設不離開你的裝置。掃描時，照片只在你的瀏覽器裡分析。只有你在掃描失敗時按下「傳送這張照片，幫我們修正」，或按「數字看起來不對？」回報，並勾選同意，照片才會上傳。",
         "測量數值預設會保留一份不連到帳號的副本。送出掃描前，畫面上有「保留一份不記名的數值副本」開關，預設開啟，可以關掉。",
         "我們不販售個人資料。除了第四節列出、代我們處理資料的服務商，我們不把單筆資料提供給品牌或其他第三方。",
       ],
@@ -74,9 +80,9 @@ export const zhTW: LegalCopy = {
         "2. 不記名的數值副本（預設開啟，可以關掉）。內容：手長、手掌長、手寬與各指長度（取整到 1 公釐）、左右手、你自己選的握法與手掌厚度（沒選就不記）、校正方式、量測版本、送出的月份（以世界標準時間計）；不含照片、帳號、IP 或裝置資訊，也沒有任何連回該次掃描的欄位。用途：改善量測與推薦的準確度；整理成手型分布等統計，供內部研究與對外發布（見第五節）。保存：本服務營運期間，服務終止時刪除；刪除方式見第六節。",
         "3. 自願上傳的照片（預設不上傳）。內容：手背與紙張或卡片附近範圍的裁切照片（用卡片量測時，偵測到的卡片會先在你的裝置上塗黑；拍攝位置等檔案資訊會移除），以及隨照片附上的資料：這次量到的手長與手寬（取整到 1 公釐）、你回報的正確數字（如果有填）、觸發原因（掃描失敗或數字不對）與失敗代碼、左右手、紙張或卡片種類、量測版本、裝置類別（手機／平板／電腦）、拍照或從相簿選取、照片尺寸、上傳日期。用途：找出量測錯誤的原因並修正。保存：上傳後約 6 個月（180 天）自動刪除；你也可以隨時用刪除碼提早刪除。",
         "4. 帳號資料（只有用 Google 登入時）。內容：Google 提供的姓名、Email、大頭貼、登入所需的授權資料，以及最後使用時間。用途：讓你保存與查看結果。保存：直到你刪除帳號。",
-        "5. 問卷與結果評分（自願填寫）。問卷內容：滑鼠使用經驗、滿意度、困擾點、主要用途、握法、目錄外滑鼠的品牌與尺寸感受、留言；手部尺寸以 5 公釐分組。結果評分內容：星等與留言，並附上伺服器從掃描讀出的快照：手型分類、握法、校正方式、手掌厚度、推薦前三名與適配等級、引擎版本、網頁語言。用途：改善推薦；問卷統計會在結果頁顯示給手型相近的其他使用者（見第五節）。保存：登入時送出的資料跟著帳號刪除；未登入時送出的資料在本服務營運期間保留，服務終止時刪除。",
+        "5. 問卷與結果評分（自願填寫）。問卷內容：滑鼠使用經驗、滿意度、困擾點、主要用途、握法、目錄外滑鼠的品牌與尺寸感受、留言；手部尺寸以 5 公釐分組。結果評分內容：星等與留言，並附上伺服器從掃描讀出的快照：手型分類、握法、校正方式、手掌厚度、推薦前三名與適配等級、引擎版本、網頁語言。用途：改善推薦；問卷統計會在結果頁顯示給手型相近的其他使用者（見第五節）。登入時送出的問卷與評分會連到你的帳號，問卷可以在「帳號」頁查看與修改。保存：登入時送出的資料跟著帳號刪除；未登入時送出的資料在本服務營運期間保留，服務終止時刪除。",
         "6. 連線資料。內容：你的 IP 位址只以雜湊值暫存，用於流量限制與防止濫用；主機服務商（Vercel）也會留存一般的請求紀錄。用途：維護網站安全。保存：流量限制的雜湊值約 24 小時；主機紀錄依該服務商的設定。",
-        "7. 使用統計與錯誤紀錄。PostHog 記錄頁面瀏覽、按鈕與掃描流程事件，以及照片品質的粗略分級（不含測量值），也會收到瀏覽器種類、作業系統、螢幕大小、語言與時區等裝置資訊；不使用 cookie，只在分頁開著時暫存一個隨機識別碼，不會把你的 IP 傳給 PostHog，也不錄製畫面。Google Analytics 在你按下 cookie「同意」後才載入；依 Google 的運作方式，會收到你的 IP 位址與瀏覽器資訊。Sentry 在網站出錯時收到錯誤訊息與瀏覽器種類；Email、IP、帳號與帶單位的測量數值會先移除。保存：依各服務商的設定。",
+        "7. 使用統計與錯誤紀錄。PostHog 記錄頁面瀏覽、按鈕與掃描流程事件，以及照片品質的粗略分級（不含測量值），也會收到瀏覽器種類、作業系統、螢幕大小、語言與時區等裝置資訊；不使用 cookie，只在分頁開著時暫存一個隨機識別碼，不會把你的 IP 傳給 PostHog，也不錄製畫面。Google Analytics 在你按下 cookie「同意」後才載入；依 Google 的運作方式，會收到你的 IP 位址與瀏覽器資訊。Sentry 在網站出錯時收到錯誤訊息與瀏覽器種類，並記錄約八成頁面載入與請求的效能追蹤（取樣率 0.8）；Email、IP、帳號與帶單位的測量數值會先移除。保存：依各服務商的設定。",
       ],
     },
     {
@@ -109,7 +115,7 @@ export const zhTW: LegalCopy = {
       heading: "六、你的權利與行使方式",
       paragraphs: [
         "依個資法第 3 條，你可以對我們保有的個人資料行使以下權利：請求查詢或閱覽、製給複製本、補充或更正、停止蒐集處理利用，以及刪除。",
-        "登入的帳號：在「帳號」頁可以查看與下載你的掃描、個人資料與問卷答案，也可以一次刪除帳號，以及帳號下的所有資料（掃描、問卷、結果評分）。結果評分的內容，請寫信索取。",
+        "登入的帳號：在「帳號」頁可以查看你的掃描、個人資料與問卷答案，並下載你的掃描紀錄（JSON）；其他資料的複製本請來信索取。你也可以在那裡一次刪除帳號，以及帳號下的所有資料（掃描、問卷、結果評分）。",
         "不記名的數值副本：副本不含帳號或掃描編號，我們也不會主動拿它和你的掃描比對。你刪除某次掃描或整個帳號時，我們會一併刪除數值相符的副本。在你的掃描還保存的期間，你也可以來信要求查詢或刪除對應的副本。掃描刪除之後（未登入的掃描在 24 小時內會自動刪除），就沒有任何資料能把副本對回你，我們也無法再找出或刪除它。不想留下副本，請在送出前關掉開關。",
         "自願上傳的照片：照片不會存進你的帳號，刪除帳號也不會刪到它。請用上傳後畫面上顯示的刪除碼，在本頁下方的「刪除我傳送的照片」刪除。遺失刪除碼時，請來信告訴我們上傳日期，以及當時回報的數字或失敗畫面，我們會比對後刪除；如果比對不出是哪一張，會回信說明，照片也會在 180 天後自動刪除。",
         "未登入時送出的問卷與評分：這些資料不含帳號，也不會連回你的掃描。請不要在留言裡寫姓名、聯絡方式等個人資料；如果寫了，請來信告訴我們送出日期與大致內容，我們會盡力找出並刪除。",
@@ -120,9 +126,9 @@ export const zhTW: LegalCopy = {
     {
       heading: "七、不記名副本預設保留的依據",
       paragraphs: [
-        "送出掃描前，開關旁會說明副本的內容、用途、保存期間與刪除方式，並連到本政策。",
+        "送出掃描前，開關旁有簡短說明；按旁邊的「詳細說明」，可以看到副本的內容、用途、保存期間與刪除方式，以及本政策的連結。",
         "依個資法第 7 條第 3 項，你看到說明後沒有關掉開關就送出，視為同意保留。",
-        "我們會保存每一個版本的說明全文，作為你看到哪一版說明的紀錄。",
+        "每一版說明的全文都保存在我們的程式版本紀錄中，可以查證你當時看到的內容。",
       ],
     },
     {
@@ -132,7 +138,7 @@ export const zhTW: LegalCopy = {
         "刪除碼只以無法還原的雜湊值保存。",
         // TODO(Kirby): confirm the production domain redirects HTTP to HTTPS.
         "網站與服務商之間的連線都經過加密（HTTPS）。",
-        "錯誤紀錄與使用統計不含手部測量數值、Email 與帳號。",
+        "錯誤紀錄與使用統計不含 Email 與帳號；錯誤紀錄裡帶單位的測量數值會先移除，使用統計不記錄測量值，瀏覽器種類則會保留。",
         "發生資料被竊取、竄改、毀損、滅失或洩漏時，我們會即時寄 Email 通知有登入帳號的人；無法個別聯絡的人（例如未登入的使用者），在網站上公告。通知內容包括發生了什麼事、影響哪些資料，以及我們已採取的措施。",
       ],
     },
@@ -145,7 +151,9 @@ export const zhTW: LegalCopy = {
     {
       heading: "十、Cookie 與瀏覽器儲存",
       paragraphs: [
-        "網站使用運作必要的 cookie：未登入時的掃描工作階段、登入狀態。這些 cookie 不用於追蹤。",
+        "網站使用運作必要的 cookie：未登入時的掃描工作階段（scan_session）、登入狀態，以及你選的網頁語言（om_locale）。",
+        "網站也會在你的瀏覽器裡存一些設定與紀錄，只留在這台裝置上：你對 cookie 的選擇、是否關掉了不記名副本的開關（palmate.handSample.optOut）、你選的紙張或卡片、是否看過第一次使用的提示與導覽、最近幾次掃描的紀錄（只在本機，供除錯面板使用）、最近的結果清單與結果頁的小提醒，以及是否已填過問卷或評分；使用統計 PostHog 只在分頁開著時暫存一個隨機識別碼。",
+        "以上 cookie 與瀏覽器儲存都不會用來在不同網站之間追蹤你。",
         "Google Analytics 的 cookie 只在你按下「同意」後才使用；不同意也能完整使用網站。",
         "設定可以隨時在頁尾的「Cookie 設定」更改。",
       ],
@@ -218,7 +226,7 @@ export const en: LegalCopy = {
     {
       heading: "1. Summary",
       paragraphs: [
-        "By default your photo does not leave your device. When you scan, the photo is analysed only in your browser. It is uploaded only if, after a failed scan or when you report wrong numbers, you press “Send this photo to help us fix it” yourself and tick the consent box.",
+        "By default your photo does not leave your device. When you scan, the photo is analysed only in your browser. It is uploaded only if you press “Send this photo to help us fix it” after a failed scan, or report with “Numbers look wrong?”, and tick the consent box.",
         "By default we keep a copy of the measurements that is not linked to any account. Before you send a scan, the screen shows a switch, “Keep an unnamed copy of these numbers”, which is on by default and which you can turn off.",
         "We do not sell personal data. Apart from the providers listed in section 4, which process data on our behalf, we do not give individual records to brands or any other third party.",
       ],
@@ -238,9 +246,9 @@ export const en: LegalCopy = {
         "3.2 The unnamed copy of the measurements (on by default; you can turn it off). What: hand length, palm length, palm width and finger lengths (rounded to 1 mm), which hand, the grip and palm thickness you chose yourself (left out if you chose none), the calibration method, the measuring version, and the month it was sent (in UTC). No photo, account, IP address or device information, and no field that leads back to the scan. Why: to make the measurements and rankings more accurate, and for statistics such as the spread of hand shapes, for our own research and for publication (see section 5). Kept: for as long as the service runs, and deleted when it closes; how to have it deleted is in section 6.",
         "3.3 Photos you chose to upload (not uploaded by default). What: a cropped photo of the back of the hand and the area around the paper or card (in card mode the detected card is blacked out on your device first, and file details such as where it was taken are removed), with what comes with it: the hand length and width measured this time (rounded to 1 mm), the right numbers you reported (if you entered them), why it was sent (a failed scan or wrong numbers) and the failure code, which hand, the paper or card type, the measuring version, the kind of device (phone, tablet or computer), whether it was taken with the camera or picked from the gallery, the photo's size, and the upload date. Why: to find and fix the causes of measuring errors. Kept: deleted automatically about 6 months (180 days) after upload; you can also delete it earlier at any time with its deletion code.",
         "3.4 Account (only if you sign in with Google). What: the name, email and picture Google provides, what sign-in needs, and when you last used the account. Why: so you can keep and see your results. Kept: until you delete your account.",
-        "3.5 Questionnaire and result ratings (optional). Questionnaire: your experience with mice, satisfaction, what bothers you, main use, grip, the brand and size feel of mice not in our catalogue, and your comment; hand sizes are kept only in 5 mm groups. Result ratings: the stars and your comment, with a snapshot the server reads from the scan: hand-type class, grip, calibration method, palm thickness, the top three picks and their fit level, the engine version, and the page language. Why: to improve the rankings; questionnaire statistics are shown on the results page to other people with similar hands (see section 5). Kept: what you send while signed in is deleted with your account; what you send without an account is kept for as long as the service runs, and deleted when it closes.",
+        "3.5 Questionnaire and result ratings (optional). Questionnaire: your experience with mice, satisfaction, what bothers you, main use, grip, the brand and size feel of mice not in our catalogue, and your comment; hand sizes are kept only in 5 mm groups. Result ratings: the stars and your comment, with a snapshot the server reads from the scan: hand-type class, grip, calibration method, palm thickness, the top three picks and their fit level, the engine version, and the page language. Why: to improve the rankings; questionnaire statistics are shown on the results page to other people with similar hands (see section 5). Answers and ratings sent while signed in are linked to your account, where you can see and change your questionnaire answers. Kept: what you send while signed in is deleted with your account; what you send without an account is kept for as long as the service runs, and deleted when it closes.",
         "3.6 Connection data. What: your IP address, kept only as a hash and only for a short time, for rate limiting and to prevent abuse; our hosting provider (Vercel) also keeps ordinary request logs. Why: to keep the site safe. Kept: the rate-limit hash for about 24 hours; the hosting logs per the provider's settings.",
-        "3.7 Usage statistics and error reports. PostHog records page views, button and scan-step events, and a rough grade of photo quality (no measurements); it also receives device details such as the browser, operating system, screen size, language and time zone. It uses no cookies and keeps a random identifier only while the tab is open; your IP address is not passed to PostHog, and nothing on screen is recorded. Google Analytics loads only after you press “Accept” on the cookie banner; the way Google works, it receives your IP address and browser details. Sentry receives the error message and the browser type when something breaks; emails, IP addresses, account details and measurements with units are removed first. Kept: per each provider's settings.",
+        "3.7 Usage statistics and error reports. PostHog records page views, button and scan-step events, and a rough grade of photo quality (no measurements); it also receives device details such as the browser, operating system, screen size, language and time zone. It uses no cookies and keeps a random identifier only while the tab is open; your IP address is not passed to PostHog, and nothing on screen is recorded. Google Analytics loads only after you press “Accept” on the cookie banner; the way Google works, it receives your IP address and browser details. Sentry receives the error message and the browser type when something breaks, and performance traces for about 80% of page loads and requests (sample rate 0.8); emails, IP addresses, account details and measurements with units are removed first. Kept: per each provider's settings.",
       ],
     },
     {
@@ -270,7 +278,7 @@ export const en: LegalCopy = {
       heading: "6. Your rights and how to use them",
       paragraphs: [
         "Under Article 3 of the PDPA you can, for the personal data we hold about you, ask to look it up or see it, get a copy, add to or correct it, have us stop collecting, processing or using it, and have it deleted.",
-        "Signed-in account: on the Account page you can see and download your scans, your profile and your questionnaire answers, and delete your account with everything under it (scans, questionnaire, result ratings) in one step. For your result ratings, write to us.",
+        "Signed-in account: on the Account page you can see your scans, your profile and your questionnaire answers, and download your scans (JSON); for a copy of anything else, write to us. You can also delete your account there, with everything under it (scans, questionnaire, result ratings), in one step.",
         "The unnamed copy: it holds no account or scan number, and we do not match it against your scans on our own. When you delete a scan or your whole account, we also delete the copy whose values match. While your scan is still kept, you can also write to us to look up or delete its copy. Once the scan is deleted (scans without an account are deleted automatically within 24 hours), nothing links the copy back to you, and we can no longer find or delete it. If you don't want a copy, turn the switch off before you send.",
         "Photos you chose to upload: a photo is not stored in your account, and deleting the account does not delete it. Delete it with the deletion code shown after the upload, under “Delete a photo I sent” further down this page. If you lost the code, write to us with the upload date and the numbers you reported or the failure screen; we will find and delete it. If we can't tell which photo it is, we will write back to explain; the photo is also deleted automatically after 180 days.",
         "Questionnaire answers and ratings sent without an account: they hold no account and do not lead back to your scans. Please don't write your name, contact details or other personal data in a comment; if you did, write to us with the date and roughly what it said, and we will do our best to find and delete it.",
@@ -281,9 +289,9 @@ export const en: LegalCopy = {
     {
       heading: "7. Why the unnamed copy is kept by default",
       paragraphs: [
-        "Before you send a scan, the text next to the switch says what the copy holds, what it is for, how long it is kept and how it is deleted, and links to this notice.",
+        "Before you send a scan, a short note sits next to the switch; its “Details” button shows what the copy holds, what it is for, how long it is kept and how it is deleted, with a link to this notice.",
         "Under Article 7(3) of the PDPA, sending the scan after seeing that text without turning the switch off counts as consent to keep the copy.",
-        "We keep the full text of every version of that notice, as the record of which version you saw.",
+        "The full text of every version of that note is kept in our code version history, so what you saw can be checked.",
       ],
     },
     {
@@ -293,7 +301,7 @@ export const en: LegalCopy = {
         "Deletion codes are kept only as a hash that cannot be turned back into the code.",
         // TODO(Kirby): HTTP-to-HTTPS redirect (see the zh-TW table).
         "Connections between the site and its providers are encrypted (HTTPS).",
-        "Error reports and usage statistics contain no hand measurements, emails or accounts.",
+        "Error reports and usage statistics contain no emails or accounts; measurements with units are removed from error reports, usage statistics record no measurements, and the browser type is kept.",
         "If data is stolen, altered, damaged, lost or leaked, we will email everyone with a signed-in account promptly, and post a notice on the site for people we cannot reach individually (such as people without an account). The notice says what happened, which data is affected, and what we have done.",
       ],
     },
@@ -306,7 +314,9 @@ export const en: LegalCopy = {
     {
       heading: "10. Cookies and browser storage",
       paragraphs: [
-        "The site uses cookies it needs to work: the scan session when you are not signed in, and your sign-in. These cookies are not used for tracking.",
+        "The site uses cookies it needs to work: the scan session when you are not signed in (scan_session), your sign-in, and the page language you chose (om_locale).",
+        "The site also keeps a few settings and records in your browser, on this device only: your cookie choice, whether you turned off the unnamed-copy switch (palmate.handSample.optOut), the paper or card you chose, whether you have seen the first-run tip and the tour, a log of your recent scan attempts (on this device only, for the debug panel), your recent results and small notes for the results page, and whether you have already answered the questionnaire or rated a result; PostHog keeps a random identifier only while the tab is open.",
+        "None of these cookies or stored items is used to track you across sites.",
         "Google Analytics cookies are used only after you press “Accept”; the site works fully if you don't.",
         "You can change your choice at any time with “Cookie settings” in the footer.",
       ],
