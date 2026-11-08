@@ -8,8 +8,10 @@
  *     whole millimetres, the UTC month only, and no column that could lead
  *     back to the scan, its session or its account;
  *   - without it (opted out, or an older client), no sample at all;
- *   - deleting the scan, its session or the whole account leaves the sample,
- *     by design (the notice says so before the scan is sent);
+ *   - the person's own delete of a scan, its anonymous session or the whole
+ *     account removes ONE value-matching copy per scan (privacy review
+ *     2026-11-08, candidate), never another person's identical copy beyond
+ *     that; the automatic 24 h expiry sweep leaves the copies;
  *   - a scan whose rounded values would break the table's CHECK is still
  *     stored, alone.
  */
@@ -210,7 +212,8 @@ describe("createDrizzleScanRepo().insertScanWithMeasurements: the sample", () =>
       hand_length_mm: 184,
       palm_length_mm: 101,
       palm_width_mm: 85,
-      index_length_mm: 71,
+      // 71.49 is stored as 71.5 (numeric(5,1)); the copy rounds that.
+      index_length_mm: 72,
       thumb_length_mm: null,
     });
     await pg.close();
@@ -244,47 +247,148 @@ describe("createDrizzleScanRepo().insertScanWithMeasurements: the sample", () =>
   }, 30_000);
 });
 
-describe("deleting a scan, its session or the account leaves the sample (by design)", () => {
-  it("survives the anonymous session's delete and the expiry sweep", async () => {
+const sampleCount = (pg: Awaited<ReturnType<typeof world>>["pg"]) =>
+  count(pg, `SELECT count(*) AS n FROM hand_samples`);
+
+describe("a person's own delete removes one matching copy per scan", () => {
+  it("single-scan delete: its copy goes; of two identical submissions, exactly one row is left", async () => {
     const { pg, repo } = await world();
-    const live = await repo.createAnonymousSession(
+    const session = await repo.createAnonymousSession(
       new Date(Date.now() + 60_000),
     );
-    const expired = await repo.createAnonymousSession(
-      new Date(Date.now() - 60_000),
-    );
-    await repo.insertScanWithMeasurements(scanInput(live.id));
-    await repo.insertScanWithMeasurements(scanInput(expired.id));
-    expect(await count(pg, `SELECT count(*) AS n FROM hand_samples`)).toBe(2);
-
-    await repo.deleteSession(live.id);
-    expect(await repo.deleteExpiredAnonymousSessions(new Date())).toBe(1);
-    expect(await count(pg, `SELECT count(*) AS n FROM scans`)).toBe(0);
-    expect(await count(pg, `SELECT count(*) AS n FROM hand_samples`)).toBe(2);
-    await pg.close();
-  }, 30_000);
-
-  it("survives the owner's single-scan delete and 'delete everything'", async () => {
-    const { pg, repo, accountRepo } = await world();
-    await pg.query(`INSERT INTO users (id) VALUES ('user-1')`);
-    const session = await repo.createClaimedSession("user-1");
     const first = await repo.insertScanWithMeasurements(scanInput(session.id));
     await repo.insertScanWithMeasurements(scanInput(session.id));
-    expect(await count(pg, `SELECT count(*) AS n FROM hand_samples`)).toBe(2);
+    expect(await sampleCount(pg)).toBe(2);
 
     expect(
       await repo.deleteOwnedScan(first.scanId, {
-        userId: "user-1",
-        cookieSessionId: null,
+        userId: null,
+        cookieSessionId: session.id,
         now: new Date(),
       }),
     ).toBe(true);
-    expect(await count(pg, `SELECT count(*) AS n FROM hand_samples`)).toBe(2);
+    expect(await count(pg, `SELECT count(*) AS n FROM scans`)).toBe(1);
+    expect(await sampleCount(pg)).toBe(1);
+    await pg.close();
+  }, 30_000);
 
-    expect(await accountRepo.deleteAllScans("user-1")).toBe(1);
-    expect(await count(pg, `SELECT count(*) AS n FROM users`)).toBe(0);
+  it("single-scan delete that is refused (not the owner) removes no copy", async () => {
+    const { pg, repo } = await world();
+    const session = await repo.createAnonymousSession(
+      new Date(Date.now() + 60_000),
+    );
+    const { scanId } = await repo.insertScanWithMeasurements(
+      scanInput(session.id),
+    );
+    expect(
+      await repo.deleteOwnedScan(scanId, {
+        userId: null,
+        cookieSessionId: crypto.randomUUID(),
+        now: new Date(),
+      }),
+    ).toBe(false);
+    expect(await sampleCount(pg)).toBe(1);
+    await pg.close();
+  }, 30_000);
+
+  it("single-scan delete of a scan sent without the notice removes nothing of a differing copy", async () => {
+    const { pg, repo } = await world();
+    const mine = await repo.createAnonymousSession(
+      new Date(Date.now() + 60_000),
+    );
+    const theirs = await repo.createAnonymousSession(
+      new Date(Date.now() + 60_000),
+    );
+    await repo.insertScanWithMeasurements(
+      scanInput(theirs.id, {
+        measurements: { handLengthMm: 200, palmLengthMm: 110, palmWidthMm: 90 },
+        calibrationEvidence: userLength(200),
+      }),
+    );
+    const { scanId } = await repo.insertScanWithMeasurements(
+      scanInput(mine.id, { sampleNotice: undefined }),
+    );
+    expect(await sampleCount(pg)).toBe(1);
+    await repo.deleteOwnedScan(scanId, {
+      userId: null,
+      cookieSessionId: mine.id,
+      now: new Date(),
+    });
+    expect(await sampleCount(pg)).toBe(1);
+    await pg.close();
+  }, 30_000);
+
+  it("anonymous session delete: one copy per scan goes, another person's identical copy stays", async () => {
+    const { pg, repo } = await world();
+    const mine = await repo.createAnonymousSession(
+      new Date(Date.now() + 60_000),
+    );
+    const theirs = await repo.createAnonymousSession(
+      new Date(Date.now() + 60_000),
+    );
+    await repo.insertScanWithMeasurements(scanInput(mine.id));
+    await repo.insertScanWithMeasurements(scanInput(mine.id));
+    await repo.insertScanWithMeasurements(scanInput(theirs.id));
+    expect(await sampleCount(pg)).toBe(3);
+
+    await repo.deleteSession(mine.id);
+    expect(await count(pg, `SELECT count(*) AS n FROM scans`)).toBe(1);
+    expect(await sampleCount(pg)).toBe(1);
+    await pg.close();
+  }, 30_000);
+
+  it("anonymous session delete of a claimed session deletes nothing, copies included", async () => {
+    const { pg, repo } = await world();
+    await pg.query(`INSERT INTO users (id) VALUES ('user-1')`);
+    const claimed = await repo.createClaimedSession("user-1");
+    await repo.insertScanWithMeasurements(scanInput(claimed.id));
+    await repo.deleteSession(claimed.id);
+    expect(await count(pg, `SELECT count(*) AS n FROM scans`)).toBe(1);
+    expect(await sampleCount(pg)).toBe(1);
+    await pg.close();
+  }, 30_000);
+
+  it("'delete everything': one copy per scan of the account, other people's identical copies stay", async () => {
+    const { pg, repo, accountRepo } = await world();
+    await pg.query(`INSERT INTO users (id) VALUES ('user-1'), ('user-2')`);
+    const mine = await repo.createClaimedSession("user-1");
+    const theirs = await repo.createClaimedSession("user-2");
+    await repo.insertScanWithMeasurements(scanInput(mine.id));
+    await repo.insertScanWithMeasurements(scanInput(mine.id));
+    await repo.insertScanWithMeasurements(
+      scanInput(mine.id, {
+        hand: "right",
+        measurements: {
+          handLengthMm: 201.2,
+          palmLengthMm: 112.3,
+          palmWidthMm: 91.7,
+          thumbLengthMm: 66.6,
+        },
+        calibrationEvidence: userLength(201.2),
+      }),
+    );
+    await repo.insertScanWithMeasurements(scanInput(theirs.id));
+    expect(await sampleCount(pg)).toBe(4);
+
+    expect(await accountRepo.deleteAllScans("user-1")).toBe(3);
+    expect(await count(pg, `SELECT count(*) AS n FROM users`)).toBe(1);
+    expect(await count(pg, `SELECT count(*) AS n FROM scans`)).toBe(1);
+    expect(await sampleCount(pg)).toBe(1);
+    await pg.close();
+  }, 30_000);
+});
+
+describe("the automatic expiry leaves the copies (by design)", () => {
+  it("the 24 h expiry sweep deletes the scans and keeps their copies", async () => {
+    const { pg, repo } = await world();
+    const expired = await repo.createAnonymousSession(
+      new Date(Date.now() - 60_000),
+    );
+    await repo.insertScanWithMeasurements(scanInput(expired.id));
+    await repo.insertScanWithMeasurements(scanInput(expired.id));
+    expect(await repo.deleteExpiredAnonymousSessions(new Date())).toBe(1);
     expect(await count(pg, `SELECT count(*) AS n FROM scans`)).toBe(0);
-    expect(await count(pg, `SELECT count(*) AS n FROM hand_samples`)).toBe(2);
+    expect(await sampleCount(pg)).toBe(2);
     await pg.close();
   }, 30_000);
 });

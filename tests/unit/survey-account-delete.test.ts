@@ -296,9 +296,13 @@ describe("account Delete everything over the neon-http driver", () => {
     for (const statement of transactions[0]!) {
       expect(statement.params).toEqual(["user-1"]);
     }
-    // Everything else the driver was asked for is the scan count, a SELECT.
+    // Everything else the driver was asked for is a SELECT: the scan count,
+    // and the scans' values for their anonymous copies (hand-sample-delete.ts;
+    // this fake's rows give no key, so the batch has no copy DELETE here —
+    // tests/unit/hand-samples-db.test.ts covers that on a real database).
     const outside = built.filter((s) => !transactions[0]!.includes(s));
-    expect(outside).toHaveLength(1);
-    expect(outside[0]!.sql.toLowerCase()).toMatch(/^select /);
+    expect(outside).toHaveLength(2);
+    for (const statement of outside)
+      expect(statement.sql.toLowerCase()).toMatch(/^select /);
   });
 });

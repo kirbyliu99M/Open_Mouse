@@ -41,8 +41,16 @@ describe("createDrizzleScanRepo().deleteOwnedScan", () => {
         now: NOW,
       }),
     ).toBe(true);
-    expect(query).toHaveBeenCalledTimes(1);
-    const statement = String(query.mock.calls[0][0]).toLowerCase();
+    // Two statements: the read of the scan's values for its anonymous copy
+    // (hand-sample-delete.ts; this fake's rows give no key, so no copy delete
+    // and no batch), under the same ownership rule, then the scan DELETE.
+    expect(query).toHaveBeenCalledTimes(2);
+    const read = String(query.mock.calls[0][0]).toLowerCase();
+    expect(read).toMatch(/^select /);
+    expect(read).toContain("scan_sessions");
+    expect(read).toContain("user_id");
+    expect(read).toContain("expires_at");
+    const statement = String(query.mock.calls[1][0]).toLowerCase();
     expect(statement).toMatch(/^delete from "scans"/);
     expect(statement).toContain("scan_sessions");
     expect(statement).toContain("user_id");

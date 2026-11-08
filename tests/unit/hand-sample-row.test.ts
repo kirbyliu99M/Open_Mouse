@@ -4,10 +4,20 @@
  * candidate). Pure: what the row keeps, what it never keeps, and when it
  * gives way so the scan is stored alone.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
 import { HAND_SAMPLE_NOTICE_VERSION } from "../../src/lib/contracts/hand-sample";
 import { MEASUREMENT_MODEL_VERSION } from "../../src/lib/contracts/measurement";
-import { toHandSampleRow } from "../../src/server/scans/hand-sample";
+import {
+  asStoredMm,
+  sampleMatchKey,
+  sampleMm,
+  toHandSampleRow,
+  type ScanSampleSource,
+} from "../../src/server/scans/hand-sample";
+import { groupSampleKeys } from "../../src/server/scans/hand-sample-delete";
 import type { ScanInsertInput } from "../../src/server/scans/repo";
 import { handleScanSubmission } from "../../src/server/scans/submit";
 import { createFakeRepo } from "./fixtures/fake-scan-repo";
@@ -50,7 +60,8 @@ function input(overrides: Partial<ScanInsertInput> = {}): ScanInsertInput {
 }
 
 describe("toHandSampleRow", () => {
-  it("keeps exactly the sample columns, rounded to whole mm, at the UTC month", () => {
+  it("keeps exactly the sample columns, rounded to whole mm (from the stored tenth), at the UTC month", () => {
+    // 82.49 is stored as 82.5 (numeric(5,1)), so its sample is 83, not 82.
     expect(toHandSampleRow(input(), NOW)).toEqual({
       noticeVersion: HAND_SAMPLE_NOTICE_VERSION,
       sampledMonth: new Date("2026-11-01T00:00:00.000Z"),
@@ -61,7 +72,7 @@ describe("toHandSampleRow", () => {
       measurementModelVersion: MEASUREMENT_MODEL_VERSION,
       handLengthMm: 186,
       palmLengthMm: 107,
-      palmWidthMm: 82,
+      palmWidthMm: 83,
       thumbLengthMm: 61,
       indexLengthMm: 73,
       middleLengthMm: 81,
@@ -178,6 +189,148 @@ describe("toHandSampleRow", () => {
         toHandSampleRow(input({ measurements: { ...base, ...patch } }), NOW),
       ).toBeNull();
     }
+  });
+});
+
+describe("asStoredMm: the value as numeric(5,1) keeps it", () => {
+  it.each([
+    [150.45, 150.5],
+    [150.449, 150.4],
+    [82.49, 82.5],
+    [82.44, 82.4],
+    [186, 186],
+    [186.4, 186.4],
+    [0.05, 0.1],
+    [279.95, 280],
+  ])(
+    "%s mm is stored as %s mm (half away from zero, on the decimal text)",
+    (raw, stored) => {
+      expect(asStoredMm(raw)).toBe(stored);
+    },
+  );
+
+  it("is idempotent: a stored value read back stores the same", () => {
+    for (let tenths = 1000; tenths <= 2800; tenths += 7) {
+      const stored = tenths / 10;
+      expect(asStoredMm(stored)).toBe(stored);
+    }
+  });
+});
+
+describe("sampleMatchKey agrees with the writer's row", () => {
+  /** The scan as the database stores and returns it after `insert(input)` at `now`. */
+  function storedScan(i: ScanInsertInput, now: Date): ScanSampleSource {
+    const m = i.measurements;
+    const back = (mm: number | undefined) =>
+      mm === undefined ? null : asStoredMm(mm);
+    return {
+      hand: i.hand,
+      createdAt: now,
+      calibrationMethod: i.calibrationMethod,
+      measurementModelVersion: i.measurementModelVersion,
+      handLengthMm: asStoredMm(m.handLengthMm),
+      palmLengthMm: asStoredMm(m.palmLengthMm),
+      palmWidthMm: asStoredMm(m.palmWidthMm),
+      thumbLengthMm: back(m.thumbLengthMm),
+      indexLengthMm: back(m.indexLengthMm),
+      middleLengthMm: back(m.middleLengthMm),
+      ringLengthMm: back(m.ringLengthMm),
+      pinkyLengthMm: back(m.pinkyLengthMm),
+    };
+  }
+
+  function keyOfRow(row: NonNullable<ReturnType<typeof toHandSampleRow>>) {
+    return {
+      hand: row.hand,
+      calibrationMethod: row.calibrationMethod,
+      measurementModelVersion: row.measurementModelVersion,
+      sampledMonth: row.sampledMonth,
+      handLengthMm: row.handLengthMm,
+      palmLengthMm: row.palmLengthMm,
+      palmWidthMm: row.palmWidthMm,
+      thumbLengthMm: row.thumbLengthMm,
+      indexLengthMm: row.indexLengthMm,
+      middleLengthMm: row.middleLengthMm,
+      ringLengthMm: row.ringLengthMm,
+      pinkyLengthMm: row.pinkyLengthMm,
+    };
+  }
+
+  it("for the fixture scan", () => {
+    const row = toHandSampleRow(input(), NOW)!;
+    expect(sampleMatchKey(storedScan(input(), NOW))).toEqual(keyOfRow(row));
+  });
+
+  it("for 5000 pseudo-random scans, including x.45..x.5 edges and missing fingers", () => {
+    let seed = 20261108;
+    const rand = () => {
+      seed = (seed * 1103515245 + 12345) % 2 ** 31;
+      return seed / 2 ** 31;
+    };
+    const mm = (lo: number, hi: number) => {
+      // Mix of free doubles and values right at the rounding edges.
+      const base = lo + rand() * (hi - lo);
+      const pick = rand();
+      if (pick < 0.2) return Math.floor(base) + 0.45;
+      if (pick < 0.4) return Math.floor(base) + 0.5;
+      if (pick < 0.5) return Math.floor(base) + 0.449999;
+      return base;
+    };
+    let compared = 0;
+    for (let n = 0; n < 5000; n++) {
+      const hand = mm(150, 230);
+      const i = input({
+        measurements: {
+          handLengthMm: hand,
+          palmLengthMm: mm(90, Math.min(130, hand - 1)),
+          palmWidthMm: mm(60, 110),
+          ...(rand() < 0.5 ? { thumbLengthMm: mm(40, 80) } : {}),
+          ...(rand() < 0.5 ? { pinkyLengthMm: mm(40, 80) } : {}),
+          indexLengthMm: mm(50, 90),
+        },
+      });
+      const at = new Date(
+        Date.UTC(
+          2026,
+          Math.floor(rand() * 24),
+          1 + Math.floor(rand() * 27),
+          Math.floor(rand() * 24),
+        ),
+      );
+      const row = toHandSampleRow(i, at);
+      const key = sampleMatchKey(storedScan(i, at));
+      if (row === null) {
+        expect(key).toBeNull();
+        continue;
+      }
+      expect(key).toEqual(keyOfRow(row));
+      compared++;
+    }
+    expect(compared).toBeGreaterThan(4500);
+  });
+
+  it("is null for a scan that cannot have a copy", () => {
+    const base = storedScan(input(), NOW);
+    expect(sampleMatchKey({ ...base, calibrationMethod: null })).toBeNull();
+    expect(
+      sampleMatchKey({ ...base, measurementModelVersion: null }),
+    ).toBeNull();
+    expect(
+      sampleMatchKey({ ...base, handLengthMm: 150.6, palmLengthMm: 150.5 }),
+    ).toBeNull();
+  });
+
+  it("sampleMm is the writer's rounding", () => {
+    expect(sampleMm(82.49)).toBe(83);
+    expect(sampleMm(82.44)).toBe(82);
+    expect(sampleMm(150.45)).toBe(151);
+  });
+
+  it("groups identical keys so one DELETE removes one row per scan", () => {
+    const k = sampleMatchKey(storedScan(input(), NOW))!;
+    const other = { ...k, palmWidthMm: k.palmWidthMm + 1 };
+    const groups = groupSampleKeys([k, { ...k }, null, other]);
+    expect(groups.map((g) => g.count)).toEqual([2, 1]);
   });
 });
 
