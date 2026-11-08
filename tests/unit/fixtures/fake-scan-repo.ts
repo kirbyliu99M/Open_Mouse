@@ -9,6 +9,10 @@
  * without a test failing.
  */
 import { vi } from "vitest";
+import {
+  toHandSampleRow,
+  type HandSampleRow,
+} from "../../../src/server/scans/hand-sample";
 import type {
   ScanInsertInput,
   ScanRepo,
@@ -22,9 +26,11 @@ export interface FakeSessionRow {
   expiresAt: Date | null;
 }
 
-export function createFakeRepo() {
+/** `now` is the clock the fake's sample month is taken from (default: real time). */
+export function createFakeRepo(now: () => Date = () => new Date()) {
   const sessions = new Map<string, FakeSessionRow>();
   const insertedScans: ({ scanId: string } & ScanInsertInput)[] = [];
+  const handSamples: HandSampleRow[] = [];
   let counter = 0;
 
   const isAnonymousAndLive = (row: FakeSessionRow, now: Date) =>
@@ -64,6 +70,12 @@ export function createFakeRepo() {
     insertScanWithMeasurements: vi.fn(async (input: ScanInsertInput) => {
       const scanId = `scan-${++counter}`;
       insertedScans.push({ scanId, ...input });
+      // Mirrors drizzle-repo.ts: the de-linked sample is written with the
+      // scan only when `toHandSampleRow` returns a row (current notice, and
+      // rounded values that pass the table's CHECK). Kept apart from
+      // `insertedScans`, with no scan id, as the real table is.
+      const sample = toHandSampleRow(input, now());
+      if (sample) handSamples.push(sample);
       return { scanId };
     }),
     deleteSession: vi.fn(async (sessionId: string) => {
@@ -106,5 +118,5 @@ export function createFakeRepo() {
     findOwnedScan: vi.fn(async () => null),
     deleteOwnedScan: vi.fn(async () => false),
   };
-  return { repo, sessions, insertedScans };
+  return { repo, sessions, insertedScans, handSamples };
 }

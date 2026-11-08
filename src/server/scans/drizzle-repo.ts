@@ -2,12 +2,14 @@ import "server-only";
 import { and, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 import { getDb } from "../../db/client";
 import {
+  handSamples,
   rateLimits,
   scanMeasurements,
   scanSessions,
   scans,
 } from "../../db/schema";
 import { parallaxCorrectedOf } from "../../lib/fit/fit-scale";
+import { toHandSampleRow } from "./hand-sample";
 import { RATE_LIMIT_ROW_RETENTION_MS } from "./rate-limit-config";
 import type {
   OwnedScan,
@@ -107,7 +109,7 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
     async insertScanWithMeasurements(input: ScanInsertInput) {
       const scanId = crypto.randomUUID();
       const m = input.measurements;
-      await db.batch([
+      const writeScan = [
         db.insert(scans).values({
           id: scanId,
           sessionId: input.sessionId,
@@ -135,7 +137,19 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
           calibrationMethod: input.calibrationMethod,
           calibrationEvidence: input.calibrationEvidence,
         }),
-      ]);
+      ] as const;
+      // The de-linked sample (hand-sample.ts, candidate): only when the
+      // submission carried the current notice, and only if its rounded values
+      // pass the table's CHECK; otherwise the scan is stored alone. It rides
+      // in the same batch, so it never exists without its scan, and it names
+      // nothing of the scan: no id, no session, no time finer than the month
+      // (the server clock's UTC month at the time of the insert).
+      const sample = toHandSampleRow(input, new Date());
+      if (sample) {
+        await db.batch([...writeScan, db.insert(handSamples).values(sample)]);
+      } else {
+        await db.batch(writeScan);
+      }
       return { scanId };
     },
 

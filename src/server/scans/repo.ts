@@ -1,3 +1,4 @@
+import type { HAND_SAMPLE_NOTICE_VERSION } from "../../lib/contracts/hand-sample";
 import type {
   CalibrationMethod,
   HandMeasurements,
@@ -73,6 +74,13 @@ export interface ScanInsertInput {
   measurementModelVersion: MeasurementModelVersion;
   calibrationMethod: CalibrationMethod;
   calibrationEvidence: ScanSubmission["calibration"];
+  /**
+   * The submission's `sampleNotice` (contract: hand-sample.ts, candidate):
+   * present only when the notice was on screen and the person left "keep an
+   * anonymous copy" on. Then the repo also writes a de-linked `hand_samples`
+   * row in the same atomic batch (`toHandSampleRow`); absent, it writes none.
+   */
+  sampleNotice?: typeof HAND_SAMPLE_NOTICE_VERSION;
 }
 
 /**
