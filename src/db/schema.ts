@@ -3,6 +3,8 @@ import {
   bigint,
   boolean,
   check,
+  date,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -783,5 +785,103 @@ export const errorPhotos = pgTable(
     ),
     check("error_photos_bytes_range", sql`${t.bytes} BETWEEN 1 AND 1500000`),
     check("error_photos_meta_object", sql`jsonb_typeof(${t.meta}) = 'object'`),
+  ],
+);
+
+// --- Tester shots (migration 0016, contract: src/lib/contracts/tester.ts)
+//
+// Candidate (未拍板, Kirby 2026-11-09). One row per shot an invited data
+// tester made on the hidden `/scan/tester` page: the tape values as typed,
+// the shot's conditions, how the attempt went, what the app measured, and
+// (optional) where its prepared photo sits in the PRIVATE Blob store. Only the
+// participant id (`P07`) identifies the person: never the secret half of the
+// code, a name, an e-mail, an IP, a user agent, an account, a scan or a
+// session. `day` is the Asia/Taipei date, no time. `shot_id` is the
+// browser's idempotency key. The daily cron deletes the photo after
+// `TESTER_PHOTO_RETENTION_DAYS` and nulls `photo_pathname`; the row stays
+// until Kirby deletes it (scripts/tester-delete.ts).
+const tapeMm = (name: string) =>
+  numeric(name, { precision: 4, scale: 1, mode: "number" });
+const testerTapeRange = (column: unknown) =>
+  sql`(${column} IS NULL OR ${column} BETWEEN 50 AND 300)`;
+
+export const testerShots = pgTable(
+  "tester_shots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    shotId: uuid("shot_id").notNull().unique(),
+    participant: text("participant").notNull(),
+    consentVersion: text("consent_version").notNull(),
+    /** Asia/Taipei date of the shot; no time is kept. */
+    day: date("day", { mode: "string" }).notNull(),
+    hand: handSideEnum("hand").notNull(),
+    /** 1, or 2 when a second measurer's readings were typed. */
+    measurers: smallint("measurers").notNull(),
+    handLengthA1: tapeMm("hand_length_a1").notNull(),
+    handLengthA2: tapeMm("hand_length_a2").notNull(),
+    handLengthB1: tapeMm("hand_length_b1"),
+    handLengthB2: tapeMm("hand_length_b2"),
+    palmWidthA1: tapeMm("palm_width_a1").notNull(),
+    palmWidthA2: tapeMm("palm_width_a2").notNull(),
+    palmWidthB1: tapeMm("palm_width_b1"),
+    palmWidthB2: tapeMm("palm_width_b2"),
+    palmWidthEdge: tapeMm("palm_width_edge"),
+    phoneModel: text("phone_model").notNull(),
+    surface: text("surface").notNull(),
+    lighting: text("lighting").notNull(),
+    reference: text("reference").notNull(),
+    cardType: text("card_type"),
+    deliberatelyPoor: boolean("deliberately_poor").notNull(),
+    captureMode: text("capture_mode").notNull(),
+    attempts: smallint("attempts").notNull(),
+    firstTryOk: boolean("first_try_ok").notNull(),
+    failureCodes: text("failure_codes").array().notNull(),
+    gaveUp: boolean("gave_up").notNull(),
+    measuredHandLengthMm: doublePrecision("measured_hand_length_mm"),
+    measuredPalmWidthMm: doublePrecision("measured_palm_width_mm"),
+    measurementModelVersion: text("measurement_model_version"),
+    calibrationMethod: text("calibration_method"),
+    /** Private Blob pathname `tester/<uuid>.jpg`; NULL without a photo or once purged. */
+    photoPathname: text("photo_pathname").unique(),
+    photoWidthPx: smallint("photo_width_px"),
+    photoHeightPx: smallint("photo_height_px"),
+  },
+  (t) => [
+    index("tester_shots_participant_idx").on(t.participant),
+    index("tester_shots_day_idx").on(t.day),
+    check(
+      "tester_shots_participant_format",
+      sql`${t.participant} ~ '^P[0-9]{2,3}$'`,
+    ),
+    check(
+      "tester_shots_consent_version_set",
+      sql`char_length(${t.consentVersion}) BETWEEN 1 AND 100`,
+    ),
+    check("tester_shots_measurers_range", sql`${t.measurers} IN (1, 2)`),
+    check(
+      "tester_shots_tape_plausible",
+      sql`${testerTapeRange(t.handLengthA1)} AND ${testerTapeRange(t.handLengthA2)} AND ${testerTapeRange(t.handLengthB1)} AND ${testerTapeRange(t.handLengthB2)} AND ${testerTapeRange(t.palmWidthA1)} AND ${testerTapeRange(t.palmWidthA2)} AND ${testerTapeRange(t.palmWidthB1)} AND ${testerTapeRange(t.palmWidthB2)} AND ${testerTapeRange(t.palmWidthEdge)}`,
+    ),
+    check(
+      "tester_shots_phone_model_length",
+      sql`char_length(${t.phoneModel}) BETWEEN 1 AND 40`,
+    ),
+    check("tester_shots_attempts_range", sql`${t.attempts} BETWEEN 1 AND 50`),
+    check(
+      "tester_shots_failure_codes_count",
+      sql`coalesce(array_length(${t.failureCodes}, 1), 0) <= 50`,
+    ),
+    check(
+      "tester_shots_measured_plausible",
+      sql`(${t.measuredHandLengthMm} IS NULL OR ${t.measuredHandLengthMm} BETWEEN 0 AND 400) AND (${t.measuredPalmWidthMm} IS NULL OR ${t.measuredPalmWidthMm} BETWEEN 0 AND 400)`,
+    ),
+    check(
+      "tester_shots_measured_unless_gave_up",
+      sql`${t.gaveUp} = (${t.measuredHandLengthMm} IS NULL) AND (${t.measuredHandLengthMm} IS NULL) = (${t.measuredPalmWidthMm} IS NULL)`,
+    ),
+    check(
+      "tester_shots_photo_pathname_format",
+      sql`${t.photoPathname} IS NULL OR ${t.photoPathname} ~ '^tester/[0-9a-f-]{36}[.]jpg$'`,
+    ),
   ],
 );

@@ -113,6 +113,13 @@
       "when": 1794126630662,
       "tag": "0015_touchpoint_samples_photos",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1794169496840,
+      "tag": "0016_tester_shots",
+      "breakpoints": true
     }
   ]
 }

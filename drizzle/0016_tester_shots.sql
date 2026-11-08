@@ -1,0 +1,55 @@
+-- Tester page (candidate 2026-11-09, contract src/lib/contracts/tester.ts):
+-- one NEW table, no change to any existing table. NOT applied to any
+-- database yet: Kirby decides when (migrate BEFORE deploying code that
+-- writes it). Only the participant id identifies a tester; day only, no time.
+CREATE TABLE "tester_shots" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"shot_id" uuid NOT NULL,
+	"participant" text NOT NULL,
+	"consent_version" text NOT NULL,
+	"day" date NOT NULL,
+	"hand" "hand_side" NOT NULL,
+	"measurers" smallint NOT NULL,
+	"hand_length_a1" numeric(4, 1) NOT NULL,
+	"hand_length_a2" numeric(4, 1) NOT NULL,
+	"hand_length_b1" numeric(4, 1),
+	"hand_length_b2" numeric(4, 1),
+	"palm_width_a1" numeric(4, 1) NOT NULL,
+	"palm_width_a2" numeric(4, 1) NOT NULL,
+	"palm_width_b1" numeric(4, 1),
+	"palm_width_b2" numeric(4, 1),
+	"palm_width_edge" numeric(4, 1),
+	"phone_model" text NOT NULL,
+	"surface" text NOT NULL,
+	"lighting" text NOT NULL,
+	"reference" text NOT NULL,
+	"card_type" text,
+	"deliberately_poor" boolean NOT NULL,
+	"capture_mode" text NOT NULL,
+	"attempts" smallint NOT NULL,
+	"first_try_ok" boolean NOT NULL,
+	"failure_codes" text[] NOT NULL,
+	"gave_up" boolean NOT NULL,
+	"measured_hand_length_mm" double precision,
+	"measured_palm_width_mm" double precision,
+	"measurement_model_version" text,
+	"calibration_method" text,
+	"photo_pathname" text,
+	"photo_width_px" smallint,
+	"photo_height_px" smallint,
+	CONSTRAINT "tester_shots_shot_id_unique" UNIQUE("shot_id"),
+	CONSTRAINT "tester_shots_photo_pathname_unique" UNIQUE("photo_pathname"),
+	CONSTRAINT "tester_shots_participant_format" CHECK ("tester_shots"."participant" ~ '^P[0-9]{2,3}$'),
+	CONSTRAINT "tester_shots_consent_version_set" CHECK (char_length("tester_shots"."consent_version") BETWEEN 1 AND 100),
+	CONSTRAINT "tester_shots_measurers_range" CHECK ("tester_shots"."measurers" IN (1, 2)),
+	CONSTRAINT "tester_shots_tape_plausible" CHECK (("tester_shots"."hand_length_a1" IS NULL OR "tester_shots"."hand_length_a1" BETWEEN 50 AND 300) AND ("tester_shots"."hand_length_a2" IS NULL OR "tester_shots"."hand_length_a2" BETWEEN 50 AND 300) AND ("tester_shots"."hand_length_b1" IS NULL OR "tester_shots"."hand_length_b1" BETWEEN 50 AND 300) AND ("tester_shots"."hand_length_b2" IS NULL OR "tester_shots"."hand_length_b2" BETWEEN 50 AND 300) AND ("tester_shots"."palm_width_a1" IS NULL OR "tester_shots"."palm_width_a1" BETWEEN 50 AND 300) AND ("tester_shots"."palm_width_a2" IS NULL OR "tester_shots"."palm_width_a2" BETWEEN 50 AND 300) AND ("tester_shots"."palm_width_b1" IS NULL OR "tester_shots"."palm_width_b1" BETWEEN 50 AND 300) AND ("tester_shots"."palm_width_b2" IS NULL OR "tester_shots"."palm_width_b2" BETWEEN 50 AND 300) AND ("tester_shots"."palm_width_edge" IS NULL OR "tester_shots"."palm_width_edge" BETWEEN 50 AND 300)),
+	CONSTRAINT "tester_shots_phone_model_length" CHECK (char_length("tester_shots"."phone_model") BETWEEN 1 AND 40),
+	CONSTRAINT "tester_shots_attempts_range" CHECK ("tester_shots"."attempts" BETWEEN 1 AND 50),
+	CONSTRAINT "tester_shots_failure_codes_count" CHECK (coalesce(array_length("tester_shots"."failure_codes", 1), 0) <= 50),
+	CONSTRAINT "tester_shots_measured_plausible" CHECK (("tester_shots"."measured_hand_length_mm" IS NULL OR "tester_shots"."measured_hand_length_mm" BETWEEN 0 AND 400) AND ("tester_shots"."measured_palm_width_mm" IS NULL OR "tester_shots"."measured_palm_width_mm" BETWEEN 0 AND 400)),
+	CONSTRAINT "tester_shots_measured_unless_gave_up" CHECK ("tester_shots"."gave_up" = ("tester_shots"."measured_hand_length_mm" IS NULL) AND ("tester_shots"."measured_hand_length_mm" IS NULL) = ("tester_shots"."measured_palm_width_mm" IS NULL)),
+	CONSTRAINT "tester_shots_photo_pathname_format" CHECK ("tester_shots"."photo_pathname" IS NULL OR "tester_shots"."photo_pathname" ~ '^tester/[0-9a-f-]{36}[.]jpg$')
+);
+--> statement-breakpoint
+CREATE INDEX "tester_shots_participant_idx" ON "tester_shots" USING btree ("participant");--> statement-breakpoint
+CREATE INDEX "tester_shots_day_idx" ON "tester_shots" USING btree ("day");

@@ -4,6 +4,8 @@ import { createDrizzleErrorPhotoRepo } from "../../../../server/error-photos/dri
 import { purgeErrorPhotos } from "../../../../server/error-photos/purge";
 import { createDrizzleScanRepo } from "../../../../server/scans/drizzle-repo";
 import { handleExpireSessions } from "../../../../server/scans/expire-cron";
+import { createDrizzleTesterShotRepo } from "../../../../server/tester/drizzle-repo";
+import { purgeTesterPhotos } from "../../../../server/tester/purge";
 
 export const dynamic = "force-dynamic";
 // The error-photo purge stops starting new steps after 20 s (purge.ts); this
@@ -21,6 +23,12 @@ export async function GET(request: Request): Promise<Response> {
           purgeErrorPhotos: () =>
             purgeErrorPhotos({
               repo: createDrizzleErrorPhotoRepo(getDb),
+              blob: createVercelErrorPhotoBlobStore(),
+            }),
+          // Tester photos (candidate): same store, own folder, own retention.
+          purgeTesterPhotos: () =>
+            purgeTesterPhotos({
+              repo: createDrizzleTesterShotRepo(getDb),
               blob: createVercelErrorPhotoBlobStore(),
             }),
         }

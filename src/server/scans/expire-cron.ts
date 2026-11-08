@@ -1,6 +1,7 @@
 import { isCronAuthorized } from "../cron/auth";
 import { log } from "../log";
 import type { ErrorPhotoPurgeReport } from "../error-photos/purge";
+import type { TesterPhotoPurgeReport } from "../tester/purge";
 import type { ScanRepo } from "./repo";
 
 export interface ExpireSessionsDeps {
@@ -16,6 +17,13 @@ export interface ExpireSessionsDeps {
    * was on is still deleted on time after it is switched off.
    */
   purgeErrorPhotos?: () => Promise<ErrorPhotoPurgeReport>;
+  /**
+   * The tester photos' retention (src/server/tester/purge.ts, candidate
+   * 未拍板): same rule, only with the Blob store connected, whatever
+   * `TESTER_CODES` says. Runs after the error photos, on its own: a failure
+   * is logged (class only) and reported as `testerPhotos: "failed"`.
+   */
+  purgeTesterPhotos?: () => Promise<TesterPhotoPurgeReport>;
 }
 
 function json(status: number, body: unknown): Response {
@@ -34,6 +42,7 @@ function json(status: number, body: unknown): Response {
  * Then, when given, the error photos' purge, last and on its own: a failure
  * there is logged (the error's class only) and reported as
  * `errorPhotos: "failed"`, and never undoes or blocks the two sweeps above.
+ * The tester photos' purge follows the same way (`testerPhotos`).
  */
 export async function handleExpireSessions(
   request: Request,
@@ -46,17 +55,34 @@ export async function handleExpireSessions(
   const now = deps.now ?? (() => new Date());
   const deleted = await deps.repo.deleteExpiredAnonymousSessions(now());
   const rateLimitsDeleted = await deps.repo.deleteEndedRateLimitWindows(now());
-  if (!deps.purgeErrorPhotos) return json(200, { deleted, rateLimitsDeleted });
-  let errorPhotos: ErrorPhotoPurgeReport | "failed";
-  try {
-    errorPhotos = await deps.purgeErrorPhotos();
-  } catch (error) {
-    log.error("error_photo.purge_failed", {
-      route: "/api/cron/expire-sessions",
-      op: "purge",
-      error,
-    });
-    errorPhotos = "failed";
+  const body: Record<string, unknown> = { deleted, rateLimitsDeleted };
+  if (deps.purgeErrorPhotos) {
+    let errorPhotos: ErrorPhotoPurgeReport | "failed";
+    try {
+      errorPhotos = await deps.purgeErrorPhotos();
+    } catch (error) {
+      log.error("error_photo.purge_failed", {
+        route: "/api/cron/expire-sessions",
+        op: "purge",
+        error,
+      });
+      errorPhotos = "failed";
+    }
+    body.errorPhotos = errorPhotos;
   }
-  return json(200, { deleted, rateLimitsDeleted, errorPhotos });
+  if (deps.purgeTesterPhotos) {
+    let testerPhotos: TesterPhotoPurgeReport | "failed";
+    try {
+      testerPhotos = await deps.purgeTesterPhotos();
+    } catch (error) {
+      log.error("tester.purge_failed", {
+        route: "/api/cron/expire-sessions",
+        op: "purge",
+        error,
+      });
+      testerPhotos = "failed";
+    }
+    body.testerPhotos = testerPhotos;
+  }
+  return json(200, body);
 }

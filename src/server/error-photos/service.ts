@@ -100,10 +100,10 @@ function json(status: number, body: unknown): Response {
   });
 }
 
-class BodyTooLargeError extends Error {}
+export class BodyTooLargeError extends Error {}
 
 /** The declared length alone already exceeds `max`. */
-function declaredTooLarge(request: Request, max: number): boolean {
+export function declaredTooLarge(request: Request, max: number): boolean {
   const declared = request.headers.get("content-length");
   if (declared === null) return false;
   const n = Number(declared);
@@ -111,7 +111,7 @@ function declaredTooLarge(request: Request, max: number): boolean {
 }
 
 /** Reads the body as bytes, counting while streaming: a missing or understated length is no way past the cap. */
-async function readLimitedBytes(
+export async function readLimitedBytes(
   request: Request,
   max: number,
 ): Promise<Uint8Array<ArrayBuffer>> {
@@ -162,7 +162,7 @@ export function errorPhotoPathname(uuid: string): string {
   return `${ERROR_PHOTO_PREFIX}${uuid.toLowerCase()}.jpg`;
 }
 
-async function isRateLimited(
+export async function isRateLimited(
   request: Request,
   limiter: RateLimiter,
 ): Promise<boolean> {
