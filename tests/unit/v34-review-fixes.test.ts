@@ -368,7 +368,8 @@ describe("items 5+6 [minor]: the chip's menu (flag on) and main's toggle (flag o
 
   it("flag on: the menu; flag off: main's A4 ↔ Letter button, no aria-label, no card", () => {
     expect(camera).toMatch(
-      /\{userLengthMm === null && CARD_REFERENCE_ENABLED \? \([\s\S]*?<ReferenceMenu[\s\S]*?onSelect=\{selectReference\}/,
+      // `) : ` when the tester page's fixed chip comes first (testerMode.ts).
+      /(?:\{|\) : )userLengthMm === null && CARD_REFERENCE_ENABLED \? \([\s\S]*?<ReferenceMenu[\s\S]*?onSelect=\{selectReference\}/,
     );
     const flagOff = between(
       camera,
