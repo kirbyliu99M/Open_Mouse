@@ -15,8 +15,17 @@ function fixture(rows: unknown[]) {
     void statement;
     return { rows };
   });
-  const db = drizzle(query as unknown as NeonQueryFunction<false, false>);
-  return { repo: createDrizzleScanRepo(db as unknown as FakeDb), query };
+  // `db.batch` hands the built statements to `transaction` (one request).
+  const transaction = vi.fn(async (statements: unknown[]) =>
+    statements.map(() => ({ rows })),
+  );
+  const client = Object.assign(query, { transaction });
+  const db = drizzle(client as unknown as NeonQueryFunction<false, false>);
+  return {
+    repo: createDrizzleScanRepo(db as unknown as FakeDb),
+    query,
+    transaction,
+  };
 }
 
 describe("createDrizzleScanRepo().deleteOwnedScan", () => {
@@ -33,7 +42,7 @@ describe("createDrizzleScanRepo().deleteOwnedScan", () => {
   });
 
   it("uses a single scan-row DELETE with signed-in or unexpired cookie ownership", async () => {
-    const { repo, query } = fixture([{ id: SCAN }]);
+    const { repo, query, transaction } = fixture([{ id: SCAN }]);
     expect(
       await repo.deleteOwnedScan(SCAN, {
         userId: "owner",
@@ -41,15 +50,16 @@ describe("createDrizzleScanRepo().deleteOwnedScan", () => {
         now: NOW,
       }),
     ).toBe(true);
-    // Two statements: the read of the scan's values for its anonymous copy
-    // (hand-sample-delete.ts; this fake's rows give no key, so no copy delete
-    // and no batch), under the same ownership rule, then the scan DELETE.
+    // One batch (one request) of two statements: the DELETE of the scan's
+    // anonymous copy, matched in SQL under the same ownership condition
+    // (hand-sample-delete.ts), then the single scan-row DELETE.
+    expect(transaction).toHaveBeenCalledTimes(1);
     expect(query).toHaveBeenCalledTimes(2);
-    const read = String(query.mock.calls[0][0]).toLowerCase();
-    expect(read).toMatch(/^select /);
-    expect(read).toContain("scan_sessions");
-    expect(read).toContain("user_id");
-    expect(read).toContain("expires_at");
+    const copy = String(query.mock.calls[0][0]).toLowerCase();
+    expect(copy).toContain('delete from "hand_samples"');
+    expect(copy).toContain("scan_sessions");
+    expect(copy).toContain("user_id");
+    expect(copy).toContain("expires_at");
     const statement = String(query.mock.calls[1][0]).toLowerCase();
     expect(statement).toMatch(/^delete from "scans"/);
     expect(statement).toContain("scan_sessions");

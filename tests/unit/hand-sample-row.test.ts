@@ -17,7 +17,6 @@ import {
   toHandSampleRow,
   type ScanSampleSource,
 } from "../../src/server/scans/hand-sample";
-import { groupSampleKeys } from "../../src/server/scans/hand-sample-delete";
 import type { ScanInsertInput } from "../../src/server/scans/repo";
 import { handleScanSubmission } from "../../src/server/scans/submit";
 import { createFakeRepo } from "./fixtures/fake-scan-repo";
@@ -324,13 +323,6 @@ describe("sampleMatchKey agrees with the writer's row", () => {
     expect(sampleMm(82.49)).toBe(83);
     expect(sampleMm(82.44)).toBe(82);
     expect(sampleMm(150.45)).toBe(151);
-  });
-
-  it("groups identical keys so one DELETE removes one row per scan", () => {
-    const k = sampleMatchKey(storedScan(input(), NOW))!;
-    const other = { ...k, palmWidthMm: k.palmWidthMm + 1 };
-    const groups = groupSampleKeys([k, { ...k }, null, other]);
-    expect(groups.map((g) => g.count)).toEqual([2, 1]);
   });
 });
 

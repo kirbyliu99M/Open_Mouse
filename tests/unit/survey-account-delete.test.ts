@@ -273,7 +273,7 @@ describe("account Delete everything over the neon-http driver", () => {
     };
   }
 
-  it("sends the withdrawal, the scans' deletion and the user's deletion as exactly one transaction of four DELETEs, and no DELETE outside it", async () => {
+  it("sends the withdrawal, the copies' and the scans' deletion and the user's deletion as exactly one transaction of five DELETEs, and no DELETE outside it", async () => {
     const { createDrizzleAccountRepo } =
       await import("../../src/server/account/drizzle-repo");
     type AccountDb = NonNullable<
@@ -288,21 +288,21 @@ describe("account Delete everything over the neon-http driver", () => {
     expect(deleted).toBe(2);
     expect(client.transaction).toHaveBeenCalledTimes(1);
     const sql = transactions[0]!.map((s) => s.sql.toLowerCase());
-    expect(sql).toHaveLength(4);
+    expect(sql).toHaveLength(5);
     expect(sql[0]).toMatch(/^delete from "survey_contributions" where /);
     expect(sql[1]).toMatch(/^delete from "result_feedback" where /);
-    expect(sql[2]).toMatch(/^delete from "scan_sessions" where /);
-    expect(sql[3]).toMatch(/^delete from "users" where /);
+    // The anonymous copies (hand-sample-delete.ts), matched in SQL as the
+    // batch runs, before the scans go; behaviour is covered on a real
+    // database in tests/unit/hand-samples-db.test.ts.
+    expect(sql[2]).toContain('delete from "hand_samples"');
+    expect(sql[3]).toMatch(/^delete from "scan_sessions" where /);
+    expect(sql[4]).toMatch(/^delete from "users" where /);
     for (const statement of transactions[0]!) {
       expect(statement.params).toEqual(["user-1"]);
     }
-    // Everything else the driver was asked for is a SELECT: the scan count,
-    // and the scans' values for their anonymous copies (hand-sample-delete.ts;
-    // this fake's rows give no key, so the batch has no copy DELETE here —
-    // tests/unit/hand-samples-db.test.ts covers that on a real database).
+    // Everything else the driver was asked for is the scan count, a SELECT.
     const outside = built.filter((s) => !transactions[0]!.includes(s));
-    expect(outside).toHaveLength(2);
-    for (const statement of outside)
-      expect(statement.sql.toLowerCase()).toMatch(/^select /);
+    expect(outside).toHaveLength(1);
+    expect(outside[0]!.sql.toLowerCase()).toMatch(/^select /);
   });
 });

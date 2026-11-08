@@ -10,11 +10,7 @@ import {
   users,
 } from "../../db/schema";
 import { parallaxCorrectedOf } from "../../lib/fit/fit-scale";
-import { sampleMatchKey } from "../scans/hand-sample";
-import {
-  deleteMatchingSamples,
-  SAMPLE_SOURCE_COLUMNS,
-} from "../scans/hand-sample-delete";
+import { deleteMatchingSamples } from "../scans/hand-sample-delete";
 import type { AccountRepo, AccountScan } from "./repo";
 
 /** The real `AccountRepo`, over the Neon HTTP driver. */
@@ -88,19 +84,6 @@ export function createDrizzleAccountRepo(db = getDb()): AccountRepo {
         .from(scans)
         .innerJoin(scanSessions, eq(scans.sessionId, scanSessions.id))
         .where(eq(scanSessions.userId, userId));
-      // Each scan's de-linked copy, if it has one, goes too: one
-      // value-matching row per scan (hand-sample-delete.ts, privacy review
-      // 2026-11-08, candidate), deleted in the batch before the sessions.
-      const sources = await db
-        .select(SAMPLE_SOURCE_COLUMNS)
-        .from(scans)
-        .innerJoin(scanSessions, eq(scans.sessionId, scanSessions.id))
-        .innerJoin(scanMeasurements, eq(scanMeasurements.scanId, scans.id))
-        .where(eq(scanSessions.userId, userId));
-      const sampleDeletes = deleteMatchingSamples(
-        db,
-        sources.map(sampleMatchKey),
-      );
       // One batch (one atomic request), so the button that promises
       // "everything" never deletes the scans and leaves the answers, or the
       // account, or the other way round. The first two deletes are explicit
@@ -117,7 +100,10 @@ export function createDrizzleAccountRepo(db = getDb()): AccountRepo {
         // Result feedback is withdrawn by name too (its contract: "Delete
         // everything" MUST remove it); the user's cascade is the second net.
         db.delete(resultFeedback).where(eq(resultFeedback.userId, userId)),
-        ...sampleDeletes,
+        // Each scan's de-linked copy, if it has one, goes too: one
+        // value-matching row per scan, matched in SQL as this batch runs
+        // (hand-sample-delete.ts, privacy review 2026-11-08, candidate).
+        deleteMatchingSamples(db, eq(scanSessions.userId, userId)),
         db.delete(scanSessions).where(eq(scanSessions.userId, userId)),
         db.delete(users).where(eq(users.id, userId)),
       ]);

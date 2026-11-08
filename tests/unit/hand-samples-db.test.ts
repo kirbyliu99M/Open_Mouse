@@ -392,3 +392,100 @@ describe("the automatic expiry leaves the copies (by design)", () => {
     await pg.close();
   }, 30_000);
 });
+
+describe("the SQL match equals the writer (5,000 generated scans)", () => {
+  it("every copy the writer made is found and deleted by the account delete, and nothing more", async () => {
+    const { pg, repo, accountRepo } = await world();
+    await pg.query(`INSERT INTO users (id) VALUES ('user-1'), ('user-2')`);
+    const mine = await repo.createClaimedSession("user-1");
+    const theirs = await repo.createClaimedSession("user-2");
+
+    let seed = 20261108;
+    const rand = () => {
+      seed = (seed * 1103515245 + 12345) % 2 ** 31;
+      return seed / 2 ** 31;
+    };
+    // Free doubles plus values right at the rounding edges (x.45, x.5,
+    // x.449999), which the stored tenth and the whole-mm rounding must agree
+    // on in TypeScript and in SQL.
+    const mm = (lo: number, hi: number) => {
+      const base = lo + rand() * (hi - lo);
+      const pick = rand();
+      if (pick < 0.2) return Math.floor(base) + 0.45;
+      if (pick < 0.4) return Math.floor(base) + 0.5;
+      if (pick < 0.5) return Math.floor(base) + 0.449999;
+      return base;
+    };
+    // Instants that include the last and first minute of UTC months (and so
+    // the first hours of a Taipei month).
+    const instant = () => {
+      const month = Math.floor(rand() * 24);
+      const pick = rand();
+      if (pick < 0.25)
+        return new Date(
+          Date.UTC(2026, month + 1, 1) - 1 - Math.floor(rand() * 60_000),
+        );
+      if (pick < 0.5)
+        return new Date(Date.UTC(2026, month, 1) + Math.floor(rand() * 60_000));
+      return new Date(
+        Date.UTC(
+          2026,
+          month,
+          1 + Math.floor(rand() * 27),
+          Math.floor(rand() * 24),
+        ),
+      );
+    };
+
+    const generated: {
+      input: (sessionId: string) => ScanInsertInput;
+      at: Date;
+    }[] = [];
+    for (let n = 0; n < 5000; n++) {
+      const hand = mm(150, 230);
+      const measurements = {
+        handLengthMm: hand,
+        palmLengthMm: mm(90, Math.min(130, hand - 1)),
+        palmWidthMm: mm(60, 110),
+        ...(rand() < 0.5 ? { thumbLengthMm: mm(40, 80) } : {}),
+        ...(rand() < 0.5 ? { middleLengthMm: mm(60, 100) } : {}),
+        ...(rand() < 0.5 ? { pinkyLengthMm: mm(40, 80) } : {}),
+        indexLengthMm: mm(50, 90),
+      };
+      const side = rand() < 0.5 ? ("left" as const) : ("right" as const);
+      generated.push({
+        at: instant(),
+        input: (sessionId) =>
+          scanInput(sessionId, {
+            hand: side,
+            measurements,
+            calibrationEvidence: userLength(hand),
+          }),
+      });
+    }
+
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      for (const g of generated) {
+        vi.setSystemTime(g.at);
+        await repo.insertScanWithMeasurements(g.input(mine.id));
+      }
+      // Another person with identical values and times for the first 50.
+      for (const g of generated.slice(0, 50)) {
+        vi.setSystemTime(g.at);
+        await repo.insertScanWithMeasurements(g.input(theirs.id));
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+    // Every generated scan is plausible, so every one left a copy.
+    expect(await sampleCount(pg)).toBe(5050);
+
+    expect(await accountRepo.deleteAllScans("user-1")).toBe(5000);
+    // Exactly the other person's 50 identical copies are left.
+    expect(await sampleCount(pg)).toBe(50);
+    expect(await accountRepo.deleteAllScans("user-2")).toBe(50);
+    expect(await sampleCount(pg)).toBe(0);
+    await pg.close();
+  }, 600_000);
+});

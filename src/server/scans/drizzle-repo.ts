@@ -9,11 +9,8 @@ import {
   scans,
 } from "../../db/schema";
 import { parallaxCorrectedOf } from "../../lib/fit/fit-scale";
-import { sampleMatchKey, toHandSampleRow } from "./hand-sample";
-import {
-  deleteMatchingSamples,
-  SAMPLE_SOURCE_COLUMNS,
-} from "./hand-sample-delete";
+import { toHandSampleRow } from "./hand-sample";
+import { deleteMatchingSamples } from "./hand-sample-delete";
 import { RATE_LIMIT_ROW_RETENTION_MS } from "./rate-limit-config";
 import type {
   OwnedScan,
@@ -169,27 +166,12 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
         isNull(scanSessions.userId),
       );
       // The person's own delete also removes one value-matching copy per scan
-      // (hand-sample-delete.ts), in the same batch, before the scans go.
-      const sources = await db
-        .select(SAMPLE_SOURCE_COLUMNS)
-        .from(scans)
-        .innerJoin(scanSessions, eq(scans.sessionId, scanSessions.id))
-        .innerJoin(scanMeasurements, eq(scanMeasurements.scanId, scans.id))
-        .where(deletable);
-      const sampleDeletes = deleteMatchingSamples(
-        db,
-        sources.map(sampleMatchKey),
-      );
-      const deleteSessionRow = db.delete(scanSessions).where(deletable);
-      if (sampleDeletes.length > 0) {
-        await db.batch([...sampleDeletes, deleteSessionRow] as [
-          (typeof sampleDeletes)[number],
-          ...(typeof sampleDeletes)[number][],
-          typeof deleteSessionRow,
-        ]);
-      } else {
-        await deleteSessionRow;
-      }
+      // (hand-sample-delete.ts): matched in SQL, in the same batch, before
+      // the session (and its scans) go.
+      await db.batch([
+        deleteMatchingSamples(db, deletable),
+        db.delete(scanSessions).where(deletable),
+      ]);
     },
 
     async deleteExpiredAnonymousSessions(now) {
@@ -299,9 +281,8 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
       const ownership = ownershipPredicate(ctx);
       if (!ownership) return false;
 
-      // The scan DELETE carries its own ownership subquery, so the read below
-      // cannot widen what it deletes; only the scan row is targeted, and its
-      // dependent rows cascade from that row.
+      // One DELETE with an ownership subquery: only the scan row is targeted,
+      // and its dependent rows cascade from that row.
       const owned = and(
         eq(scans.id, scanId),
         inArray(
@@ -318,28 +299,12 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
         .returning({ id: scans.id });
 
       // The person's own delete also removes one value-matching copy of the
-      // scan (hand-sample-delete.ts), in the same batch, before the scan. The
-      // key is read under the same ownership rule as the delete.
-      const sources = await db
-        .select(SAMPLE_SOURCE_COLUMNS)
-        .from(scans)
-        .innerJoin(scanMeasurements, eq(scanMeasurements.scanId, scans.id))
-        .where(owned)
-        .limit(1);
-      const sampleDeletes = deleteMatchingSamples(
-        db,
-        sources.map(sampleMatchKey),
-      );
-      if (sampleDeletes.length === 0) {
-        const deleted = await deleteScan;
-        return deleted.length > 0;
-      }
-      const results = await db.batch([...sampleDeletes, deleteScan] as [
-        (typeof sampleDeletes)[number],
-        ...(typeof sampleDeletes)[number][],
-        typeof deleteScan,
+      // scan (hand-sample-delete.ts): matched in SQL under the same ownership
+      // condition, in the same batch, before the scan.
+      const [, deleted] = await db.batch([
+        deleteMatchingSamples(db, owned),
+        deleteScan,
       ]);
-      const deleted = results[results.length - 1] as { id: string }[];
       return deleted.length > 0;
     },
   };

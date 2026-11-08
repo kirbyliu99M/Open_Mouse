@@ -20,7 +20,9 @@
  * `sampleMatchKey` is the other half (privacy review, 2026-11-08, candidate):
  * while a scan still exists its copy could be re-identified by matching
  * values, so a person's own delete of the scan, its session or the account
- * also removes ONE value-matching copy per scan (`hand-sample-delete.ts`).
+ * also removes ONE value-matching copy per scan. The delete itself matches in
+ * SQL inside its batch (`hand-sample-delete.ts`); this function is the same
+ * rule in TypeScript, the specification the SQL is tested against.
  * The key is computed from the scan as stored, with the same rounding the
  * writer used, so a writer row and its scan's key always agree:
  *   - lengths: the writer rounds the value as `scan_measurements` stores it
