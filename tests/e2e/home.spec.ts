@@ -119,7 +119,7 @@ test("How it works still carries the photo-privacy promise that left the home pa
   await page.goto("/how-it-works");
   await expect(
     page.getByText(
-      "By default your photo is analysed only on your phone, and only the measurements are sent. It is uploaded only if you choose to send it after a failed scan or to report wrong numbers.",
+      "By default your photo is analysed only on your phone, and only the measurements are sent.",
     ),
   ).toBeVisible();
 });

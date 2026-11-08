@@ -27,7 +27,7 @@ test("How it works shows the illustration, steps, privacy details and navigation
   }
   await expect(
     page.getByText(
-      "By default your photo is analysed only on your phone, and only the measurements are sent. It is uploaded only if you choose to send it after a failed scan or to report wrong numbers.",
+      "By default your photo is analysed only on your phone, and only the measurements are sent.",
     ),
   ).toBeVisible();
   await expect(

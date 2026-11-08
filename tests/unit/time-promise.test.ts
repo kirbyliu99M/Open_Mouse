@@ -28,7 +28,7 @@ describe("timePromises", () => {
     "Takes about a minute.",
     "One blank sheet is all you need",
     "Your photo never leaves your phone. Only measurements are sent.",
-    "By default your photo is analysed only on your phone, and only the measurements are sent. It is uploaded only if you choose to send it after a failed scan or to report wrong numbers.",
+    "By default your photo is analysed only on your phone, and only the measurements are sent.",
     "A photo you sent is deleted separately, with its deletion code.",
     "Delete this scan now",
     "Print at actual size — 100%",

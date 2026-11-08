@@ -13,7 +13,7 @@ it("keeps the shared privacy promise on How it works, the scan screens and the c
   // Touchpoint (2026-11-08, candidate): the photo stays on the phone by
   // default; the one exception is the person's own choice to send it.
   expect(PHOTO_PRIVACY_COPY).toBe(
-    "By default your photo is analysed only on your phone, and only the measurements are sent. It is uploaded only if you choose to send it after a failed scan or to report wrong numbers.",
+    "By default your photo is analysed only on your phone, and only the measurements are sent.",
   );
   expect(PHOTO_PRIVACY_COPY).not.toMatch(/never leaves|never uploaded/);
   // How it works reads it in the visitor's language (`privacyCopy(locale)`).
@@ -43,7 +43,7 @@ it("does not put the photo-privacy sentence on the home page", () => {
 
 it("has a device-neutral twin for the desktop entry, and leaves the phone wording alone", () => {
   expect(PHOTO_PRIVACY_COPY_THIS_DEVICE).toBe(
-    "By default your photo is analysed only on this device, and only the measurements are sent. It is uploaded only if you choose to send it after a failed scan or to report wrong numbers.",
+    "By default your photo is analysed only on this device, and only the measurements are sent.",
   );
   // The same promise: only the device changes.
   expect(PHOTO_PRIVACY_COPY.replace("your phone", "this device")).toBe(

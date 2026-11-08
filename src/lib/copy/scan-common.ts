@@ -14,7 +14,8 @@
  * Touchpoint (2026-11-08, CANDIDATE 未拍板): a photo can now be uploaded, but
  * only when the person sends it themselves from a failure or "numbers look
  * wrong" screen (src/lib/contracts/error-photo.ts), so the sentences say "by
- * default" and name that one exception.
+ * default". They are short, for the camera and device screens; the full
+ * opt-in explanation lives in the FAQ, the privacy notice and the photo sheet.
  */
 import type { Locale } from "../contracts/locale";
 import { pickCopy } from "../i18n/copy";
@@ -85,12 +86,10 @@ export interface ScanCommonCopy {
 }
 
 export const zhTW: ScanCommonCopy = {
-  privacyPhone:
-    "照片預設只在你的手機上分析，只會傳送測量數值；只有你在掃描失敗或回報數字不對時自己選擇傳送，照片才會上傳。",
-  privacyDevice:
-    "照片預設只在這台裝置上分析，只會傳送測量數值；只有你在掃描失敗或回報數字不對時自己選擇傳送，照片才會上傳。",
+  privacyPhone: "照片預設只在你的手機上分析，只會傳送測量數值。",
+  privacyDevice: "照片預設只在這台裝置上分析，只會傳送測量數值。",
   privacyAndCameraStays:
-    "照片預設只在你的手機上分析，只會傳送測量數值；只有你在掃描失敗或回報數字不對時自己選擇傳送，照片才會上傳。相機畫面只會留在你的手機上。",
+    "照片預設只在你的手機上分析，只會傳送測量數值。相機畫面只會留在你的手機上。",
   handLeft: "左手",
   handRight: "右手",
   handChip: (hand, locked) =>
@@ -146,11 +145,11 @@ export const zhTW: ScanCommonCopy = {
 
 export const en: ScanCommonCopy = {
   privacyPhone:
-    "By default your photo is analysed only on your phone, and only the measurements are sent. It is uploaded only if you choose to send it after a failed scan or to report wrong numbers.",
+    "By default your photo is analysed only on your phone, and only the measurements are sent.",
   privacyDevice:
-    "By default your photo is analysed only on this device, and only the measurements are sent. It is uploaded only if you choose to send it after a failed scan or to report wrong numbers.",
+    "By default your photo is analysed only on this device, and only the measurements are sent.",
   privacyAndCameraStays:
-    "By default your photo is analysed only on your phone, and only the measurements are sent. It is uploaded only if you choose to send it after a failed scan or to report wrong numbers. The camera view stays on your phone.",
+    "By default your photo is analysed only on your phone, and only the measurements are sent. The camera view stays on your phone.",
   handLeft: "Left hand",
   handRight: "Right hand",
   handChip: (hand, locked) =>

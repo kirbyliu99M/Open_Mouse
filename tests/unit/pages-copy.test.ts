@@ -46,10 +46,10 @@ describe("English stays what it was", () => {
   it("the privacy constants are the sentences the scan screens pin", () => {
     // Touchpoint (2026-11-08, candidate): a photo can be sent, by choice only.
     expect(PHOTO_PRIVACY_COPY).toBe(
-      "By default your photo is analysed only on your phone, and only the measurements are sent. It is uploaded only if you choose to send it after a failed scan or to report wrong numbers.",
+      "By default your photo is analysed only on your phone, and only the measurements are sent.",
     );
     expect(PHOTO_PRIVACY_COPY_THIS_DEVICE).toBe(
-      "By default your photo is analysed only on this device, and only the measurements are sent. It is uploaded only if you choose to send it after a failed scan or to report wrong numbers.",
+      "By default your photo is analysed only on this device, and only the measurements are sent.",
     );
   });
 
