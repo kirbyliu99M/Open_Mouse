@@ -5553,11 +5553,6 @@ export default function EasyScanCamera({
                     ref={continueRef}
                     data-testid="answers-continue-button"
                     onClick={() => {
-                      // V3.3 WP3b: going on after a banner (no-op without one).
-                      if (sheetResult.softHint)
-                        noteSoftHintOutcome(sheetResult.softHint.at, {
-                          after: "continue",
-                        });
                       // Tester mode: the result goes to the tester page,
                       // never to the question pages or /api/scans.
                       if (tester) {
@@ -5582,6 +5577,11 @@ export default function EasyScanCamera({
                         });
                         return;
                       }
+                      // V3.3 WP3b: going on after a banner (no-op without one).
+                      if (sheetResult.softHint)
+                        noteSoftHintOutcome(sheetResult.softHint.at, {
+                          after: "continue",
+                        });
                       dispatchAnswers({ type: "open" });
                     }}
                   >

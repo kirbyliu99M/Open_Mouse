@@ -16,7 +16,7 @@
  */
 import { expect, test } from "@playwright/test";
 import { TESTER_CONSENT_VERSION } from "../../src/lib/contracts/tester";
-import { testerCopy as copy } from "../../src/lib/copy/tester";
+import { testerCopy as copy } from "../../src/lib/tester/copy";
 import { inspectJpeg } from "../../src/lib/error-photo/jpeg";
 import { skipFirstRun } from "./fixtures/first-run";
 

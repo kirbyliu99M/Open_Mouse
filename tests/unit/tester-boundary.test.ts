@@ -57,8 +57,8 @@ function resolveSpecifier(file: string, spec: string): string | null {
 function isTesterLane(path: string): boolean {
   return (
     path.startsWith("src/client/tester/") ||
-    path === "src/lib/copy/tester" ||
-    path === "src/lib/copy/tester.ts"
+    path === "src/lib/tester/copy" ||
+    path === "src/lib/tester/copy.ts"
   );
 }
 

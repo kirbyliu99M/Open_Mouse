@@ -2,7 +2,8 @@
  * Words of the hidden data-tester page `/scan/tester` (contract
  * src/lib/contracts/tester.ts; spec
  * docs/design/touchpoint-2026-11-08/tester-page-spec.md). zh-TW only: the
- * page is for people Kirby invites in Taiwan.
+ * page is for people Kirby invites in Taiwan, so it lives here and not in
+ * src/lib/copy/ (whose modules must carry zhTW and en tables).
  *
  * EVERY string here is a CANDIDATE (未拍板), written by the builder from the
  * spec, until Kirby has read them on a phone. The consent text is

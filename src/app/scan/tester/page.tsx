@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TesterClient } from "@/client/tester/TesterClient";
-import { testerCopy } from "@/lib/copy/tester";
+import { testerCopy } from "@/lib/tester/copy";
 import { testerPageEnabled } from "@/server/tester/route-deps";
 
 /**

@@ -35,7 +35,7 @@ import {
   testerCodeSchema,
   type TesterRecord,
 } from "../../lib/contracts/tester";
-import { testerCopy as copy } from "../../lib/copy/tester";
+import { testerCopy as copy } from "../../lib/tester/copy";
 import { phoneModelAllowed } from "../../lib/tester/phoneModel";
 import { buildTesterRecord, type ShotConditions } from "./record";
 import {
