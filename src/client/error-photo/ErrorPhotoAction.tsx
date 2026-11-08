@@ -26,11 +26,7 @@ import { leaveMs } from "../../lib/motion";
 import { ErrorPhotoSheet } from "../../components/error-photo/ErrorPhotoSheet";
 import { useLeaving } from "../camera/useLeaving";
 import { usePrefersReducedMotion } from "../camera/useReducedMotion";
-import {
-  errorPhotoOffer,
-  reservesErrorPhotoRow,
-  type OfferInput,
-} from "./offer";
+import { errorPhotoOffer, type OfferInput } from "./offer";
 import type { ErrorPhotoMetaInput } from "./send";
 import { usePreparedErrorPhoto } from "./usePreparedErrorPhoto";
 
@@ -123,19 +119,9 @@ export function ErrorPhotoAction({
         )
       : null;
 
-  if (!offer)
-    return (
-      <>
-        {/* The same row the camera reserved before this chunk came (H3). */}
-        {reservesErrorPhotoRow(result) && (
-          <span
-            className="errorPhotoLink errorPhotoLinkGone"
-            aria-hidden="true"
-          />
-        )}
-        {sheetElement}
-      </>
-    );
+  // No offer, no row: the camera reserved one only where the same rule
+  // (src/lib/error-photo/offerable.ts) said an offer could appear (K2).
+  if (!offer) return sheetElement;
   const ready = prepared.status === "ready";
   const gone = prepared.status === "failed";
   return (

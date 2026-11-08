@@ -4,7 +4,7 @@
  * without the Blob token 503) without `DATABASE_URL`.
  */
 import "server-only";
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { getDb } from "../../db/client";
 import { errorPhotoFlag } from "../../lib/flags";
 import { createDrizzleRateLimiter } from "../analysis/drizzle-rate-limiter";
@@ -40,7 +40,6 @@ export function errorPhotoRouteDeps(op: "upload" | "delete"): ErrorPhotoDeps {
       ),
     repo: () => createDrizzleErrorPhotoRepo(getDb),
     blob: createVercelErrorPhotoBlobStore(),
-    randomBytes: (size) => new Uint8Array(randomBytes(size)),
     randomUUID: () => randomUUID(),
   };
 }

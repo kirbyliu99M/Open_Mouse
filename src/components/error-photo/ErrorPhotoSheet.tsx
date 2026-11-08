@@ -10,8 +10,9 @@ import type {
 } from "@/client/error-photo/prepare";
 import {
   buildErrorPhotoMeta,
+  afterSend,
+  createUploadSession,
   parseExpectedCm,
-  sendErrorPhoto,
   type ErrorPhotoMetaInput,
 } from "@/client/error-photo/send";
 import "./error-photo.css";
@@ -20,6 +21,8 @@ type Phase =
   | { readonly kind: "form" }
   | { readonly kind: "sending" }
   | { readonly kind: "failed"; readonly message: string }
+  /** No answer in time: maybe stored; the code is shown (review #241 r3). */
+  | { readonly kind: "timeout"; readonly code: string }
   | { readonly kind: "sent"; readonly code: string };
 
 /**
@@ -31,8 +34,11 @@ type Phase =
  * for "numbers look wrong?", two optional typed values (checked on blur and
  * on send). Esc / back closes it before sending; while sending, and once the
  * deletion code is shown, only 「完成」 closes it (review F2), so the code is
- * never lost to a stray gesture. Nothing is sent before 傳送; nothing is
- * stored on the device; the code is shown once and never logged.
+ * never lost to a stray gesture. The deletion code is made on this device
+ * when the sheet opens and every try sends the same code with the same bytes
+ * (the server keeps one photo per code): after a timeout the code is shown
+ * with the copy button, since the photo may have been stored. Nothing is
+ * sent before 傳送; nothing is stored on the device; the code is never logged.
  */
 export function ErrorPhotoSheet({
   locale,
@@ -66,16 +72,24 @@ export function ErrorPhotoSheet({
   const [consent, setConsent] = useState(false);
   const [lengthCm, setLengthCm] = useState("");
   const [widthCm, setWidthCm] = useState("");
-  const [checked, setChecked] = useState({ length: false, width: false });
+  // Review K4: which field errors are shown changes only on blur and on
+  // send, never while typing, so the alert region speaks only then.
+  const [shownErrors, setShownErrors] = useState({
+    length: false,
+    width: false,
+  });
+  // One code for this sheet, made on the device (review #241 round 3).
+  const [upload] = useState(() => createUploadSession(photo.jpeg));
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
     "idle",
   );
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const sending = phase.kind === "sending";
   const sent = phase.kind === "sent";
-  // Esc / back close the sheet only before a send (review F2).
+  // Esc / back close the sheet only while no code has been shown (review F2);
+  // 不用了 and 完成 always can.
   const closableRef = useRef(true);
-  closableRef.current = !sending && !sent;
+  closableRef.current = !sending && !sent && phase.kind !== "timeout";
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   const {
@@ -105,14 +119,15 @@ export function ErrorPhotoSheet({
   // to the send button.
   useEffect(() => {
     if (phase.kind === "sent") titleRef.current?.focus();
-    if (phase.kind === "failed") sendRef.current?.focus();
+    if (phase.kind === "failed" || phase.kind === "timeout")
+      sendRef.current?.focus();
   }, [phase.kind]);
 
   const asksNumbers = meta.trigger === "numbers-wrong";
   const length = asksNumbers ? parseExpectedCm(lengthCm) : null;
   const width = asksNumbers ? parseExpectedCm(widthCm) : null;
-  const lengthShownInvalid = checked.length && length === "invalid";
-  const widthShownInvalid = checked.width && width === "invalid";
+  const lengthShownInvalid = asksNumbers && shownErrors.length;
+  const widthShownInvalid = asksNumbers && shownErrors.width;
   // Review H5: the message names the field(s); its container is always there
   // (role="alert"), so a blur error is announced.
   const numbersError = [
@@ -124,8 +139,13 @@ export function ErrorPhotoSheet({
 
   async function send() {
     if (!consent || sending || sent) return;
+    if (asksNumbers) {
+      setShownErrors({
+        length: length === "invalid",
+        width: width === "invalid",
+      });
+    }
     if (asksNumbers && (length === "invalid" || width === "invalid")) {
-      setChecked({ length: true, width: true });
       document
         .getElementById(length === "invalid" ? lengthId : widthId)
         ?.focus();
@@ -149,23 +169,27 @@ export function ErrorPhotoSheet({
       return;
     }
     setPhase({ kind: "sending" });
-    const outcome = await sendErrorPhoto(photo.jpeg, built);
-    if (outcome.ok) {
-      setPhase({ kind: "sent", code: outcome.deleteCode });
+    const next = afterSend(await upload.send(built));
+    if (next.kind !== "failed") {
+      setPhase(next);
       return;
     }
     setPhase({
       kind: "failed",
       message:
-        outcome.reason === "too-many"
+        next.reason === "too-many"
           ? copy.failTooMany
-          : outcome.reason === "unavailable"
+          : next.reason === "unavailable"
             ? copy.failUnavailable
-            : outcome.reason === "timeout"
-              ? copy.failTimeout
-              : copy.failGeneric,
+            : copy.failGeneric,
     });
   }
+  const copyStatus =
+    copyState === "copied"
+      ? copy.copied
+      : copyState === "failed"
+        ? copy.copyFailed
+        : "";
 
   async function copyCode(code: string) {
     try {
@@ -240,11 +264,7 @@ export function ErrorPhotoSheet({
             </button>
           </div>
           <p className="errorPhotoStatus" role="status" aria-live="polite">
-            {copyState === "copied"
-              ? copy.copied
-              : copyState === "failed"
-                ? copy.copyFailed
-                : ""}
+            {copyStatus}
           </p>
         </>
       ) : (
@@ -280,7 +300,12 @@ export function ErrorPhotoSheet({
                     lengthShownInvalid ? numbersErrorId : undefined
                   }
                   onChange={(e) => setLengthCm(e.target.value)}
-                  onBlur={() => setChecked((c) => ({ ...c, length: true }))}
+                  onBlur={() =>
+                    setShownErrors((e) => ({
+                      ...e,
+                      length: parseExpectedCm(lengthCm) === "invalid",
+                    }))
+                  }
                 />
               </div>
               <div className="errorPhotoNumberRow">
@@ -295,7 +320,12 @@ export function ErrorPhotoSheet({
                     widthShownInvalid ? numbersErrorId : undefined
                   }
                   onChange={(e) => setWidthCm(e.target.value)}
-                  onBlur={() => setChecked((c) => ({ ...c, width: true }))}
+                  onBlur={() =>
+                    setShownErrors((e) => ({
+                      ...e,
+                      width: parseExpectedCm(widthCm) === "invalid",
+                    }))
+                  }
                 />
               </div>
               <p
@@ -324,6 +354,30 @@ export function ErrorPhotoSheet({
             <p className="errorPhotoError" role="alert">
               {phase.message}
             </p>
+          )}
+          {phase.kind === "timeout" && (
+            <div className="errorPhotoTimeout">
+              <p className="errorPhotoError" role="alert">
+                {copy.failTimeoutBefore}
+                <strong
+                  className="errorPhotoCode"
+                  data-testid="error-photo-timeout-code"
+                >
+                  {phase.code}
+                </strong>
+                {copy.failTimeoutAfter}
+              </p>
+              <button
+                type="button"
+                className="errorPhotoCancel"
+                onClick={() => void copyCode(phase.code)}
+              >
+                {copy.copyCode}
+              </button>
+              <p className="errorPhotoStatus" role="status" aria-live="polite">
+                {copyStatus}
+              </p>
+            </div>
           )}
           <div className="errorPhotoActions">
             <button

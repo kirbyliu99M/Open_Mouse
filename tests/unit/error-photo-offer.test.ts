@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   errorPhotoOffer,
-  reservesErrorPhotoRow,
   type OfferInput,
 } from "../../src/client/error-photo/offer";
+import { errorPhotoOfferable } from "../../src/lib/error-photo/offerable";
 
 const hand = Array.from({ length: 21 }, (_, k) => ({ x: k * 10, y: k * 10 }));
 const corners = [
@@ -132,25 +132,55 @@ describe("errorPhotoOffer", () => {
   });
 });
 
-describe("reservesErrorPhotoRow (H3: the row is there from the first render)", () => {
-  it("reserves for a measured sheet and a failure with an overlay, not otherwise", () => {
-    expect(
-      reservesErrorPhotoRow({ kind: "measured", overlay: overlay() }),
-    ).toBe(true);
-    expect(reservesErrorPhotoRow(failure("DECODE_FAILED"))).toBe(true);
-    expect(reservesErrorPhotoRow(failure("PROCESSING_FAILED", null))).toBe(
-      false,
-    );
-    expect(reservesErrorPhotoRow({ kind: "processing" })).toBe(false);
+describe("errorPhotoOfferable: the one rule for the link and its reserved row (K2)", () => {
+  const cases: OfferInput["result"][] = [
+    failure("PAPER_NOT_FOUND"),
+    failure("DECODE_FAILED"),
+    failure("UNEXPECTED"),
+    failure("PROCESSING_FAILED", null),
+    failure("HAND_NOT_DETECTED", overlay({ landmarksPx: null })),
+    failure("CARD_NOT_FOUND", overlay(), true),
+    failure(
+      "MEASUREMENT_OUT_OF_RANGE",
+      overlay({ paperCorners: corners }),
+      true,
+    ),
+    { kind: "measured", overlay: overlay() },
+    {
+      kind: "measured",
+      overlay: overlay({ paperCorners: corners }),
+      reference: "card",
+      cardCheck: "pending",
+    },
+    { kind: "processing" },
+  ];
+
+  it("reserves a row exactly where an offer can appear", () => {
+    for (const result of cases) {
+      const offerable = errorPhotoOfferable({ enabled: true, result });
+      const offer = errorPhotoOffer({ enabled: true, result });
+      expect(offerable !== null, JSON.stringify(result).slice(0, 60)).toBe(
+        offer !== null,
+      );
+      if (offer && offerable) {
+        expect(offerable).toEqual({ trigger: offer.trigger, mode: offer.mode });
+      }
+    }
   });
 
-  it("every offer comes with a reserved row", () => {
+  it("gives DECODE_FAILED, UNEXPECTED and nothing-found no row", () => {
     for (const result of [
-      failure("PAPER_NOT_FOUND"),
-      { kind: "measured" as const, overlay: overlay() },
+      failure("DECODE_FAILED"),
+      failure("UNEXPECTED"),
+      failure("HAND_NOT_DETECTED", overlay({ landmarksPx: null })),
     ]) {
-      expect(errorPhotoOffer({ enabled: true, result })).not.toBeNull();
-      expect(reservesErrorPhotoRow(result)).toBe(true);
+      expect(errorPhotoOfferable({ enabled: true, result })).toBeNull();
     }
+    expect(
+      errorPhotoOfferable({
+        enabled: false,
+        result: failure("PAPER_NOT_FOUND"),
+      }),
+    ).toBeNull();
   });
 });

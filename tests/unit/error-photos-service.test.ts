@@ -32,6 +32,8 @@ import {
 import { EXIF_APP1, syntheticJpeg } from "./helpers/synthetic-jpeg";
 
 const UUID = "0f8fad5b-d9cb-469f-a165-70867728950e";
+/** The browser makes the code (review #241 round 3). */
+const CODE = "K7MP2QX9RT4W";
 const NOW = new Date("2026-11-08T15:42:10Z");
 
 const META: ErrorPhotoMeta = {
@@ -83,7 +85,6 @@ function fakes(overrides: Partial<ErrorPhotoDeps> = {}) {
     limiter: () => ({ allow }),
     repo: () => repo,
     blob,
-    randomBytes: (n) => Uint8Array.from({ length: n }, (_, k) => k * 7),
     randomUUID: () => UUID,
     now: () => NOW,
     ...overrides,
@@ -95,6 +96,7 @@ function uploadRequest(
   options: {
     meta?: unknown;
     metaText?: string;
+    code?: string | null;
     photo?: Blob | string | null;
     headers?: Record<string, string>;
   } = {},
@@ -107,6 +109,8 @@ function uploadRequest(
       ? new Blob([syntheticJpeg()], { type: "image/jpeg" })
       : options.photo;
   if (photo !== null) form.set("photo", photo);
+  const code = options.code === undefined ? CODE : options.code;
+  if (code !== null) form.set("code", code);
   return new Request("http://localhost/api/error-photos", {
     method: "POST",
     body: form,
@@ -310,6 +314,67 @@ describe("handleErrorPhotoUpload", () => {
   });
 });
 
+describe("handleErrorPhotoUpload: the browser's code is the idempotency key", () => {
+  it("echoes the browser's code and stores only its hash", async () => {
+    const f = fakes();
+    const res = await handleErrorPhotoUpload(uploadRequest(), f.deps);
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ deleteCode: CODE });
+    expect(f.rows[0]!.deleteCodeSha256).toBe(hashDeleteCode(CODE));
+  });
+
+  it.each([
+    ["missing", null],
+    ["too short", "ABC"],
+    ["with a look-alike", "ABCDEFGHIJKL"],
+    ["lower case", "k7mp2qx9rt4w"],
+  ])("400 for a code that is %s, nothing stored", async (_label, code) => {
+    const f = fakes();
+    const res = await handleErrorPhotoUpload(uploadRequest({ code }), f.deps);
+    expect(res.status).toBe(400);
+    expect(f.blob.put).not.toHaveBeenCalled();
+  });
+
+  it("a second POST with the same code answers 200 and stores nothing again", async () => {
+    let uuids = 0;
+    const f = fakes({
+      randomUUID: () => `0f8fad5b-d9cb-469f-a165-70867728950${uuids++ % 10}`,
+    });
+    const first = await handleErrorPhotoUpload(uploadRequest(), f.deps);
+    expect(first.status).toBe(201);
+    const again = await handleErrorPhotoUpload(uploadRequest(), f.deps);
+    expect(again.status).toBe(200);
+    expect(await again.json()).toEqual({ deleteCode: CODE });
+    expect(f.rows).toHaveLength(1);
+    expect(f.blobs.size).toBe(1);
+    expect(f.blob.put).toHaveBeenCalledTimes(1);
+  });
+
+  it("a race lost on the unique hash deletes its own blob and answers 200", async () => {
+    const f = fakes();
+    // The check before writing finds nothing; another request with the same
+    // code then inserts first, so this insert hits the unique hash.
+    vi.mocked(f.repo.findByCodeHash).mockResolvedValueOnce(null);
+    vi.mocked(f.repo.insert).mockImplementationOnce(async () => {
+      f.rows.push({
+        id: "winner",
+        consentVersion: ERROR_PHOTO_CONSENT_VERSION,
+        blobPathname: "error-photos/winner.jpg",
+        deleteCodeSha256: hashDeleteCode(CODE),
+        meta: META,
+        bytes: 1,
+        createdOn: NOW,
+      });
+      throw new Error("duplicate key value violates unique constraint");
+    });
+    const res = await handleErrorPhotoUpload(uploadRequest(), f.deps);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ deleteCode: CODE });
+    expect(f.blob.del).toHaveBeenCalledWith([`error-photos/${UUID}.jpg`]);
+    expect(f.blobs.has(`error-photos/${UUID}.jpg`)).toBe(false);
+    expect(f.rows).toHaveLength(1);
+  });
+});
 describe("handleErrorPhotoDelete", () => {
   async function uploaded() {
     const f = fakes();

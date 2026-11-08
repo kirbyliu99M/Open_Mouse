@@ -13,6 +13,7 @@ import {
   errorPhotoResponseSchema,
   type ErrorPhotoMeta,
 } from "../../lib/contracts/error-photo";
+import { generateDeleteCode, webCryptoBytes } from "../../lib/error-photo/code";
 
 type Mm = { readonly handLengthMm?: number; readonly palmWidthMm?: number };
 
@@ -88,38 +89,56 @@ export function parseExpectedCm(raw: string): number | null | "invalid" {
 }
 
 export type SendOutcome =
+  /** 201 (stored now) or 200 (this code was already stored: a retry). */
   | { readonly ok: true; readonly deleteCode: string }
+  /**
+   * No answer in time: the photo MAY have been stored, so the code is still
+   * the person's way to delete it, and a retry with it stores nothing twice.
+   */
   | {
       readonly ok: false;
-      readonly reason: "too-many" | "unavailable" | "timeout" | "failed";
+      readonly reason: "timeout";
+      readonly deleteCode: string;
+    }
+  | {
+      readonly ok: false;
+      readonly reason: "too-many" | "unavailable" | "failed";
     };
 
 /** How long the upload may take before the sheet gives up (review H1). */
 export const ERROR_PHOTO_UPLOAD_TIMEOUT_MS = 30_000;
 
 /**
- * Sends the prepared copy. Never throws, and never waits longer than
- * `timeoutMs`: the request is aborted then and the answer is `timeout`, even
+ * Sends the prepared copy with the deletion code the browser made (review
+ * #241 round 3). Never throws, and never waits longer than `timeoutMs`: the
+ * request is aborted then and the answer is `timeout` (with the code), even
  * from a fetch that ignores the abort.
  */
 export async function sendErrorPhoto(
   photo: Blob,
   meta: ErrorPhotoMeta,
+  code: string,
   fetchImpl: typeof fetch = fetch,
   timeoutMs: number = ERROR_PHOTO_UPLOAD_TIMEOUT_MS,
 ): Promise<SendOutcome> {
   const controller = new AbortController();
+  const timeout: SendOutcome = {
+    ok: false,
+    reason: "timeout",
+    deleteCode: code,
+  };
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<SendOutcome>((resolve) => {
     timer = setTimeout(() => {
       controller.abort();
-      resolve({ ok: false, reason: "timeout" });
+      resolve(timeout);
     }, timeoutMs);
   });
   const attempt = (async (): Promise<SendOutcome> => {
     try {
       const form = new FormData();
       form.set("meta", JSON.stringify(meta));
+      form.set("code", code);
       form.set("photo", photo, "photo.jpg");
       const res = await fetchImpl(ERROR_PHOTO_PATH, {
         method: "POST",
@@ -128,10 +147,10 @@ export async function sendErrorPhoto(
         cache: "no-store",
         signal: controller.signal,
       });
-      if (res.status === 201) {
+      if (res.status === 201 || res.status === 200) {
         const parsed = errorPhotoResponseSchema.safeParse(await res.json());
-        return parsed.success
-          ? { ok: true, deleteCode: parsed.data.deleteCode }
+        return parsed.success && parsed.data.deleteCode === code
+          ? { ok: true, deleteCode: code }
           : { ok: false, reason: "failed" };
       }
       if (res.status === 429) return { ok: false, reason: "too-many" };
@@ -140,7 +159,7 @@ export async function sendErrorPhoto(
       return { ok: false, reason: "failed" };
     } catch {
       return controller.signal.aborted
-        ? { ok: false, reason: "timeout" }
+        ? timeout
         : { ok: false, reason: "failed" };
     }
   })();
@@ -149,6 +168,57 @@ export async function sendErrorPhoto(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * What the sheet shows after a try (pure; tests/unit/error-photo-prepare.test.ts):
+ * the code once stored, the code with the "maybe sent" message after a
+ * timeout, or a failure to retry.
+ */
+export type AfterSend =
+  | { readonly kind: "sent"; readonly code: string }
+  | { readonly kind: "timeout"; readonly code: string }
+  | {
+      readonly kind: "failed";
+      readonly reason: "too-many" | "unavailable" | "failed";
+    };
+
+export function afterSend(outcome: SendOutcome): AfterSend {
+  if (outcome.ok) return { kind: "sent", code: outcome.deleteCode };
+  if (outcome.reason === "timeout")
+    return { kind: "timeout", code: outcome.deleteCode };
+  return { kind: "failed", reason: outcome.reason };
+}
+/**
+ * One sheet's upload: its deletion code is made once, on the device, and
+ * every try (a retry after a timeout or a failure) sends the same code with
+ * the same bytes, so the server keeps at most one photo for it.
+ */
+export interface UploadSession {
+  readonly code: string;
+  send(meta: ErrorPhotoMeta): Promise<SendOutcome>;
+}
+
+export function createUploadSession(
+  photo: Blob,
+  deps: {
+    readonly randomBytes?: (size: number) => Uint8Array;
+    readonly fetchImpl?: typeof fetch;
+    readonly timeoutMs?: number;
+  } = {},
+): UploadSession {
+  const code = generateDeleteCode(deps.randomBytes ?? webCryptoBytes);
+  return {
+    code,
+    send: (meta) =>
+      sendErrorPhoto(
+        photo,
+        meta,
+        code,
+        deps.fetchImpl ?? fetch,
+        deps.timeoutMs ?? ERROR_PHOTO_UPLOAD_TIMEOUT_MS,
+      ),
+  };
 }
 export type DeleteOutcome =
   "deleted" | "not-found" | "invalid" | "too-many" | "failed";

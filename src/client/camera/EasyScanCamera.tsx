@@ -343,6 +343,7 @@ import { measuredSheetNumbers } from "../photo/unverified-note";
 import { shownScanMeasurements } from "../../lib/fit/fit-scale";
 import { measuringShown } from "./measuringIndicator";
 import { CARD_REFERENCE_ENABLED } from "../../lib/flags";
+import { errorPhotoOfferable } from "../../lib/error-photo/offerable";
 // Types only (erased): the error-photo code itself is a guarded import().
 import type {
   ErrorPhotoAction as ErrorPhotoActionType,
@@ -1453,14 +1454,15 @@ export default function EasyScanCamera({
   }, [deviceFit]);
   // Review H2/H3: drawn from the result the sheet SHOWS, so the row stays (at
   // the same height) while the sheet slides out; before the chunk is here, a
-  // placeholder row of the same height stands wherever an offer could follow
-  // (a measured sheet, or a failure whose analysis left an overlay), so a
-  // late chunk never moves the buttons.
+  // placeholder row of the same height stands exactly where an offer can
+  // appear (the shared rule, src/lib/error-photo/offerable.ts, review K2), so
+  // a late chunk never moves the buttons and no empty row is left elsewhere.
   const errorPhotoRowReserved =
-    process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1" &&
     sheetResult !== null &&
-    (sheetResult.kind === "measured" ||
-      (sheetResult.kind === "gateFailure" && sheetResult.overlay !== null));
+    errorPhotoOfferable({
+      enabled: process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1",
+      result: sheetResult,
+    }) !== null;
   const errorPhotoAction =
     !errorPhotoRowReserved ? null : ErrorPhotoActionView && sheetResult ? (
       <ErrorPhotoActionView

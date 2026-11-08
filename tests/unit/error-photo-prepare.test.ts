@@ -3,6 +3,7 @@
  * and its metadata and requests (src/client/error-photo/send.ts), with
  * synthetic inputs only: no real photo, no canvas.
  */
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
   ERROR_PHOTO_CONSENT_VERSION,
@@ -21,6 +22,8 @@ import {
   normaliseDeleteCode,
   parseExpectedCm,
   ERROR_PHOTO_UPLOAD_TIMEOUT_MS,
+  afterSend,
+  createUploadSession,
   sendErrorPhoto,
 } from "../../src/client/error-photo/send";
 
@@ -286,6 +289,7 @@ describe("requests", () => {
     const out = await sendErrorPhoto(
       new Blob([new Uint8Array(4)], { type: "image/jpeg" }),
       meta,
+      "ABCDEFGHJKLM",
       fetchImpl as unknown as typeof fetch,
     );
     expect(out).toEqual({ ok: true, deleteCode: "ABCDEFGHJKLM" });
@@ -298,6 +302,7 @@ describe("requests", () => {
     const form = init.body as FormData;
     expect(JSON.parse(form.get("meta") as string)).toEqual(meta);
     expect((form.get("photo") as Blob).type).toBe("image/jpeg");
+    expect(form.get("code")).toBe("ABCDEFGHJKLM");
   });
 
   it.each([
@@ -308,6 +313,7 @@ describe("requests", () => {
     const out = await sendErrorPhoto(
       new Blob([]),
       meta,
+      "ABCDEFGHJKLM",
       (async () => new Response("{}", { status })) as unknown as typeof fetch,
     );
     expect(out).toEqual({ ok: false, reason });
@@ -324,6 +330,7 @@ describe("requests", () => {
       const pending = sendErrorPhoto(
         new Blob([]),
         meta,
+        "ABCDEFGHJKLM",
         never as unknown as typeof fetch,
       );
       let settled = false;
@@ -333,7 +340,12 @@ describe("requests", () => {
       await vi.advanceTimersByTimeAsync(ERROR_PHOTO_UPLOAD_TIMEOUT_MS - 1);
       expect(settled).toBe(false);
       await vi.advanceTimersByTimeAsync(1);
-      expect(await pending).toEqual({ ok: false, reason: "timeout" });
+      // The code goes with the timeout: the photo may have been stored.
+      expect(await pending).toEqual({
+        ok: false,
+        reason: "timeout",
+        deleteCode: "ABCDEFGHJKLM",
+      });
       expect(ERROR_PHOTO_UPLOAD_TIMEOUT_MS).toBe(30_000);
       expect(signal?.aborted).toBe(true);
     } finally {
@@ -341,6 +353,76 @@ describe("requests", () => {
     }
   });
 
+  it("a session makes its code once and every retry sends it with the same bytes", async () => {
+    const sent: { code: unknown; photo: Blob }[] = [];
+    let call = 0;
+    const fetchImpl = vi.fn(async (_path: string, init: RequestInit) => {
+      const form = init.body as FormData;
+      sent.push({
+        code: form.get("code"),
+        photo: form.get("photo") as Blob,
+      });
+      call++;
+      return call === 1
+        ? new Response("{}", { status: 500 })
+        : new Response(JSON.stringify({ deleteCode: form.get("code") }), {
+            status: 200,
+          });
+    });
+    const photo = new Blob([new Uint8Array([1, 2, 3])], { type: "image/jpeg" });
+    const session = createUploadSession(photo, {
+      randomBytes: (n) => Uint8Array.from({ length: n }, (_, k) => k * 5),
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    expect(session.code).toMatch(/^[A-HJ-NP-Z2-9]{12}$/);
+    expect(await session.send(meta)).toEqual({ ok: false, reason: "failed" });
+    expect(await session.send(meta)).toEqual({
+      ok: true,
+      deleteCode: session.code,
+    });
+    expect(sent.map((s) => s.code)).toEqual([session.code, session.code]);
+    expect(new Uint8Array(await sent[1]!.photo.arrayBuffer())).toEqual(
+      new Uint8Array([1, 2, 3]),
+    );
+  });
+
+  it("a timeout keeps the code on screen; a stored photo shows it as sent", () => {
+    expect(
+      afterSend({ ok: false, reason: "timeout", deleteCode: "ABCDEFGHJKLM" }),
+    ).toEqual({ kind: "timeout", code: "ABCDEFGHJKLM" });
+    expect(afterSend({ ok: true, deleteCode: "ABCDEFGHJKLM" })).toEqual({
+      kind: "sent",
+      code: "ABCDEFGHJKLM",
+    });
+    expect(afterSend({ ok: false, reason: "too-many" })).toEqual({
+      kind: "failed",
+      reason: "too-many",
+    });
+    // The sheet draws that code, selectable, with the copy button.
+    const sheet = readFileSync(
+      "src/components/error-photo/ErrorPhotoSheet.tsx",
+      "utf8",
+    );
+    const branch = sheet.slice(sheet.indexOf('phase.kind === "timeout" && ('));
+    expect(branch).toMatch(
+      /copy\.failTimeoutBefore[\s\S]*?\{phase\.code\}[\s\S]*?copy\.failTimeoutAfter/,
+    );
+    expect(branch).toMatch(/className="errorPhotoCode"/);
+    expect(branch).toMatch(/copyCode\(phase\.code\)/);
+  });
+
+  it("a response that names another code is not taken as success", async () => {
+    const out = await sendErrorPhoto(
+      new Blob([]),
+      meta,
+      "ABCDEFGHJKLM",
+      (async () =>
+        new Response(JSON.stringify({ deleteCode: "MLKJHGFEDCBA" }), {
+          status: 201,
+        })) as unknown as typeof fetch,
+    );
+    expect(out).toEqual({ ok: false, reason: "failed" });
+  });
   it("normalises a typed code and never sends a malformed one", async () => {
     expect(normaliseDeleteCode(" abcd-efgh jklm ")).toBe("ABCDEFGHJKLM");
     expect(normaliseDeleteCode("ABCDEFGHIJKL")).toBeNull();

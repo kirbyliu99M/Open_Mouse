@@ -54,8 +54,12 @@ export interface ErrorPhotoCopy {
   failTooMany: string;
   failUnavailable: string;
   failGeneric: string;
-  /** The upload took longer than the client waits (review H1). */
-  failTimeout: string;
+  /**
+   * No answer in time (review H1, #241 round 3): before + code + after. The
+   * photo may have been stored, so the code the device made is shown.
+   */
+  failTimeoutBefore: string;
+  failTimeoutAfter: string;
   /** The deletion form on /privacy. */
   deleteTitle: string;
   deleteIntro: string;
@@ -76,7 +80,7 @@ export const zhTW: ErrorPhotoCopy = {
   points: [
     "只會傳送手和紙張（或卡片）附近的範圍；用卡片量測時，偵測到的卡片會先在你的手機上塗黑；拍攝位置等檔案資訊也會移除。",
     "照片只有 Palmate 團隊看得到，只用來找出量錯的原因，上傳後約 6 個月（180 天）自動刪除。",
-    "照片不會存進你的帳號，刪除帳號也不會刪到它。照片會附上：這次量到的數字（如果有，取整到 1 公釐）、你填的正確數字（如果有）、左右手、裝置類別（手機／平板／電腦）、拍照或從相簿選取，以及失敗原因，方便我們找出哪裡量錯。送出後會給你一組刪除碼，隨時可以用它刪除。",
+    "照片不會存進你的帳號，刪除帳號也不會刪到它。照片會附上：這次量到的數字（如果有，取整到 1 公釐）、你填的正確數字（如果有）、左右手、裝置類別（手機／平板／電腦）、拍照或從相簿選取，以及失敗原因、紙張或卡片種類、量測版本與照片尺寸，方便我們找出哪裡量錯。送出後會給你一組刪除碼，隨時可以用它刪除。",
   ],
   paperModeNote: "如果畫面裡有卡片或文件，請按「不用了」，移開後重拍。",
   previewAlt: "將要傳送的照片",
@@ -101,7 +105,9 @@ export const zhTW: ErrorPhotoCopy = {
   failTooMany: "傳送次數太多了，請過一小時再試。",
   failUnavailable: "現在暫時無法接收照片，請稍後再試。",
   failGeneric: "傳送失敗，請稍後再試。",
-  failTimeout: "網路太慢，照片沒有送出。可以再試一次，或按「不用了」。",
+  failTimeoutBefore: "網路太慢，不確定照片有沒有送出。你的刪除碼是 ",
+  failTimeoutAfter:
+    "：如果已經送出，可以用它刪除。也可以再試一次，不會重複儲存。",
   deleteTitle: "刪除我傳送的照片",
   deleteIntro: "輸入傳送照片後拿到的 12 碼刪除碼，照片會立刻刪除。",
   deleteLabel: "刪除碼",
@@ -122,7 +128,7 @@ export const en: ErrorPhotoCopy = {
   points: [
     "Only the area around your hand and the paper (or card) is sent; when you measure with a card, the detected card is blacked out on your phone first, and location and camera details are removed.",
     "Only the Palmate team can see it, only to find out why the measurement went wrong, and it is deleted automatically about 6 months (180 days) after upload.",
-    "It isn't saved to your account, and deleting your account won't delete it. It carries: the numbers measured this time (if any, rounded to 1 mm), the numbers you typed (if any), which hand, device type (phone / tablet / computer), whether it was taken or picked from your photos, and why the scan failed, so we can find what went wrong. After sending you'll get a deletion code you can use any time.",
+    "It isn't saved to your account, and deleting your account won't delete it. It carries: the numbers measured this time (if any, rounded to 1 mm), the numbers you typed (if any), which hand, device type (phone / tablet / computer), whether it was taken or picked from your photos, and why the scan failed, paper or card type, measuring version and photo size, so we can find what went wrong. After sending you'll get a deletion code you can use any time.",
   ],
   paperModeNote:
     'If a card or document is in the picture, tap "No thanks", move it away and take the photo again.',
@@ -149,8 +155,10 @@ export const en: ErrorPhotoCopy = {
   failTooMany: "Too many photos sent. Try again in an hour.",
   failUnavailable: "Photos can't be received right now. Try again later.",
   failGeneric: "Sending failed. Try again later.",
-  failTimeout:
-    'The connection is too slow, so the photo wasn\'t sent. Try again, or tap "No thanks".',
+  failTimeoutBefore:
+    "The connection is too slow, so we can't tell whether the photo was sent. Your deletion code is ",
+  failTimeoutAfter:
+    ": if it was sent, you can use it to delete the photo. You can also try again; it won't be stored twice.",
   deleteTitle: "Delete a photo I sent",
   deleteIntro:
     "Enter the 12-character deletion code you got after sending a photo, and the photo is deleted at once.",

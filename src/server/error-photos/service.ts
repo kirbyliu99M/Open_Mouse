@@ -5,7 +5,7 @@
  * taps "send this photo" on a scan failure or the "numbers look wrong?" link,
  * reads the notice, ticks consent, and the browser uploads a cropped,
  * re-encoded copy. Everything here is injected (the limiter, the table, the
- * Blob store, the randomness and the clock), so it is unit-tested with no
+ * Blob store, the random path and the clock), so it is unit-tested with no
  * network: tests/unit/error-photos-service.test.ts.
  *
  * Upload, in order:
@@ -18,12 +18,17 @@
  *   SOI, hold no APP1 (Exif/XMP), no comment, nothing after EOI, and its frame
  *   must be exactly `meta.widthPx` x `meta.heightPx` (at most
  *   `ERROR_PHOTO_MAX_SIDE_PX`) -> else 400;
- *   a 12-character deletion code from the crypto source; only its SHA-256 is
- *   kept; the photo goes to the PRIVATE store at `error-photos/<uuid>.jpg` (a
- *   fresh random UUID: never a scan id, an IP or a user id), never overwriting;
- *   the row is inserted with `created_on` = the start of the UTC day; if the
- *   insert fails, the blob just written is deleted (no orphan);
- *   201 `{ deleteCode }`.
+ *   `code`, the 12-character deletion code the BROWSER made, must pass
+ *   `errorPhotoCodeSchema` -> else 400; only its SHA-256 is kept, and it is
+ *   the upload's idempotency key (review #241 round 3): a hash already stored
+ *   -> 200 with the same code and nothing stored again (checked before any
+ *   write); else the photo goes to the PRIVATE store at
+ *   `error-photos/<uuid>.jpg` (a fresh random UUID: never a scan id, an IP or
+ *   a user id), never overwriting; the row is inserted with `created_on` = the
+ *   start of the UTC day; if the insert fails, the blob just written is
+ *   deleted (no orphan), and if that was because a concurrent request with the
+ *   same code got there first (the unique hash), the answer is that one's 200;
+ *   201 `{ deleteCode }` for a new photo.
  *
  * Delete: flag / token as above; 413 / 429; `{ code }` must pass
  * `errorPhotoDeleteSchema` -> else 400; an unknown code -> 404; else the blob,
@@ -40,10 +45,10 @@ import {
   ERROR_PHOTO_MAX_SIDE_PX,
   errorPhotoDeleteSchema,
   errorPhotoMetaSchema,
+  errorPhotoCodeSchema,
   errorPhotoResponseSchema,
   type ErrorPhotoMeta,
 } from "../../lib/contracts/error-photo";
-import { generateDeleteCode } from "../../lib/error-photo/code";
 import { checkErrorPhotoJpeg } from "../../lib/error-photo/jpeg";
 import { UNKNOWN_IP_KEY, resolveClientIp } from "../analysis/ip";
 import { log } from "../log";
@@ -82,7 +87,6 @@ export interface ErrorPhotoDeps {
   readonly limiter: () => RateLimiter;
   readonly repo: () => ErrorPhotoRepo;
   readonly blob: ErrorPhotoBlobStore;
-  readonly randomBytes: (size: number) => Uint8Array;
   readonly randomUUID: () => string;
   readonly now?: () => Date;
 }
@@ -248,15 +252,27 @@ export async function handleErrorPhotoUpload(
     );
     if (problem) return json(400, { error: "Invalid photo.", problem });
 
-    const code = generateDeleteCode(deps.randomBytes);
+    // The code is the browser's (made before sending, shown even without a
+    // response). Never echoed back unless it passes the contract's format.
+    const codeField = form.get("code");
+    const parsedCode = errorPhotoCodeSchema.safeParse(codeField);
+    if (!parsedCode.success) return json(400, { error: "Invalid code." });
+    const code = parsedCode.data;
+    const codeHash = hashDeleteCode(code);
+    const repo = deps.repo();
+    const stored = () =>
+      json(200, errorPhotoResponseSchema.parse({ deleteCode: code }));
+    // Idempotent retry: this code's photo is already stored.
+    if (await repo.findByCodeHash(codeHash)) return stored();
+
     const pathname = errorPhotoPathname(deps.randomUUID());
     const now = (deps.now ?? (() => new Date()))();
     await deps.blob.put(pathname, bytes);
     try {
-      await deps.repo().insert({
+      await repo.insert({
         consentVersion: meta.data.consent,
         blobPathname: pathname,
-        deleteCodeSha256: hashDeleteCode(code),
+        deleteCodeSha256: codeHash,
         // Consent has its own column; the stored meta is the rest.
         meta: withoutConsent(meta.data),
         bytes: bytes.byteLength,
@@ -274,6 +290,10 @@ export async function handleErrorPhotoUpload(
           error: cleanupError,
         });
       }
+      // A concurrent request with the same code won the unique hash: its photo
+      // is the one kept, and this retry is answered as one.
+      if (await repo.findByCodeHash(codeHash).catch(() => null))
+        return stored();
       throw error;
     }
     // Parsed, not just typed: a code that ever broke the contract's format
