@@ -6,6 +6,7 @@
  * .env.local like the other scripts).
  *
  *   npx tsx scripts/tester-export.ts [outDir]
+ *   npx tsx scripts/tester-export.ts [outDir] --prune-only   # offline
  *
  * Default outDir: ../accuracy-collection-2026-11-08/export/ beside the
  * repository root (`git rev-parse --show-toplevel`). Refuses any folder
@@ -14,7 +15,9 @@
  * Each run rewrites both files from the server and applies the same
  * retention locally: a photo whose shot day is older than
  * `TESTER_PHOTO_RETENTION_DAYS` (or that the server no longer has, or whose
- * participant was deleted) is deleted from `photos/`.
+ * participant was deleted) is deleted from `photos/`. `--prune-only` does
+ * the age part offline, from the folder's own `records.jsonl` (no database,
+ * no Blob store), e.g. on a machine that keeps a copy.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
@@ -28,7 +31,9 @@ import * as schema from "../src/db/schema";
 import { createTesterAdmin } from "../src/server/tester/drizzle-repo";
 import {
   localPhotoCutoffDay,
+  parseExportArgs,
   photosToKeep,
+  pruneExportFolder,
   pruneLocalPhotos,
   resolveExportDir,
   writeExportFiles,
@@ -44,7 +49,15 @@ function repoRoot(): string {
 
 async function main() {
   const root = repoRoot();
-  const outDir = resolveExportDir(process.argv[2], root);
+  const args = parseExportArgs(process.argv.slice(2));
+  const outDir = resolveExportDir(args.outDir, root);
+  if (args.pruneOnly) {
+    const removed = pruneExportFolder(outDir, new Date());
+    console.log(
+      `Pruned ${outDir} offline: ${removed} photos past retention or without a row removed.`,
+    );
+    return;
+  }
   nextEnv.loadEnvConfig(root);
   const db = drizzle(neon(requireDatabaseUrl(process.env, "DATABASE_URL")), {
     schema,

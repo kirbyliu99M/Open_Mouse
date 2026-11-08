@@ -276,3 +276,67 @@ export function removeParticipantLocally(
   );
   return { rows: gone.length, photos: photos.length };
 }
+
+/**
+ * `tester-delete` arguments: `P07 [--yes] [--out <dir>]`, in any order. The
+ * value after `--out` is read first, so it is never taken for the id.
+ */
+export function parseDeleteArgs(args: readonly string[]): {
+  participant: string;
+  yes: boolean;
+  outDir: string | undefined;
+} {
+  const outAt = args.indexOf("--out");
+  if (
+    outAt >= 0 &&
+    (outAt + 1 >= args.length || args[outAt + 1]!.startsWith("--"))
+  )
+    throw new Error("--out needs a folder.");
+  const outDir = outAt >= 0 ? args[outAt + 1] : undefined;
+  const known = new Set(["--yes", "--out"]);
+  const unknown = args.find((a) => a.startsWith("--") && !known.has(a));
+  if (unknown) throw new Error(`Unknown option ${unknown}.`);
+  const positional = args.filter(
+    (a, i) => !a.startsWith("--") && !(outAt >= 0 && i === outAt + 1),
+  );
+  if (positional.length !== 1)
+    throw new Error("Give exactly one participant id such as P07.");
+  return {
+    participant: parseParticipantArg(positional[0]),
+    yes: args.includes("--yes"),
+    outDir,
+  };
+}
+
+/**
+ * `tester-export` arguments: `[outDir] [--prune-only]`. `--prune-only` works
+ * offline on the folder's own `records.jsonl` (no database, no Blob store).
+ */
+export function parseExportArgs(args: readonly string[]): {
+  outDir: string | undefined;
+  pruneOnly: boolean;
+} {
+  const unknown = args.find((a) => a.startsWith("--") && a !== "--prune-only");
+  if (unknown) throw new Error(`Unknown option ${unknown}.`);
+  const positional = args.filter((a) => !a.startsWith("--"));
+  if (positional.length > 1) throw new Error("Give at most one folder.");
+  return { outDir: positional[0], pruneOnly: args.includes("--prune-only") };
+}
+
+/**
+ * Offline retention on an export folder: deletes local photos older than the
+ * retention (by each row's own `day` in `records.jsonl`) or with no row, and
+ * rewrites `shots.csv`. Returns how many photos went; a folder without an
+ * export is left alone.
+ */
+export function pruneExportFolder(dir: string, now: Date): number {
+  const recordsPath = join(dir, "records.jsonl");
+  if (!existsSync(recordsPath)) return 0;
+  const rows = parseRecordsJsonl(readFileSync(recordsPath, "utf8"));
+  const keep = new Set(
+    rows.filter((r) => r.day >= localPhotoCutoffDay(now)).map((r) => r.shotId),
+  );
+  const removed = pruneLocalPhotos(dir, keep);
+  writeExportFiles(dir, rows);
+  return removed;
+}

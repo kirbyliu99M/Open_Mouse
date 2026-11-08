@@ -21,7 +21,7 @@ import { requireDatabaseUrl } from "../src/db/config";
 import * as schema from "../src/db/schema";
 import { createTesterAdmin } from "../src/server/tester/drizzle-repo";
 import {
-  parseParticipantArg,
+  parseDeleteArgs,
   removeParticipantLocally,
   resolveExportDir,
 } from "./tester-lib";
@@ -29,13 +29,11 @@ import {
 type AdminDb = Parameters<typeof createTesterAdmin>[0];
 
 async function main() {
-  const args = process.argv.slice(2);
-  const outAt = args.indexOf("--out");
-  const outDir = outAt >= 0 ? args[outAt + 1] : undefined;
-  const participant = parseParticipantArg(
-    args.find((a, i) => !a.startsWith("--") && i !== outAt + 1),
-  );
-  const really = args.includes("--yes");
+  const {
+    participant,
+    yes: really,
+    outDir,
+  } = parseDeleteArgs(process.argv.slice(2));
   const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
     encoding: "utf8",
   }).trim();
