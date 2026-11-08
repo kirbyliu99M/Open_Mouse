@@ -16,8 +16,8 @@
  *     `P07-K7Q2M9`. Kirby hands one code to each person. The server stores ONLY
  *     the participant id (`P07`), never the secret part, and compares codes in
  *     constant time.
- *   - `noindex, nofollow`, not in the sitemap, disallowed in robots.txt, no
- *     link from any public page.
+ *   - `noindex, nofollow`, not in the sitemap, not named in robots.txt (naming
+ *     it would advertise it), no link from any public page. Always zh-TW.
  *
  * What is stored per shot (`tester_shots`):
  *   - participant id, consent version, the DAY (Asia/Taipei date) — no time;
