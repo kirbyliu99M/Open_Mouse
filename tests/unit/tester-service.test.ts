@@ -355,3 +355,20 @@ describe("handleTesterShot", () => {
     expect(rows).toEqual([]);
   });
 });
+
+describe("the tester routes answer 404 to any other method", () => {
+  it.each(["check", "shots"] as const)(
+    "%s: GET and HEAD are 404",
+    async (r) => {
+      const route =
+        r === "check"
+          ? await import("../../src/app/api/tester/check/route")
+          : await import("../../src/app/api/tester/shots/route");
+      for (const handler of [route.GET, route.HEAD, route.PUT, route.DELETE]) {
+        const response = handler();
+        expect(response.status).toBe(404);
+        expect(response.headers.get("cache-control")).toBe("no-store");
+      }
+    },
+  );
+});

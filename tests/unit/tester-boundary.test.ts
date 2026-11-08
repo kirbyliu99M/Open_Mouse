@@ -101,6 +101,19 @@ describe("the tester lane is reached only from /scan/tester", () => {
   });
 });
 
+describe("analytics are muted only by the tester page", () => {
+  it("nothing but the tester lane calls muteTracking", () => {
+    const callers = sourceFiles(SRC)
+      .map(rel)
+      .filter(
+        (from) =>
+          from !== "src/client/analytics/track.ts" &&
+          /\bmuteTracking\(/.test(readFileSync(join(ROOT, from), "utf8")),
+      );
+    expect(callers).toEqual(["src/client/tester/TesterClient.tsx"]);
+  });
+});
+
 describe("/scan/tester is not advertised", () => {
   it("is not in the sitemap's fixed paths", () => {
     expect(SITEMAP_PATHS.some((p) => p.startsWith("/scan/tester"))).toBe(false);

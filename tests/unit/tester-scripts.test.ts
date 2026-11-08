@@ -3,8 +3,17 @@
  * generation, the export folder refusal, the participant argument and the
  * CSV.
  */
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   testerCodeSchema,
   TESTER_CODE_ALPHABET,
@@ -14,7 +23,13 @@ import {
   csvCell,
   generateTesterCodes,
   isInside,
+  localPhotoCutoffDay,
   parseParticipantArg,
+  parseRecordsJsonl,
+  photosToKeep,
+  pruneLocalPhotos,
+  recordsJsonl,
+  removeParticipantLocally,
   resolveExportDir,
   shotsCsv,
 } from "../../scripts/tester-lib";
@@ -86,6 +101,11 @@ describe("shotsCsv", () => {
     expect(csvCell('a,"b"')).toBe('"a,""b"""');
     expect(csvCell("=HYPERLINK()")).toBe("'=HYPERLINK()");
     expect(csvCell(-1.5)).toBe("-1.5");
+    // Only numbers bypass the guard: text that looks like a number does not.
+    expect(csvCell("-1+1")).toBe("'-1+1");
+    expect(csvCell("+886")).toBe("'+886");
+    expect(csvCell("@SUM(A1)")).toBe("'@SUM(A1)");
+    expect(csvCell(true)).toBe("true");
     const row = {
       shotId: "s1",
       participant: "P07",
@@ -100,5 +120,87 @@ describe("shotsCsv", () => {
     expect(cells[cols.indexOf("failureCodes")]).toBe("NO_HAND|LOW_LIGHT");
     expect(cells[cols.indexOf("photoFile")]).toBe("photos/s1.jpg");
     expect(cells[cols.indexOf("cardType")]).toBe("");
+  });
+});
+
+describe("the local export follows the server's rules", () => {
+  const dirs: string[] = [];
+  afterEach(() => {
+    for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+  const id = (n: number) =>
+    `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const row = (n: number, participant: string, day: string, photo: boolean) =>
+    ({
+      shotId: id(n),
+      participant,
+      day,
+      photoPathname: photo ? `tester/${id(n)}.jpg` : null,
+      failureCodes: [],
+    }) as unknown as Parameters<typeof shotsCsv>[0][number];
+  function exportFolder(rows: ReturnType<typeof row>[], photos: number[]) {
+    const dir = mkdtempSync(join(tmpdir(), "tester-export-"));
+    dirs.push(dir);
+    mkdirSync(join(dir, "photos"));
+    for (const n of photos)
+      writeFileSync(join(dir, "photos", `${id(n)}.jpg`), "x");
+    writeFileSync(join(dir, "records.jsonl"), recordsJsonl(rows));
+    writeFileSync(join(dir, "shots.csv"), shotsCsv(rows, new Set()));
+    return dir;
+  }
+
+  it("each export keeps only photos the server still has, within 180 Taipei days", () => {
+    // 2027-05-08 in Taipei: the cutoff is 2026-11-09.
+    const cutoff = localPhotoCutoffDay(new Date("2027-05-07T16:30:00Z"));
+    expect(cutoff).toBe("2026-11-09");
+    const rows = [
+      row(1, "P07", "2026-11-08", true), // past retention
+      row(2, "P07", "2026-11-09", true), // last day kept
+      row(3, "P08", "2026-12-01", false), // purged on the server
+    ];
+    const keep = photosToKeep(rows, cutoff);
+    expect([...keep]).toEqual([id(2)]);
+    // Photo 4 belongs to a shot the server no longer has at all.
+    const dir = exportFolder(rows, [1, 2, 3, 4]);
+    expect(pruneLocalPhotos(dir, keep)).toBe(3);
+    expect(existsSync(join(dir, "photos", `${id(2)}.jpg`))).toBe(true);
+    expect(existsSync(join(dir, "photos", `${id(1)}.jpg`))).toBe(false);
+  });
+
+  it("deleting a participant removes their rows and photos from the export, nobody else's", () => {
+    const rows = [
+      row(1, "P07", "2026-11-09", true),
+      row(2, "P08", "2026-11-09", true),
+      row(3, "P07", "2026-11-10", false),
+    ];
+    const dir = exportFolder(rows, [1, 2]);
+    expect(removeParticipantLocally(dir, "P07", true)).toEqual({
+      rows: 2,
+      photos: 1,
+    });
+    // A dry run changes nothing.
+    expect(existsSync(join(dir, "photos", `${id(1)}.jpg`))).toBe(true);
+    expect(removeParticipantLocally(dir, "P07", false)).toEqual({
+      rows: 2,
+      photos: 1,
+    });
+    const left = parseRecordsJsonl(
+      readFileSync(join(dir, "records.jsonl"), "utf8"),
+    );
+    expect(left.map((r) => r.participant)).toEqual(["P08"]);
+    const csv = readFileSync(join(dir, "shots.csv"), "utf8");
+    expect(csv).not.toContain("P07");
+    expect(csv).toContain(`photos/${id(2)}.jpg`);
+    expect(existsSync(join(dir, "photos", `${id(1)}.jpg`))).toBe(false);
+    expect(existsSync(join(dir, "photos", `${id(2)}.jpg`))).toBe(true);
+  });
+
+  it("a folder without an export is left alone", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tester-empty-"));
+    dirs.push(dir);
+    expect(removeParticipantLocally(dir, "P07", false)).toEqual({
+      rows: 0,
+      photos: 0,
+    });
   });
 });

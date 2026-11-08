@@ -3,7 +3,7 @@
  * the contract's refinements, the tape form, the record builder, the phone
  * model filter, and the Taipei day arithmetic the purge counts with.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   TESTER_CODE_ALPHABET,
   participantOf,
@@ -11,8 +11,8 @@ import {
   testerRecordSchema,
 } from "../../src/lib/contracts/tester";
 import {
-  NO_ANALYSIS_CODE,
   buildTesterRecord,
+  referenceMatches,
 } from "../../src/client/tester/record";
 import {
   EMPTY_TAPE,
@@ -98,6 +98,47 @@ describe("tester contract", () => {
       expect(testerCodeSchema.safeParse(bad).success).toBe(false);
     expect(participantOf("P123-ABCDEF")).toBe("P123");
     expect(TESTER_CODE_ALPHABET).not.toMatch(/[01IO]/);
+  });
+});
+
+describe("zero attempts", () => {
+  it("is only a give-up", () => {
+    const { measured: _m, photo: _p, ...rest } = RECORD;
+    void _m;
+    void _p;
+    const zero = { ...rest, attempts: 0, failureCodes: [], firstTryOk: false };
+    expect(
+      testerRecordSchema.safeParse({ ...zero, gaveUp: true }).success,
+    ).toBe(true);
+    expect(
+      testerRecordSchema.safeParse({ ...RECORD, attempts: 0 }).success,
+    ).toBe(false);
+  });
+});
+
+describe("referenceMatches", () => {
+  const paper = (paperSize: "a4" | "letter") => ({
+    method: "paper-edge" as const,
+    paperSize,
+    edgeFitResidualMm: 0.6,
+    minSideCoverage: 0.92,
+    parallaxCorrected: false as const,
+  });
+  const card = { method: "card-edge" } as unknown as Parameters<
+    typeof referenceMatches
+  >[1];
+
+  it("accepts the declared paper size on paper, and the card on the card", () => {
+    expect(referenceMatches("a4", paper("a4"), "paper")).toBe(true);
+    expect(referenceMatches("letter", paper("letter"), null)).toBe(true);
+    expect(referenceMatches("card", card, "card")).toBe(true);
+  });
+
+  it("refuses another paper size, paper for a card, or a card photo for paper", () => {
+    expect(referenceMatches("a4", paper("letter"), "paper")).toBe(false);
+    expect(referenceMatches("card", paper("a4"), "paper")).toBe(false);
+    expect(referenceMatches("a4", card, "card")).toBe(false);
+    expect(referenceMatches("a4", paper("a4"), "card")).toBe(false);
   });
 });
 
@@ -225,7 +266,7 @@ describe("buildTesterRecord", () => {
     expect(r.cardType).toBe("transit");
   });
 
-  it("giving up sends no measurement and no photo; with no analysis at all, says so", () => {
+  it("giving up sends no measurement and no photo; with no analysis at all, zero attempts", () => {
     const r = buildTesterRecord({
       shotId: RECORD.shotId,
       tape,
@@ -238,8 +279,9 @@ describe("buildTesterRecord", () => {
     expect(r.measured).toBeUndefined();
     expect(r.photo).toBeUndefined();
     expect(r.cardType).toBeUndefined();
-    expect(r.attempts).toBe(1);
-    expect(r.failureCodes).toEqual([NO_ANALYSIS_CODE]);
+    expect(r.attempts).toBe(0);
+    expect(r.firstTryOk).toBe(false);
+    expect(r.failureCodes).toEqual([]);
   });
 });
 
@@ -283,5 +325,28 @@ describe("Taipei day", () => {
     expect("2026-11-08" < cutoff).toBe(true);
     expect("2026-11-09" < cutoff).toBe(false);
     expect(() => testerPhotoCutoffDay(new Date(), 0)).toThrow(RangeError);
+  });
+});
+
+describe("muted analytics on the tester page", () => {
+  it("muteTracking stops every event until it is undone, and nests", async () => {
+    const { createTrack, muteTracking, trackingMuted } =
+      await import("../../src/client/analytics/track");
+    const send = vi.fn();
+    const track = createTrack({ enabled: () => true, send });
+    const props = { flow: "easy", device: "phone" } as const;
+    track("scan_entry_shown", props);
+    expect(send).toHaveBeenCalledTimes(1);
+    const undoA = muteTracking();
+    const undoB = muteTracking();
+    track("scan_entry_shown", props);
+    undoA();
+    undoA(); // a second call does nothing
+    expect(trackingMuted()).toBe(true);
+    track("scan_entry_shown", props);
+    undoB();
+    expect(trackingMuted()).toBe(false);
+    track("scan_entry_shown", props);
+    expect(send).toHaveBeenCalledTimes(2);
   });
 });

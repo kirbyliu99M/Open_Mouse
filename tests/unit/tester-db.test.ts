@@ -171,6 +171,30 @@ describe("tester_shots on Postgres", () => {
       }),
     ).rejects.toThrow();
     expect(await repo.insert(base)).toBe(true);
+    // A give-up before any analysis: zero attempts is allowed.
+    const { measured: _m, photo: _p, ...noMeasure } = RECORD;
+    void _m;
+    void _p;
+    expect(
+      await repo.insert({
+        ...base,
+        shotId: "55555555-5555-4555-8555-555555555555",
+        record: {
+          ...noMeasure,
+          attempts: 0,
+          failureCodes: [],
+          firstTryOk: false,
+          gaveUp: true,
+        },
+      }),
+    ).toBe(true);
+    await expect(
+      repo.insert({
+        ...base,
+        shotId: "66666666-6666-4666-8666-666666666666",
+        record: { ...RECORD, attempts: 51 },
+      }),
+    ).rejects.toThrow();
   });
 
   it("the purge deletes photos past retention and NULLs their pathname, keeping the rows", async () => {
