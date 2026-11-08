@@ -866,7 +866,7 @@ export const testerShots = pgTable(
       "tester_shots_phone_model_length",
       sql`char_length(${t.phoneModel}) BETWEEN 1 AND 40`,
     ),
-    check("tester_shots_attempts_range", sql`${t.attempts} BETWEEN 1 AND 50`),
+    check("tester_shots_attempts_range", sql`${t.attempts} BETWEEN 0 AND 50`),
     check(
       "tester_shots_failure_codes_count",
       sql`coalesce(array_length(${t.failureCodes}, 1), 0) <= 50`,

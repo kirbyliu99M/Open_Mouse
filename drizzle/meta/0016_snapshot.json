@@ -2115,7 +2115,7 @@
         },
         "tester_shots_attempts_range": {
           "name": "tester_shots_attempts_range",
-          "value": "\"tester_shots\".\"attempts\" BETWEEN 1 AND 50"
+          "value": "\"tester_shots\".\"attempts\" BETWEEN 0 AND 50"
         },
         "tester_shots_failure_codes_count": {
           "name": "tester_shots_failure_codes_count",
