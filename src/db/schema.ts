@@ -867,6 +867,16 @@ export const testerShots = pgTable(
       sql`char_length(${t.phoneModel}) BETWEEN 1 AND 40`,
     ),
     check("tester_shots_attempts_range", sql`${t.attempts} BETWEEN 0 AND 50`),
+    // Mirrors the contract's refinements (zero attempts only on a give-up;
+    // firstTryOk means one attempt that measured).
+    check(
+      "tester_shots_zero_attempts_gave_up",
+      sql`${t.attempts} > 0 OR ${t.gaveUp}`,
+    ),
+    check(
+      "tester_shots_first_try_ok",
+      sql`${t.firstTryOk} = (${t.attempts} = 1 AND NOT ${t.gaveUp})`,
+    ),
     check(
       "tester_shots_failure_codes_count",
       sql`coalesce(array_length(${t.failureCodes}, 1), 0) <= 50`,

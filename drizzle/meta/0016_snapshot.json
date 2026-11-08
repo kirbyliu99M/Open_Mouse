@@ -2117,6 +2117,14 @@
           "name": "tester_shots_attempts_range",
           "value": "\"tester_shots\".\"attempts\" BETWEEN 0 AND 50"
         },
+        "tester_shots_zero_attempts_gave_up": {
+          "name": "tester_shots_zero_attempts_gave_up",
+          "value": "\"tester_shots\".\"attempts\" > 0 OR \"tester_shots\".\"gave_up\""
+        },
+        "tester_shots_first_try_ok": {
+          "name": "tester_shots_first_try_ok",
+          "value": "\"tester_shots\".\"first_try_ok\" = (\"tester_shots\".\"attempts\" = 1 AND NOT \"tester_shots\".\"gave_up\")"
+        },
         "tester_shots_failure_codes_count": {
           "name": "tester_shots_failure_codes_count",
           "value": "coalesce(array_length(\"tester_shots\".\"failure_codes\", 1), 0) <= 50"
