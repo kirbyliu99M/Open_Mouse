@@ -162,25 +162,58 @@ describe("the switch as rendered", () => {
 
   beforeEach(() => resetSampleConsentMemory());
 
-  it("is an accessible switch, ON at first render, named by its label and described by the note", () => {
+  it("is an accessible switch, ON at first render, named by its label and described by the short sentence", () => {
     const html = render(createElement(SampleConsentToggle, { notice }));
     expect(html).toMatch(/<button[^>]*role="switch"[^>]*aria-checked="true"/);
     const labelId = /<label id="([^"]+)"/.exec(html)![1]!;
-    const noteId = /<p id="([^"]+)" class="sampleConsentNote"/.exec(html)![1]!;
+    const shortId = new RegExp(`<span id="([^"]+)">${zhTW.short}</span>`).exec(
+      html,
+    )![1]!;
     expect(html).toContain(`aria-labelledby="${labelId}"`);
-    expect(html).toContain(`aria-describedby="${noteId}"`);
+    expect(html).toContain(`aria-describedby="${shortId}"`);
     expect(html).toContain(zhTW.label);
-    expect(html).toContain(zhTW.note);
+  });
+
+  it("shows two layers: the short sentence and 詳細說明 open, the details closed until asked", () => {
+    const html = render(createElement(SampleConsentToggle, { notice }));
+    const detailsId = /<p id="([^"]+)" class="sampleConsentDetails"/.exec(
+      html,
+    )![1]!;
     expect(html).toMatch(
-      /<a href="\/privacy" target="_blank" rel="noopener">隱私權政策<\/a>/,
+      new RegExp(
+        `<button type="button" class="sampleConsentMore" aria-expanded="false" aria-controls="${detailsId}"[^>]*>詳細說明</button>`,
+      ),
+    );
+    expect(html).toMatch(
+      /<p id="[^"]+" class="sampleConsentDetails" hidden=""/,
+    );
+    // The details are in the page (reachable from the button), with the
+    // privacy link that says it opens a new tab.
+    expect(html).toContain(zhTW.details);
+    expect(html).toMatch(
+      /<a href="\/privacy" target="_blank" rel="noopener">隱私權政策<span class="sampleConsentSr">（另開新分頁）<\/span><\/a>/,
     );
   });
 
-  it("speaks English with the English table", () => {
+  it("speaks English with the English table, and links the English privacy page", () => {
     const html = render(createElement(SampleConsentToggle, { notice }), "en");
     expect(html).toContain(en.label);
-    expect(html).toContain(en.note.replace(/'/g, "&#x27;"));
-    expect(html).toContain(">Privacy policy</a>");
+    expect(html).toContain(en.short);
+    expect(html).toContain(">Details</button>");
+    expect(html).toContain(en.details.replace(/'/g, "&#x27;"));
+    expect(html).toMatch(
+      /<a href="\/en\/privacy" target="_blank" rel="noopener">Privacy policy<span class="sampleConsentSr">\(opens in a new tab\)<\/span><\/a>/,
+    );
+  });
+
+  it("keeps state visible under forced colours", () => {
+    const css = readFileSync("src/client/scan/sample-consent.css", "utf8");
+    const forced = /@media \(forced-colors: active\) \{([\s\S]*?)\n\}/.exec(
+      css,
+    )![1]!;
+    expect(forced).toContain('[aria-checked="true"] .sampleConsentTrack');
+    expect(forced).toContain("Highlight");
+    expect(forced).toContain("ButtonText");
   });
 
   it("is disabled while the scan is being sent", () => {
