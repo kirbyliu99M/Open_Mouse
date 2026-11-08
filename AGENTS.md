@@ -118,11 +118,15 @@ caused one agent's uncommitted work to be committed by another.
    revised — never the gate. Raise it with Claude instead.
 
 5. **Photos stay on the phone by default.** MediaPipe and ArUco run client-side
-   via WASM, and a scan POSTs only derived millimetre values. The single
-   exception (Kirby, 2026-11-08, candidate): on a scan-failure screen or the
-   "numbers look wrong?" report, the person taps "send this photo" and ticks
-   consent; only then the browser uploads a cropped, EXIF-free copy (card area
-   blacked out) through `src/lib/contracts/error-photo.ts`, kept 6 months.
+   via WASM, and a scan POSTs only derived millimetre values. Two exceptions
+   (Kirby, candidate), both opt-in and both sending only a cropped, EXIF-free
+   copy with any card area blacked out:
+   - error photos (2026-11-08): on a scan-failure screen or the "numbers look
+     wrong?" report, the person taps "send this photo" and ticks consent;
+     `src/lib/contracts/error-photo.ts`, kept 180 days;
+   - data testers (2026-11-09): on the hidden, invite-code-only
+     `/scan/tester`, a tester who ticks the (unticked by default) photo box;
+     `src/lib/contracts/tester.ts`, kept 180 days.
    Any other change that sends an image to a server breaks a promise made in
    the UI — stop and raise it.
 
