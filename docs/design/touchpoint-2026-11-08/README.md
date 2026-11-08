@@ -27,15 +27,15 @@ Kirby 2026-11-08 啟動。本檔是這個計畫的設計與分工總表；進度
 
 ## 分工
 
-| 線 | 誰 | 分支 | 內容 | 狀態 |
-|---|---|---|---|---|
-| Contract＋schema | Claude | `touchpoint-2026-11-08` | hand-sample.ts、error-photo.ts、sampleNotice、migration 0015、硬規則 5 | 已推送 |
-| B1 數值副本 | builder | `touchpoint-b1-samples` | 寫入副本、刪除相符副本、確認畫面開關 | 進行中 |
-| B2 錯誤照片 | builder | `touchpoint-b2-photos` | 上傳／刪除路由、180 天清除、裝置端裁切塗黑、同意畫面、刪除碼表單 | 進行中 |
-| 隱私文案 | Claude 起草，builder 套用 | 待開 | 政策 v2.1（`privacy-policy-v2-draft.md`）＋全站相關句子＋測試 | 草稿待 Kirby |
-| SEO P0 | builder | 待開 | 見下方 | 排隊 |
-| 論壇 MVP | builder | 待開 | 見 `forum-spec.md` | 規格待 Kirby |
-| 準確度 | Claude | 本機 | `scripts/accuracy-eval.ts`，資料在 repo 外 | 等資料 |
+| 線               | 誰                        | 分支                    | 內容                                                                   | 狀態         |
+| ---------------- | ------------------------- | ----------------------- | ---------------------------------------------------------------------- | ------------ |
+| Contract＋schema | Claude                    | `touchpoint-2026-11-08` | hand-sample.ts、error-photo.ts、sampleNotice、migration 0015、硬規則 5 | 已推送       |
+| B1 數值副本      | builder                   | `touchpoint-b1-samples` | 寫入副本、刪除相符副本、確認畫面開關                                   | 進行中       |
+| B2 錯誤照片      | builder                   | `touchpoint-b2-photos`  | 上傳／刪除路由、180 天清除、裝置端裁切塗黑、同意畫面、刪除碼表單       | 進行中       |
+| 隱私文案         | Claude 起草，builder 套用 | 待開                    | 政策 v2.1（`privacy-policy-v2-draft.md`）＋全站相關句子＋測試          | 草稿待 Kirby |
+| SEO P0           | builder                   | 待開                    | 見下方                                                                 | 排隊         |
+| 論壇 MVP         | builder                   | 待開                    | 見 `forum-spec.md`                                                     | 規格待 Kirby |
+| 準確度           | Claude                    | 本機                    | `scripts/accuracy-eval.ts`，資料在 repo 外                             | 等資料       |
 
 ### 規則
 
