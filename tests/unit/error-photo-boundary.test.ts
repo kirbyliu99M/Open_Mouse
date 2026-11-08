@@ -6,7 +6,11 @@
  *     constant the build folds (an unset NEXT_PUBLIC_ variable is not inlined,
  *     and its guarded `import()` would then still produce a chunk);
  *  2. nothing imports the error-photo client modules except the lane itself,
- *     tests, type-only imports, and the two guarded `import()` sites.
+ *     tests, type-only imports, and the two guarded `import()` sites — and the
+ *     hidden tester page's lane (`src/client/tester/`, candidate), which
+ *     prepares its photo with the SAME `prepare.ts` (contract
+ *     src/lib/contracts/tester.ts) and is itself only reachable from
+ *     `/scan/tester` (tests/unit/tester-boundary.test.ts).
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, posix, relative, resolve } from "node:path";
@@ -46,6 +50,15 @@ function isLaneModule(path: string): boolean {
     p.startsWith("src/components/error-photo/") ||
     p === "src/lib/copy/error-photo" ||
     p === "src/lib/copy/error-photo.ts"
+  );
+}
+
+/** The tester lane may import the photo preparation, and nothing else of the lane. */
+function isTesterPrepareImport(importer: string, target: string): boolean {
+  return (
+    importer.startsWith("src/client/tester/") &&
+    (target === "src/client/error-photo/prepare" ||
+      target === "src/client/error-photo/prepare.ts")
   );
 }
 
@@ -123,6 +136,7 @@ describe("the error-photo client code is reached only through the guarded import
         const target = resolveSpecifier(file, spec);
         if (!target || !isLaneModule(target)) continue;
         if (kind === "type") continue;
+        if (isTesterPrepareImport(rel, target)) continue;
         if (kind === "dynamic" && GUARDED_SITES.includes(rel)) {
           guardedImports++;
           continue;

@@ -65,7 +65,7 @@ const SUBMISSION = scanSubmissionSchema.parse({
  * With the live camera (the e2e suite's fake one) this reaches the measured
  * sheet from a real capture, which no synthetic photo does through MediaPipe.
  */
-async function measuredPipeline(
+export async function measuredPipeline(
   input: RunPhotoPipelineInput,
 ): Promise<PipelineResult> {
   const demoWindow = window as DemoWindow;

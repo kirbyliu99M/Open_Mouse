@@ -35,7 +35,6 @@ import {
   ERROR_PHOTO_MAX_BYTES,
   ERROR_PHOTO_MAX_SIDE_PX,
 } from "../../lib/contracts/error-photo";
-import { commentText } from "../../lib/contracts/survey";
 import {
   participantOf,
   testerCheckResponseSchema,
@@ -45,6 +44,7 @@ import {
   type TesterRecord,
 } from "../../lib/contracts/tester";
 import { checkErrorPhotoJpeg } from "../../lib/error-photo/jpeg";
+import { phoneModelAllowed } from "../../lib/tester/phoneModel";
 import {
   BodyTooLargeError,
   declaredTooLarge,
@@ -113,17 +113,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function testerPhotoPathname(uuid: string): string {
   if (!UUID.test(uuid)) throw new RangeError("Not a UUID.");
   return `${TESTER_PHOTO_PREFIX}${uuid.toLowerCase()}.jpg`;
-}
-
-/** A link in the phone model (the survey filter has no URL rule). */
-const URL_LIKE =
-  /(https?:\/\/|www\.|\b[a-z0-9-]+\.(com|net|org|tw|io|me|co)\b)/i;
-
-/** The phone model as typed passes the survey comment filter and holds no link. */
-export function phoneModelAllowed(phoneModel: string): boolean {
-  return (
-    commentText.safeParse(phoneModel).success && !URL_LIKE.test(phoneModel)
-  );
 }
 
 async function readBody(
