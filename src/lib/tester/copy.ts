@@ -44,10 +44,10 @@ export const testerCopy = {
     title: "參加前請先看這裡",
     points: [
       "我們會記下：你用卷尺量的手長和掌寬、每張照片的拍攝條件（手機型號、桌面、光線、參考物）、掃描的過程（嘗試幾次、失敗原因）和 App 量到的數值。",
-      "紀錄上只有你的代號（例如 P07）和日期，不含時間；不會記下你的姓名、Email 或帳號。為了防止有人濫用，伺服器會短暫保存經過雜湊處理的 IP（不是原始 IP），大約一天內自動清除。",
+      "資料庫紀錄上只有你的代號（例如 P07）和日期，不含時間（照片檔在儲存空間會有上傳時間，到期時一起刪除）；不會記下你的姓名、Email 或帳號。為了防止有人濫用，伺服器會短暫保存經過雜湊處理的 IP（不是原始 IP），大約一天內自動清除。",
       "這些資料只用在一件事：改善 Palmate 量手的準確度。",
-      `如果你同意附上照片，手機會先把照片裁到只剩手和參考物、把卡片塗黑、去掉拍攝資訊（EXIF），再上傳到不公開的儲存空間。照片 ${TESTER_PHOTO_RETENTION_DAYS} 天後自動刪除。`,
-      `為了分析，資料可能會匯出到專案負責人的電腦。電腦上的副本一樣遵守 ${TESTER_PHOTO_RETENTION_DAYS} 天刪除照片的規定，你要求刪除時也會一起刪除。`,
+      `如果你同意附上照片，手機會先把照片裁到手和參考物附近的範圍、去掉拍攝資訊（EXIF），再上傳到不公開的儲存空間；用卡片時會把卡片塗黑，用紙張時請先移開其他卡片和文件。照片 ${TESTER_PHOTO_RETENTION_DAYS} 天後自動刪除。`,
+      `為了分析，資料可能會匯出到專案負責人的電腦。電腦上的副本會在每次整理資料時刪除超過 ${TESTER_PHOTO_RETENTION_DAYS} 天的照片；你要求刪除時也會一起刪除。`,
       `數值會保留到我們刪除，或你要求刪除為止。要刪除，請寄信到 ${TESTER_CONTACT_EMAIL}，附上你的代號，我們會刪掉這個代號的所有紀錄和照片（包括電腦上的副本）。`,
     ],
     agree: "我看過並同意以上說明",
@@ -118,6 +118,9 @@ export const testerCopy = {
     } satisfies Record<(typeof TESTER_CARD_TYPES)[number], string>,
     chooseOne: "請選一個。",
     deliberatelyPoor: "這張是故意拍得不理想的（例如偏暗、歪斜）",
+    photo: "這張附上處理過的照片",
+    photoOn: `會上傳處理過的照片，${TESTER_PHOTO_RETENTION_DAYS} 天後刪除。`,
+    photoOff: "照片留在手機上，只送出數值。",
     referenceReminder: "掃描畫面會直接用這個參考物，請放好再開始。",
     start: "開始掃描",
     editTape: "修改卷尺實測",
@@ -127,6 +130,9 @@ export const testerCopy = {
     giveUp: "這次放棄",
     /** In place of "photos stay on the phone" when the photo box is ticked. */
     photoNotice: `你勾選了附上照片：處理過的照片會上傳，${TESTER_PHOTO_RETENTION_DAYS} 天後刪除。`,
+    /** In place of the camera's privacy line when the photo box is not ticked. */
+    noPhotoNotice:
+      "照片留在手機上，只會送出你填的卷尺值、拍攝條件和 App 的量測結果。",
   },
 
   giveUp: {
@@ -154,6 +160,8 @@ export const testerCopy = {
     failed: "送出失敗了。",
     failedTooMany: "送出太多次了，請過一小時再試。",
     failedInvalid: "這筆資料有問題，送不出去。請改一下拍攝條件再拍一次。",
+    handMismatch:
+      "掃描到的手和卷尺填的不是同一隻，所以這張沒有送出。請確認後再拍一次。",
     referenceMismatch:
       "掃描用的參考物和你選的不一樣，所以這張沒有送出。請再拍一次。",
     failedCode: "測試者代碼已失效，請重新輸入。",

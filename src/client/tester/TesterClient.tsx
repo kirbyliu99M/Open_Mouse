@@ -44,6 +44,8 @@ import { testerCopy as copy } from "../../lib/tester/copy";
 import { phoneModelAllowed } from "../../lib/tester/phoneModel";
 import {
   buildTesterRecord,
+  giveUpCaptureMode,
+  handMatches,
   referenceMatches,
   type ShotConditions,
 } from "./record";
@@ -111,7 +113,7 @@ type SendState =
   | { readonly kind: "preparing" }
   | { readonly kind: "sending" }
   | { readonly kind: "sent" }
-  | { readonly kind: "mismatch" }
+  | { readonly kind: "mismatch"; readonly what: "reference" | "hand" }
   | { readonly kind: "failed"; readonly outcome: Exclude<ShotOutcome, "sent"> };
 
 type ShotResult =
@@ -181,6 +183,7 @@ export function TesterClient({ runPhotoPipelineImpl }: TesterClientProps) {
     null,
   );
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const codeInputRef = useRef<HTMLInputElement>(null);
 
   // Testers' scans stay out of the product funnel (Kirby can reverse this).
   useEffect(() => muteTracking(), []);
@@ -217,6 +220,16 @@ export function TesterClient({ runPhotoPipelineImpl }: TesterClientProps) {
     window.scrollTo(0, 0);
     headingRef.current?.focus();
   }, [step]);
+
+  // A refused code: focus back on the box (the button was disabled while checking).
+  useEffect(() => {
+    if (
+      codeState === "invalid" ||
+      codeState === "too-many" ||
+      codeState === "network"
+    )
+      codeInputRef.current?.focus();
+  }, [codeState]);
 
   const participant = code ? participantOf(code) : null;
 
@@ -320,7 +333,7 @@ export function TesterClient({ runPhotoPipelineImpl }: TesterClientProps) {
             tape,
             conditions,
             attempts,
-            captureMode: "camera",
+            captureMode: giveUpCaptureMode(attempts),
           }),
         );
         return;
@@ -335,7 +348,12 @@ export function TesterClient({ runPhotoPipelineImpl }: TesterClientProps) {
           m.photo?.mode ?? null,
         )
       ) {
-        setSend({ kind: "mismatch" });
+        setSend({ kind: "mismatch", what: "reference" });
+        return;
+      }
+      // The tape values are for one hand: a scan of the other is not sent.
+      if (!handMatches(tape.hand, m.submission.hand)) {
+        setSend({ kind: "mismatch", what: "hand" });
         return;
       }
       let prepared: Awaited<ReturnType<typeof prepareErrorPhoto>> = null;
@@ -374,7 +392,10 @@ export function TesterClient({ runPhotoPipelineImpl }: TesterClientProps) {
     () => ({
       reference: conditions?.reference ?? "a4",
       exitLabel: copy.scan.giveUp,
-      ...(photoOptIn ? { privacyNotice: copy.scan.photoNotice } : {}),
+      // Always: the camera's "stays on the phone" line is not the whole story here.
+      privacyNotice: photoOptIn
+        ? copy.scan.photoNotice
+        : copy.scan.noPhotoNotice,
       onAttempt: (attempt) => {
         attemptsRef.current = [...attemptsRef.current, attempt];
       },
@@ -460,6 +481,7 @@ export function TesterClient({ runPhotoPipelineImpl }: TesterClientProps) {
               </label>
               <input
                 id="tester-code"
+                ref={codeInputRef}
                 className="testerInput"
                 name="tester-code"
                 autoComplete="off"
@@ -580,6 +602,8 @@ export function TesterClient({ runPhotoPipelineImpl }: TesterClientProps) {
           onChange={setConditionsDraft}
           onStart={startScan}
           onEditTape={() => setStep("tape")}
+          photo={photoOptIn}
+          onPhotoChange={setPhotoOptIn}
         />
       )}
 
@@ -665,6 +689,8 @@ function MmInput(props: {
   readonly label: string;
   /** Ids of the legends above, so the name says which measure and measurer. */
   readonly labelledBy: readonly string[];
+  /** The measurement hint's id: read with the box, before any error. */
+  readonly hintId: string;
   readonly required: boolean;
   readonly value: string;
   readonly error: TapeErrors[string];
@@ -688,7 +714,9 @@ function MmInput(props: {
           aria-labelledby={[...props.labelledBy, labelId].join(" ")}
           aria-required={props.required || undefined}
           aria-invalid={props.error ? true : undefined}
-          aria-describedby={props.error ? errorId(props.id) : undefined}
+          aria-describedby={
+            props.error ? `${props.hintId} ${errorId(props.id)}` : props.hintId
+          }
           onChange={(e) => props.onChange(e.target.value)}
         />
         <span className="testerUnit" aria-hidden="true">
@@ -707,6 +735,7 @@ function MmInput(props: {
 function PairFieldset(props: {
   readonly name: string;
   readonly measureLegendId: string;
+  readonly hintId: string;
   readonly title: string;
   readonly required: boolean;
   readonly pair: PairDraft;
@@ -725,6 +754,7 @@ function PairFieldset(props: {
           id={`${props.name}.first`}
           label={copy.tape.first}
           labelledBy={labelledBy}
+          hintId={props.hintId}
           required={props.required}
           value={props.pair.first}
           error={props.errors[`${props.name}.first`]}
@@ -734,6 +764,7 @@ function PairFieldset(props: {
           id={`${props.name}.second`}
           label={copy.tape.second}
           labelledBy={labelledBy}
+          hintId={props.hintId}
           required={props.required}
           value={props.pair.second}
           error={props.errors[`${props.name}.second`]}
@@ -765,11 +796,14 @@ function MeasureFieldset(props: {
       </legend>
       <div className="testerHelpRow">
         <TapeFigure />
-        <p className="testerHint">{props.help}</p>
+        <p className="testerHint" id={`${props.name}-help`}>
+          {props.help}
+        </p>
       </div>
       <PairFieldset
         name={`${props.name}.a`}
         measureLegendId={legendId}
+        hintId={`${props.name}-help`}
         title={copy.tape.measurerA}
         required
         pair={props.draft.a}
@@ -779,6 +813,7 @@ function MeasureFieldset(props: {
       <PairFieldset
         name={`${props.name}.b`}
         measureLegendId={legendId}
+        hintId={`${props.name}-help`}
         title={copy.tape.measurerB}
         required={false}
         pair={props.draft.b}
@@ -861,11 +896,14 @@ function TapeStep(props: {
           <legend className="testerLegend" id="palmWidthEdge-legend">
             {copy.tape.palmWidthEdge}
           </legend>
-          <p className="testerHint">{copy.tape.palmWidthEdgeHelp}</p>
+          <p className="testerHint" id="palmWidthEdge-help">
+            {copy.tape.palmWidthEdgeHelp}
+          </p>
           <MmInput
             id="palmWidthEdge"
             label={copy.tape.measurerAOnce}
             labelledBy={["palmWidthEdge-legend"]}
+            hintId="palmWidthEdge-help"
             required={false}
             value={draft.palmWidthEdge}
             error={errors.palmWidthEdge}
@@ -931,6 +969,9 @@ function ConditionsStep(props: {
   readonly onChange: (draft: ConditionsDraft) => void;
   readonly onStart: (form: HTMLFormElement | null) => void;
   readonly onEditTape: () => void;
+  /** Whether this shot's processed photo is sent (the consent page's box, per shot). */
+  readonly photo: boolean;
+  readonly onPhotoChange: (photo: boolean) => void;
 }) {
   const { draft, tried, onChange } = props;
   const c = copy.conditions;
@@ -1036,6 +1077,20 @@ function ConditionsStep(props: {
           />
           <span>{c.deliberatelyPoor}</span>
         </label>
+        <label className="testerCheck">
+          <input
+            type="checkbox"
+            checked={props.photo}
+            aria-describedby="tester-shot-photo-state"
+            onChange={(e) => props.onPhotoChange(e.target.checked)}
+          />
+          <span>
+            {c.photo}
+            <span id="tester-shot-photo-state" className="testerHint">
+              {props.photo ? c.photoOn : c.photoOff}
+            </span>
+          </span>
+        </label>
         {draft.reference && <p className="testerNote">{c.referenceReminder}</p>}
         <button type="submit" className="primaryButton testerPrimary">
           {c.start}
@@ -1087,7 +1142,9 @@ function ResultStep(props: {
             ? r.gaveUpSent
             : r.sent
           : send.kind === "mismatch"
-            ? r.referenceMismatch
+            ? send.what === "hand"
+              ? r.handMismatch
+              : r.referenceMismatch
             : send.outcome === "too-many"
               ? r.failedTooMany
               : send.outcome === "invalid"

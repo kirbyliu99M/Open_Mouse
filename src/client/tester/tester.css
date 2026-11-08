@@ -188,6 +188,18 @@
   color: var(--on-button-primary);
   border-color: transparent;
 }
+/* Forced colors drop the fill: the chosen pill keeps a thick border and a check. */
+@media (forced-colors: active) {
+  .testerChoice input:checked + span {
+    border: 3px solid Highlight;
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+  .testerChoice input:checked + span::before {
+    content: "✓ ";
+  }
+}
 .testerChoice input:focus-visible + span {
   outline: 2px solid var(--accent-text);
   outline-offset: 2px;
@@ -249,6 +261,11 @@
   color: var(--accent-text);
   font: inherit;
   cursor: pointer;
+}
+.testerLink:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+  border-radius: 8px;
 }
 
 .testerTable {

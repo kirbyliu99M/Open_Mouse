@@ -23,3 +23,4 @@ export const HEAD = notFound;
 export const PUT = notFound;
 export const DELETE = notFound;
 export const PATCH = notFound;
+export const OPTIONS = notFound;

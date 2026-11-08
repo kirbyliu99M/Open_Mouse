@@ -103,3 +103,18 @@ export function referenceMatches(
     (photoMode === null || photoMode === "paper")
   );
 }
+
+/** A give-up's capture mode: the last analysed photo's, or the camera when none was. */
+export function giveUpCaptureMode(
+  attempts: readonly TesterScanAttempt[],
+): "camera" | "upload" {
+  return attempts.at(-1)?.captureMode ?? "camera";
+}
+
+/** Whether the scan measured the hand the tape values are for. */
+export function handMatches(
+  tapeHand: "left" | "right",
+  scannedHand: ScanSubmission["hand"],
+): boolean {
+  return tapeHand === scannedHand;
+}

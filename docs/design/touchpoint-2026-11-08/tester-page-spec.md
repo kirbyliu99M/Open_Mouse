@@ -24,7 +24,7 @@ Kirby 2026-11-09：要做成網頁，直接收資料，避免人工搬運造成�
 - 照片：私有 Blob，路徑 `tester/<random>.jpg`；由每日 expire cron 在 180 天後刪除照片，並把 photo_pathname 設為 null。
 - 紀錄裡不存：姓名、Email、IP、UA、帳號、掃描 id。不寫 `scans`、不產生數值副本、不送含數值的分析事件。
 - 速率限制：沿用 analysis 的 IP 限流（`rate_limits` 表，只存 IP 的雜湊、不存原始 IP，每日 cron 約一天內清除；key 前綴 `tester-check:`／`tester-shot:`）。同意說明要照實寫出這一點。
-- 匯出：`scripts/tester-export.ts` 每次執行會刪掉本機副本中超過 180 天的照片；`scripts/tester-delete.ts` 也會刪掉本機匯出資料夾裡該代號的紀錄和照片。
+- 匯出：`scripts/tester-export.ts` 每次執行（或離線的 `--prune-only`）會刪掉本機副本中超過 180 天的照片；`scripts/tester-delete.ts` 也會刪掉本機匯出資料夾裡該代號的紀錄和照片。同意說明的寫法：「電腦上的副本會在每次整理資料時刪除超過 180 天的照片；你要求刪除時也會一起刪除。」
 
 ## 取用（給 Claude）
 
@@ -35,7 +35,7 @@ Kirby 2026-11-09：要做成網頁，直接收資料，避免人工搬運造成�
 ## 開關
 
 - 伺服器環境變數 `TESTER_CODES`（逗號分隔）。未設定時頁面和 API 都回 404。代碼由 Kirby 產生（`npx tsx scripts/tester-codes.ts 20` 會印出 20 組），只告訴本人。
-- 頁面 `noindex, nofollow`，不放進 sitemap，robots.txt 擋掉，任何公開頁面都不連到這裡。
+- 頁面 `noindex, nofollow`，不放進 sitemap，任何公開頁面都不連到這裡。robots.txt 不列出這個路徑（列出等於公告它存在；頁面是 noindex，沒設代碼時回 404）。
 
 ## 隱私政策
 
