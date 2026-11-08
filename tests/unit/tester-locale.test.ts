@@ -5,7 +5,8 @@
  * the locale rules it had.
  */
 import { NextRequest } from "next/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { testerCodesConfigured } from "../../src/lib/tester/enabled";
 import { LOCALE_COOKIE, LOCALE_HEADER } from "../../src/lib/contracts/locale";
 import { TESTER_PAGE_PATH } from "../../src/lib/contracts/tester";
 import {
@@ -65,5 +66,43 @@ describe("one-language pages", () => {
     expect(response.headers.get(`x-middleware-request-${LOCALE_HEADER}`)).toBe(
       "en",
     );
+  });
+});
+
+describe("while the tester page is off in production", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("TESTER_CODES needs at least one valid code", () => {
+    expect(testerCodesConfigured(undefined)).toBe(false);
+    expect(testerCodesConfigured("")).toBe(false);
+    expect(testerCodesConfigured("nope,P1-AAAAAA")).toBe(false);
+    expect(testerCodesConfigured("nope, p07-k7q2m9")).toBe(true);
+  });
+
+  it("/en/scan/tester is rewritten like any missing page, not redirected", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("TESTER_CODES", "");
+    const response = middleware(request("/en/scan/tester"));
+    expect(response.status).not.toBe(307);
+    expect(response.headers.get("x-middleware-rewrite")).toContain(
+      "/scan/tester",
+    );
+  });
+
+  it("/scan/tester gets no pinned locale header", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("TESTER_CODES", "");
+    const response = middleware(
+      request("/scan/tester", { "accept-language": "en-US" }),
+    );
+    expect(
+      response.headers.get(`x-middleware-request-${LOCALE_HEADER}`),
+    ).toBeNull();
+  });
+
+  it("with codes set in production the page is pinned again", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("TESTER_CODES", "P07-K7Q2M9");
+    expect(middleware(request("/en/scan/tester")).status).toBe(307);
   });
 });

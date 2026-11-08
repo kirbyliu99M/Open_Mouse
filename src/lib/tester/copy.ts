@@ -52,7 +52,8 @@ export const testerCopy = {
     ],
     agree: "我看過並同意以上說明",
     photo: "附上處理過的照片",
-    photoHint: "不勾的話，只會送出數值，照片留在手機上。",
+    photoHint:
+      "不勾的話，照片留在手機上；其他紀錄（卷尺值、拍攝條件、掃描過程和 App 量到的數值）照常送出。",
     next: "開始",
   },
 
@@ -120,7 +121,7 @@ export const testerCopy = {
     deliberatelyPoor: "這張是故意拍得不理想的（例如偏暗、歪斜）",
     photo: "這張附上處理過的照片",
     photoOn: `會上傳處理過的照片，${TESTER_PHOTO_RETENTION_DAYS} 天後刪除。`,
-    photoOff: "照片留在手機上，只送出數值。",
+    photoOff: "照片留在手機上，其他紀錄照常送出。",
     referenceReminder: "掃描畫面會直接用這個參考物，請放好再開始。",
     handReminder: (hand: string) =>
       `掃描時請確認相機上的手別和卷尺填的一樣（${hand}）。`,
@@ -158,7 +159,7 @@ export const testerCopy = {
     preparing: "正在處理照片…",
     sent: "已送出",
     gaveUpSent: "已送出放棄紀錄",
-    noPhoto: "這張照片沒辦法處理，所以只送出數值。",
+    noPhoto: "這張照片沒辦法處理，所以沒有附上照片，其他紀錄照常送出。",
     failed: "送出失敗了。",
     failedTooMany: "送出太多次了，請過一小時再試。",
     failedInvalid: "這筆資料有問題，送不出去。請改一下拍攝條件再拍一次。",
@@ -168,7 +169,7 @@ export const testerCopy = {
       "掃描用的參考物和你選的不一樣，所以這張沒有送出。請再拍一次。",
     failedCode: "測試者代碼已失效，請重新輸入。",
     failedUnavailable: "照片儲存暫時不能用。",
-    sendWithoutPhoto: "只送出數值",
+    sendWithoutPhoto: "不附照片送出",
     retry: "再試一次",
     next: "拍下一張",
     retake: "再拍一次",
