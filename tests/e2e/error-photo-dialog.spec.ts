@@ -274,23 +274,21 @@ for (const locale of ["en", "zh-TW"] as const) {
       await dialog.getByLabel(copy.checkbox).check();
       await expect(send).toBeEnabled();
 
-      // (2) The preview is the prepared JPEG itself (a blob: URL of it).
+      // (2) The preview is the prepared copy itself: an in-memory blob: URL
+      // (the CSP's connect-src keeps a test from fetching it), decoded at the
+      // prepared size, which (5) checks is the size that is sent.
       const preview = dialog.getByRole("img", { name: copy.previewAlt });
-      const previewBytes = await preview.evaluate(
-        async (img: HTMLImageElement) => {
-          const bytes = new Uint8Array(
-            await (await fetch(img.src)).arrayBuffer(),
-          );
-          return {
-            src: img.src,
-            head: [bytes[0], bytes[1]],
-            length: bytes.length,
-          };
-        },
-      );
-      expect(previewBytes.src).toMatch(/^blob:/);
-      expect(previewBytes.head).toEqual([0xff, 0xd8]);
-
+      await expect(preview).toHaveJSProperty("complete", true);
+      const shownPreview = await preview.evaluate((img: HTMLImageElement) => ({
+        src: img.src,
+        naturalWidth: img.naturalWidth,
+        naturalHeight: img.naturalHeight,
+        width: Number(img.getAttribute("width")),
+        height: Number(img.getAttribute("height")),
+      }));
+      expect(shownPreview.src).toMatch(/^blob:/);
+      expect(shownPreview.naturalWidth).toBe(shownPreview.width);
+      expect(shownPreview.naturalHeight).toBe(shownPreview.height);
       // (3) First try: held 1.5 s, then 503.
       await send.click();
       const code = dialog.getByTestId("error-photo-code");
@@ -344,7 +342,10 @@ for (const locale of ["en", "zh-TW"] as const) {
         expect(upload.meta).not.toHaveProperty("code");
       }
       expect(mock.uploads[1]!.photo.equals(mock.uploads[0]!.photo)).toBe(true);
-      expect(mock.uploads[0]!.photo.length).toBe(previewBytes.length);
+      expect(mock.uploads[0]!.meta).toMatchObject({
+        widthPx: shownPreview.naturalWidth,
+        heightPx: shownPreview.naturalHeight,
+      });
 
       // 「完成」 closes it.
       await dialog.getByRole("button", { name: copy.done }).click();

@@ -206,9 +206,15 @@ export function ErrorPhotoSheet({
       aria-hidden={leaving || undefined}
       onCancel={(event) => {
         event.preventDefault();
+        // This dialog is portalled out of the scan's result sheet, but React
+        // still bubbles its events through the component tree: without this,
+        // Esc here reached the result sheet's own onCancel and retook the
+        // photo underneath (found by error-photo-dialog.spec.ts).
+        event.stopPropagation();
         if (closableRef.current) onCancel(event);
       }}
-      onClose={() => {
+      onClose={(event) => {
+        event.stopPropagation();
         // A browser that closes a modal regardless of a prevented cancel (a
         // repeated back gesture): once the code is shown, open it again.
         const dialog = dialogRef.current;
