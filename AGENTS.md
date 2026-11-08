@@ -117,9 +117,14 @@ caused one agent's uncommitted work to be committed by another.
    good" is not evidence. If a gate fails, the *implementation or rubric* gets
    revised — never the gate. Raise it with Claude instead.
 
-5. **Photos never leave the browser.** MediaPipe and ArUco run client-side via
-   WASM. Only derived millimetre values are POSTed. Any change that sends an
-   image to a server breaks a promise made in the UI — stop and raise it.
+5. **Photos stay on the phone by default.** MediaPipe and ArUco run client-side
+   via WASM, and a scan POSTs only derived millimetre values. The single
+   exception (Kirby, 2026-11-08, candidate): on a scan-failure screen or the
+   "numbers look wrong?" report, the person taps "send this photo" and ticks
+   consent; only then the browser uploads a cropped, EXIF-free copy (card area
+   blacked out) through `src/lib/contracts/error-photo.ts`, kept 6 months.
+   Any other change that sends an image to a server breaks a promise made in
+   the UI — stop and raise it.
 
 ## Conventions
 

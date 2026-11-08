@@ -1,12 +1,14 @@
 /**
- * Measurement contract — the ONLY thing the browser sends about a hand.
- * Images never leave the device; these millimetres are all the server sees.
+ * Measurement contract — the ONLY thing the scan flow sends about a hand.
+ * Images never travel with a scan; these millimetres are all the scan route
+ * sees. (The one opt-in exception is a separate route, error-photo.ts.)
  *
  * Frontend builders compute these; backend builders validate and store them.
  * Change this file only in a contract PR of its own, carrying no more than the
  * minimal consumer updates (storage included) that keep `main` green.
  */
 import { z } from "zod";
+import { handSampleNoticeSchema } from "./hand-sample";
 
 // ── Calibration sheet geometry (docs/PLAN.md §M2) ───────────────────────────
 
@@ -527,6 +529,12 @@ export const scanSubmissionSchema = z
     measurements: handMeasurementsSchema,
     calibration: calibrationEvidenceSchema,
     measurementModelVersion: z.enum(MEASUREMENT_MODEL_VERSIONS),
+    /**
+     * Candidate (2026-11-08, hand-sample.ts): present only when the notice
+     * was on screen and the person left "keep an anonymous copy" on. Absent
+     * means no copy is kept (opt-out, or a client older than the notice).
+     */
+    sampleNotice: handSampleNoticeSchema.optional(),
   })
   .superRefine((s, ctx) => {
     if (
