@@ -46,3 +46,20 @@ export const TYPED_HAND_LENGTH_ENTRY_ENABLED = parseFlag(
 export const CARD_REFERENCE_ENABLED = parseFlag(
   process.env.NEXT_PUBLIC_CARD_REFERENCE_ENABLED,
 );
+
+/** Exactly "1" turns the error-photo flag on (not "true": this one sends a photo). */
+export function errorPhotoFlag(raw: string | undefined): boolean {
+  return raw === "1";
+}
+
+/**
+ * Error photos (Kirby 2026-11-08, candidate 未拍板;
+ * src/lib/contracts/error-photo.ts): the one opt-in way a photo reaches the
+ * server, a "send this photo" button on a scan failure and the "numbers look
+ * wrong?" link on the confirm sheet, plus the deletion form on /privacy. OFF
+ * unless a build sets exactly `NEXT_PUBLIC_ERROR_PHOTO_ENABLED=1`. Off, none
+ * of it shows and `POST /api/error-photos` (and its delete) answer 404.
+ */
+export const ERROR_PHOTO_ENABLED = errorPhotoFlag(
+  process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED,
+);

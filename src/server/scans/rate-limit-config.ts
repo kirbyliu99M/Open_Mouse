@@ -59,6 +59,18 @@ export const RESULT_FEEDBACK_READ_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 export const RESULT_FEEDBACK_READ_RATE_LIMIT_MAX = 60;
 
 /**
+ * `POST /api/error-photos` (key prefix `error-photo:`, candidates 未拍板): a
+ * person sends a photo only after a failed or doubtful scan, so five an hour
+ * is room for a few retakes and caps a script filling the private store. The
+ * delete has its own budget (`error-photo-delete:`): 20 an hour is far more
+ * than a person needs and, against a 60-bit code, no help to a guesser.
+ */
+export const ERROR_PHOTO_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+export const ERROR_PHOTO_RATE_LIMIT_MAX = 5;
+export const ERROR_PHOTO_DELETE_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+export const ERROR_PHOTO_DELETE_RATE_LIMIT_MAX = 20;
+
+/**
  * Structurally identical to `../analysis/handler.ts`'s `RateLimiter` —
  * duplicated here (rather than imported) so `scans`/`fit` don't take a
  * dependency on the `analysis` domain for a one-method interface; anything
