@@ -13,6 +13,10 @@ import {
   type TESTER_SURFACES,
   type TesterRecord,
 } from "../../lib/contracts/tester";
+import {
+  calibrationMethodOf,
+  type ScanSubmission,
+} from "../../lib/contracts/measurement";
 import type { TesterScanAttempt } from "../camera/testerMode";
 import type { TesterTape } from "./tape";
 
@@ -25,8 +29,6 @@ export interface ShotConditions {
   readonly deliberatelyPoor: boolean;
 }
 
-/** Recorded when the tester gives up before any analysis ended. */
-export const NO_ANALYSIS_CODE = "NO_ANALYSIS";
 const MAX_ATTEMPTS = 50;
 const MAX_CODES = 50;
 
@@ -49,9 +51,8 @@ export function buildTesterRecord(input: {
   const failureCodes = input.attempts
     .flatMap((a) => a.failureCodes)
     .filter((c) => /^[A-Z0-9_]{2,40}$/.test(c));
-  if (gaveUp && input.attempts.length === 0)
-    failureCodes.push(NO_ANALYSIS_CODE);
-  const attempts = Math.min(MAX_ATTEMPTS, Math.max(1, input.attempts.length));
+  // 0 only for a give-up before any analysis ended (the contract's rule).
+  const attempts = Math.min(MAX_ATTEMPTS, input.attempts.length);
   const { cardType, ...conditions } = input.conditions;
   return testerRecordSchema.parse({
     consent: TESTER_CONSENT_VERSION,
@@ -77,4 +78,28 @@ export function buildTesterRecord(input: {
       : {}),
     ...(input.photo && !gaveUp ? { photo: input.photo } : {}),
   });
+}
+
+/**
+ * Whether the scan used the reference the tester declared: a card shot is
+ * calibrated on the card (`card-edge`) and its photo is in card mode; a paper
+ * shot on the sheet's edges (`paper-edge`) of that very size. A mismatch is
+ * not sent (the record's `reference` would be false).
+ */
+export function referenceMatches(
+  reference: ShotConditions["reference"],
+  calibration: ScanSubmission["calibration"],
+  photoMode: "paper" | "card" | null,
+): boolean {
+  if (reference === "card")
+    return (
+      calibrationMethodOf(calibration) === "card-edge" &&
+      (photoMode === null || photoMode === "card")
+    );
+  return (
+    "method" in calibration &&
+    calibration.method === "paper-edge" &&
+    calibration.paperSize === reference &&
+    (photoMode === null || photoMode === "paper")
+  );
 }

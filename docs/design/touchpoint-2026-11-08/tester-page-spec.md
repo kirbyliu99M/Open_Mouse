@@ -5,7 +5,7 @@ Kirby 2026-11-09：要做成網頁，直接收資料，避免人工搬運造成�
 ## 流程（手機，一個頁面）
 
 1. **輸入測試者代碼**（例如 `P07-K7Q2M9`）→ `POST /api/tester/check`。通過後代碼存在 sessionStorage，關掉分頁就失效。
-2. **同意說明**（版本 `tester-consent-v1-draft`）：蒐集什麼、用途（只用於改善量測準確度）、照片 180 天後刪除、數值保留到 Kirby 刪除或本人要求、怎麼要求刪除（Email palmate.tw@gmail.com 並附代號）。兩個勾選：「我同意」（必勾）、「附上處理過的照片」（預設勾，可取消）。
+2. **同意說明**（版本 `tester-consent-v1-draft`）：蒐集什麼、用途（只用於改善量測準確度）、照片 180 天後刪除、數值保留到 Kirby 刪除或本人要求、怎麼要求刪除（Email palmate.tw@gmail.com 並附代號）。兩個勾選：「我同意」（必勾）、「附上處理過的照片」（預設不勾，要本人勾選才上傳）。說明也要寫：伺服器短暫保存 IP 雜湊防濫用、資料可能匯出到專案負責人的電腦且一樣遵守刪除規定。
 3. **卷尺實測**（同一位受試者一次填好，之後每張照片沿用，可修改）：
    - 左手或右手；
    - 手長：量測者 A 兩次，必填；量測者 B 兩次，選填；
@@ -22,8 +22,9 @@ Kirby 2026-11-09：要做成網頁，直接收資料，避免人工搬運造成�
 
 - 新表 `tester_shots`（migration 0016）：欄位見 contract 的 `testerRecordSchema`，加上 participant、day（台北日期）、photo_pathname（可為 null）。`shot_id` unique，作為冪等鍵。
 - 照片：私有 Blob，路徑 `tester/<random>.jpg`；由每日 expire cron 在 180 天後刪除照片，並把 photo_pathname 設為 null。
-- 不存：姓名、Email、IP、UA、帳號、掃描 id。不寫 `scans`、不產生數值副本、不送含數值的分析事件。
-- 速率限制：沿用 analysis 的 IP 限流（只在記憶體中比對，不存 IP）。
+- 紀錄裡不存：姓名、Email、IP、UA、帳號、掃描 id。不寫 `scans`、不產生數值副本、不送含數值的分析事件。
+- 速率限制：沿用 analysis 的 IP 限流（`rate_limits` 表，只存 IP 的雜湊、不存原始 IP，每日 cron 約一天內清除；key 前綴 `tester-check:`／`tester-shot:`）。同意說明要照實寫出這一點。
+- 匯出：`scripts/tester-export.ts` 每次執行會刪掉本機副本中超過 180 天的照片；`scripts/tester-delete.ts` 也會刪掉本機匯出資料夾裡該代號的紀錄和照片。
 
 ## 取用（給 Claude）
 

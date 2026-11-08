@@ -7,3 +7,19 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request): Promise<Response> {
   return handleTesterCheck(request, testerRouteDeps("check"));
 }
+
+/** Any other method answers 404 too: the route does not say it exists. */
+function notFound(): Response {
+  return new Response(JSON.stringify({ error: "Not found." }), {
+    status: 404,
+    headers: {
+      "content-type": "application/json",
+      "cache-control": "no-store",
+    },
+  });
+}
+export const GET = notFound;
+export const HEAD = notFound;
+export const PUT = notFound;
+export const DELETE = notFound;
+export const PATCH = notFound;
