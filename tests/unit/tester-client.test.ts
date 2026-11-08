@@ -1,0 +1,287 @@
+/**
+ * The tester page's pure parts (candidate; contract src/lib/contracts/tester.ts):
+ * the contract's refinements, the tape form, the record builder, the phone
+ * model filter, and the Taipei day arithmetic the purge counts with.
+ */
+import { describe, expect, it } from "vitest";
+import {
+  TESTER_CODE_ALPHABET,
+  participantOf,
+  testerCodeSchema,
+  testerRecordSchema,
+} from "../../src/lib/contracts/tester";
+import {
+  NO_ANALYSIS_CODE,
+  buildTesterRecord,
+} from "../../src/client/tester/record";
+import {
+  EMPTY_TAPE,
+  buildTape,
+  formatDiffMm,
+  needsRecheck,
+  parseTapeMm,
+  tapeAverage,
+  type TapeDraft,
+} from "../../src/client/tester/tape";
+import { phoneModelAllowed } from "../../src/lib/tester/phoneModel";
+import { addDays, taipeiDay } from "../../src/server/tester/day";
+import { testerPhotoCutoffDay } from "../../src/server/tester/purge";
+import { RECORD } from "./fixtures/tester-record";
+
+describe("tester contract", () => {
+  it("accepts the reference record", () => {
+    expect(testerRecordSchema.safeParse(RECORD).success).toBe(true);
+  });
+
+  it("measured is present exactly when the tester did not give up", () => {
+    expect(
+      testerRecordSchema.safeParse({ ...RECORD, gaveUp: true }).success,
+    ).toBe(false);
+    const { measured: _m, photo: _p, ...noMeasure } = RECORD;
+    void _m;
+    void _p;
+    expect(testerRecordSchema.safeParse(noMeasure).success).toBe(false);
+    expect(
+      testerRecordSchema.safeParse({ ...noMeasure, gaveUp: true }).success,
+    ).toBe(true);
+  });
+
+  it("cardType is required for a card and only for a card", () => {
+    expect(
+      testerRecordSchema.safeParse({ ...RECORD, reference: "card" }).success,
+    ).toBe(false);
+    expect(
+      testerRecordSchema.safeParse({
+        ...RECORD,
+        reference: "card",
+        cardType: "transit",
+      }).success,
+    ).toBe(true);
+    expect(
+      testerRecordSchema.safeParse({ ...RECORD, cardType: "transit" }).success,
+    ).toBe(false);
+  });
+
+  it("firstTryOk means one attempt that measured", () => {
+    expect(
+      testerRecordSchema.safeParse({ ...RECORD, attempts: 1, firstTryOk: true })
+        .success,
+    ).toBe(true);
+    expect(
+      testerRecordSchema.safeParse({
+        ...RECORD,
+        attempts: 1,
+        firstTryOk: false,
+      }).success,
+    ).toBe(false);
+    expect(
+      testerRecordSchema.safeParse({ ...RECORD, attempts: 2, firstTryOk: true })
+        .success,
+    ).toBe(false);
+  });
+
+  it("tape values keep at most one decimal and stay within 50 to 300 mm", () => {
+    const withLength = (first: number) => ({
+      ...RECORD,
+      tape: { ...RECORD.tape, handLength: { a: { first, second: 189 } } },
+    });
+    expect(testerRecordSchema.safeParse(withLength(188.55)).success).toBe(
+      false,
+    );
+    expect(testerRecordSchema.safeParse(withLength(49.9)).success).toBe(false);
+    expect(testerRecordSchema.safeParse(withLength(300)).success).toBe(true);
+  });
+
+  it("codes: P + 2–3 digits + 6 characters of the alphabet; the participant is the prefix", () => {
+    expect(testerCodeSchema.safeParse(" p07-k7q2m9 ").data).toBe("P07-K7Q2M9");
+    for (const bad of ["P7-K7Q2M9", "P07-K7Q2M0", "P07-K7Q2MI", "P1234-ABCDEF"])
+      expect(testerCodeSchema.safeParse(bad).success).toBe(false);
+    expect(participantOf("P123-ABCDEF")).toBe("P123");
+    expect(TESTER_CODE_ALPHABET).not.toMatch(/[01IO]/);
+  });
+});
+
+describe("tape form", () => {
+  it("parses a typed value: blank, one decimal, comma decimal, out of range", () => {
+    expect(parseTapeMm("")).toBeNull();
+    expect(parseTapeMm(" 188.5 ")).toBe(188.5);
+    expect(parseTapeMm("84,5")).toBe(84.5);
+    expect(parseTapeMm("188.55")).toBe("invalid");
+    expect(parseTapeMm("49")).toBe("invalid");
+    expect(parseTapeMm("301")).toBe("invalid");
+    expect(parseTapeMm("abc")).toBe("invalid");
+  });
+
+  const filled: TapeDraft = {
+    hand: "left",
+    handLength: {
+      a: { first: "188", second: "189" },
+      b: { first: "", second: "" },
+    },
+    palmWidth: {
+      a: { first: "84", second: "85" },
+      b: { first: "85", second: "86" },
+    },
+    palmWidthEdge: "",
+  };
+
+  it("builds the contract's tape, B only where typed", () => {
+    const built = buildTape(filled);
+    expect(built).toEqual({
+      ok: true,
+      tape: {
+        hand: "left",
+        handLength: { a: { first: 188, second: 189 } },
+        palmWidth: {
+          a: { first: 84, second: 85 },
+          b: { first: 85, second: 86 },
+        },
+      },
+    });
+  });
+
+  it("reports what is missing or wrong", () => {
+    const built = buildTape(EMPTY_TAPE);
+    expect(built.ok).toBe(false);
+    if (built.ok) return;
+    expect(built.errors.hand).toBe("handRequired");
+    expect(built.errors["handLength.a.first"]).toBe("required");
+    const half = buildTape({
+      ...filled,
+      palmWidth: { ...filled.palmWidth, b: { first: "85", second: "" } },
+    });
+    expect(half.ok ? null : half.errors["palmWidth.b.second"]).toBe(
+      "pairIncomplete",
+    );
+  });
+
+  it("asks for a re-measure past 3 mm apart, never at exactly 3", () => {
+    expect(needsRecheck({ first: "188", second: "191" })).toBe(false);
+    expect(needsRecheck({ first: "188", second: "191.1" })).toBe(true);
+    expect(needsRecheck({ first: "188", second: "" })).toBe(false);
+  });
+
+  it("averages every reading and prints a signed difference", () => {
+    expect(
+      tapeAverage({
+        a: { first: 84, second: 85 },
+        b: { first: 85, second: 86 },
+      }),
+    ).toBe(85);
+    expect(formatDiffMm(190.24, 188.5)).toBe("+1.7");
+    expect(formatDiffMm(188.5, 190)).toBe("−1.5");
+    expect(formatDiffMm(188.52, 188.5)).toBe("0.0");
+  });
+});
+
+describe("buildTesterRecord", () => {
+  const tape = RECORD.tape;
+  const conditions = {
+    phoneModel: "  Pixel 8 ",
+    surface: "wood",
+    lighting: "dim",
+    reference: "a4",
+    deliberatelyPoor: true,
+  } as const;
+  const measured = {
+    handLengthMm: 190.2,
+    palmWidthMm: 83.7,
+    measurementModelVersion: "landmark-raw-v3",
+    calibrationMethod: "paper-edge",
+  };
+
+  it("one measured attempt is a first-try success", () => {
+    const r = buildTesterRecord({
+      shotId: RECORD.shotId,
+      tape,
+      conditions,
+      attempts: [{ measured: true, failureCodes: [] }],
+      captureMode: "camera",
+      measured,
+      photo: { widthPx: 640, heightPx: 480 },
+    });
+    expect(r.firstTryOk).toBe(true);
+    expect(r.attempts).toBe(1);
+    expect(r.phoneModel).toBe("Pixel 8");
+    expect(r.photo).toEqual({ widthPx: 640, heightPx: 480 });
+  });
+
+  it("collects every failure code in order and counts the attempts", () => {
+    const r = buildTesterRecord({
+      shotId: RECORD.shotId,
+      tape,
+      conditions: { ...conditions, reference: "card", cardType: "transit" },
+      attempts: [
+        { measured: false, failureCodes: ["NO_HAND"] },
+        { measured: false, failureCodes: ["PAPER_NOT_FOUND", "LOW_LIGHT"] },
+        { measured: true, failureCodes: [] },
+      ],
+      captureMode: "upload",
+      measured,
+    });
+    expect(r.attempts).toBe(3);
+    expect(r.firstTryOk).toBe(false);
+    expect(r.failureCodes).toEqual(["NO_HAND", "PAPER_NOT_FOUND", "LOW_LIGHT"]);
+    expect(r.cardType).toBe("transit");
+  });
+
+  it("giving up sends no measurement and no photo; with no analysis at all, says so", () => {
+    const r = buildTesterRecord({
+      shotId: RECORD.shotId,
+      tape,
+      conditions: { ...conditions, cardType: "transit" },
+      attempts: [],
+      captureMode: "camera",
+      photo: { widthPx: 640, heightPx: 480 },
+    });
+    expect(r.gaveUp).toBe(true);
+    expect(r.measured).toBeUndefined();
+    expect(r.photo).toBeUndefined();
+    expect(r.cardType).toBeUndefined();
+    expect(r.attempts).toBe(1);
+    expect(r.failureCodes).toEqual([NO_ANALYSIS_CODE]);
+  });
+});
+
+describe("phone model filter", () => {
+  it("keeps model names and refuses contact details and links", () => {
+    for (const ok of [
+      "Pixel 8",
+      "iPhone 15 Pro Max",
+      "SM-S9280",
+      "Redmi Note 13 5G",
+    ])
+      expect(phoneModelAllowed(ok), ok).toBe(true);
+    for (const bad of [
+      "",
+      "   ",
+      "0912-345-678",
+      "a@b.co",
+      "www.example.com",
+      "x".repeat(41),
+    ])
+      expect(phoneModelAllowed(bad), bad).toBe(false);
+  });
+});
+
+describe("Taipei day", () => {
+  it("is the calendar date in UTC+8", () => {
+    expect(taipeiDay(new Date("2026-11-09T15:59:59Z"))).toBe("2026-11-09");
+    expect(taipeiDay(new Date("2026-11-09T16:00:00Z"))).toBe("2026-11-10");
+  });
+
+  it("adds and subtracts calendar days across months and years", () => {
+    expect(addDays("2026-03-01", -1)).toBe("2026-02-28");
+    expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
+    expect(() => addDays("2026-1-1", 1)).toThrow(RangeError);
+  });
+
+  it("a photo from day D is kept through D + 180 and purged from D + 181", () => {
+    const cutoff = testerPhotoCutoffDay(new Date("2027-05-08T04:00:00Z"), 180);
+    expect(cutoff).toBe("2026-11-09");
+    // Rows with day < cutoff go: 2026-11-08 yes, 2026-11-09 not yet.
+    expect("2026-11-08" < cutoff).toBe(true);
+    expect("2026-11-09" < cutoff).toBe(false);
+    expect(() => testerPhotoCutoffDay(new Date(), 0)).toThrow(RangeError);
+  });
+});
