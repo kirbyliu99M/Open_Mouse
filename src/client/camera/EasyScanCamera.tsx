@@ -3091,10 +3091,12 @@ export default function EasyScanCamera({
   // the same. 測量中… stays up while the card is searched.
   const runCardPipeline = useCallback(
     async (file: File, previewUrl: string) => {
-      // A card shot is never uploaded, not even to the preview's opt-in debug
-      // store (?debug=1&photos=1): the card in it may be an ID or a bank card
+      // A card shot never goes to the preview's opt-in debug store
+      // (?debug=1&photos=1): the card in it may be an ID or a bank card
       // (review item 8). `uploadDebugPhoto` sends nothing without a photo;
-      // the local attempt record is kept as for paper.
+      // the local attempt record is kept as for paper. The only way a card
+      // shot leaves the device is the person's own "send this photo"
+      // (src/client/error-photo/prepare.ts), with the card blacked out first.
       debugPhotoRef.current = null;
       const runId = ++runIdRef.current;
       attemptCountRef.current += 1;

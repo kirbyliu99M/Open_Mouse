@@ -1,12 +1,23 @@
 /**
  * The privacy notice (`/privacy`) and the terms of use (`/terms`), zh-TW and
  * English. Pre-launch audit 2026-10-28: the footer's "Privacy" led to a
- * two-sentence card, and there were no terms. Written from what the code
- * does (photos stay on the phone, the stores and the retention in
- * src/server/scans/retention.ts and src/server/account/purge.ts).
+ * two-sentence card, and there were no terms. Kirby OK'd those drafts on
+ * 2026-10-28; the operator and the contact follow the team's tester letter.
+ * Not legal advice.
  *
- * Kirby OK'd the drafts on 2026-10-28; the operator and the contact follow
- * the team's tester letter. Not legal advice.
+ * Touchpoint (2026-11-08): the privacy sections are policy v2.1
+ * (docs/design/touchpoint-2026-11-08/privacy-policy-v2-draft.md, sections
+ * 一–十二), every string a CANDIDATE (未拍板) until Kirby has read it. This
+ * page renders a heading and plain paragraphs, so the draft's lists are one
+ * paragraph per item. Its 〔待 Kirby〕 blanks are resolved conservatively,
+ * never with an unchecked fact:
+ *   - the controller keeps the current name, Palmate 團隊 (TODO below);
+ *   - kept "until you delete your account", with no 90-day claim: the live
+ *     policy's 90-day sentence is only true if RETENTION_PURGE_MODE=delete;
+ *   - retention days and regions say "per the provider's settings", except
+ *     PostHog's United States (src/server/analytics/proxy.ts);
+ *   - Gemini receives the numbers, the grip and the picks only.
+ * The terms are unchanged.
  */
 import type { Locale } from "../contracts/locale";
 import { pickCopy } from "../i18n/copy";
@@ -32,53 +43,122 @@ export interface LegalCopy {
 export const zhTW: LegalCopy = {
   privacyTitle: "隱私權政策",
   termsTitle: "使用條款",
+  // TODO(Kirby): 上線日 — policy v2.1 changes the content; set the date it goes live.
   updated: "最後更新：2026 年 10 月 28 日",
   back: "回首頁",
+  // TODO(Kirby): 蒐集者名稱 — the draft asks for the responsible person or a
+  // registered group name; until then the current wording 「Palmate 團隊」 stays.
   privacyIntro:
-    "Palmate 由 Palmate 團隊經營，我們是國立臺灣大學創創學程「創意思考與策略實務」課程的學生團隊。我們依中華民國《個人資料保護法》告知你以下事項。",
+    "本服務 Palmate 的個人資料蒐集者為 Palmate 團隊（以下稱「我們」），聯絡信箱 palmate.tw@gmail.com。我們是修習國立臺灣大學創創學程「創意思考與策略實務」課程的學生；本服務由我們自行經營，不是臺灣大學的服務。依《個人資料保護法》（以下稱個資法）第 8 條，以下說明我們蒐集哪些資料、為什麼蒐集、怎麼使用、保存多久，以及你有哪些權利。",
   privacySections: [
     {
-      heading: "我們蒐集什麼",
+      heading: "一、重點摘要",
       paragraphs: [
-        "手部照片：不蒐集。照片只在你的手機上分析，不會上傳；送到伺服器的只有測量數值，例如手長與手寬。",
-        "測量數值與掃描結果：手部尺寸、你選擇的握法，以及據此算出的滑鼠排序。",
-        "帳號資料（只有用 Google 登入時）：Google 提供的姓名、Email、大頭貼，以及登入所需的授權資料。",
-        "問卷與回饋（自願填寫）：你填的滑鼠使用經驗、評分與意見。登入時送出的會連到你的帳號，可以在「帳號」頁查看與修改；未登入時送出的不含你的身分資料。",
-        "使用統計：PostHog 記錄匿名的頁面使用情形，不使用 cookie、不記錄 IP、不錄製畫面。你同意 cookie 後，才會載入 Google Analytics。",
-        "錯誤紀錄：網站出錯時，Sentry 會收到錯誤訊息；Email、IP 與測量數值會先被移除。",
+        "照片預設不離開你的裝置。掃描時，照片只在你的瀏覽器裡分析。只有你在掃描失敗或回報數字不對時，自己按下「傳送這張照片，幫我們修正」並勾選同意，照片才會上傳。",
+        "測量數值預設會保留一份不連到帳號的副本。送出掃描前，畫面上有「保留一份不記名的數值副本」開關，預設開啟，可以關掉。",
+        "我們不販售個人資料。除了第四節列出、代我們處理資料的服務商，我們不把單筆資料提供給品牌或其他第三方。",
       ],
     },
     {
-      heading: "用途",
+      heading: "二、蒐集目的、資料類別與利用方式",
       paragraphs: [
-        "計算並顯示適合你手型的滑鼠、讓登入的你保存與查看結果、改善測量與推薦的準確度，以及維護網站的安全與穩定。",
+        "蒐集目的（法定特定目的）：〇九〇 消費者、客戶管理與服務；一三五 資（通）訊服務；一三六 資（通）訊與資料庫管理；一三七 資通安全與管理；一五七 調查、統計與研究分析。",
+        "資料類別：C001 辨識個人者（登入帳號、自願上傳的照片）；C012 身體描述（手部尺寸）；C036 生活格調（問卷中的滑鼠使用經驗）。",
+        "利用方式：以電腦自動計算推薦與統計；以加密連線傳輸、以電子方式儲存；自願上傳的照片由團隊成員人工檢視；對外只發布不含姓名或帳號的彙總統計。",
       ],
     },
     {
-      heading: "誰會處理你的資料",
+      heading: "三、我們蒐集的資料與保存期間",
       paragraphs: [
-        "我們使用下列服務商，資料可能存放或傳輸到台灣以外的地區，包括美國：Vercel（網站主機）、Neon（資料庫）、Google（帳號登入；Gemini 把測量數值寫成說明文字，只收到數值，不會收到照片或你的姓名）、PostHog（使用統計）、Sentry（錯誤紀錄），以及你同意後的 Google Analytics。",
+        "1. 掃描結果。內容：手長、手寬等手部尺寸、左右手、你自己選的握法與手掌厚度（薄／中／厚），以及推薦結果。用途：計算並顯示適合你的滑鼠。保存：未登入時，建立後 24 小時內刪除；登入時保存在你的帳號，直到你刪除帳號。",
+        "2. 不記名的數值副本（預設開啟，可以關掉）。內容：手長、手掌長、手寬與各指長度（取整到 1 公釐）、左右手、你自己選的握法與手掌厚度（沒選就不記）、校正方式、量測版本、送出的月份（以世界標準時間計）；不含照片、帳號、IP 或裝置資訊，也沒有任何連回該次掃描的欄位。用途：改善量測與推薦的準確度；整理成手型分布等統計，供內部研究與對外發布（見第五節）。保存：本服務營運期間，服務終止時刪除；刪除方式見第六節。",
+        "3. 自願上傳的照片（預設不上傳）。內容：手背與紙張或卡片附近範圍的裁切照片（用卡片量測時，偵測到的卡片會先在你的裝置上塗黑；拍攝位置等檔案資訊會移除），以及隨照片附上的資料：這次量到的手長與手寬（取整到 1 公釐）、你回報的正確數字（如果有填）、觸發原因（掃描失敗或數字不對）與失敗代碼、左右手、紙張或卡片種類、量測版本、裝置類別（手機／平板／電腦）、拍照或從相簿選取、照片尺寸、上傳日期。用途：找出量測錯誤的原因並修正。保存：上傳後約 6 個月（180 天）自動刪除；你也可以隨時用刪除碼提早刪除。",
+        "4. 帳號資料（只有用 Google 登入時）。內容：Google 提供的姓名、Email、大頭貼、登入所需的授權資料，以及最後使用時間。用途：讓你保存與查看結果。保存：直到你刪除帳號。",
+        "5. 問卷與結果評分（自願填寫）。問卷內容：滑鼠使用經驗、滿意度、困擾點、主要用途、握法、目錄外滑鼠的品牌與尺寸感受、留言；手部尺寸以 5 公釐分組。結果評分內容：星等與留言，並附上伺服器從掃描讀出的快照：手型分類、握法、校正方式、手掌厚度、推薦前三名與適配等級、引擎版本、網頁語言。用途：改善推薦；問卷統計會在結果頁顯示給手型相近的其他使用者（見第五節）。保存：登入時送出的資料跟著帳號刪除；未登入時送出的資料在本服務營運期間保留，服務終止時刪除。",
+        "6. 連線資料。內容：你的 IP 位址只以雜湊值暫存，用於流量限制與防止濫用；主機服務商（Vercel）也會留存一般的請求紀錄。用途：維護網站安全。保存：流量限制的雜湊值約 24 小時；主機紀錄依該服務商的設定。",
+        "7. 使用統計與錯誤紀錄。PostHog 記錄頁面瀏覽、按鈕與掃描流程事件，以及照片品質的粗略分級（不含測量值），也會收到瀏覽器種類、作業系統、螢幕大小、語言與時區等裝置資訊；不使用 cookie，只在分頁開著時暫存一個隨機識別碼，不會把你的 IP 傳給 PostHog，也不錄製畫面。Google Analytics 在你按下 cookie「同意」後才載入；依 Google 的運作方式，會收到你的 IP 位址與瀏覽器資訊。Sentry 在網站出錯時收到錯誤訊息與瀏覽器種類；Email、IP、帳號與帶單位的測量數值會先移除。保存：依各服務商的設定。",
       ],
     },
     {
-      heading: "保存多久",
+      heading: "四、資料存放在哪裡、誰會處理",
       paragraphs: [
-        "未登入時的掃描：建立後 24 小時內刪除。",
-        "登入的帳號：90 天未使用，帳號與它的所有掃描會被刪除。",
-        "你可以隨時在「帳號」頁刪除帳號，所有相關資料（包括登入時送出的問卷）會一併刪除。",
-        "未登入時送出的問卷回答會一直保留，用來改善推薦；因為不含你的身分資料，之後無法找回或撤回。",
+        "我們使用以下服務商代為處理資料。依個資法第 4 條，它們是受我們委託處理資料的對象。資料會存放或傳輸到台灣以外的地區，存放區域依各服務商的設定。",
+        "Vercel：網站主機、照片儲存空間。",
+        "Neon：資料庫。",
+        // TODO(Kirby): confirm the Gemini API key is on a paid plan (the free
+        // tier lets Google use what is sent to improve its products).
+        "Google：帳號登入、Google Analytics，以及 Gemini（只收到測量數值、握法和推薦結果，用來寫成說明文字；不會收到照片、姓名或帳號）。",
+        // PostHog's region is the only one the repo shows
+        // (src/server/analytics/proxy.ts → us.i.posthog.com).
+        "PostHog：使用統計；美國。",
+        "Sentry：錯誤紀錄。",
+        // TODO(Kirby): confirm who has Vercel project access.
+        "能看到自願上傳照片的，只有擁有網站主機管理權限的 Palmate 團隊成員。",
       ],
     },
     {
-      heading: "你的權利",
+      heading: "五、對外分享與統計",
       paragraphs: [
-        "依個資法第 3 條，你可以查詢、閱覽、要求複本、補充或更正、要求停止蒐集處理利用，以及要求刪除你的個人資料。請寄信到 palmate.tw@gmail.com；刪除帳號也可以直接在「帳號」頁完成。",
-        "不登入也能完整使用掃描與推薦，只是結果不會被保存。",
+        "我們不販售個人資料。除了第四節的服務商，我們不把單筆資料提供給品牌或其他第三方。",
+        "網站上：結果頁的「手掌大小相近的人這樣評價」，至少要有 5 人的問卷資料才會顯示。人數很少時，知道其他填答者答案的人仍可能推算出某一個人的回答，請留意。",
+        "網站以外（例如研究報告、與品牌交流）：只使用彙總統計，任何人數少於 10 人的分組都不公開。",
+        "新用途：想把資料用在這裡沒寫到的目的時，我們會先更新本政策並另外取得你的同意；之前蒐集的資料不會直接拿去用。",
       ],
     },
     {
-      heading: "本政策的變更",
-      paragraphs: ["內容有重大變更時，我們會更新本頁的日期並在網站上公告。"],
+      heading: "六、你的權利與行使方式",
+      paragraphs: [
+        "依個資法第 3 條，你可以對我們保有的個人資料行使以下權利：請求查詢或閱覽、製給複製本、補充或更正、停止蒐集處理利用，以及刪除。",
+        "登入的帳號：在「帳號」頁可以查看與下載你的掃描、個人資料與問卷答案，也可以一次刪除帳號，以及帳號下的所有資料（掃描、問卷、結果評分）。結果評分的內容，請寫信索取。",
+        "不記名的數值副本：副本不含帳號或掃描編號，我們也不會主動拿它和你的掃描比對。你刪除某次掃描或整個帳號時，我們會一併刪除數值相符的副本。在你的掃描還保存的期間，你也可以來信要求查詢或刪除對應的副本。掃描刪除之後（未登入的掃描在 24 小時內會自動刪除），就沒有任何資料能把副本對回你，我們也無法再找出或刪除它。不想留下副本，請在送出前關掉開關。",
+        "自願上傳的照片：照片不會存進你的帳號，刪除帳號也不會刪到它。請用上傳後畫面上顯示的刪除碼，在本頁下方的「刪除我傳送的照片」刪除。遺失刪除碼時，請來信告訴我們上傳日期，以及當時回報的數字或失敗畫面，我們會比對後刪除；如果比對不出是哪一張，會回信說明，照片也會在 180 天後自動刪除。",
+        "未登入時送出的問卷與評分：這些資料不含帳號，也不會連回你的掃描。請不要在留言裡寫姓名、聯絡方式等個人資料；如果寫了，請來信告訴我們送出日期與大致內容，我們會盡力找出並刪除。",
+        "其他請求：請寄信到 palmate.tw@gmail.com。查詢、閱覽或要求複製本，我們會在 15 天內回覆是否同意；補充、更正、停止蒐集處理利用或刪除，會在 30 天內回覆。必要時可以延長一次，延長期間不超過原期限，我們會寫信說明原因。",
+        "不提供資料的影響：手部測量數值是計算推薦所必需的，不送出就無法得到推薦。登入、不記名副本、上傳照片、問卷、評分與 Google Analytics 都可以自由選擇，不提供也能完整使用掃描與推薦；只是沒有登入時，結果只保存 24 小時。",
+      ],
+    },
+    {
+      heading: "七、不記名副本預設保留的依據",
+      paragraphs: [
+        "送出掃描前，開關旁會說明副本的內容、用途、保存期間與刪除方式，並連到本政策。",
+        "依個資法第 7 條第 3 項，你看到說明後沒有關掉開關就送出，視為同意保留。",
+        "我們會保存每一個版本的說明全文，作為你看到哪一版說明的紀錄。",
+      ],
+    },
+    {
+      heading: "八、我們如何保護資料",
+      paragraphs: [
+        "照片預設只在你的裝置上處理。上傳的照片存放在不公開的儲存空間，檔名是隨機的。",
+        "刪除碼只以無法還原的雜湊值保存。",
+        // TODO(Kirby): confirm the production domain redirects HTTP to HTTPS.
+        "網站與服務商之間的連線都經過加密（HTTPS）。",
+        "錯誤紀錄與使用統計不含手部測量數值、Email 與帳號。",
+        "發生資料被竊取、竄改、毀損、滅失或洩漏時，我們會即時寄 Email 通知有登入帳號的人；無法個別聯絡的人（例如未登入的使用者），在網站上公告。通知內容包括發生了什麼事、影響哪些資料，以及我們已採取的措施。",
+      ],
+    },
+    {
+      heading: "九、未成年人",
+      paragraphs: [
+        "本服務不要求年齡資料。未滿 18 歲的使用者，請和家長或監護人一起閱讀本政策後再使用；上傳照片前，請先取得家長或監護人的同意。",
+      ],
+    },
+    {
+      heading: "十、Cookie 與瀏覽器儲存",
+      paragraphs: [
+        "網站使用運作必要的 cookie：未登入時的掃描工作階段、登入狀態。這些 cookie 不用於追蹤。",
+        "Google Analytics 的 cookie 只在你按下「同意」後才使用；不同意也能完整使用網站。",
+        "設定可以隨時在頁尾的「Cookie 設定」更改。",
+      ],
+    },
+    {
+      heading: "十一、本政策的變更",
+      paragraphs: [
+        "內容有重大變更時，我們會更新本頁日期並在網站上公告。新的蒐集方式只適用於公告之後蒐集的資料。",
+      ],
+    },
+    {
+      heading: "十二、聯絡我們",
+      paragraphs: ["palmate.tw@gmail.com"],
     },
   ],
   termsSections: [
@@ -128,55 +208,118 @@ export const zhTW: LegalCopy = {
 export const en: LegalCopy = {
   privacyTitle: "Privacy",
   termsTitle: "Terms of use",
+  // TODO(Kirby): the date policy v2.1 goes live.
   updated: "Last updated: 28 October 2026",
   back: "Home",
+  // TODO(Kirby): controller name (see the zh-TW table).
   privacyIntro:
-    "Palmate is run by the Palmate team, a student team from a course at National Taiwan University. This notice follows Taiwan's Personal Data Protection Act.",
+    "The personal data collected by Palmate is controlled by the Palmate team (“we”), contact palmate.tw@gmail.com. We are students taking the course “Creative Thinking and Strategic Practice” in National Taiwan University's D-School program; we run this service ourselves, and it is not a service of National Taiwan University. As Article 8 of Taiwan's Personal Data Protection Act (the PDPA) requires, this notice explains what we collect, why, how we use it, how long we keep it, and your rights.",
   privacySections: [
     {
-      heading: "What we collect",
+      heading: "1. Summary",
       paragraphs: [
-        "Hand photos: none. The photo is analysed on your phone and never uploaded; only the measurements (such as hand length and width) reach our server.",
-        "Measurements and results: your hand sizes, the grip you chose, and the mice ranked from them.",
-        "Account (only if you sign in with Google): the name, email and picture Google provides, and what sign-in needs.",
-        "Survey and feedback (optional): what you tell us about your mice. Answers sent while signed in are linked to your account, where you can see and change them; answers sent without an account carry nothing that identifies you.",
-        "Usage statistics: PostHog records anonymous page use, with no cookies, no IP address and no screen recording. Google Analytics loads only after you accept cookies.",
-        "Error reports: when something breaks, Sentry gets the error, with emails, IP addresses and measurements removed first.",
+        "By default your photo does not leave your device. When you scan, the photo is analysed only in your browser. It is uploaded only if, after a failed scan or when you report wrong numbers, you press “Send this photo to help us fix it” yourself and tick the consent box.",
+        "By default we keep a copy of the measurements that is not linked to any account. Before you send a scan, the screen shows a switch, “Keep an unnamed copy of these numbers”, which is on by default and which you can turn off.",
+        "We do not sell personal data. Apart from the providers listed in section 4, which process data on our behalf, we do not give individual records to brands or any other third party.",
       ],
     },
     {
-      heading: "Why",
+      heading: "2. Purposes, categories and how the data is used",
       paragraphs: [
-        "To rank the mice for your hand, to keep your results when you sign in, to make the measurements and rankings more accurate, and to keep the site safe and running.",
+        "Purposes (the statutory specific purposes): 090 consumer and customer management and service; 135 information and communication services; 136 information, communication and database management; 137 information security and management; 157 surveys, statistics and research analysis.",
+        "Categories: C001 identifiers (a sign-in account, a photo you chose to upload); C012 physical description (hand sizes); C036 lifestyle (your experience with mice, from the questionnaire).",
+        "How it is used: rankings and statistics are computed automatically; data travels over encrypted connections and is stored electronically; photos you chose to upload are looked at by team members; outside the team we publish only aggregate statistics with no name or account.",
       ],
     },
     {
-      heading: "Who processes it",
+      heading: "3. What we collect and how long we keep it",
       paragraphs: [
-        "These providers may store or move data outside Taiwan, including the United States: Vercel (hosting), Neon (database), Google (sign-in; Gemini turns the measurements into text and receives only the numbers, never the photo or your name), PostHog (statistics), Sentry (errors), and Google Analytics once you agree.",
+        "3.1 Scan results. What: hand sizes such as hand length and width, which hand, the grip and palm thickness (thin, medium or thick) you chose yourself, and the rankings. Why: to work out and show the mice that suit you. Kept: without an account, deleted within 24 hours of the scan; with an account, kept in it until you delete the account.",
+        "3.2 The unnamed copy of the measurements (on by default; you can turn it off). What: hand length, palm length, palm width and finger lengths (rounded to 1 mm), which hand, the grip and palm thickness you chose yourself (left out if you chose none), the calibration method, the measuring version, and the month it was sent (in UTC). No photo, account, IP address or device information, and no field that leads back to the scan. Why: to make the measurements and rankings more accurate, and for statistics such as the spread of hand shapes, for our own research and for publication (see section 5). Kept: for as long as the service runs, and deleted when it closes; how to have it deleted is in section 6.",
+        "3.3 Photos you chose to upload (not uploaded by default). What: a cropped photo of the back of the hand and the area around the paper or card (in card mode the detected card is blacked out on your device first, and file details such as where it was taken are removed), with what comes with it: the hand length and width measured this time (rounded to 1 mm), the right numbers you reported (if you entered them), why it was sent (a failed scan or wrong numbers) and the failure code, which hand, the paper or card type, the measuring version, the kind of device (phone, tablet or computer), whether it was taken with the camera or picked from the gallery, the photo's size, and the upload date. Why: to find and fix the causes of measuring errors. Kept: deleted automatically about 6 months (180 days) after upload; you can also delete it earlier at any time with its deletion code.",
+        "3.4 Account (only if you sign in with Google). What: the name, email and picture Google provides, what sign-in needs, and when you last used the account. Why: so you can keep and see your results. Kept: until you delete your account.",
+        "3.5 Questionnaire and result ratings (optional). Questionnaire: your experience with mice, satisfaction, what bothers you, main use, grip, the brand and size feel of mice not in our catalogue, and your comment; hand sizes are kept only in 5 mm groups. Result ratings: the stars and your comment, with a snapshot the server reads from the scan: hand-type class, grip, calibration method, palm thickness, the top three picks and their fit level, the engine version, and the page language. Why: to improve the rankings; questionnaire statistics are shown on the results page to other people with similar hands (see section 5). Kept: what you send while signed in is deleted with your account; what you send without an account is kept for as long as the service runs, and deleted when it closes.",
+        "3.6 Connection data. What: your IP address, kept only as a hash and only for a short time, for rate limiting and to prevent abuse; our hosting provider (Vercel) also keeps ordinary request logs. Why: to keep the site safe. Kept: the rate-limit hash for about 24 hours; the hosting logs per the provider's settings.",
+        "3.7 Usage statistics and error reports. PostHog records page views, button and scan-step events, and a rough grade of photo quality (no measurements); it also receives device details such as the browser, operating system, screen size, language and time zone. It uses no cookies and keeps a random identifier only while the tab is open; your IP address is not passed to PostHog, and nothing on screen is recorded. Google Analytics loads only after you press “Accept” on the cookie banner; the way Google works, it receives your IP address and browser details. Sentry receives the error message and the browser type when something breaks; emails, IP addresses, account details and measurements with units are removed first. Kept: per each provider's settings.",
       ],
     },
     {
-      heading: "How long",
+      heading: "4. Where the data is kept and who processes it",
       paragraphs: [
-        "Scans without an account: deleted within 24 hours.",
-        "Accounts: deleted, with all their scans, after 90 days without use.",
-        "You can delete your account on the Account page at any time; everything that belongs to it, survey answers sent while signed in included, goes with it.",
-        "Survey answers sent without an account are kept to improve the rankings; since nothing in them identifies you, they can't be found or withdrawn later.",
+        "These providers process data on our behalf; under Article 4 of the PDPA they act for us. Data is stored or moved outside Taiwan, in the regions each provider's settings use.",
+        "Vercel: website hosting and photo storage.",
+        "Neon: database.",
+        // TODO(Kirby): Gemini paid plan (see the zh-TW table).
+        "Google: sign-in, Google Analytics, and Gemini (which receives only the measurements, the grip and the rankings, to write the explanation; never the photo, your name or your account).",
+        "PostHog: usage statistics; United States.",
+        "Sentry: error reports.",
+        // TODO(Kirby): who has Vercel project access.
+        "Only Palmate team members with admin access to the website's hosting can see photos you chose to upload.",
       ],
     },
     {
-      heading: "Your rights",
+      heading: "5. Sharing and statistics",
       paragraphs: [
-        "You can ask to see, copy, correct or delete your personal data, or ask us to stop using it: write to palmate.tw@gmail.com. Deleting your account can also be done on the Account page.",
-        "Scanning and the rankings work without an account; the results are just not kept.",
+        "We do not sell personal data. Apart from the providers in section 4, we do not give individual records to brands or any other third party.",
+        "On the site: “How people with a similar hand size rated these” on the results page appears only when at least 5 people's questionnaire answers are behind it. With so few people, someone who knows the other answers could still work out one person's answer; please keep that in mind.",
+        "Outside the site (for example research reports or talks with brands): only aggregate statistics, and no group of fewer than 10 people is published.",
+        "New uses: before using data for a purpose not written here, we will update this notice and ask for your consent separately; data collected before then is not simply reused.",
       ],
     },
     {
-      heading: "Changes",
+      heading: "6. Your rights and how to use them",
       paragraphs: [
-        "If this notice changes in a way that matters, we update the date here and say so on the site.",
+        "Under Article 3 of the PDPA you can, for the personal data we hold about you, ask to look it up or see it, get a copy, add to or correct it, have us stop collecting, processing or using it, and have it deleted.",
+        "Signed-in account: on the Account page you can see and download your scans, your profile and your questionnaire answers, and delete your account with everything under it (scans, questionnaire, result ratings) in one step. For your result ratings, write to us.",
+        "The unnamed copy: it holds no account or scan number, and we do not match it against your scans on our own. When you delete a scan or your whole account, we also delete the copy whose values match. While your scan is still kept, you can also write to us to look up or delete its copy. Once the scan is deleted (scans without an account are deleted automatically within 24 hours), nothing links the copy back to you, and we can no longer find or delete it. If you don't want a copy, turn the switch off before you send.",
+        "Photos you chose to upload: a photo is not stored in your account, and deleting the account does not delete it. Delete it with the deletion code shown after the upload, under “Delete a photo I sent” further down this page. If you lost the code, write to us with the upload date and the numbers you reported or the failure screen; we will find and delete it. If we can't tell which photo it is, we will write back to explain; the photo is also deleted automatically after 180 days.",
+        "Questionnaire answers and ratings sent without an account: they hold no account and do not lead back to your scans. Please don't write your name, contact details or other personal data in a comment; if you did, write to us with the date and roughly what it said, and we will do our best to find and delete it.",
+        "Other requests: write to palmate.tw@gmail.com. To look up, see or get a copy of your data, we reply within 15 days whether we agree; to add, correct, stop collection, processing or use, or delete, we reply within 30 days. If needed we may extend this once, by no more than the original period, and will write to tell you why.",
+        "If you don't provide data: the hand measurements are needed to compute a ranking, so without them there is none. Signing in, the unnamed copy, uploading a photo, the questionnaire, ratings and Google Analytics are all optional, and scanning and the rankings work fully without them; without an account the results are just kept for 24 hours only.",
       ],
+    },
+    {
+      heading: "7. Why the unnamed copy is kept by default",
+      paragraphs: [
+        "Before you send a scan, the text next to the switch says what the copy holds, what it is for, how long it is kept and how it is deleted, and links to this notice.",
+        "Under Article 7(3) of the PDPA, sending the scan after seeing that text without turning the switch off counts as consent to keep the copy.",
+        "We keep the full text of every version of that notice, as the record of which version you saw.",
+      ],
+    },
+    {
+      heading: "8. How we protect data",
+      paragraphs: [
+        "By default photos are processed only on your device. Uploaded photos are kept in private storage under random file names.",
+        "Deletion codes are kept only as a hash that cannot be turned back into the code.",
+        // TODO(Kirby): HTTP-to-HTTPS redirect (see the zh-TW table).
+        "Connections between the site and its providers are encrypted (HTTPS).",
+        "Error reports and usage statistics contain no hand measurements, emails or accounts.",
+        "If data is stolen, altered, damaged, lost or leaked, we will email everyone with a signed-in account promptly, and post a notice on the site for people we cannot reach individually (such as people without an account). The notice says what happened, which data is affected, and what we have done.",
+      ],
+    },
+    {
+      heading: "9. Minors",
+      paragraphs: [
+        "We don't ask for your age. If you are under 18, please read this notice with a parent or guardian before using the service, and get their consent before you upload a photo.",
+      ],
+    },
+    {
+      heading: "10. Cookies and browser storage",
+      paragraphs: [
+        "The site uses cookies it needs to work: the scan session when you are not signed in, and your sign-in. These cookies are not used for tracking.",
+        "Google Analytics cookies are used only after you press “Accept”; the site works fully if you don't.",
+        "You can change your choice at any time with “Cookie settings” in the footer.",
+      ],
+    },
+    {
+      heading: "11. Changes to this notice",
+      paragraphs: [
+        "If this notice changes in a way that matters, we update the date on this page and say so on the site. A new way of collecting data applies only to data collected after that notice.",
+      ],
+    },
+    {
+      heading: "12. Contact",
+      paragraphs: ["palmate.tw@gmail.com"],
     },
   ],
   termsSections: [

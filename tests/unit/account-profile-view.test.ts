@@ -386,12 +386,14 @@ describe("the nickname and avatar sheets (not wired)", () => {
 });
 
 describe("the signed-out page's words", () => {
-  it("keeps main's sign-in fine print, word for word, and the 'cannot be taken back' line", () => {
+  it("keeps the sign-in fine print, word for word, and the 'cannot be taken back' line", () => {
+    // Touchpoint (2026-11-08, candidate): a photo is kept only if the person
+    // sends it, and never in the account.
     expect(zhTW.finePrint).toBe(
-      "我們會保存你的電子郵件地址和掃描紀錄，絕不會保存你的照片。登入時，你目前的掃描會併入你的帳號。",
+      "我們會保存你的電子郵件地址和掃描紀錄。照片預設不會上傳，只有你自己選擇傳送時才會保存，而且不會存進帳號。登入時，你目前的掃描會併入你的帳號。",
     );
     expect(en.finePrint).toBe(
-      "We keep your email address and your scans — never your photo. Your current scan joins your account when you sign in.",
+      "We keep your email address and your scans. By default your photo isn't uploaded; a photo is kept only if you choose to send one, and never in your account. Your current scan joins your account when you sign in.",
     );
     expect(zhTW.answerWithoutAccountNote).toContain("無法撤回");
   });

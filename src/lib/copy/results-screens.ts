@@ -124,7 +124,7 @@ export const zhTW: ResultsScreensCopy = {
   tryAgain: "再試一次",
   deleted: {
     title: "這次掃描已刪除",
-    body: "你的測量資料已永久移除。",
+    body: "這次掃描、它的測量資料，以及數值相符的不記名副本都已永久移除。你傳送過的照片要用刪除碼另外刪除。",
   },
   rankingUpdated: { text: "結果已更新。", close: "關閉提示" },
   analysis: {
@@ -143,7 +143,7 @@ export const zhTW: ResultsScreensCopy = {
   deleteScan: {
     trigger: "立即刪除這次掃描",
     title: "要立即刪除這次掃描嗎？",
-    body: "這會永久刪除這次掃描和它的測量資料，無法復原。",
+    body: "這會永久刪除這次掃描、它的測量資料，以及數值相符的不記名副本，無法復原。你傳送過的照片要用刪除碼另外刪除。",
     error: "無法刪除，請檢查網路連線後再試一次。",
     cancel: "取消",
     confirm: "刪除掃描",
@@ -206,7 +206,7 @@ export const en: ResultsScreensCopy = {
   tryAgain: "Try again",
   deleted: {
     title: "This scan has been deleted",
-    body: "Its measurements have been permanently removed.",
+    body: "This scan, its measurements and the unnamed copy whose values match have been permanently removed. A photo you sent is deleted separately, with its deletion code.",
   },
   rankingUpdated: {
     text: "Your results were updated.",
@@ -230,7 +230,7 @@ export const en: ResultsScreensCopy = {
   deleteScan: {
     trigger: "Delete this scan now",
     title: "Delete this scan now?",
-    body: "This permanently deletes this scan and its measurements. This can't be undone.",
+    body: "This permanently deletes this scan, its measurements and the unnamed copy whose values match. This can't be undone. A photo you sent is deleted separately, with its deletion code.",
     error: "Couldn't delete — check your connection and try again.",
     cancel: "Cancel",
     confirm: "Delete scan",

@@ -5,8 +5,10 @@
  * (`assembleScanSubmission` in src/client/photo/submission.ts) — this module
  * is the only place that puts it on the wire.
  *
- * Hard rule 5 ("photos never leave the browser"): the only thing this
- * function ever sends is the `ScanSubmission` object itself — a handful of
+ * Hard rule 5 ("photos stay on the phone by default"; the only exception is
+ * the person's own opt-in upload in `src/client/error-photo/`, never this
+ * path): the only thing this function ever sends is the `ScanSubmission`
+ * object itself — a handful of
  * millimetre numbers and enum strings, never the photo, a `Blob`/`File`, or
  * a data URL. `ScanSubmission`'s own type makes an image-shaped field
  * impossible to construct here in the first place.

@@ -77,7 +77,7 @@ export const zhTW: ScanTourCopy = {
   welcomeFirst: "第一次，教我怎麼拍",
   welcomeReturning: "不是第一次，直接掃描",
   welcomeFinePrint:
-    "之後可以按右上角「?」再看一次。你的照片不會離開手機，只會傳送測量數值。",
+    "之後可以按右上角「?」再看一次。照片預設不會上傳，只會傳送測量數值。",
   counter: (n, total) => `${n}／${total}`,
   counterCardPrefix: "卡片 · ",
   skip: "略過教學",
@@ -130,7 +130,7 @@ export const en: ScanTourCopy = {
   welcomeFirst: "First time, show me",
   welcomeReturning: "Not my first time, start scanning",
   welcomeFinePrint:
-    "Tap “?” at the top right to see this again. Your photo never leaves your phone; only the measurements are sent.",
+    "Tap “?” at the top right to see this again. By default your photo isn't uploaded; only the measurements are sent.",
   counter: (n, total) => `${n} / ${total}`,
   counterCardPrefix: "Card · ",
   skip: "Skip tour",

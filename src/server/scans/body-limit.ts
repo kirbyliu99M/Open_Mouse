@@ -1,7 +1,9 @@
 /**
  * Request-body size cap for `POST /api/scans`. A payload carrying image
  * bytes must be refused before it is ever handed to JSON.parse — see the
- * fifth hard rule in AGENTS.md ("photos never leave the browser").
+ * fifth hard rule in AGENTS.md ("photos stay on the phone by default"): a
+ * scan never carries a photo. The one way a photo is sent is the person's
+ * own opt-in upload, a separate route (`src/lib/contracts/error-photo.ts`).
  */
 
 /** 16 KB: comfortably above a real measurement payload, far below a photo. */
