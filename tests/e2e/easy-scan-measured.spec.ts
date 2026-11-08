@@ -1256,6 +1256,11 @@ for (const locale of ["en-US", "zh-TW"] as const) {
         await page.waitForTimeout(500);
         const failures: string[] = [];
         let sampled = 0;
+        let minGap = Infinity;
+        const sendButtonId =
+          screen === "thickness page"
+            ? "thickness-submit"
+            : "submit-scan-button";
         for (const height of [667, 915]) {
           for (const width of SWEEP_WIDTHS) {
             await page.setViewportSize({ width, height });
@@ -1276,9 +1281,37 @@ for (const locale of ["en-US", "zh-TW"] as const) {
               failures.push(`${width}x${height}: Details at ${at}`);
             for (const miss of result.misses)
               failures.push(`${width}x${height}: ${miss}`);
+            // Details' own 44 px box stays between the switch and the send
+            // button, at least 4 px clear of the button (review round 4).
+            const box = await page.evaluate((sendId) => {
+              const rect = (s: string) =>
+                document.querySelector(s)!.getBoundingClientRect();
+              const more = rect(".sampleConsentMore");
+              return {
+                moreHeight: more.height,
+                moreTop: more.top,
+                moreBottom: more.bottom,
+                switchBottom: rect("[data-testid=sample-consent-switch]")
+                  .bottom,
+                sendTop: rect(`[data-testid=${sendId}]`).top,
+              };
+            }, sendButtonId);
+            minGap = Math.min(minGap, box.sendTop - box.moreBottom);
+            if (box.moreHeight < 44)
+              failures.push(`${width}x${height}: Details ${box.moreHeight}px`);
+            if (box.moreBottom > box.sendTop - 4)
+              failures.push(
+                `${width}x${height}: Details ends ${(box.sendTop - box.moreBottom).toFixed(1)}px above the send button`,
+              );
+            if (box.moreTop < box.switchBottom)
+              failures.push(
+                `${width}x${height}: Details top ${box.moreTop.toFixed(1)} above switch bottom ${box.switchBottom.toFixed(1)}`,
+              );
           }
         }
-        console.log(`${locale} ${screen}: ${sampled} points sampled`);
+        console.log(
+          `${locale} ${screen}: ${sampled} points sampled, smallest Details-to-send gap ${minGap.toFixed(1)}px`,
+        );
 
         // The worst case, whatever the fonts: Details pulled up so its box
         // lies over the switch's lower half (the sentence's first line, its

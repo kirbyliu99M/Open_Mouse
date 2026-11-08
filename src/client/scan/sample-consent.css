@@ -83,9 +83,17 @@
 }
 
 /* The always-shown sentence, with 「詳細說明」 at its end. Its bottom
-   padding holds the lower overflow of that button's 44 px box. */
+   padding holds the lower overflow of that button's 44 px box, with at
+   least 4 px to spare above the send button (review round 4 of #240):
+     short phone: line 16.8 px, overflow (44 - 16.8) / 2 = 13.6 px; below
+       it 10 (this padding) + 4 (.sampleConsent margin) + 4 (.answerActions
+       margin) = 18 px, so 4.4 px clear; with the -0.75rem fallback the
+       margin box is 20 px, overflow 12 px, 6 px clear;
+     other screens: line 18.85 px, overflow 12.6 px; below it 10 + 4 + 8 =
+       22 px (thickness page) or 10 + 4 + 8 gap (submit panel), 9.4 px
+       clear. */
 .sampleConsentShort {
-  padding-bottom: 0.375rem;
+  padding-bottom: 0.625rem;
 }
 .sampleConsentShort,
 .sampleConsentDetails {
@@ -101,8 +109,9 @@
    line evenly, about 13 px up and down. Up is the sentence's own earlier
    line (the sentence always wraps on a phone; were it ever one line, the
    switch row stacks above it and keeps its taps). Down is the sentence's
-   bottom padding plus the margins under it, so it does not reach the send
-   button. `-0.75rem` is the fallback where `lh` is unknown. */
+   bottom padding plus the margins under it, at least 4 px short of the
+   send button (the arithmetic is on .sampleConsentShort above). `-0.75rem`
+   is the fallback where `lh` is unknown. */
 .sampleConsentMore {
   display: inline-flex;
   align-items: center;
