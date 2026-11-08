@@ -108,6 +108,9 @@ test("home no longer carries the removed lines: the taglines, 'Measure your hand
   // stays on How it works, the scan screens and the camera.
   await expect(body.getByText(/never leaves/)).toHaveCount(0);
   await expect(body.getByText(/Only measurements are sent/)).toHaveCount(0);
+  // ...nor its touchpoint wording (2026-11-08, candidate).
+  await expect(body.getByText(/analysed only on your phone/)).toHaveCount(0);
+  await expect(body.getByText(/only the measurements are sent/)).toHaveCount(0);
 });
 
 test("How it works still carries the photo-privacy promise that left the home page", async ({
@@ -116,7 +119,7 @@ test("How it works still carries the photo-privacy promise that left the home pa
   await page.goto("/how-it-works");
   await expect(
     page.getByText(
-      "Your photo never leaves your phone. Only measurements are sent.",
+      "By default your photo is analysed only on your phone, and only the measurements are sent. It is uploaded only if you choose to send it after a failed scan or to report wrong numbers.",
     ),
   ).toBeVisible();
 });

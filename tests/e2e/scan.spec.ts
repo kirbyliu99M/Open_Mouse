@@ -59,7 +59,7 @@ test.describe("/scan — top-down photo pipeline", () => {
     ).toBeVisible();
     await expect(
       page.getByText(
-        "Your photo never leaves your phone. Only measurements are sent.",
+        "By default your photo is analysed only on your phone, and only the measurements are sent. It is uploaded only if you choose to send it after a failed scan or to report wrong numbers.",
       ),
     ).toBeVisible();
   });
@@ -359,7 +359,7 @@ test.describe("/scan/measured-demo — measured state (item 6)", () => {
     // the whole payload).
     await page.goto("/scan/measured-demo");
     await expect(page.locator(".deviceNotice")).toHaveText(
-      "Your photo never leaves your phone. Only measurements are sent.",
+      "By default your photo is analysed only on your phone, and only the measurements are sent. It is uploaded only if you choose to send it after a failed scan or to report wrong numbers.",
     );
   });
 });
