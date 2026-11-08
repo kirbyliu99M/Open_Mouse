@@ -33,8 +33,10 @@ import { scanAnswersCopy, type ChoiceCopy } from "../../lib/copy/scan-answers";
 import { scanCommonCopy } from "../../lib/copy/scan-common";
 import { useLocale } from "../i18n/LocaleProvider";
 import { gripControls, thicknessControls, type GripStyle } from "./answers";
+import { SampleConsentToggle } from "./SampleConsentToggle";
 import { SubmitOverlay } from "./SubmitOverlay";
 import type { SubmitScanErrorKind } from "./submitScan";
+import type { SampleNoticeBinding } from "./useScanSubmit";
 import {
   THICKNESS_HAND_DOTS,
   THICKNESS_HAND_DOT_OPACITIES,
@@ -448,6 +450,14 @@ export interface ThicknessPageProps {
    */
   readonly retakeLabel?: string;
   readonly errorText?: Partial<Record<SubmitScanErrorKind, string>>;
+  /**
+   * The `useScanSubmit` binding of the hook that sends from this page: the
+   * anonymous-copy switch (hand-sample.ts, candidate) is shown right above
+   * 看結果, since this page is where every easy-scan path (paper, card, typed
+   * numbers) sends the scan. Left out only by tests that render the page on
+   * its own; without it there is no switch, and so no anonymous copy.
+   */
+  readonly sampleNotice?: SampleNoticeBinding;
 }
 
 /** Failures whose own sentence asks for a new photo (scan-common.ts submitErrors). */
@@ -473,6 +483,7 @@ export function ThicknessPage({
   onRetake,
   retakeLabel,
   errorText,
+  sampleNotice,
 }: ThicknessPageProps) {
   const locale = useLocale();
   const words = scanAnswersCopy(locale);
@@ -508,46 +519,56 @@ export function ThicknessPage({
       artClassName="thicknessArt"
       art={<ThicknessHand />}
       footer={
-        <div className="answerActions">
-          {errorKind && (
-            <div className="answerError">
-              <p role="alert">
-                {errorText?.[errorKind] ?? common.submitErrors[errorKind]}
-              </p>
-              {RETAKE_ERROR_KINDS.includes(errorKind) && (
-                <button
-                  type="button"
-                  className="answerErrorRetake"
-                  onClick={onRetake}
-                  data-testid="thickness-retake"
-                >
-                  {retakeLabel ?? words.retake}
-                </button>
-              )}
+        <>
+          {/* The anonymous-copy switch, right above the actions (a sibling,
+              so a phone on its side can put it in the left column, and so
+              Shift+Tab from 看結果 still reaches the banner's button). */}
+          {sampleNotice && (
+            <div className="answerConsent">
+              <SampleConsentToggle notice={sampleNotice} disabled={busy} />
             </div>
           )}
-          <PrimaryButton
-            disabled={!controls.submitEnabled}
-            onClick={onSubmit}
-            testId="thickness-submit"
-            buttonRef={submitRef}
-          >
-            {words.thicknessSubmit}
-          </PrimaryButton>
-          {/* The visible word stays 跳過; the name says what it does here: the
+          <div className="answerActions">
+            {errorKind && (
+              <div className="answerError">
+                <p role="alert">
+                  {errorText?.[errorKind] ?? common.submitErrors[errorKind]}
+                </p>
+                {RETAKE_ERROR_KINDS.includes(errorKind) && (
+                  <button
+                    type="button"
+                    className="answerErrorRetake"
+                    onClick={onRetake}
+                    data-testid="thickness-retake"
+                  >
+                    {retakeLabel ?? words.retake}
+                  </button>
+                )}
+              </div>
+            )}
+            <PrimaryButton
+              disabled={!controls.submitEnabled}
+              onClick={onSubmit}
+              testId="thickness-submit"
+              buttonRef={submitRef}
+            >
+              {words.thicknessSubmit}
+            </PrimaryButton>
+            {/* The visible word stays 跳過; the name says what it does here: the
               scan is sent. It contains the visible word (WCAG 2.5.3). */}
-          <button
-            type="button"
-            className="answerSkip"
-            ref={skipRef}
-            onClick={onSkip}
-            disabled={!controls.skipEnabled}
-            aria-label={words.skipAndSee}
-            data-testid="thickness-skip"
-          >
-            {words.skip}
-          </button>
-        </div>
+            <button
+              type="button"
+              className="answerSkip"
+              ref={skipRef}
+              onClick={onSkip}
+              disabled={!controls.skipEnabled}
+              aria-label={words.skipAndSee}
+              data-testid="thickness-skip"
+            >
+              {words.skip}
+            </button>
+          </div>
+        </>
       }
     >
       <ChoiceRows

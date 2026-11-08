@@ -456,6 +456,35 @@
   .answerActions {
     margin-top: 0.25rem;
   }
+  /* With the anonymous-copy switch on the thickness page (hand-sample,
+     candidate), the picture goes altogether on a short phone, so the switch,
+     the main button and 跳過 still fit on the first screen. */
+  .answerPage:has(.answerConsent) .answerArt {
+    display: none;
+  }
+  .answerPage:has(.answerConsent) .answerChoices {
+    margin-top: 0.5rem;
+  }
+}
+
+/* The anonymous-copy switch sits right above the actions. */
+.answerConsent {
+  margin-top: 0.5rem;
+}
+
+/* The smallest phones held upright (320 x 568): with the switch on the page,
+   the one-line hint under the title goes too and the title is smaller, so
+   看結果 and 跳過 stay on the first screen. The rows keep their own names. */
+@media (max-height: 600px) and (orientation: portrait) {
+  .answerPage:has(.answerConsent) .answerSubtitle {
+    display: none;
+  }
+  .answerPage:has(.answerConsent) .answerTitle {
+    font-size: 1.375rem;
+  }
+  .answerConsent {
+    margin-top: 0.25rem;
+  }
 }
 
 /* A phone on its side (about 667 x 375): the picture goes, and the page is two
@@ -492,5 +521,10 @@
   }
   .answerActions {
     grid-area: actions;
+  }
+  /* The switch takes the left column's empty bottom, under the subtitle. */
+  .answerConsent {
+    grid-area: rest;
+    align-self: end;
   }
 }

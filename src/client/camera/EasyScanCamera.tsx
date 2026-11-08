@@ -827,6 +827,7 @@ export default function EasyScanCamera({
     submit: submitScanNow,
     busy: submitBusy,
     clearError: clearSubmitError,
+    sampleNotice,
   } = useScanSubmit(demoMeasured ? undefined : "easy");
   // Typing the hand length and width instead of scanning (manual entry,
   // candidate, 2026-10-12). The draft outlives the form, so a sheet closed by
@@ -4437,6 +4438,7 @@ export default function EasyScanCamera({
               errorKind={
                 submitState.kind === "error" ? submitState.errorKind : null
               }
+              sampleNotice={sampleNotice}
             />
           )}
         </div>

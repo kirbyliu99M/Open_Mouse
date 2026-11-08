@@ -10,6 +10,7 @@ import {
   users,
 } from "../../db/schema";
 import { parallaxCorrectedOf } from "../../lib/fit/fit-scale";
+import { deleteMatchingSamples } from "../scans/hand-sample-delete";
 import type { AccountRepo, AccountScan } from "./repo";
 
 /** The real `AccountRepo`, over the Neon HTTP driver. */
@@ -99,6 +100,10 @@ export function createDrizzleAccountRepo(db = getDb()): AccountRepo {
         // Result feedback is withdrawn by name too (its contract: "Delete
         // everything" MUST remove it); the user's cascade is the second net.
         db.delete(resultFeedback).where(eq(resultFeedback.userId, userId)),
+        // Each scan's de-linked copy, if it has one, goes too: one
+        // value-matching row per scan, matched in SQL as this batch runs
+        // (hand-sample-delete.ts, privacy review 2026-11-08, candidate).
+        deleteMatchingSamples(db, eq(scanSessions.userId, userId)),
         db.delete(scanSessions).where(eq(scanSessions.userId, userId)),
         db.delete(users).where(eq(users.id, userId)),
       ]);
