@@ -26,13 +26,6 @@ import { testerCodesConfigured } from "@/lib/tester/enabled";
  * unset in production) it is treated like any other path, so a probe cannot
  * tell it from a page that does not exist (review #243 round 4).
  */
-function pinnedPagesOn(): boolean {
-  return (
-    process.env.NODE_ENV !== "production" ||
-    testerCodesConfigured(process.env.TESTER_CODES)
-  );
-}
-
 export function middleware(request: NextRequest): NextResponse {
   const { locale, path } = splitLocalePath(request.nextUrl.pathname);
   const pinned = pinnedPagesOn() ? pinnedLocaleFor(path) : null;
@@ -68,3 +61,15 @@ export function middleware(request: NextRequest): NextResponse {
 export const config = {
   matcher: ["/en", "/en/:path*", "/scan/tester", "/scan/tester/:path*"],
 };
+
+/**
+ * One-language pages are pinned only while they are on: always in
+ * development (dev-only demo routes, e2e), and in production only when
+ * `TESTER_CODES` names a valid code (read at request time).
+ */
+function pinnedPagesOn(): boolean {
+  return (
+    process.env.NODE_ENV !== "production" ||
+    testerCodesConfigured(process.env.TESTER_CODES)
+  );
+}

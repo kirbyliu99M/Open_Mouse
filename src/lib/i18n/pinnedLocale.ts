@@ -3,8 +3,8 @@
  * `Accept-Language` or URL prefix says (candidate 未拍板): the hidden
  * data-tester page is zh-TW only (src/lib/contracts/tester.ts;
  * `TESTER_PAGE_PATH` is pinned to this list by
- * tests/unit/tester-locale.test.ts, spelled out here so the middleware does
- * not load the tester contract). The middleware renders them in that locale
+ * tests/unit/tester-locale.test.ts and spelled out here, so this list stays
+ * free of page code). The middleware renders them in that locale
  * (`<html lang>`, the camera's own copy) and sends `/en/...` to the
  * unprefixed URL.
  */

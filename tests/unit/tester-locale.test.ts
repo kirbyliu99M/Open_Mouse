@@ -7,6 +7,7 @@
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { testerCodesConfigured } from "../../src/lib/tester/enabled";
+import { parseTesterCodes } from "../../src/server/tester/codes";
 import { LOCALE_COOKIE, LOCALE_HEADER } from "../../src/lib/contracts/locale";
 import { TESTER_PAGE_PATH } from "../../src/lib/contracts/tester";
 import {
@@ -77,6 +78,27 @@ describe("while the tester page is off in production", () => {
     expect(testerCodesConfigured("")).toBe(false);
     expect(testerCodesConfigured("nope,P1-AAAAAA")).toBe(false);
     expect(testerCodesConfigured("nope, p07-k7q2m9")).toBe(true);
+  });
+
+  it("agrees with parseTesterCodes on every input", () => {
+    const parts = [
+      "",
+      " ",
+      "P07-K7Q2M9",
+      " p07-k7q2m9 ",
+      "P1-AAAAAA",
+      "P123-ABCDEF",
+      "P07-K7Q2M0",
+      "x",
+      "P07-K7Q2M9\n",
+    ];
+    const inputs: (string | undefined)[] = [undefined];
+    for (const a of parts)
+      for (const b of parts) inputs.push(a, `${a},${b}`, `${a};${b}`);
+    for (const raw of inputs)
+      expect(testerCodesConfigured(raw), JSON.stringify(raw)).toBe(
+        parseTesterCodes(raw) !== null,
+      );
   });
 
   it("/en/scan/tester is rewritten like any missing page, not redirected", () => {
