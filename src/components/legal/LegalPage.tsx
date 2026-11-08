@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import type { LegalCopy, LegalSection } from "@/lib/copy/legal";
 
 /**
@@ -12,12 +13,15 @@ export function LegalPage({
   intro,
   sections,
   other,
+  children,
 }: {
   readonly copy: LegalCopy;
   readonly title: string;
   readonly intro?: string;
   readonly sections: readonly LegalSection[];
   readonly other: { readonly href: string; readonly label: string };
+  /** Shown after the sections (the error-photo deletion form on /privacy). */
+  readonly children?: ReactNode;
 }) {
   return (
     <main className="home-main home-how-page">
@@ -35,6 +39,7 @@ export function LegalPage({
           ))}
         </section>
       ))}
+      {children}
       <p className="home-privacy-link">
         <Link href={other.href}>{other.label}</Link>
       </p>

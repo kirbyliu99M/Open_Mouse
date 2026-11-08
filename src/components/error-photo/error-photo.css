@@ -1,0 +1,249 @@
+/*
+ * The error-photo sheet and the deletion form (candidate 未拍板). Tokens only
+ * (src/app/tokens.css), 44 px targets, the BTN-1 primary pill and a text-link
+ * secondary (docs/design-guidelines.md). The sheet is a modal task, so its
+ * backdrop dims; it comes up from the bottom like the scan's own sheets and
+ * cross-fades under reduced motion.
+ */
+.errorPhotoSheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 34rem;
+  max-height: 92dvh;
+  overflow-y: auto;
+  border: none;
+  border-radius: 1.25rem 1.25rem 0 0;
+  padding: 1.25rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom));
+  background: var(--bg);
+  color: var(--text-primary);
+  box-shadow: 0 -8px 32px rgb(0 0 0 / 40%);
+  animation: errorPhotoIn var(--motion-sheet-in) var(--ease-out) both;
+}
+.errorPhotoSheet::backdrop {
+  background: rgb(0 0 0 / 60%);
+}
+@keyframes errorPhotoIn {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes errorPhotoFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .errorPhotoSheet {
+    animation: errorPhotoFade var(--motion-reduced) linear both;
+  }
+}
+@media (prefers-contrast: more) {
+  .errorPhotoSheet {
+    border: 1px solid var(--hairline);
+  }
+}
+
+.errorPhotoTitle {
+  margin: 0 0 0.75rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.errorPhotoTitle:focus {
+  outline: none;
+}
+
+.errorPhotoPreview {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 28dvh;
+  margin: 0 auto 0.75rem;
+  border-radius: 0.5rem;
+  background: #000;
+  object-fit: contain;
+}
+
+.errorPhotoPoints {
+  margin: 0 0 1rem;
+  padding-left: 1.2rem;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+.errorPhotoPoints li + li {
+  margin-top: 0.4rem;
+}
+
+.errorPhotoNumbers {
+  margin: 0 0 1rem;
+  padding: 0;
+  border: 0;
+}
+.errorPhotoNumbers legend {
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+.errorPhotoNumberRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.errorPhotoNumberRow label {
+  min-width: 5rem;
+}
+.errorPhotoNumberRow input,
+.errorPhotoDeleteRow input {
+  min-height: 44px;
+  min-width: 0;
+  padding: 0 0.75rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.errorPhotoNumberRow input {
+  width: 6rem;
+}
+
+.errorPhotoConsent {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.errorPhotoConsent input {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin: 10px;
+  accent-color: var(--accent-text);
+}
+.errorPhotoConsent label {
+  min-height: 44px;
+  padding-top: 0.6rem;
+  line-height: 1.5;
+}
+
+.errorPhotoStatus:empty {
+  display: none;
+}
+.errorPhotoStatus,
+.errorPhotoError {
+  margin: 0 0 0.5rem;
+}
+.errorPhotoError {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.errorPhotoActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.errorPhotoPrimary {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--button-primary-bg);
+  color: var(--on-button-primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.errorPhotoPrimary:active:not(:disabled) {
+  background: var(--button-primary-pressed);
+}
+.errorPhotoPrimary:disabled {
+  opacity: var(--button-primary-disabled-opacity);
+  cursor: default;
+}
+
+/* Secondary: a text link in --accent-text, transparent border (contrast). */
+.errorPhotoCancel,
+.errorPhotoLink {
+  min-height: 44px;
+  padding: 0 0.5rem;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  cursor: pointer;
+}
+.errorPhotoLink {
+  display: block;
+  margin-top: 0.25rem;
+}
+.errorPhotoCancel:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
+.errorPhotoSheet :is(button, input, a):focus-visible,
+.errorPhotoDelete :is(button, input):focus-visible,
+.errorPhotoLink:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+.errorPhotoSuccess {
+  line-height: 1.6;
+}
+.errorPhotoSuccess a {
+  color: var(--accent-text);
+}
+.errorPhotoCode {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 1.15rem;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  user-select: all;
+}
+
+/* /privacy: the deletion form under the policy. */
+.errorPhotoDelete {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--hairline);
+  scroll-margin-top: 5rem;
+}
+.errorPhotoDelete label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+}
+.errorPhotoDeleteRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.errorPhotoDeleteRow input {
+  flex: 1 1 12rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.errorPhotoDeleteStatus:empty {
+  display: none;
+}
+.errorPhotoDeleteStatus {
+  margin-top: 0.75rem;
+}
