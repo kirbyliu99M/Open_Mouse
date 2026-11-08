@@ -1,15 +1,38 @@
 /**
- * Pure helpers of the tester scripts (candidate 未拍板; contract
- * src/lib/contracts/tester.ts): code generation, where an export may go, and
- * the CSV. Unit-tested in tests/unit/tester-scripts.test.ts; the scripts
- * themselves (tester-codes, tester-export, tester-delete) only add I/O.
+ * Helpers of the tester scripts (candidate 未拍板; contract
+ * src/lib/contracts/tester.ts): code generation, where an export may go, the
+ * CSV, and the local copy's retention and deletion. Unit-tested in
+ * tests/unit/tester-scripts.test.ts; the scripts themselves (tester-codes,
+ * tester-export, tester-delete) only add the network.
+ *
+ * The local export follows the same rules as the server (the consent text
+ * says so): a photo older than `TESTER_PHOTO_RETENTION_DAYS` (Taipei days) is
+ * deleted from the export folder on each export, and a participant's
+ * deletion also removes their rows and photos from the export folder.
  */
-import { isAbsolute, relative, resolve } from "node:path";
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+} from "node:path";
 import {
   TESTER_CODE_ALPHABET,
+  TESTER_PHOTO_RETENTION_DAYS,
   testerCodeSchema,
   testerParticipantSchema,
 } from "../src/lib/contracts/tester";
+import { addDays, taipeiDay } from "../src/server/tester/day";
 import type { TesterShotRow } from "../src/server/tester/drizzle-repo";
 
 /** The export folder used when none is given, relative to the repo root. */
@@ -42,25 +65,41 @@ export function generateTesterCodes(
   return codes;
 }
 
-/** Whether `target` is `root` or anywhere inside it. */
+/**
+ * `path` with every symbolic link resolved, also for a path that does not
+ * exist yet (its nearest existing ancestor is resolved, the rest appended).
+ */
+export function realPath(path: string): string {
+  const abs = resolve(path);
+  if (existsSync(abs)) return realpathSync.native(abs);
+  const parent = dirname(abs);
+  if (parent === abs) return abs;
+  return join(realPath(parent), basename(abs));
+}
+
+/** Whether `target` is `root` or anywhere inside it, after resolving links (case-blind, as Windows paths are). */
 export function isInside(root: string, target: string): boolean {
-  const rel = relative(resolve(root), resolve(target));
+  const rel = relative(
+    realPath(root).toLowerCase(),
+    realPath(target).toLowerCase(),
+  );
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }
 
 /**
  * The absolute export folder: `outDir` (or the default) resolved against the
- * repo root. Throws for any folder inside the repo: the export holds personal
+ * repo root (`git rev-parse --show-toplevel` in the script), links resolved.
+ * Throws for any folder inside the repo: the export holds personal
  * measurements and photos and must never be committed.
  */
 export function resolveExportDir(
   outDir: string | undefined,
   repoRoot: string,
 ): string {
-  const target = resolve(repoRoot, outDir ?? DEFAULT_EXPORT_DIR);
+  const target = realPath(resolve(repoRoot, outDir ?? DEFAULT_EXPORT_DIR));
   if (isInside(repoRoot, target))
     throw new Error(
-      `Refusing to export inside the repository (${target}). Choose a folder outside it.`,
+      `Refusing to use a folder inside the repository (${target}). Choose a folder outside it.`,
     );
   return target;
 }
@@ -108,16 +147,20 @@ const CSV_COLUMNS = [
   "photoHeightPx",
 ] as const;
 
-/** One CSV cell: quoted when needed; a leading formula character is defused for spreadsheets. */
+/**
+ * One CSV cell, quoted when needed. Only a real number is written as is; any
+ * text starting with = + - @ (or a tab or carriage return) gets a leading
+ * `'`, so a spreadsheet never runs it as a formula.
+ */
 export function csvCell(value: unknown): string {
   if (value === null || value === undefined) return "";
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
   const text = Array.isArray(value) ? value.join("|") : String(value);
-  const safe =
-    /^[=+\-@\t\r]/.test(text) && !/^-?\d/.test(text) ? `'${text}` : text;
+  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
   return /[",\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
 }
 
-/** `shots.csv`: one line per row; `photoFile` is `photos/<shotId>.jpg` when its photo was exported. */
+/** `shots.csv`: one line per row; `photoFile` is `photos/<shotId>.jpg` when its photo is in the folder. */
 export function shotsCsv(
   rows: readonly TesterShotRow[],
   exportedPhotos: ReadonlySet<string>,
@@ -133,4 +176,103 @@ export function shotsCsv(
     lines.push(CSV_COLUMNS.map((c) => csvCell(values[c])).join(","));
   }
   return `${lines.join("\n")}\n`;
+}
+
+export function recordsJsonl(rows: readonly TesterShotRow[]): string {
+  return (
+    rows.map((r) => JSON.stringify(r)).join("\n") + (rows.length ? "\n" : "")
+  );
+}
+
+/** `records.jsonl` text -> rows (blank lines skipped). */
+export function parseRecordsJsonl(text: string): TesterShotRow[] {
+  return text
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .map((line) => JSON.parse(line) as TesterShotRow);
+}
+
+/** Photos of rows on days strictly before this are past retention (the server purge's rule). */
+export function localPhotoCutoffDay(
+  now: Date,
+  retentionDays: number = TESTER_PHOTO_RETENTION_DAYS,
+): string {
+  return addDays(taipeiDay(now), -retentionDays);
+}
+
+/**
+ * The shots whose photo may be in the export folder: the server still has it
+ * and its day is within retention. Any other local photo is deleted.
+ */
+export function photosToKeep(
+  rows: readonly Pick<TesterShotRow, "shotId" | "day" | "photoPathname">[],
+  cutoffDay: string,
+): Set<string> {
+  return new Set(
+    rows
+      .filter((r) => r.photoPathname !== null && r.day >= cutoffDay)
+      .map((r) => r.shotId),
+  );
+}
+
+const PHOTO_FILE = /^([0-9a-f-]{36})\.jpg$/i;
+
+/** The shot ids of the photos now in `<dir>/photos`. */
+export function localPhotoIds(dir: string): string[] {
+  const photos = join(dir, "photos");
+  if (!existsSync(photos)) return [];
+  return readdirSync(photos).flatMap((name) => {
+    const m = PHOTO_FILE.exec(name);
+    return m ? [m[1]!] : [];
+  });
+}
+
+/** Deletes every local photo whose shot is not in `keep`; returns how many went. */
+export function pruneLocalPhotos(
+  dir: string,
+  keep: ReadonlySet<string>,
+): number {
+  let removed = 0;
+  for (const id of localPhotoIds(dir)) {
+    if (keep.has(id)) continue;
+    rmSync(join(dir, "photos", `${id}.jpg`), { force: true });
+    removed++;
+  }
+  return removed;
+}
+
+/** Writes `shots.csv` and `records.jsonl` for `rows`, naming only photos present in the folder. */
+export function writeExportFiles(
+  dir: string,
+  rows: readonly TesterShotRow[],
+): void {
+  const present = new Set(localPhotoIds(dir));
+  writeFileSync(join(dir, "shots.csv"), shotsCsv(rows, present));
+  writeFileSync(join(dir, "records.jsonl"), recordsJsonl(rows));
+}
+
+/**
+ * Removes one participant from an export folder: their rows from
+ * `records.jsonl` and `shots.csv` (both rewritten), and their photos. A
+ * folder without an export is left alone. `dryRun` only counts.
+ */
+export function removeParticipantLocally(
+  dir: string,
+  participant: string,
+  dryRun: boolean,
+): { rows: number; photos: number } {
+  const recordsPath = join(dir, "records.jsonl");
+  if (!existsSync(recordsPath)) return { rows: 0, photos: 0 };
+  const rows = parseRecordsJsonl(readFileSync(recordsPath, "utf8"));
+  const gone = rows.filter((r) => r.participant === participant);
+  const goneIds = new Set(gone.map((r) => r.shotId));
+  const photos = localPhotoIds(dir).filter((id) => goneIds.has(id));
+  if (dryRun) return { rows: gone.length, photos: photos.length };
+  for (const id of photos)
+    rmSync(join(dir, "photos", `${id}.jpg`), { force: true });
+  writeExportFiles(
+    dir,
+    rows.filter((r) => r.participant !== participant),
+  );
+  return { rows: gone.length, photos: photos.length };
 }

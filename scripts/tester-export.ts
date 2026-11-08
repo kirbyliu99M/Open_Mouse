@@ -3,14 +3,21 @@
  * src/lib/contracts/tester.ts) to a folder OUTSIDE the repository:
  * `shots.csv`, `records.jsonl` and `photos/<shotId>.jpg` (from the private
  * Blob store). Needs `DATABASE_URL` and `BLOB_READ_WRITE_TOKEN` (read from
- * .env.local like the other scripts). Run from the repository root.
+ * .env.local like the other scripts).
  *
  *   npx tsx scripts/tester-export.ts [outDir]
  *
- * Default outDir: ../accuracy-collection-2026-11-08/export/ (beside the repo).
- * Refuses any folder inside the repository, before anything is read.
+ * Default outDir: ../accuracy-collection-2026-11-08/export/ beside the
+ * repository root (`git rev-parse --show-toplevel`). Refuses any folder
+ * inside the repository (links resolved), before anything is read.
+ *
+ * Each run rewrites both files from the server and applies the same
+ * retention locally: a photo whose shot day is older than
+ * `TESTER_PHOTO_RETENTION_DAYS` (or that the server no longer has, or whose
+ * participant was deleted) is deleted from `photos/`.
  */
-import { mkdirSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import nextEnv from "@next/env";
 import { neon } from "@neondatabase/serverless";
@@ -19,14 +26,26 @@ import { drizzle } from "drizzle-orm/neon-http";
 import { requireDatabaseUrl } from "../src/db/config";
 import * as schema from "../src/db/schema";
 import { createTesterAdmin } from "../src/server/tester/drizzle-repo";
-import { resolveExportDir, shotsCsv } from "./tester-lib";
+import {
+  localPhotoCutoffDay,
+  photosToKeep,
+  pruneLocalPhotos,
+  resolveExportDir,
+  writeExportFiles,
+} from "./tester-lib";
 
 type AdminDb = Parameters<typeof createTesterAdmin>[0];
 
+function repoRoot(): string {
+  return execFileSync("git", ["rev-parse", "--show-toplevel"], {
+    encoding: "utf8",
+  }).trim();
+}
+
 async function main() {
-  const repoRoot = process.cwd();
-  const outDir = resolveExportDir(process.argv[2], repoRoot);
-  nextEnv.loadEnvConfig(repoRoot);
+  const root = repoRoot();
+  const outDir = resolveExportDir(process.argv[2], root);
+  nextEnv.loadEnvConfig(root);
   const db = drizzle(neon(requireDatabaseUrl(process.env, "DATABASE_URL")), {
     schema,
   });
@@ -34,12 +53,17 @@ async function main() {
   const rows = await admin.listAll();
   mkdirSync(join(outDir, "photos"), { recursive: true });
 
-  const exported = new Set<string>();
-  const withPhoto = rows.filter((r) => r.photoPathname);
-  if (withPhoto.length > 0 && !process.env.BLOB_READ_WRITE_TOKEN)
+  const keep = photosToKeep(rows, localPhotoCutoffDay(new Date()));
+  const pruned = pruneLocalPhotos(outDir, keep);
+
+  let downloaded = 0;
+  if (keep.size > 0 && !process.env.BLOB_READ_WRITE_TOKEN)
     throw new Error("Set BLOB_READ_WRITE_TOKEN to export the photos.");
-  for (const row of withPhoto) {
-    const found = await get(row.photoPathname!, { access: "private" });
+  for (const row of rows) {
+    if (!keep.has(row.shotId) || !row.photoPathname) continue;
+    const file = join(outDir, "photos", `${row.shotId}.jpg`);
+    if (existsSync(file)) continue;
+    const found = await get(row.photoPathname, { access: "private" });
     if (!found || found.statusCode !== 200) {
       console.warn(`Photo missing for shot ${row.shotId}.`);
       continue;
@@ -47,17 +71,13 @@ async function main() {
     const bytes = new Uint8Array(
       await new Response(found.stream).arrayBuffer(),
     );
-    writeFileSync(join(outDir, "photos", `${row.shotId}.jpg`), bytes);
-    exported.add(row.shotId);
+    writeFileSync(file, bytes);
+    downloaded++;
   }
 
-  writeFileSync(join(outDir, "shots.csv"), shotsCsv(rows, exported));
-  writeFileSync(
-    join(outDir, "records.jsonl"),
-    rows.map((r) => JSON.stringify(r)).join("\n") + (rows.length ? "\n" : ""),
-  );
+  writeExportFiles(outDir, rows);
   console.log(
-    `Exported ${rows.length} shots and ${exported.size} photos to ${outDir}`,
+    `Exported ${rows.length} shots to ${outDir}: ${downloaded} photos downloaded, ${pruned} old or deleted photos removed.`,
   );
 }
 
