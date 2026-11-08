@@ -166,6 +166,7 @@
 /* Review F6: an empty live region stays in the accessibility tree,
    only visually hidden, so what is announced later is heard. */
 .errorPhotoStatus:empty,
+.errorPhotoCodeLine:empty,
 .errorPhotoFieldError:empty,
 .errorPhotoDeleteStatus:empty {
   position: absolute;

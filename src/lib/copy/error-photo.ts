@@ -55,17 +55,11 @@ export interface ErrorPhotoCopy {
   failUnavailable: string;
   failGeneric: string;
   /**
-   * No answer in time (review H1, #241 round 3): before + code + after. The
-   * photo may have been stored, so the code the device made is shown.
+   * The failure line after a request was attempted (review L1, N1): only the
+   * reason, never the code, which stands once in the status block above it.
    */
-  failTimeoutBefore: string;
-  failTimeoutAfter: string;
-  /**
-   * Any other failure after a request was attempted (review L1): it may have
-   * arrived, so the code is shown. before + code + after.
-   */
-  failUncertainBefore: string;
-  failUncertainAfter: string;
+  failTimeout: string;
+  failUncertain: string;
   /** While a request is out: the code alone. */
   codeBefore: string;
   codeAfter: string;
@@ -114,12 +108,10 @@ export const zhTW: ErrorPhotoCopy = {
   failTooMany: "傳送次數太多了，請過一小時再試。",
   failUnavailable: "現在暫時無法接收照片，請稍後再試。",
   failGeneric: "傳送失敗，請稍後再試。",
-  failTimeoutBefore: "網路太慢，不確定照片有沒有送出。你的刪除碼是 ",
-  failTimeoutAfter:
-    "：如果已經送出，可以用它刪除。也可以再試一次，不會重複儲存。",
-  failUncertainBefore: "沒有確認照片已經送出。你的刪除碼是 ",
-  failUncertainAfter:
-    "：如果已經送出，可以用它刪除。可以再試一次，不會重複儲存。",
+  failTimeout:
+    "網路太慢，不確定照片有沒有送出：如果已經送出，可以用上面的刪除碼刪除。也可以再試一次，不會重複儲存。",
+  failUncertain:
+    "沒有確認照片已經送出：如果已經送出，可以用上面的刪除碼刪除。可以再試一次，不會重複儲存。",
   codeBefore: "你的刪除碼是 ",
   codeAfter: "。請截圖保存。",
   deleteTitle: "刪除我傳送的照片",
@@ -169,14 +161,10 @@ export const en: ErrorPhotoCopy = {
   failTooMany: "Too many photos sent. Try again in an hour.",
   failUnavailable: "Photos can't be received right now. Try again later.",
   failGeneric: "Sending failed. Try again later.",
-  failTimeoutBefore:
-    "The connection is too slow, so we can't tell whether the photo was sent. Your deletion code is ",
-  failTimeoutAfter:
-    ": if it was sent, you can use it to delete the photo. You can also try again; it won't be stored twice.",
-  failUncertainBefore:
-    "We couldn't confirm the photo was sent. Your deletion code is ",
-  failUncertainAfter:
-    ": if it was sent, you can use it to delete the photo. You can try again; it won't be stored twice.",
+  failTimeout:
+    "The connection is too slow, so we can't tell whether the photo was sent: if it was sent, you can use the deletion code above to delete it. You can also try again; it won't be stored twice.",
+  failUncertain:
+    "We couldn't confirm the photo was sent: if it was sent, you can use the deletion code above to delete it. You can try again; it won't be stored twice.",
   codeBefore: "Your deletion code is ",
   codeAfter: ". Take a screenshot to keep it.",
   deleteTitle: "Delete a photo I sent",

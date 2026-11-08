@@ -17,6 +17,7 @@ import {
 } from "../../src/client/error-photo/send";
 import {
   initialSheetState,
+  runSheetSend,
   sheetReducer,
   sheetView,
   type SheetState,
@@ -125,11 +126,21 @@ describe("the consent sheet keeps the code once a request was attempted", () => 
     });
   });
 
-  it("(e) a check that failed on the device before any request: no code, Esc closes", () => {
+  it("(e) the device check fails before any request: send and fetch never called, no code, Esc closes", async () => {
     const { s, fetchImpl } = session([]);
-    const state = sheetReducer(initialSheetState(s.code), {
-      type: "local-failure",
+    let state = initialSheetState(s.code);
+    const events: string[] = [];
+    const send = vi.fn((meta: ErrorPhotoMeta) => s.send(meta));
+    await runSheetSend({
+      build: () => null,
+      dispatch: (event) => {
+        events.push(event.type);
+        state = sheetReducer(state, event);
+      },
+      send,
     });
+    expect(events).toEqual(["local-failure"]);
+    expect(send).not.toHaveBeenCalled();
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(sheetView(state)).toMatchObject({
       code: null,
@@ -138,6 +149,78 @@ describe("the consent sheet keeps the code once a request was attempted", () => 
     });
   });
 
+  it("runSheetSend shows the code before the request starts, then the outcome", async () => {
+    const { s, fetchImpl } = session([answer(500)]);
+    let state = initialSheetState(s.code);
+    const order: string[] = [];
+    let seenWhileSending: ReturnType<typeof sheetView> | null = null;
+    await runSheetSend({
+      build: () => {
+        order.push("build");
+        return meta;
+      },
+      dispatch: (event) => {
+        order.push(`dispatch:${event.type}`);
+        state = sheetReducer(state, event);
+      },
+      send: (built) => {
+        order.push("send");
+        seenWhileSending = sheetView(state);
+        return s.send(built);
+      },
+    });
+    expect(order).toEqual([
+      "build",
+      "dispatch:send",
+      "send",
+      "dispatch:outcome",
+    ]);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(seenWhileSending).toMatchObject({
+      code: s.code,
+      escClosable: false,
+      busy: true,
+    });
+    expect(sheetView(state)).toMatchObject({
+      code: s.code,
+      message: "uncertain",
+    });
+    expect(state.failures).toBe(1);
+  });
+
+  it("ok:true naming another code is not sent; the code shown stays the session's", () => {
+    const sending = sheetReducer(initialSheetState("ABCDEFGHJKLM"), {
+      type: "send",
+    });
+    const state = sheetReducer(sending, {
+      type: "outcome",
+      outcome: { ok: true, deleteCode: "MLKJHGFEDCBA" },
+    });
+    expect(state.phase).toBe("failed");
+    expect(sheetView(state)).toMatchObject({
+      sent: false,
+      code: "ABCDEFGHJKLM",
+      escClosable: false,
+      message: "uncertain",
+    });
+  });
+
+  it("each failure gets a new alert key", () => {
+    let state = sheetReducer(initialSheetState("ABCDEFGHJKLM"), {
+      type: "send",
+    });
+    state = sheetReducer(state, {
+      type: "outcome",
+      outcome: { ok: false, reason: "failed" },
+    });
+    const first = state.failures;
+    state = sheetReducer(state, { type: "send" });
+    state = sheetReducer(state, {
+      type: "outcome",
+      outcome: { ok: false, reason: "too-many" },
+    });
+    expect(state.failures).toBe(first + 1);
+  });
   it("a later local failure after an attempt still shows the code", async () => {
     const { s } = session([answer(503)]);
     let state = await press(initialSheetState(s.code), () => s.send(meta));

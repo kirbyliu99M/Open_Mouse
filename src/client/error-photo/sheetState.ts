@@ -11,6 +11,7 @@
  * without a code is one that is certain nothing was sent: a check that failed
  * on the device before the first request.
  */
+import type { ErrorPhotoMeta } from "../../lib/contracts/error-photo";
 import type { SendOutcome } from "./send";
 
 export type FailReason =
@@ -28,6 +29,8 @@ export interface SheetState {
   readonly attempted: boolean;
   readonly phase: "form" | "sending" | "failed" | "sent";
   readonly reason: FailReason | null;
+  /** How many failures so far: the alert line is keyed by it (review N1). */
+  readonly failures: number;
 }
 
 export type SheetEvent =
@@ -38,7 +41,7 @@ export type SheetEvent =
   | { readonly type: "local-failure" };
 
 export function initialSheetState(code: string): SheetState {
-  return { code, attempted: false, phase: "form", reason: null };
+  return { code, attempted: false, phase: "form", reason: null, failures: 0 };
 }
 
 export function sheetReducer(state: SheetState, event: SheetEvent): SheetState {
@@ -46,7 +49,12 @@ export function sheetReducer(state: SheetState, event: SheetEvent): SheetState {
     case "send":
       return { ...state, attempted: true, phase: "sending", reason: null };
     case "local-failure":
-      return { ...state, phase: "failed", reason: "local" };
+      return {
+        ...state,
+        phase: "failed",
+        reason: "local",
+        failures: state.failures + 1,
+      };
     case "outcome":
       if (event.outcome.ok && event.outcome.deleteCode === state.code)
         return { ...state, phase: "sent", reason: null };
@@ -54,6 +62,7 @@ export function sheetReducer(state: SheetState, event: SheetEvent): SheetState {
         ...state,
         phase: "failed",
         reason: event.outcome.ok ? "failed" : event.outcome.reason,
+        failures: state.failures + 1,
       };
   }
 }
@@ -94,4 +103,25 @@ export function sheetView(state: SheetState): SheetView {
             : "uncertain",
     extra: reason === "too-many" || reason === "unavailable" ? reason : null,
   };
+}
+
+/**
+ * One press of 傳送 (review N2): the sheet calls this, the tests drive it.
+ * `build` checks everything on the device first; if it fails, nothing is
+ * sent (`local-failure`, and `send` is never called). Otherwise `send` is
+ * dispatched BEFORE the request starts, so the code is on screen and Esc is
+ * blocked while it is out, then the outcome.
+ */
+export async function runSheetSend(deps: {
+  readonly build: () => ErrorPhotoMeta | null;
+  readonly dispatch: (event: SheetEvent) => void;
+  readonly send: (meta: ErrorPhotoMeta) => Promise<SendOutcome>;
+}): Promise<void> {
+  const meta = deps.build();
+  if (!meta) {
+    deps.dispatch({ type: "local-failure" });
+    return;
+  }
+  deps.dispatch({ type: "send" });
+  deps.dispatch({ type: "outcome", outcome: await deps.send(meta) });
 }

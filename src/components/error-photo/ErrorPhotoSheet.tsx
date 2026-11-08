@@ -16,6 +16,7 @@ import {
 } from "@/client/error-photo/send";
 import {
   initialSheetState,
+  runSheetSend,
   sheetReducer,
   sheetView,
 } from "@/client/error-photo/sheetState";
@@ -152,26 +153,29 @@ export function ErrorPhotoSheet({
         ?.focus();
       return;
     }
-    const built = buildErrorPhotoMeta({
-      ...meta,
-      ...(asksNumbers
-        ? {
-            expected: {
-              ...(typeof length === "number" ? { handLengthMm: length } : {}),
-              ...(typeof width === "number" ? { palmWidthMm: width } : {}),
-            },
-          }
-        : {}),
-      widthPx: photo.widthPx,
-      heightPx: photo.heightPx,
+    // Review N2: the orchestrator (sheetState.ts) checks on the device first
+    // (a failure there sends nothing and shows no code), shows the code
+    // before the request starts, then the outcome.
+    await runSheetSend({
+      build: () =>
+        buildErrorPhotoMeta({
+          ...meta,
+          ...(asksNumbers
+            ? {
+                expected: {
+                  ...(typeof length === "number"
+                    ? { handLengthMm: length }
+                    : {}),
+                  ...(typeof width === "number" ? { palmWidthMm: width } : {}),
+                },
+              }
+            : {}),
+          widthPx: photo.widthPx,
+          heightPx: photo.heightPx,
+        }),
+      dispatch,
+      send: (built) => upload.send(built),
     });
-    if (!built) {
-      // Certain nothing was sent (no request yet in this session: no code).
-      dispatch({ type: "local-failure" });
-      return;
-    }
-    dispatch({ type: "send" });
-    dispatch({ type: "outcome", outcome: await upload.send(built) });
   }
   const copyStatus =
     copyState === "copied"
@@ -339,52 +343,63 @@ export function ErrorPhotoSheet({
           <p className="errorPhotoStatus" role="status" aria-live="polite">
             {sending ? copy.sending : ""}
           </p>
-          {view.message === "local" && (
-            <p className="errorPhotoError" role="alert">
-              {copy.failGeneric}
-            </p>
-          )}
-          {view.code !== null && (
-            <div className="errorPhotoCodeBlock">
-              {view.extra && (
-                <p className="errorPhotoError">
-                  {view.extra === "too-many"
-                    ? copy.failTooMany
-                    : copy.failUnavailable}
-                </p>
+          {/* Review N1: the code, announced once. The region is always
+              mounted and empty until the first request; then it holds the
+              same neutral sentence for every later state. */}
+          <div className="errorPhotoCodeBlock">
+            <p className="errorPhotoCodeLine" role="status" aria-live="polite">
+              {view.code !== null && (
+                <>
+                  {copy.codeBefore}
+                  <strong
+                    className="errorPhotoCode"
+                    data-testid="error-photo-code"
+                  >
+                    {view.code}
+                  </strong>
+                  {copy.codeAfter}
+                </>
               )}
-              <p
-                className={view.message ? "errorPhotoError" : undefined}
-                role={view.message ? "alert" : undefined}
-              >
-                {view.message === "timeout"
-                  ? copy.failTimeoutBefore
-                  : view.message
-                    ? copy.failUncertainBefore
-                    : copy.codeBefore}
-                <strong
-                  className="errorPhotoCode"
-                  data-testid="error-photo-code"
+            </p>
+            {view.code !== null && (
+              <>
+                <button
+                  type="button"
+                  className="errorPhotoCancel"
+                  onClick={() => void copyCode(state.code)}
                 >
-                  {view.code}
-                </strong>
-                {view.message === "timeout"
-                  ? copy.failTimeoutAfter
-                  : view.message
-                    ? copy.failUncertainAfter
-                    : copy.codeAfter}
-              </p>
-              <button
-                type="button"
-                className="errorPhotoCancel"
-                onClick={() => void copyCode(state.code)}
-              >
-                {copy.copyCode}
-              </button>
-              <p className="errorPhotoStatus" role="status" aria-live="polite">
-                {copyStatus}
-              </p>
-            </div>
+                  {copy.copyCode}
+                </button>
+                <p
+                  className="errorPhotoStatus"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {copyStatus}
+                </p>
+              </>
+            )}
+          </div>
+          {/* The failure line, new for each failure (keyed), the reason only:
+              the code is not repeated here. */}
+          {view.message && (
+            <p
+              key={state.failures}
+              className="errorPhotoError"
+              role="alert"
+              data-testid="error-photo-failure"
+            >
+              {view.extra === "too-many"
+                ? `${copy.failTooMany} `
+                : view.extra === "unavailable"
+                  ? `${copy.failUnavailable} `
+                  : ""}
+              {view.message === "local"
+                ? copy.failGeneric
+                : view.message === "timeout"
+                  ? copy.failTimeout
+                  : copy.failUncertain}
+            </p>
           )}{" "}
           <div className="errorPhotoActions">
             <button
