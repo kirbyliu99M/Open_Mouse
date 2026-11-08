@@ -1171,3 +1171,133 @@ test.describe("V3.2 motion pass: interrupted question pages end usable", () => {
     await expect(thicknessPage(page)).toBeVisible();
   });
 });
+
+// Review J1 of #240: the Details button's stretched 44 px hit area must never
+// take a tap meant for the anonymous-copy switch above it.
+/** Every point inside the switch's pill: what `elementFromPoint` hits. */
+async function switchHits(page: Page) {
+  return page.getByTestId("sample-consent-switch").evaluate((sw) => {
+    const r = sw.getBoundingClientRect();
+    const more = document.querySelector(".sampleConsentMore");
+    // The button is a pill (border-radius 999px): a point in a corner
+    // outside the pill is not part of it, so only points inside the
+    // pill shape, 1 px in from its edge, are tested.
+    const radius = Math.min(r.width, r.height) / 2 - 1;
+    const inPill = (x: number, y: number) => {
+      const cx = Math.min(
+        Math.max(x, r.left + radius + 1),
+        r.right - radius - 1,
+      );
+      const cy = Math.min(
+        Math.max(y, r.top + radius + 1),
+        r.bottom - radius - 1,
+      );
+      return Math.hypot(x - cx, y - cy) <= radius;
+    };
+    let sampled = 0;
+    const misses: string[] = [];
+    const onDetails: string[] = [];
+    for (let i = 0; i <= 20; i++) {
+      for (let j = 0; j <= 20; j++) {
+        const x = r.left + (r.width * i) / 20;
+        const y = r.top + (r.height * j) / 20;
+        if (!inPill(x, y)) continue;
+        sampled++;
+        const hit = document.elementFromPoint(x, y);
+        const at = `${x.toFixed(1)},${y.toFixed(1)}`;
+        if (hit && more?.contains(hit)) onDetails.push(at);
+        if (!hit || !sw.contains(hit))
+          misses.push(`${at} -> ${hit?.tagName}.${hit?.className}`);
+      }
+    }
+    return { sampled, misses, onDetails, height: r.height };
+  });
+}
+
+// Widths 320 to 430 px in 5 px steps, at a short phone's height (smaller
+// type) and a tall one, on both screens that show the switch: the easy
+// scan's thickness page and the printed-sheet submit panel.
+const SWEEP_WIDTHS = Array.from({ length: 23 }, (_, i) => 320 + i * 5);
+for (const locale of ["en-US", "zh-TW"] as const) {
+  test.describe(`the anonymous-copy switch keeps its own taps (${locale})`, () => {
+    test.use({ locale });
+    for (const screen of ["thickness page", "submit panel"] as const) {
+      test(`${screen}: at every width, every point of the switch hits the switch, never Details`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width: 375, height: 667 });
+        if (screen === "thickness page") {
+          await page.goto("/scan/easy/measured-demo");
+          await page.getByTestId("answers-continue-button").click();
+          await page.locator("dialog.answerDialog .answerSkip").click();
+        } else {
+          await page.goto("/scan/submit-demo");
+        }
+        await expect(page.getByTestId("sample-consent-switch")).toBeVisible();
+        await expectSettled(page);
+        // The page swap slides 24 px; wait for it to rest.
+        await page.waitForTimeout(500);
+        const failures: string[] = [];
+        let sampled = 0;
+        for (const height of [667, 915]) {
+          for (const width of SWEEP_WIDTHS) {
+            await page.setViewportSize({ width, height });
+            await page
+              .getByTestId("sample-consent-switch")
+              .scrollIntoViewIfNeeded();
+            const result = await switchHits(page);
+            sampled += result.sampled;
+            if (result.height < 44)
+              failures.push(
+                `${width}x${height}: switch ${result.height}px tall`,
+              );
+            if (result.sampled < 200)
+              failures.push(
+                `${width}x${height}: only ${result.sampled} points`,
+              );
+            for (const at of result.onDetails)
+              failures.push(`${width}x${height}: Details at ${at}`);
+            for (const miss of result.misses)
+              failures.push(`${width}x${height}: ${miss}`);
+          }
+        }
+        console.log(`${locale} ${screen}: ${sampled} points sampled`);
+
+        // The worst case, whatever the fonts: Details pulled up so its box
+        // lies over the switch's lower half (the sentence's first line, its
+        // right end, 24 px higher). The switch must still take those taps.
+        await page.setViewportSize({ width: 375, height: 667 });
+        await page.evaluate(() => {
+          const short = document.querySelector<HTMLElement>(
+            ".sampleConsentShort",
+          )!;
+          short.style.textAlign = "right";
+          short.style.marginTop = "-24px";
+          short.querySelector("span")!.textContent = "x";
+        });
+        const geometry = await page.evaluate(() => {
+          const more = document
+            .querySelector(".sampleConsentMore")!
+            .getBoundingClientRect();
+          const sw = document
+            .querySelector("[data-testid=sample-consent-switch]")!
+            .getBoundingClientRect();
+          return {
+            overlapsVertically: more.top < sw.bottom && more.bottom > sw.top,
+            overlapsHorizontally: more.right > sw.left && more.left < sw.right,
+          };
+        });
+        // The stress case really does put Details over the switch.
+        expect(geometry).toEqual({
+          overlapsVertically: true,
+          overlapsHorizontally: true,
+        });
+        const worst = await switchHits(page);
+        for (const at of worst.onDetails)
+          failures.push(`worst case: Details at ${at}`);
+        for (const miss of worst.misses) failures.push(`worst case: ${miss}`);
+        expect(failures).toEqual([]);
+      });
+    }
+  });
+}

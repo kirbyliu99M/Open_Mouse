@@ -216,6 +216,31 @@ describe("the switch as rendered", () => {
     expect(forced).toContain("ButtonText");
   });
 
+  it("keeps Details' hit area inside its own box, under the switch row (review J1)", () => {
+    const css = readFileSync(
+      "src/client/scan/sample-consent.css",
+      "utf8",
+    ).replace(/\/\*[\s\S]*?\*\//g, "");
+    const rule = (selector: string) =>
+      new RegExp(
+        `(?:^|\\n)${selector.replace(/\./g, "\\.")} \\{([^}]*)\\}`,
+      ).exec(css)?.[1] ?? "";
+    // No stretched pseudo-element: the button's own 44 px box is the target.
+    expect(css).not.toMatch(/\.sampleConsentMore::(after|before)/);
+    const more = rule(".sampleConsentMore");
+    expect(more).toContain("min-height: 2.75rem");
+    expect(more).toContain("display: inline-flex");
+    // A transparent border, shown under prefers-contrast: more (J3).
+    expect(more).toContain("border: 1px solid transparent");
+    expect(css).toMatch(
+      /@media \(prefers-contrast: more\) \{\s*\.sampleConsentMore \{\s*border-color: currentColor;/,
+    );
+    // The switch row stacks above the sentence.
+    const row = rule(".sampleConsentRow");
+    expect(row).toContain("position: relative");
+    expect(row).toContain("z-index: 1");
+  });
+
   it("is disabled while the scan is being sent", () => {
     const html = render(
       createElement(SampleConsentToggle, { notice, disabled: true }),
