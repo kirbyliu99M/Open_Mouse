@@ -60,6 +60,15 @@ export interface ErrorPhotoCopy {
    */
   failTimeoutBefore: string;
   failTimeoutAfter: string;
+  /**
+   * Any other failure after a request was attempted (review L1): it may have
+   * arrived, so the code is shown. before + code + after.
+   */
+  failUncertainBefore: string;
+  failUncertainAfter: string;
+  /** While a request is out: the code alone. */
+  codeBefore: string;
+  codeAfter: string;
   /** The deletion form on /privacy. */
   deleteTitle: string;
   deleteIntro: string;
@@ -108,6 +117,11 @@ export const zhTW: ErrorPhotoCopy = {
   failTimeoutBefore: "網路太慢，不確定照片有沒有送出。你的刪除碼是 ",
   failTimeoutAfter:
     "：如果已經送出，可以用它刪除。也可以再試一次，不會重複儲存。",
+  failUncertainBefore: "沒有確認照片已經送出。你的刪除碼是 ",
+  failUncertainAfter:
+    "：如果已經送出，可以用它刪除。可以再試一次，不會重複儲存。",
+  codeBefore: "你的刪除碼是 ",
+  codeAfter: "。請截圖保存。",
   deleteTitle: "刪除我傳送的照片",
   deleteIntro: "輸入傳送照片後拿到的 12 碼刪除碼，照片會立刻刪除。",
   deleteLabel: "刪除碼",
@@ -159,6 +173,12 @@ export const en: ErrorPhotoCopy = {
     "The connection is too slow, so we can't tell whether the photo was sent. Your deletion code is ",
   failTimeoutAfter:
     ": if it was sent, you can use it to delete the photo. You can also try again; it won't be stored twice.",
+  failUncertainBefore:
+    "We couldn't confirm the photo was sent. Your deletion code is ",
+  failUncertainAfter:
+    ": if it was sent, you can use it to delete the photo. You can try again; it won't be stored twice.",
+  codeBefore: "Your deletion code is ",
+  codeAfter: ". Take a screenshot to keep it.",
   deleteTitle: "Delete a photo I sent",
   deleteIntro:
     "Enter the 12-character deletion code you got after sending a photo, and the photo is deleted at once.",

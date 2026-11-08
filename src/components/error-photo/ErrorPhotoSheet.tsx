@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useReducer, useRef, useState } from "react";
 import { useModalDialog } from "@/app/account/modal";
 import type { Locale } from "@/lib/contracts/locale";
 import { DELETE_PHOTO_HREF, errorPhotoCopy } from "@/lib/copy/error-photo";
@@ -10,20 +10,16 @@ import type {
 } from "@/client/error-photo/prepare";
 import {
   buildErrorPhotoMeta,
-  afterSend,
   createUploadSession,
   parseExpectedCm,
   type ErrorPhotoMetaInput,
 } from "@/client/error-photo/send";
+import {
+  initialSheetState,
+  sheetReducer,
+  sheetView,
+} from "@/client/error-photo/sheetState";
 import "./error-photo.css";
-
-type Phase =
-  | { readonly kind: "form" }
-  | { readonly kind: "sending" }
-  | { readonly kind: "failed"; readonly message: string }
-  /** No answer in time: maybe stored; the code is shown (review #241 r3). */
-  | { readonly kind: "timeout"; readonly code: string }
-  | { readonly kind: "sent"; readonly code: string };
 
 /**
  * The consent sheet of the error photo (candidate 未拍板; contract
@@ -32,12 +28,12 @@ type Phase =
  * behind is inert, so focus stays in it. It shows EXACTLY the prepared copy
  * that will be sent, the notice, a consent checkbox the send waits for, and,
  * for "numbers look wrong?", two optional typed values (checked on blur and
- * on send). Esc / back closes it before sending; while sending, and once the
- * deletion code is shown, only 「完成」 closes it (review F2), so the code is
- * never lost to a stray gesture. The deletion code is made on this device
- * when the sheet opens and every try sends the same code with the same bytes
- * (the server keeps one photo per code): after a timeout the code is shown
- * with the copy button, since the photo may have been stored. Nothing is
+ * on send). The deletion code is made on this device when the sheet opens and
+ * every try sends the same code with the same bytes (the server keeps one
+ * photo per code). From the first request on, the photo may be on the
+ * server, so every state shows the code with the copy button and Esc / back
+ * no longer close the sheet; only 「不用了」 / 「完成」 do (review F2, L1; the
+ * states are src/client/error-photo/sheetState.ts). Nothing is
  * sent before 傳送; nothing is stored on the device; the code is never logged.
  */
 export function ErrorPhotoSheet({
@@ -68,7 +64,7 @@ export function ErrorPhotoSheet({
   const consentId = useId();
   const titleRef = useRef<HTMLHeadingElement>(null);
   const sendRef = useRef<HTMLButtonElement>(null);
-  const [phase, setPhase] = useState<Phase>({ kind: "form" });
+
   const [consent, setConsent] = useState(false);
   const [lengthCm, setLengthCm] = useState("");
   const [widthCm, setWidthCm] = useState("");
@@ -80,16 +76,22 @@ export function ErrorPhotoSheet({
   });
   // One code for this sheet, made on the device (review #241 round 3).
   const [upload] = useState(() => createUploadSession(photo.jpeg));
+  const [state, dispatch] = useReducer(
+    sheetReducer,
+    upload.code,
+    initialSheetState,
+  );
+  const view = sheetView(state);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
     "idle",
   );
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const sending = phase.kind === "sending";
-  const sent = phase.kind === "sent";
-  // Esc / back close the sheet only while no code has been shown (review F2);
+  const sending = view.busy;
+  const sent = view.sent;
+  // Esc / back close the sheet only before the first request (review L1);
   // 不用了 and 完成 always can.
   const closableRef = useRef(true);
-  closableRef.current = !sending && !sent && phase.kind !== "timeout";
+  closableRef.current = view.escClosable;
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   const {
@@ -118,10 +120,9 @@ export function ErrorPhotoSheet({
   // Review F6: the new title takes focus once sent; a failed send goes back
   // to the send button.
   useEffect(() => {
-    if (phase.kind === "sent") titleRef.current?.focus();
-    if (phase.kind === "failed" || phase.kind === "timeout")
-      sendRef.current?.focus();
-  }, [phase.kind]);
+    if (state.phase === "sent") titleRef.current?.focus();
+    if (state.phase === "failed") sendRef.current?.focus();
+  }, [state.phase]);
 
   const asksNumbers = meta.trigger === "numbers-wrong";
   const length = asksNumbers ? parseExpectedCm(lengthCm) : null;
@@ -165,24 +166,12 @@ export function ErrorPhotoSheet({
       heightPx: photo.heightPx,
     });
     if (!built) {
-      setPhase({ kind: "failed", message: copy.failGeneric });
+      // Certain nothing was sent (no request yet in this session: no code).
+      dispatch({ type: "local-failure" });
       return;
     }
-    setPhase({ kind: "sending" });
-    const next = afterSend(await upload.send(built));
-    if (next.kind !== "failed") {
-      setPhase(next);
-      return;
-    }
-    setPhase({
-      kind: "failed",
-      message:
-        next.reason === "too-many"
-          ? copy.failTooMany
-          : next.reason === "unavailable"
-            ? copy.failUnavailable
-            : copy.failGeneric,
-    });
+    dispatch({ type: "send" });
+    dispatch({ type: "outcome", outcome: await upload.send(built) });
   }
   const copyStatus =
     copyState === "copied"
@@ -234,12 +223,12 @@ export function ErrorPhotoSheet({
       <h2 className="errorPhotoTitle" id={titleId} ref={titleRef} tabIndex={-1}>
         {sent ? copy.sentTitle : copy.title}
       </h2>
-      {phase.kind === "sent" ? (
+      {sent ? (
         <>
           <p className="errorPhotoSuccess">
             {copy.successBefore}
             <strong className="errorPhotoCode" data-testid="error-photo-code">
-              {phase.code}
+              {state.code}
             </strong>
             {copy.successMiddle}
             <a href={DELETE_PHOTO_HREF} target="_blank" rel="noopener">
@@ -251,7 +240,7 @@ export function ErrorPhotoSheet({
             <button
               type="button"
               className="errorPhotoCancel"
-              onClick={() => void copyCode(phase.code)}
+              onClick={() => void copyCode(state.code)}
             >
               {copy.copyCode}
             </button>
@@ -350,27 +339,45 @@ export function ErrorPhotoSheet({
           <p className="errorPhotoStatus" role="status" aria-live="polite">
             {sending ? copy.sending : ""}
           </p>
-          {phase.kind === "failed" && (
+          {view.message === "local" && (
             <p className="errorPhotoError" role="alert">
-              {phase.message}
+              {copy.failGeneric}
             </p>
           )}
-          {phase.kind === "timeout" && (
-            <div className="errorPhotoTimeout">
-              <p className="errorPhotoError" role="alert">
-                {copy.failTimeoutBefore}
+          {view.code !== null && (
+            <div className="errorPhotoCodeBlock">
+              {view.extra && (
+                <p className="errorPhotoError">
+                  {view.extra === "too-many"
+                    ? copy.failTooMany
+                    : copy.failUnavailable}
+                </p>
+              )}
+              <p
+                className={view.message ? "errorPhotoError" : undefined}
+                role={view.message ? "alert" : undefined}
+              >
+                {view.message === "timeout"
+                  ? copy.failTimeoutBefore
+                  : view.message
+                    ? copy.failUncertainBefore
+                    : copy.codeBefore}
                 <strong
                   className="errorPhotoCode"
-                  data-testid="error-photo-timeout-code"
+                  data-testid="error-photo-code"
                 >
-                  {phase.code}
+                  {view.code}
                 </strong>
-                {copy.failTimeoutAfter}
+                {view.message === "timeout"
+                  ? copy.failTimeoutAfter
+                  : view.message
+                    ? copy.failUncertainAfter
+                    : copy.codeAfter}
               </p>
               <button
                 type="button"
                 className="errorPhotoCancel"
-                onClick={() => void copyCode(phase.code)}
+                onClick={() => void copyCode(state.code)}
               >
                 {copy.copyCode}
               </button>
@@ -378,7 +385,7 @@ export function ErrorPhotoSheet({
                 {copyStatus}
               </p>
             </div>
-          )}
+          )}{" "}
           <div className="errorPhotoActions">
             <button
               type="button"

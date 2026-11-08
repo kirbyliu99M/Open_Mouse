@@ -171,25 +171,6 @@ export async function sendErrorPhoto(
 }
 
 /**
- * What the sheet shows after a try (pure; tests/unit/error-photo-prepare.test.ts):
- * the code once stored, the code with the "maybe sent" message after a
- * timeout, or a failure to retry.
- */
-export type AfterSend =
-  | { readonly kind: "sent"; readonly code: string }
-  | { readonly kind: "timeout"; readonly code: string }
-  | {
-      readonly kind: "failed";
-      readonly reason: "too-many" | "unavailable" | "failed";
-    };
-
-export function afterSend(outcome: SendOutcome): AfterSend {
-  if (outcome.ok) return { kind: "sent", code: outcome.deleteCode };
-  if (outcome.reason === "timeout")
-    return { kind: "timeout", code: outcome.deleteCode };
-  return { kind: "failed", reason: outcome.reason };
-}
-/**
  * One sheet's upload: its deletion code is made once, on the device, and
  * every try (a retry after a timeout or a failure) sends the same code with
  * the same bytes, so the server keeps at most one photo for it.

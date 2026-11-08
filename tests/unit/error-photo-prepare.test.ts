@@ -3,7 +3,6 @@
  * and its metadata and requests (src/client/error-photo/send.ts), with
  * synthetic inputs only: no real photo, no canvas.
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
   ERROR_PHOTO_CONSENT_VERSION,
@@ -22,7 +21,6 @@ import {
   normaliseDeleteCode,
   parseExpectedCm,
   ERROR_PHOTO_UPLOAD_TIMEOUT_MS,
-  afterSend,
   createUploadSession,
   sendErrorPhoto,
 } from "../../src/client/error-photo/send";
@@ -384,31 +382,6 @@ describe("requests", () => {
     expect(new Uint8Array(await sent[1]!.photo.arrayBuffer())).toEqual(
       new Uint8Array([1, 2, 3]),
     );
-  });
-
-  it("a timeout keeps the code on screen; a stored photo shows it as sent", () => {
-    expect(
-      afterSend({ ok: false, reason: "timeout", deleteCode: "ABCDEFGHJKLM" }),
-    ).toEqual({ kind: "timeout", code: "ABCDEFGHJKLM" });
-    expect(afterSend({ ok: true, deleteCode: "ABCDEFGHJKLM" })).toEqual({
-      kind: "sent",
-      code: "ABCDEFGHJKLM",
-    });
-    expect(afterSend({ ok: false, reason: "too-many" })).toEqual({
-      kind: "failed",
-      reason: "too-many",
-    });
-    // The sheet draws that code, selectable, with the copy button.
-    const sheet = readFileSync(
-      "src/components/error-photo/ErrorPhotoSheet.tsx",
-      "utf8",
-    );
-    const branch = sheet.slice(sheet.indexOf('phase.kind === "timeout" && ('));
-    expect(branch).toMatch(
-      /copy\.failTimeoutBefore[\s\S]*?\{phase\.code\}[\s\S]*?copy\.failTimeoutAfter/,
-    );
-    expect(branch).toMatch(/className="errorPhotoCode"/);
-    expect(branch).toMatch(/copyCode\(phase\.code\)/);
   });
 
   it("a response that names another code is not taken as success", async () => {
