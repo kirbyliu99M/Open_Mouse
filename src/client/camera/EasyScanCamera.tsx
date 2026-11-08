@@ -1241,12 +1241,19 @@ export default function EasyScanCamera({
       testerSeenRef.current = result;
       hooks.onAttempt({
         measured: false,
+        captureMode:
+          captureInfoRef.current?.method === "upload" ? "upload" : "camera",
         failureCodes: result.errors.map((e) => e.code),
       });
     } else if (result.kind === "measured") {
       if (testerSeenRef.current === result.overlay) return;
       testerSeenRef.current = result.overlay;
-      hooks.onAttempt({ measured: true, failureCodes: [] });
+      hooks.onAttempt({
+        measured: true,
+        captureMode:
+          captureInfoRef.current?.method === "upload" ? "upload" : "camera",
+        failureCodes: [],
+      });
     }
   }, [result]);
   const fileRef = useRef<File | null>(null);
@@ -5275,7 +5282,6 @@ export default function EasyScanCamera({
                 // Tester mode: the declared reference, not a menu.
                 <span
                   className="easyLengthChip"
-                  data-tour="reference-chip"
                   data-testid="tester-reference-chip"
                 >
                   {referenceLabel}
@@ -5741,6 +5747,7 @@ export default function EasyScanCamera({
           cardModeAvailable={CARD_REFERENCE_ENABLED}
           noPaperEntry={noPaperLabel !== null}
           onReferenceChange={selectReference}
+          {...(tester ? { referenceLocked: true } : {})}
           {...(tester?.privacyNotice
             ? { finePrint: tester.privacyNotice }
             : {})}

@@ -1,8 +1,9 @@
 /**
  * Tester mode of the easy-scan camera (candidate 未拍板; contract
  * src/lib/contracts/tester.ts). Types only: EasyScanCamera imports them as
- * `import type`, so `/scan/easy` carries no tester code. Only the hidden
- * `/scan/tester` page passes `tester`; without it nothing changes.
+ * `import type`. `/scan/easy` carries only the camera's small default-off
+ * branches that read `tester` (no tester page, copy or send code). Only the
+ * hidden `/scan/tester` page passes `tester`; without it nothing changes.
  *
  * With `tester` set, the camera:
  *   - reports every analysis that ended (`onAttempt`): measured, or the
@@ -15,7 +16,9 @@
  *   - calls `onExit` from its close button instead of going home;
  *   - uses the tester's declared `reference` and shows it as a plain chip
  *     (no menu, nothing stored);
- *   - shows `privacyNotice` in place of "photos stay on the phone" when given.
+ *   - shows `privacyNotice` in place of "photos stay on the phone" (the
+ *     tester page always gives it: what is sent with the photo box on or off);
+ *   - leaves the reference step out of the scan tour (`referenceLocked`).
  * The tester page also mutes product analytics while it is mounted
  * (`muteTracking`, src/client/analytics/track.ts).
  */
@@ -44,6 +47,8 @@ export interface TesterPhotoOverlay {
 
 export interface TesterScanAttempt {
   readonly measured: boolean;
+  /** How the analysed photo came in. */
+  readonly captureMode: "camera" | "upload";
   /** The failure codes the sheet showed for this analysis, in order. */
   readonly failureCodes: readonly string[];
 }

@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { useConsent } from "@/client/consent/consent";
 import { startAnalytics } from "./client";
 import { disableGa4, enableGa4, ga4PageView, ga4Step } from "./ga4";
+import { analyticsMutedPath } from "./mutedPaths";
 import { track } from "./track";
 
 /**
@@ -17,12 +18,14 @@ export function AnalyticsProvider() {
   const consent = useConsent();
   const step = ga4Step(consent);
   const ga4On = step === "enable";
+  // The hidden tester page sends no page view (mutedPaths.ts).
+  const muted = analyticsMutedPath(pathname);
   useEffect(() => {
     startAnalytics();
   }, []);
   useEffect(() => {
-    track("$pageview", {});
-  }, [pathname]);
+    if (!muted) track("$pageview", {});
+  }, [pathname, muted]);
   useEffect(() => {
     if (step === "enable") enableGa4();
     else if (step === "disable") disableGa4();
@@ -30,7 +33,7 @@ export function AnalyticsProvider() {
   // After the effect above, so GA4 is active by the time the first page
   // view is sent; again on every route change and when consent is given.
   useEffect(() => {
-    if (ga4On) ga4PageView();
-  }, [pathname, ga4On]);
+    if (ga4On && !muted) ga4PageView();
+  }, [pathname, ga4On, muted]);
   return null;
 }

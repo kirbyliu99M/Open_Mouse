@@ -122,6 +122,11 @@ export interface TourOptions {
   readonly reference: TourReference;
   /** Card mode is built and switched on (A line's feature flag). */
   readonly cardModeAvailable: boolean;
+  /**
+   * The reference was chosen before the camera (the tester page): no step 1,
+   * since its choice could not change anything. Absent: the four steps.
+   */
+  readonly referenceLocked?: boolean;
 }
 
 /**
@@ -132,15 +137,20 @@ export interface TourOptions {
  */
 export function buildTourSteps(options: TourOptions): TourStepDef[] {
   const card = options.cardModeAvailable && options.reference === "card";
+  const referenceStep: TourStepDef[] = options.referenceLocked
+    ? []
+    : [
+        {
+          id: "reference",
+          target: "reference-chip",
+          placement: "auto",
+          choices: options.cardModeAvailable
+            ? ["a4", "letter", "card"]
+            : ["a4", "letter"],
+        },
+      ];
   return [
-    {
-      id: "reference",
-      target: "reference-chip",
-      placement: "auto",
-      choices: options.cardModeAvailable
-        ? ["a4", "letter", "card"]
-        : ["a4", "letter"],
-    },
+    ...referenceStep,
     card
       ? {
           id: "placement",
