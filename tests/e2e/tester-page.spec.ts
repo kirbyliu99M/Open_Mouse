@@ -22,6 +22,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { TESTER_CONSENT_VERSION } from "../../src/lib/contracts/tester";
 import { testerCopy as copy } from "../../src/lib/tester/copy";
 import { inspectJpeg } from "../../src/lib/error-photo/jpeg";
+import { scanTourCopy } from "../../src/lib/copy/scan-tour";
 import { dismissFirstRun } from "./fixtures/first-run";
 
 const DEMO = "/scan/tester/demo";
@@ -134,7 +135,11 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
   });
 
   // 1. Code.
-  await page.goto(DEMO);
+  // The project runs as an English browser (locale en-US, playwright.config):
+  // the page is zh-TW only all the same, and /en/ sends it to the bare URL.
+  await page.goto(`/en${DEMO}`);
+  await expect(page).toHaveURL(new RegExp(`${DEMO}$`));
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-TW");
   await expect(page.getByTestId("tester-step-code")).toBeVisible();
   await expect(page.getByText(copy.stepOf(1, 6))).toBeVisible();
   await page.getByLabel(copy.code.label).fill("p07-k7q2m9");
@@ -218,6 +223,13 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
   ).toBeVisible({
     timeout: 30_000,
   });
+  // The camera's own words are Chinese too.
+  await expect(
+    page.getByText(scanTourCopy("zh-TW").welcomeTitle, { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(scanTourCopy("en").welcomeTitle, { exact: true }),
+  ).toHaveCount(0);
   await shot(page, "5a-tour-welcome");
   await dismissFirstRun(page);
   const giveUp = page.getByTestId("tester-give-up");
@@ -298,9 +310,19 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
   await expect(page.getByTestId("tester-send-status")).toHaveText(
     copy.result.referenceMismatch,
   );
+  // 再拍一次 after a shot that was not sent keeps the conditions.
   await expect(page.getByTestId("tester-result-table")).toHaveCount(0);
   expect(shots).toHaveLength(1);
   await page.getByTestId("tester-next").click();
+  await expect(
+    page.getByRole("radio", {
+      name: copy.conditions.references.letter,
+      exact: true,
+    }),
+  ).toBeChecked();
+  await expect(page.getByTestId("tester-hand-reminder")).toHaveText(
+    copy.conditions.handReminder(copy.tape.right),
+  );
 
   // 8. Third shot on a 375 px phone: 這次放棄 sits in the top bar without
   // touching the hand chip or help, at least 44 px tall; giving up sends the
