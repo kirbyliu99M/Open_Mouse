@@ -691,3 +691,95 @@ export const resultFeedback = pgTable(
     ),
   ],
 );
+
+// --- Hand samples (migration 0015, contract: src/lib/contracts/hand-sample.ts)
+//
+// Candidate (未拍板, Kirby 2026-11-08). The de-linked copy of a scan's
+// measurements, kept by default unless the person opted out before sending.
+//   - no `scan_id`, `session_id` or `user_id`, no foreign key at all: the row
+//     outlives every deletion of the scan or the account, by design, and the
+//     notice says so before the scan is sent.
+//   - no time finer than the UTC calendar month (`sampled_month`, CHECKed).
+//   - millimetres rounded to whole mm by the writer (`roundSampleMm`); stored
+//     as smallint so a fraction cannot slip in.
+//   - written in the same `db.batch` as the scan, only when the submission
+//     carried the current `sampleNotice`.
+//   - value lists are plain text checked by the contract's schema, as in
+//     `result_feedback`, so a new calibration method is not a migration here.
+export const handSamples = pgTable(
+  "hand_samples",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    noticeVersion: text("notice_version").notNull(),
+    /** First day of the UTC month the scan was sent in. */
+    sampledMonth: timestamp("sampled_month", { withTimezone: true }).notNull(),
+    hand: handSideEnum("hand").notNull(),
+    gripStyleStated: gripStyleEnum("grip_style_stated"),
+    palmThicknessStated: text("palm_thickness_stated"),
+    calibrationMethod: text("calibration_method").notNull(),
+    measurementModelVersion: text("measurement_model_version").notNull(),
+    handLengthMm: smallint("hand_length_mm").notNull(),
+    palmLengthMm: smallint("palm_length_mm").notNull(),
+    palmWidthMm: smallint("palm_width_mm").notNull(),
+    thumbLengthMm: smallint("thumb_length_mm"),
+    indexLengthMm: smallint("index_length_mm"),
+    middleLengthMm: smallint("middle_length_mm"),
+    ringLengthMm: smallint("ring_length_mm"),
+    pinkyLengthMm: smallint("pinky_length_mm"),
+  },
+  (t) => [
+    index("hand_samples_month_idx").on(t.sampledMonth),
+    check(
+      "hand_samples_notice_version_set",
+      sql`char_length(${t.noticeVersion}) BETWEEN 1 AND 100`,
+    ),
+    check(
+      "hand_samples_on_a_month",
+      sql`(${t.sampledMonth} AT TIME ZONE 'UTC') = date_trunc('month', ${t.sampledMonth} AT TIME ZONE 'UTC')`,
+    ),
+    check(
+      "hand_samples_plausible",
+      sql`${t.handLengthMm} BETWEEN 100 AND 280 AND ${t.palmWidthMm} BETWEEN 50 AND 150 AND ${t.palmLengthMm} < ${t.handLengthMm}`,
+    ),
+  ],
+);
+
+// --- Error photos (migration 0015, contract: src/lib/contracts/error-photo.ts)
+//
+// Candidate (未拍板, Kirby 2026-11-08). One row per photo a person chose to
+// send from a failure/report screen. The image itself is in a PRIVATE Vercel
+// Blob store at `blob_pathname` (a random path). No `scan_id`, `session_id`
+// or `user_id`: the deletion code (stored only as a SHA-256 hex digest) is the
+// way to remove it early; the daily cron removes rows + blobs older than
+// `ERROR_PHOTO_RETENTION_DAYS`. `meta` is the strict `errorPhotoMetaSchema`
+// object minus `consent`, which has its own column.
+export const errorPhotos = pgTable(
+  "error_photos",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    consentVersion: text("consent_version").notNull(),
+    blobPathname: text("blob_pathname").notNull().unique(),
+    deleteCodeSha256: text("delete_code_sha256").notNull().unique(),
+    meta: jsonb("meta").notNull(),
+    bytes: integer("bytes").notNull(),
+    /** Start of the UTC day of the upload; the purge counts from it. */
+    createdOn: timestamp("created_on", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("error_photos_created_on_idx").on(t.createdOn),
+    check(
+      "error_photos_consent_version_set",
+      sql`char_length(${t.consentVersion}) BETWEEN 1 AND 100`,
+    ),
+    check(
+      "error_photos_created_on_a_day",
+      sql`(${t.createdOn} AT TIME ZONE 'UTC') = date_trunc('day', ${t.createdOn} AT TIME ZONE 'UTC')`,
+    ),
+    check(
+      "error_photos_code_hash_hex",
+      sql`${t.deleteCodeSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check("error_photos_bytes_range", sql`${t.bytes} BETWEEN 1 AND 1500000`),
+    check("error_photos_meta_object", sql`jsonb_typeof(${t.meta}) = 'object'`),
+  ],
+);
