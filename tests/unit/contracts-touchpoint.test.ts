@@ -69,8 +69,8 @@ describe("error-photo contract", () => {
   });
 
   it("keeps photos about six months", () => {
-    expect(ERROR_PHOTO_RETENTION_DAYS).toBeGreaterThanOrEqual(181);
-    expect(ERROR_PHOTO_RETENTION_DAYS).toBeLessThanOrEqual(184);
+    expect(ERROR_PHOTO_RETENTION_DAYS).toBeGreaterThanOrEqual(179);
+    expect(ERROR_PHOTO_RETENTION_DAYS).toBeLessThanOrEqual(180);
   });
 
   it("meta is strict and needs the consent version", () => {

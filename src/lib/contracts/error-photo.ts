@@ -37,7 +37,12 @@
 import { z } from "zod";
 
 export const ERROR_PHOTO_CONSENT_VERSION = "error-photo-consent-v1-draft";
-export const ERROR_PHOTO_RETENTION_DAYS = 183; // ≈ 6 months (Kirby 2026-11-08)
+/**
+ * About 6 months (Kirby 2026-11-08). 180 days, not 183: six calendar months can
+ * be as short as 181 days and the daily purge may run a day late, so 180 keeps
+ * "deleted within about 6 months" true for every upload date.
+ */
+export const ERROR_PHOTO_RETENTION_DAYS = 180;
 export const ERROR_PHOTO_MAX_BYTES = 1_500_000;
 export const ERROR_PHOTO_MAX_SIDE_PX = 2048;
 
