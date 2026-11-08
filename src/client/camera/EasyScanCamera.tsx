@@ -305,6 +305,7 @@ import {
   referenceChangeAllowed,
 } from "./cardRoute";
 import { ReferenceMenu } from "./ReferenceMenu";
+import type { TesterScanHooks } from "./testerMode";
 import { GripPage, ThicknessPage } from "../scan/AnswerPages";
 import {
   INITIAL_ANSWERS,
@@ -705,6 +706,11 @@ export interface EasyScanCameraProps {
   /** Forces the first-run tip open regardless of localStorage — for
    * `/scan/easy/tip-demo` (screenshot only). */
   readonly forceTipOpen?: boolean;
+  /**
+   * Tester mode (candidate, testerMode.ts): only the hidden `/scan/tester`
+   * page passes it. Absent (every other page): no change at all.
+   */
+  readonly tester?: TesterScanHooks;
 }
 
 /** Closes every bitmap of the map and empties it. */
@@ -763,6 +769,7 @@ export default function EasyScanCamera({
   deviceHint,
   debugPhotosAllowed = false,
   forceTipOpen,
+  tester,
 }: EasyScanCameraProps) {
   const router = useRouter();
   const [camState, setCamState] = useState<CamState>({ kind: "requesting" });
@@ -1219,6 +1226,29 @@ export default function EasyScanCamera({
   camKindRef.current = camState.kind;
   const resultRef = useRef(result);
   resultRef.current = result;
+  // Tester mode (testerMode.ts): each analysis that ended is reported once.
+  // A measured result is keyed by its overlay, which survives the card
+  // outline's yes (`{ ...prev, cardCheck: undefined }`); a new analysis
+  // always brings a new one. Nothing runs without `tester`.
+  const testerRef = useRef(tester);
+  testerRef.current = tester;
+  const testerSeenRef = useRef<object | null>(null);
+  useEffect(() => {
+    const hooks = testerRef.current;
+    if (!hooks) return;
+    if (result.kind === "gateFailure") {
+      if (testerSeenRef.current === result) return;
+      testerSeenRef.current = result;
+      hooks.onAttempt({
+        measured: false,
+        failureCodes: result.errors.map((e) => e.code),
+      });
+    } else if (result.kind === "measured") {
+      if (testerSeenRef.current === result.overlay) return;
+      testerSeenRef.current = result.overlay;
+      hooks.onAttempt({ measured: true, failureCodes: [] });
+    }
+  }, [result]);
   const fileRef = useRef<File | null>(null);
   // F10 item 2 (R6 F1, candidate): the focal length the automatic run of the
   // photo on screen used (EXIF or a reliable homography estimate), kept for a
@@ -1459,6 +1489,7 @@ export default function EasyScanCamera({
   // appear (the shared rule, src/lib/error-photo/offerable.ts, review K2), so
   // a late chunk never moves the buttons and no empty row is left elsewhere.
   const errorPhotoRowReserved =
+    !tester &&
     sheetResult !== null &&
     errorPhotoOfferable({
       enabled: process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1",
@@ -4341,6 +4372,11 @@ export default function EasyScanCamera({
 
   const exitToHome = useCallback(() => {
     stopStream();
+    // Tester mode: the tester page decides where the close button goes.
+    if (testerRef.current) {
+      testerRef.current.onExit();
+      return;
+    }
     router.push("/");
   }, [stopStream, router]);
 
@@ -4437,7 +4473,10 @@ export default function EasyScanCamera({
 
   // Null while the typed-hand-length feature flag is off: every "no paper"
   // entry below renders only when this is non-null.
-  const noPaperLabel = noPaperEntryLabel(userLengthMm !== null, locale);
+  // Tester mode: no typed length (its hand length would be the typed one).
+  const noPaperLabel = tester
+    ? null
+    : noPaperEntryLabel(userLengthMm !== null, locale);
   const noPaperMode = userLengthMm !== null;
 
   // The grip and thickness pages, over the measured sheet or over the typed
@@ -4587,7 +4626,7 @@ export default function EasyScanCamera({
           url={pageUrl}
           onFilePicked={onFilePicked}
           manual={
-            deviceFit === "desktop"
+            deviceFit === "desktop" && !tester
               ? {
                   draft: manualDraftRef.current,
                   onDraftChange: keepManualDraft,
@@ -5109,7 +5148,12 @@ export default function EasyScanCamera({
           camState.kind === "cameraError" ||
           camState.kind === "noCamera") && (
           <div className="easyManualDock">
-            <ManualEntryHandle ref={manualHandleRef} onOpen={openManualSheet} />
+            {!tester && (
+              <ManualEntryHandle
+                ref={manualHandleRef}
+                onOpen={openManualSheet}
+              />
+            )}
           </div>
         )}
 
@@ -5303,7 +5347,7 @@ export default function EasyScanCamera({
                   at the very bottom of the camera screen. It is only here
                   while the camera is, not over a finished measurement, and
                   not under the first-run tip (a modal over the same edge). */}
-            {!tipOpen && (
+            {!tipOpen && !tester && (
               <ManualEntryHandle
                 ref={liveChromeLeave.leaving ? undefined : manualHandleRef}
                 onOpen={openManualSheet}
@@ -5514,6 +5558,30 @@ export default function EasyScanCamera({
                         noteSoftHintOutcome(sheetResult.softHint.at, {
                           after: "continue",
                         });
+                      // Tester mode: the result goes to the tester page,
+                      // never to the question pages or /api/scans.
+                      if (tester) {
+                        const file = fileRef.current;
+                        tester.onMeasured({
+                          measurements: sheetResult.measurements,
+                          submission: sheetResult.submission,
+                          captureMode:
+                            captureInfoRef.current?.method === "upload"
+                              ? "upload"
+                              : "camera",
+                          photo: file
+                            ? {
+                                file,
+                                overlay: sheetResult.overlay,
+                                mode:
+                                  sheetResult.reference === "card"
+                                    ? "card"
+                                    : "paper",
+                              }
+                            : null,
+                        });
+                        return;
+                      }
                       dispatchAnswers({ type: "open" });
                     }}
                   >
