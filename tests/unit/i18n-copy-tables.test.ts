@@ -18,6 +18,7 @@ const EXPECTED_MODULES = [
   "card-reference.ts",
   "cookie-consent.ts",
   "easy-scan.ts",
+  "error-photo.ts",
   "errors.ts",
   "faq.ts",
   "fit-bands.ts",

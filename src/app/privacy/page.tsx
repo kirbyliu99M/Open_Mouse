@@ -14,9 +14,22 @@ export async function generateMetadata(): Promise<Metadata> {
   }));
 }
 
-/** The privacy notice (pre-launch audit 2026-10-28, candidate 未拍板). */
+/**
+ * The privacy notice (pre-launch audit 2026-10-28, candidate 未拍板). With
+ * the error-photo flag on, the "delete a photo I sent" form follows the
+ * policy at `#delete-photo` (src/components/error-photo/DeletePhotoForm.tsx).
+ * It is imported only in the flag's branch, which an off build removes
+ * (next.config.ts defines the variable; review F1).
+ */
 export default async function PrivacyPage() {
-  const copy = legalCopy(await getLocale());
+  const locale = await getLocale();
+  const copy = legalCopy(locale);
+  let deleteForm = null;
+  if (process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1") {
+    const { DeletePhotoForm } =
+      await import("@/components/error-photo/DeletePhotoForm");
+    deleteForm = <DeletePhotoForm locale={locale} />;
+  }
   return (
     <LegalPage
       copy={copy}
@@ -24,6 +37,8 @@ export default async function PrivacyPage() {
       intro={copy.privacyIntro}
       sections={copy.privacySections}
       other={{ href: "/terms", label: copy.seeTerms }}
-    />
+    >
+      {deleteForm}
+    </LegalPage>
   );
 }

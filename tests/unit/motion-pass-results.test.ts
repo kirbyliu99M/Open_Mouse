@@ -149,6 +149,7 @@ const LEAVING_TSX = [
   "src/app/account/AccountView.tsx",
   "src/app/account/MouseEditSheets.tsx",
   "src/app/account/ProfileEditSheets.tsx",
+  "src/components/error-photo/ErrorPhotoSheet.tsx",
   "src/components/nav/NavMenu.tsx",
   "src/components/results/DeleteScanAction.tsx",
   "src/components/results/filter/FilterSheet.tsx",
@@ -240,6 +241,7 @@ describe("the wiring", () => {
 
   it("a native dialog's Esc goes through the same leaving path, never the instant close", () => {
     for (const file of [
+      "src/components/error-photo/ErrorPhotoSheet.tsx",
       "src/components/nav/NavMenu.tsx",
       "src/app/account/AccountView.tsx",
       "src/components/results/PhotoZoom.tsx",

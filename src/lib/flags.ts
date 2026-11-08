@@ -46,3 +46,18 @@ export const TYPED_HAND_LENGTH_ENTRY_ENABLED = parseFlag(
 export const CARD_REFERENCE_ENABLED = parseFlag(
   process.env.NEXT_PUBLIC_CARD_REFERENCE_ENABLED,
 );
+
+/**
+ * Error photos (Kirby 2026-11-08, candidate 未拍板;
+ * src/lib/contracts/error-photo.ts): the one opt-in way a photo reaches the
+ * server. OFF unless a build sets exactly `NEXT_PUBLIC_ERROR_PHOTO_ENABLED=1`
+ * (only "1", not "true": this one sends a photo). Client code tests
+ * `process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1"` inline at each use
+ * (next.config.ts always defines the variable, so the build folds the test
+ * and drops the off branch with its `import()`; review F1); there is
+ * deliberately no exported constant to import. The routes read it through
+ * this function.
+ */
+export function errorPhotoFlag(raw: string | undefined): boolean {
+  return raw === "1";
+}

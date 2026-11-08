@@ -54,7 +54,10 @@ in the error banner, where a scan offers 「重拍」.
 **Secondary button:** a plain text link in `--accent-text`, with no fill, no
 border and no underline (like "Print it" and the "‹ Sheet" back link), at least
 44 px tall, with the same focus ring. Its border stays transparent, so
-more-contrast users get an outline instead of colour alone.
+more-contrast users get an outline instead of colour alone. The exception is
+the easy-scan result sheet, whose full-width text links under the main action
+(「改用輸入數字」 and the error-photo link, candidate 未拍板) are underlined so
+they read as links beside its outlined controls.
 
 **Compact pill (the results filter only):** inside the results-page filter the
 white pill is smaller (Kirby, 2026-10-10, FILTER-1, candidate): 44 px tall, a

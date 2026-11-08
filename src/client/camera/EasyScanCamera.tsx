@@ -343,6 +343,12 @@ import { measuredSheetNumbers } from "../photo/unverified-note";
 import { shownScanMeasurements } from "../../lib/fit/fit-scale";
 import { measuringShown } from "./measuringIndicator";
 import { CARD_REFERENCE_ENABLED } from "../../lib/flags";
+import { errorPhotoOfferable } from "../../lib/error-photo/offerable";
+// Types only (erased): the error-photo code itself is a guarded import().
+import type {
+  ErrorPhotoAction as ErrorPhotoActionType,
+  ErrorPhotoContext,
+} from "../error-photo/ErrorPhotoAction";
 import { cardReferenceCopy } from "../../lib/copy/card-reference";
 import {
   cardHintText,
@@ -382,6 +388,37 @@ import {
   tourReturnFocus,
 } from "./tour/tourModel";
 
+/**
+ * Error photos (candidate 未拍板; review F1/H3): the lazy entry, fetched as
+ * soon as this module is evaluated in a browser, before the camera even
+ * starts, and tried a second time if the first fetch fails. The `import()`
+ * sits only inside the flag's branch, which the build removes when
+ * NEXT_PUBLIC_ERROR_PHOTO_ENABLED is not "1" (next.config.ts defines it), so
+ * an off build has no error-photo chunk at all.
+ */
+let loadedErrorPhotoAction: typeof ErrorPhotoActionType | null = null;
+let errorPhotoActionLoad: Promise<typeof ErrorPhotoActionType | null> | null =
+  null;
+function loadErrorPhotoAction(): Promise<typeof ErrorPhotoActionType | null> {
+  if (process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1") {
+    if (!errorPhotoActionLoad) {
+      const once = () =>
+        import("../error-photo/ErrorPhotoAction").then(
+          (m) => (loadedErrorPhotoAction = m.ErrorPhotoAction),
+        );
+      errorPhotoActionLoad = once()
+        .catch(() => once())
+        .catch(() => {
+          // Both tries failed: no offer, and the next mount tries again.
+          errorPhotoActionLoad = null;
+          return null;
+        });
+    }
+    return errorPhotoActionLoad;
+  }
+  return Promise.resolve(null);
+}
+if (typeof window !== "undefined") void loadErrorPhotoAction();
 /** What the frozen photo needs to be drawn where the live frame was. */
 interface PhotoInfo {
   /** The object URL this belongs to. */
@@ -779,6 +816,10 @@ export default function EasyScanCamera({
   localeRef.current = locale;
   const common = scanCommonCopy(locale);
   const easy = easyScanCopy(locale);
+  // Error photos (candidate 未拍板, src/lib/contracts/error-photo.ts): the
+  // photo on screen, held in memory only (as `fileRef`, for the render), and
+  // only with the flag on (review F1).
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   // The shutter has a photo that `runPipeline` has not taken on yet (F10,
   // Kirby's second phone test 2026-10-21/22: "拍照掃描不需要 loading 畫面"):
   // the small 測量中… line is already on the frozen photo, from the frame the
@@ -1368,6 +1409,75 @@ export default function EasyScanCamera({
       : null;
   const sheetLeave = useLeaving(sheetNow, leaveMs("sheet", reducedMotion));
   const sheetResult = sheetLeave.shown;
+  // Error photos (candidate 未拍板): the link on the result sheet and its
+  // consent sheet live in a chunk loaded only with the flag on (review F1):
+  // the `import()` sits in a branch the build removes when
+  // NEXT_PUBLIC_ERROR_PHOTO_ENABLED is not "1" (next.config.ts defines it),
+  // so with the flag off none of the error-photo code is in any bundle.
+  // Loaded at mount, long before a result, so the link's row is there from
+  // the result's first render (review F3).
+  const [ErrorPhotoActionView, setErrorPhotoActionView] = useState<
+    typeof ErrorPhotoActionType | null
+  >(() => loadedErrorPhotoAction);
+  useEffect(() => {
+    if (ErrorPhotoActionView) return;
+    let live = true;
+    void loadErrorPhotoAction().then((view) => {
+      if (live && view) setErrorPhotoActionView(() => view);
+    });
+    return () => {
+      live = false;
+    };
+  }, [ErrorPhotoActionView]);
+  const readErrorPhotoContext = useCallback((): ErrorPhotoContext => {
+    const current = resultRef.current;
+    const measured = current.kind === "measured" ? current : null;
+    return {
+      paperSize: paperSizeRef.current,
+      hand: measured ? measured.submission.hand : handChipRef.current.hand,
+      ...(measured
+        ? {
+            measured: {
+              handLengthMm: measured.measurements.handLengthMm,
+              palmWidthMm: measured.measurements.palmWidthMm,
+            },
+            measurementModelVersion:
+              measured.submission.measurementModelVersion,
+          }
+        : {}),
+      deviceClass:
+        deviceFit === "phone" || deviceFit === "desktop"
+          ? deviceFit
+          : "unknown",
+      captureMode:
+        captureInfoRef.current?.method === "upload" ? "upload" : "camera",
+    };
+  }, [deviceFit]);
+  // Review H2/H3: drawn from the result the sheet SHOWS, so the row stays (at
+  // the same height) while the sheet slides out; before the chunk is here, a
+  // placeholder row of the same height stands exactly where an offer can
+  // appear (the shared rule, src/lib/error-photo/offerable.ts, review K2), so
+  // a late chunk never moves the buttons and no empty row is left elsewhere.
+  const errorPhotoRowReserved =
+    sheetResult !== null &&
+    errorPhotoOfferable({
+      enabled: process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1",
+      result: sheetResult,
+    }) !== null;
+  const errorPhotoAction =
+    !errorPhotoRowReserved ? null : ErrorPhotoActionView && sheetResult ? (
+      <ErrorPhotoActionView
+        locale={locale}
+        result={sheetResult}
+        active={
+          sheetNow !== null && !sheetLeave.leaving && sheetResult === result
+        }
+        file={photoFile}
+        readContext={readErrorPhotoContext}
+      />
+    ) : (
+      <span className="errorPhotoLink errorPhotoLinkGone" aria-hidden="true" />
+    );
   // V3.3 WP3b (candidate): the post-shot banner over the photo, while the
   // measured sheet is up and until it is closed; it fades in and out.
   const [softHintClosedAt, setSoftHintClosedAt] = useState<string | null>(null);
@@ -2670,6 +2780,8 @@ export default function EasyScanCamera({
       if (!reducedMotionRef.current) setFlashKey((k) => k + 1);
       setAnnounced(scanCommonCopy(localeRef.current).photoTaken);
       fileRef.current = file;
+      if (process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1")
+        setPhotoFile(file);
       // A frame cut to the screen's part is drawn exactly as the live video's
       // visible part was: it IS that part, so it is its own "stream" for the layout.
       setPhotoInfo(
@@ -2769,6 +2881,8 @@ export default function EasyScanCamera({
       uploadFromReferenceScreenRef.current = false;
       stopStream();
       fileRef.current = file;
+      if (process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1")
+        setPhotoFile(file);
       debugPhotoRef.current = file;
       const previewUrl = URL.createObjectURL(file);
       setPhotoInfo(null);
@@ -5346,6 +5460,9 @@ export default function EasyScanCamera({
                   locale,
                 )}
               </p>
+              {/* Error photos (candidate 未拍板): 「數字看起來不對？」, from the
+                  lazy chunk (flag off: never loaded, nothing here). */}
+              {errorPhotoAction}
               {/* F15 (candidate): only the title, the numbers, retake and
                   continue (and Debug with ?debug=1). "Still being
                   validated" and "adjusted by hand" are said on the results
@@ -5458,6 +5575,10 @@ export default function EasyScanCamera({
                       {noPaperLabel}
                     </button>
                   )}
+                {/* Error photos (candidate 未拍板): offered only where the
+                    analysis found something on the photo (offer.ts), from
+                    the lazy chunk (flag off: never loaded, nothing here). */}
+                {errorPhotoAction}
               </div>
             </>
           )}

@@ -578,7 +578,11 @@ describe("where the camera offers it (EasyScanCamera.tsx)", () => {
     expect(sheet).not.toContain("unverifiedNote");
     expect(sheet).not.toContain("easy-sheet-adjusted-note");
     expect(sheet).not.toContain("easySheetNote");
+    // Since 2026-11-08 (candidate), also the flag-gated error-photo link,
+    // drawn by the lazy chunk (src/client/error-photo/ErrorPhotoAction.tsx),
+    // so no button of its own here.
     expect(sheet.split("<button").length - 1).toBe(2);
+    expect(sheet).toContain("{errorPhotoAction}");
     // The typed-length disclosure is untouched.
     expect(sheet).toContain("easy.disclosureBased(");
     expect(source).toContain("{debugOn && debugSnapshot && (");
