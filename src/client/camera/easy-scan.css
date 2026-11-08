@@ -1064,6 +1064,17 @@ main.easyScanShell {
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.6);
 }
+/* Tester mode only (testerMode.ts `exitLabel`): the close button as a labelled pill. */
+.easyScanStaged .cameraCloseButtonText {
+  width: auto;
+  min-width: 44px;
+  padding: 0 0.875rem;
+  border-radius: 22px;
+  color: #fff;
+  font: inherit;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
 .easyScanStaged .easyHelpButton,
 .easyScanStaged .easyHandChip:not(.easyHandChipInSheet),
 .easyScanStaged .easyPaperToggle,

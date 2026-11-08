@@ -87,6 +87,11 @@ export interface ScanTourProps {
   readonly onView?: (
     view: { stepId: TourStepId | null; holeBottom: number | null } | null,
   ) => void;
+  /**
+   * Replaces the welcome's privacy fine print. Only the tester page's camera
+   * passes it (a tester who chose to send the photo); absent: unchanged.
+   */
+  readonly finePrint?: string;
 }
 
 interface Measured {
@@ -162,6 +167,7 @@ export default function ScanTour({
   resolvePaperFrame,
   onClose,
   onView,
+  finePrint,
 }: ScanTourProps) {
   const copy = scanTourCopy(useLocale());
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -594,7 +600,9 @@ export default function ScanTour({
             >
               {copy.welcomeReturning}
             </button>
-            <p className="scanTourFinePrint">{copy.welcomeFinePrint}</p>
+            <p className="scanTourFinePrint">
+              {finePrint ?? copy.welcomeFinePrint}
+            </p>
           </section>
         </>
       )}

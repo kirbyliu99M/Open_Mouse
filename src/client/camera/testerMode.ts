@@ -12,7 +12,12 @@
  *     `/api/scans` (no scan, no hand sample, no fit results);
  *   - hides the typed-entry ways (manual entry, "no paper" typed length) and
  *     the error-photo link: the tester page sends its own photo;
- *   - calls `onExit` from its close button instead of going home.
+ *   - calls `onExit` from its close button instead of going home;
+ *   - uses the tester's declared `reference` and shows it as a plain chip
+ *     (no menu, nothing stored);
+ *   - shows `privacyNotice` in place of "photos stay on the phone" when given.
+ * The tester page also mutes product analytics while it is mounted
+ * (`muteTracking`, src/client/analytics/track.ts).
  */
 import type {
   HandMeasurements,
@@ -56,6 +61,15 @@ export interface TesterScanMeasured {
 }
 
 export interface TesterScanHooks {
+  /** The reference the tester declared: the camera uses it and offers no menu. */
+  readonly reference: "a4" | "letter" | "card";
+  /**
+   * Replaces the "photos stay on the phone" fine print (first-run tip, tour
+   * welcome, device entry) when the tester chose to send the photo.
+   */
+  readonly privacyNotice?: string;
+  /** Shown as the close button's text (it calls `onExit`), e.g. 這次放棄. */
+  readonly exitLabel?: string;
   onAttempt(attempt: TesterScanAttempt): void;
   onMeasured(result: TesterScanMeasured): void;
   onExit(): void;

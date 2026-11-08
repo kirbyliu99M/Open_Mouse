@@ -1306,9 +1306,17 @@ export default function EasyScanCamera({
     const storage = getBrowserStorage();
     // The paper size as on main; the card on top of it (its own key), so a
     // Letter user who chose the card comes back to Letter (review item 6).
-    setPaperSize(readStoredPaperSize(storage));
-    if (readStoredReference(storage, CARD_REFERENCE_ENABLED) === "card")
-      setCardMode(true);
+    // Tester mode: the reference the tester declared, nothing stored.
+    const testerReference = testerRef.current?.reference;
+    if (testerReference) {
+      setPaperSize(testerReference === "letter" ? "letter" : "a4");
+      if (testerReference === "card" && CARD_REFERENCE_ENABLED)
+        setCardMode(true);
+    } else {
+      setPaperSize(readStoredPaperSize(storage));
+      if (readStoredReference(storage, CARD_REFERENCE_ENABLED) === "card")
+        setCardMode(true);
+    }
     if (!forceTipOpen && !readFirstRunTipSeen(storage)) setTipOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -3065,6 +3073,8 @@ export default function EasyScanCamera({
   // chip calls `changePaperSize()` with no argument, main's A4 ↔ Letter.
   const selectReference = useCallback(
     (target: ScanReference) => {
+      // Tester mode: the reference is the one the tester declared.
+      if (testerRef.current) return;
       // A shot being taken or measured keeps the mode it was taken in (card
       // flag on; with it off the chip is main's A4 ↔ Letter toggle as it was).
       if (
@@ -4625,6 +4635,9 @@ export default function EasyScanCamera({
           kind={deviceFit}
           url={pageUrl}
           onFilePicked={onFilePicked}
+          {...(tester?.privacyNotice
+            ? { privacyNotice: tester.privacyNotice }
+            : {})}
           manual={
             deviceFit === "desktop" && !tester
               ? {
@@ -4931,14 +4944,26 @@ export default function EasyScanCamera({
         </div>
       )}
       <div className="cameraTopBar" ref={topBarRef} inert={lengthStep}>
-        <button
-          type="button"
-          className="cameraCloseButton"
-          aria-label={easy.closeCamera}
-          onClick={exitToHome}
-        >
-          ×
-        </button>
+        {tester?.exitLabel ? (
+          // Tester mode: the close button says what it does (這次放棄).
+          <button
+            type="button"
+            className="cameraCloseButton cameraCloseButtonText"
+            data-testid="tester-give-up"
+            onClick={exitToHome}
+          >
+            {tester.exitLabel}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="cameraCloseButton"
+            aria-label={easy.closeCamera}
+            onClick={exitToHome}
+          >
+            ×
+          </button>
+        )}
         <div className="easyScanTopRight">
           <button
             type="button"
@@ -5246,7 +5271,16 @@ export default function EasyScanCamera({
               </p>
             )}
             <div className="easyBottomRow">
-              {userLengthMm === null && CARD_REFERENCE_ENABLED ? (
+              {tester ? (
+                // Tester mode: the declared reference, not a menu.
+                <span
+                  className="easyLengthChip"
+                  data-tour="reference-chip"
+                  data-testid="tester-reference-chip"
+                >
+                  {referenceLabel}
+                </span>
+              ) : userLengthMm === null && CARD_REFERENCE_ENABLED ? (
                 // Card flag on: a menu of A4 / Letter / 卡片 (review items
                 // 5+6), locked while a shot is measured (item 13).
                 <ReferenceMenu
@@ -5707,6 +5741,9 @@ export default function EasyScanCamera({
           cardModeAvailable={CARD_REFERENCE_ENABLED}
           noPaperEntry={noPaperLabel !== null}
           onReferenceChange={selectReference}
+          {...(tester?.privacyNotice
+            ? { finePrint: tester.privacyNotice }
+            : {})}
           resolvePaperFrame={() =>
             guideRectInViewport(
               stageRef.current?.getBoundingClientRect(),
@@ -5798,7 +5835,9 @@ export default function EasyScanCamera({
           </button>
         )}
         <p className="easyTipFinePrint">
-          {easy.tipFinePrint(common.privacyAndCameraStays)}
+          {easy.tipFinePrint(
+            tester?.privacyNotice ?? common.privacyAndCameraStays,
+          )}
         </p>
       </dialog>
       {debugOn &&
