@@ -519,49 +519,56 @@ export function ThicknessPage({
       artClassName="thicknessArt"
       art={<ThicknessHand />}
       footer={
-        <div className="answerActions">
-          {errorKind && (
-            <div className="answerError">
-              <p role="alert">
-                {errorText?.[errorKind] ?? common.submitErrors[errorKind]}
-              </p>
-              {RETAKE_ERROR_KINDS.includes(errorKind) && (
-                <button
-                  type="button"
-                  className="answerErrorRetake"
-                  onClick={onRetake}
-                  data-testid="thickness-retake"
-                >
-                  {retakeLabel ?? words.retake}
-                </button>
-              )}
+        <>
+          {/* The anonymous-copy switch, right above the actions (a sibling,
+              so a phone on its side can put it in the left column, and so
+              Shift+Tab from 看結果 still reaches the banner's button). */}
+          {sampleNotice && (
+            <div className="answerConsent">
+              <SampleConsentToggle notice={sampleNotice} disabled={busy} />
             </div>
           )}
-          {sampleNotice && (
-            <SampleConsentToggle notice={sampleNotice} disabled={busy} />
-          )}
-          <PrimaryButton
-            disabled={!controls.submitEnabled}
-            onClick={onSubmit}
-            testId="thickness-submit"
-            buttonRef={submitRef}
-          >
-            {words.thicknessSubmit}
-          </PrimaryButton>
-          {/* The visible word stays 跳過; the name says what it does here: the
+          <div className="answerActions">
+            {errorKind && (
+              <div className="answerError">
+                <p role="alert">
+                  {errorText?.[errorKind] ?? common.submitErrors[errorKind]}
+                </p>
+                {RETAKE_ERROR_KINDS.includes(errorKind) && (
+                  <button
+                    type="button"
+                    className="answerErrorRetake"
+                    onClick={onRetake}
+                    data-testid="thickness-retake"
+                  >
+                    {retakeLabel ?? words.retake}
+                  </button>
+                )}
+              </div>
+            )}
+            <PrimaryButton
+              disabled={!controls.submitEnabled}
+              onClick={onSubmit}
+              testId="thickness-submit"
+              buttonRef={submitRef}
+            >
+              {words.thicknessSubmit}
+            </PrimaryButton>
+            {/* The visible word stays 跳過; the name says what it does here: the
               scan is sent. It contains the visible word (WCAG 2.5.3). */}
-          <button
-            type="button"
-            className="answerSkip"
-            ref={skipRef}
-            onClick={onSkip}
-            disabled={!controls.skipEnabled}
-            aria-label={words.skipAndSee}
-            data-testid="thickness-skip"
-          >
-            {words.skip}
-          </button>
-        </div>
+            <button
+              type="button"
+              className="answerSkip"
+              ref={skipRef}
+              onClick={onSkip}
+              disabled={!controls.skipEnabled}
+              aria-label={words.skipAndSee}
+              data-testid="thickness-skip"
+            >
+              {words.skip}
+            </button>
+          </div>
+        </>
       }
     >
       <ChoiceRows
