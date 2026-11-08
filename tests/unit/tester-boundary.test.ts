@@ -133,7 +133,10 @@ describe("/scan/tester is not advertised", () => {
         MAY_IMPORT_TESTER(from) ||
         from === "src/lib/contracts/tester.ts" ||
         // Names it only to send no page view there.
-        from === "src/client/analytics/mutedPaths.ts"
+        from === "src/client/analytics/mutedPaths.ts" ||
+        // Name it only to pin its locale (zh-TW).
+        from === "src/lib/i18n/pinnedLocale.ts" ||
+        from === "src/middleware.ts"
       )
         continue;
       // A string literal naming the path (comments may mention it).
