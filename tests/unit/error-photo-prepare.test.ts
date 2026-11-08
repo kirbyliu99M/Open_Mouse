@@ -20,6 +20,7 @@ import {
   deleteErrorPhoto,
   normaliseDeleteCode,
   parseExpectedCm,
+  ERROR_PHOTO_UPLOAD_TIMEOUT_MS,
   sendErrorPhoto,
 } from "../../src/client/error-photo/send";
 
@@ -310,6 +311,34 @@ describe("requests", () => {
       (async () => new Response("{}", { status })) as unknown as typeof fetch,
     );
     expect(out).toEqual({ ok: false, reason });
+  });
+
+  it("gives up after 30 s on a fetch that never answers, and aborts it (H1)", async () => {
+    vi.useFakeTimers();
+    try {
+      let signal: AbortSignal | undefined;
+      const never = vi.fn((_path: string, init: RequestInit) => {
+        signal = init.signal ?? undefined;
+        return new Promise<Response>(() => {});
+      });
+      const pending = sendErrorPhoto(
+        new Blob([]),
+        meta,
+        never as unknown as typeof fetch,
+      );
+      let settled = false;
+      void pending.then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(ERROR_PHOTO_UPLOAD_TIMEOUT_MS - 1);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await pending).toEqual({ ok: false, reason: "timeout" });
+      expect(ERROR_PHOTO_UPLOAD_TIMEOUT_MS).toBe(30_000);
+      expect(signal?.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("normalises a typed code and never sends a malformed one", async () => {

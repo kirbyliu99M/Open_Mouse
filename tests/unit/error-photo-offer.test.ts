@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   errorPhotoOffer,
+  reservesErrorPhotoRow,
   type OfferInput,
 } from "../../src/client/error-photo/offer";
 
@@ -128,5 +129,28 @@ describe("errorPhotoOffer", () => {
     });
     expect(offer).not.toBeNull();
     expect(offer).not.toHaveProperty("failureCode");
+  });
+});
+
+describe("reservesErrorPhotoRow (H3: the row is there from the first render)", () => {
+  it("reserves for a measured sheet and a failure with an overlay, not otherwise", () => {
+    expect(
+      reservesErrorPhotoRow({ kind: "measured", overlay: overlay() }),
+    ).toBe(true);
+    expect(reservesErrorPhotoRow(failure("DECODE_FAILED"))).toBe(true);
+    expect(reservesErrorPhotoRow(failure("PROCESSING_FAILED", null))).toBe(
+      false,
+    );
+    expect(reservesErrorPhotoRow({ kind: "processing" })).toBe(false);
+  });
+
+  it("every offer comes with a reserved row", () => {
+    for (const result of [
+      failure("PAPER_NOT_FOUND"),
+      { kind: "measured" as const, overlay: overlay() },
+    ]) {
+      expect(errorPhotoOffer({ enabled: true, result })).not.toBeNull();
+      expect(reservesErrorPhotoRow(result)).toBe(true);
+    }
   });
 });

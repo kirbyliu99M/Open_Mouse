@@ -26,7 +26,11 @@ import { leaveMs } from "../../lib/motion";
 import { ErrorPhotoSheet } from "../../components/error-photo/ErrorPhotoSheet";
 import { useLeaving } from "../camera/useLeaving";
 import { usePrefersReducedMotion } from "../camera/useReducedMotion";
-import { errorPhotoOffer, type OfferInput } from "./offer";
+import {
+  errorPhotoOffer,
+  reservesErrorPhotoRow,
+  type OfferInput,
+} from "./offer";
 import type { ErrorPhotoMetaInput } from "./send";
 import { usePreparedErrorPhoto } from "./usePreparedErrorPhoto";
 
@@ -65,8 +69,11 @@ export function ErrorPhotoAction({
   readContext,
 }: ErrorPhotoActionProps) {
   const copy = errorPhotoCopy(locale);
-  const offer = errorPhotoOffer({ enabled: active, result });
-  const prepared = usePreparedErrorPhoto(offer ? file : null, offer);
+  // The offer is worked out from the result the sheet shows, also while it
+  // slides out (review H2): the row keeps its height; only an active sheet
+  // prepares a copy (an inactive one shows the row invisible).
+  const offer = errorPhotoOffer({ enabled: true, result });
+  const prepared = usePreparedErrorPhoto(offer && active ? file : null, offer);
   const linkRef = useRef<HTMLButtonElement>(null);
   const reducedMotion = usePrefersReducedMotion();
   const [session, setSession] = useState<Session | null>(null);
@@ -116,7 +123,19 @@ export function ErrorPhotoAction({
         )
       : null;
 
-  if (!offer) return sheetElement;
+  if (!offer)
+    return (
+      <>
+        {/* The same row the camera reserved before this chunk came (H3). */}
+        {reservesErrorPhotoRow(result) && (
+          <span
+            className="errorPhotoLink errorPhotoLinkGone"
+            aria-hidden="true"
+          />
+        )}
+        {sheetElement}
+      </>
+    );
   const ready = prepared.status === "ready";
   const gone = prepared.status === "failed";
   return (

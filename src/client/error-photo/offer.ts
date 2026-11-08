@@ -91,3 +91,17 @@ export function errorPhotoOffer(input: OfferInput): Offer | null {
   }
   return null;
 }
+
+/**
+ * Whether a result sheet keeps a row for the link, offered or not (review
+ * H3): a measured sheet, or a failure whose analysis left an overlay. The
+ * camera reserves the same row (inline, EasyScanCamera.tsx
+ * `errorPhotoRowReserved`) before this chunk has loaded, so the buttons never
+ * move. Keep the two in step.
+ */
+export function reservesErrorPhotoRow(result: OfferInput["result"]): boolean {
+  return (
+    result.kind === "measured" ||
+    (result.kind === "gateFailure" && result.overlay !== null)
+  );
+}

@@ -1,8 +1,9 @@
 /**
  * Words of the opt-in error photo (src/lib/contracts/error-photo.ts): the
  * button on a scan failure, the "numbers look wrong?" link, the consent sheet,
- * and the deletion form on /privacy. zh-TW and English, same keys. Only shown
- * while `ERROR_PHOTO_ENABLED`.
+ * and the deletion form on /privacy. zh-TW and English, same keys. Only loaded
+ * with `NEXT_PUBLIC_ERROR_PHOTO_ENABLED=1` (through the guarded imports in
+ * EasyScanCamera.tsx and app/privacy/page.tsx; src/lib/flags.ts).
  *
  * EVERY string here is a CANDIDATE (未拍板): Kirby's 2026-11-08 wording with
  * the privacy review's replacements (Claude, 2026-11-08), until Kirby has read
@@ -36,12 +37,15 @@ export interface ErrorPhotoCopy {
   expectedHeading: string;
   expectedLength: string;
   expectedWidth: string;
-  expectedInvalid: string;
-  /** After a send. `{code}` is split around: before + code + middle + link + after. */
+  /** Shown on blur or send for a value outside 5 to 40 cm, naming the field. */
+  expectedLengthInvalid: string;
+  expectedWidthInvalid: string;
   /** The sheet's title once the photo is sent (privacy review F4). */
   sentTitle: string;
   copyCode: string;
   copied: string;
+  copyFailed: string;
+  /** After a send: before + code + middle + link + after. */
   successBefore: string;
   successMiddle: string;
   successLink: string;
@@ -50,6 +54,8 @@ export interface ErrorPhotoCopy {
   failTooMany: string;
   failUnavailable: string;
   failGeneric: string;
+  /** The upload took longer than the client waits (review H1). */
+  failTimeout: string;
   /** The deletion form on /privacy. */
   deleteTitle: string;
   deleteIntro: string;
@@ -70,7 +76,7 @@ export const zhTW: ErrorPhotoCopy = {
   points: [
     "只會傳送手和紙張（或卡片）附近的範圍；用卡片量測時，偵測到的卡片會先在你的手機上塗黑；拍攝位置等檔案資訊也會移除。",
     "照片只有 Palmate 團隊看得到，只用來找出量錯的原因，上傳後約 6 個月（180 天）自動刪除。",
-    "照片不會存進你的帳號，刪除帳號也不會刪到它；照片會附上這次量到的數字（取整到 1 公釐），方便我們找出哪裡量錯。送出後會給你一組刪除碼，隨時可以用它刪除。",
+    "照片不會存進你的帳號，刪除帳號也不會刪到它。照片會附上：這次量到的數字（如果有，取整到 1 公釐）、你填的正確數字（如果有）、左右手、裝置類別（手機／平板／電腦）、拍照或從相簿選取，以及失敗原因，方便我們找出哪裡量錯。送出後會給你一組刪除碼，隨時可以用它刪除。",
   ],
   paperModeNote: "如果畫面裡有卡片或文件，請按「不用了」，移開後重拍。",
   previewAlt: "將要傳送的照片",
@@ -81,10 +87,12 @@ export const zhTW: ErrorPhotoCopy = {
   expectedHeading: "你自己量到的數字（選填）",
   expectedLength: "手長（公分）",
   expectedWidth: "手寬（公分）",
-  expectedInvalid: "請輸入 5 到 40 之間的數字，或留空。",
+  expectedLengthInvalid: "手長請填 5 到 40 公分之間的數字。",
+  expectedWidthInvalid: "手寬請填 5 到 40 公分之間的數字。",
   sentTitle: "已收到照片",
   copyCode: "複製刪除碼",
   copied: "已複製",
+  copyFailed: "無法自動複製，請截圖或長按刪除碼複製。",
   successBefore: "收到了，謝謝！你的刪除碼是 ",
   successMiddle: "。請截圖保存，之後可以在",
   successLink: "隱私權政策頁",
@@ -93,6 +101,7 @@ export const zhTW: ErrorPhotoCopy = {
   failTooMany: "傳送次數太多了，請過一小時再試。",
   failUnavailable: "現在暫時無法接收照片，請稍後再試。",
   failGeneric: "傳送失敗，請稍後再試。",
+  failTimeout: "網路太慢，照片沒有送出。可以再試一次，或按「不用了」。",
   deleteTitle: "刪除我傳送的照片",
   deleteIntro: "輸入傳送照片後拿到的 12 碼刪除碼，照片會立刻刪除。",
   deleteLabel: "刪除碼",
@@ -113,7 +122,7 @@ export const en: ErrorPhotoCopy = {
   points: [
     "Only the area around your hand and the paper (or card) is sent; when you measure with a card, the detected card is blacked out on your phone first, and location and camera details are removed.",
     "Only the Palmate team can see it, only to find out why the measurement went wrong, and it is deleted automatically about 6 months (180 days) after upload.",
-    "It isn't saved to your account, and deleting your account won't delete it; it carries the numbers measured this time (rounded to 1 mm) so we can find what went wrong. After sending you'll get a deletion code you can use any time.",
+    "It isn't saved to your account, and deleting your account won't delete it. It carries: the numbers measured this time (if any, rounded to 1 mm), the numbers you typed (if any), which hand, device type (phone / tablet / computer), whether it was taken or picked from your photos, and why the scan failed, so we can find what went wrong. After sending you'll get a deletion code you can use any time.",
   ],
   paperModeNote:
     'If a card or document is in the picture, tap "No thanks", move it away and take the photo again.',
@@ -125,10 +134,13 @@ export const en: ErrorPhotoCopy = {
   expectedHeading: "What you measured yourself (optional)",
   expectedLength: "Hand length (cm)",
   expectedWidth: "Hand width (cm)",
-  expectedInvalid: "Enter a number from 5 to 40, or leave it empty.",
+  expectedLengthInvalid: "Hand length must be a number from 5 to 40 cm.",
+  expectedWidthInvalid: "Hand width must be a number from 5 to 40 cm.",
   sentTitle: "Photo received",
   copyCode: "Copy code",
   copied: "Copied",
+  copyFailed:
+    "Couldn't copy automatically. Take a screenshot or long-press the code to copy it.",
   successBefore: "Got it, thank you! Your deletion code is ",
   successMiddle: ". Take a screenshot; you can use it on the ",
   successLink: "Privacy page",
@@ -137,6 +149,8 @@ export const en: ErrorPhotoCopy = {
   failTooMany: "Too many photos sent. Try again in an hour.",
   failUnavailable: "Photos can't be received right now. Try again later.",
   failGeneric: "Sending failed. Try again later.",
+  failTimeout:
+    'The connection is too slow, so the photo wasn\'t sent. Try again, or tap "No thanks".',
   deleteTitle: "Delete a photo I sent",
   deleteIntro:
     "Enter the 12-character deletion code you got after sending a photo, and the photo is deleted at once.",

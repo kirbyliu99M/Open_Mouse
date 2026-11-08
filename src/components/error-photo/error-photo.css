@@ -166,6 +166,7 @@
 /* Review F6: an empty live region stays in the accessibility tree,
    only visually hidden, so what is announced later is heard. */
 .errorPhotoStatus:empty,
+.errorPhotoFieldError:empty,
 .errorPhotoDeleteStatus:empty {
   position: absolute;
   width: 1px;
@@ -210,7 +211,8 @@
 .errorPhotoPrimary:active:not(:disabled) {
   background: var(--button-primary-pressed);
 }
-.errorPhotoPrimary:disabled {
+.errorPhotoPrimary:disabled,
+.errorPhotoPrimary[aria-disabled="true"] {
   opacity: var(--button-primary-disabled-opacity);
   cursor: default;
 }
@@ -250,6 +252,7 @@
   font-size: 1.15rem;
   letter-spacing: 0.08em;
   font-variant-numeric: tabular-nums;
+  -webkit-user-select: all;
   user-select: all;
 }
 

@@ -20,7 +20,8 @@ import type { ErrorPhotoDeps } from "./service";
 
 export function errorPhotoRouteDeps(op: "upload" | "delete"): ErrorPhotoDeps {
   return {
-    // Read on every request (the server bundle may not inline it).
+    // Fixed at build time: next.config.ts defines the variable for every
+    // build (review F1), so changing it needs a rebuild and redeploy.
     enabled: errorPhotoFlag(process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED),
     blobConfigured: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
     limiter: () =>

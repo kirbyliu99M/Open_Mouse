@@ -91,39 +91,65 @@ export type SendOutcome =
   | { readonly ok: true; readonly deleteCode: string }
   | {
       readonly ok: false;
-      readonly reason: "too-many" | "unavailable" | "failed";
+      readonly reason: "too-many" | "unavailable" | "timeout" | "failed";
     };
 
+/** How long the upload may take before the sheet gives up (review H1). */
+export const ERROR_PHOTO_UPLOAD_TIMEOUT_MS = 30_000;
+
+/**
+ * Sends the prepared copy. Never throws, and never waits longer than
+ * `timeoutMs`: the request is aborted then and the answer is `timeout`, even
+ * from a fetch that ignores the abort.
+ */
 export async function sendErrorPhoto(
   photo: Blob,
   meta: ErrorPhotoMeta,
   fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = ERROR_PHOTO_UPLOAD_TIMEOUT_MS,
 ): Promise<SendOutcome> {
-  try {
-    const form = new FormData();
-    form.set("meta", JSON.stringify(meta));
-    form.set("photo", photo, "photo.jpg");
-    const res = await fetchImpl(ERROR_PHOTO_PATH, {
-      method: "POST",
-      body: form,
-      credentials: "omit",
-      cache: "no-store",
-    });
-    if (res.status === 201) {
-      const parsed = errorPhotoResponseSchema.safeParse(await res.json());
-      return parsed.success
-        ? { ok: true, deleteCode: parsed.data.deleteCode }
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<SendOutcome>((resolve) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      resolve({ ok: false, reason: "timeout" });
+    }, timeoutMs);
+  });
+  const attempt = (async (): Promise<SendOutcome> => {
+    try {
+      const form = new FormData();
+      form.set("meta", JSON.stringify(meta));
+      form.set("photo", photo, "photo.jpg");
+      const res = await fetchImpl(ERROR_PHOTO_PATH, {
+        method: "POST",
+        body: form,
+        credentials: "omit",
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      if (res.status === 201) {
+        const parsed = errorPhotoResponseSchema.safeParse(await res.json());
+        return parsed.success
+          ? { ok: true, deleteCode: parsed.data.deleteCode }
+          : { ok: false, reason: "failed" };
+      }
+      if (res.status === 429) return { ok: false, reason: "too-many" };
+      if (res.status === 503 || res.status === 404)
+        return { ok: false, reason: "unavailable" };
+      return { ok: false, reason: "failed" };
+    } catch {
+      return controller.signal.aborted
+        ? { ok: false, reason: "timeout" }
         : { ok: false, reason: "failed" };
     }
-    if (res.status === 429) return { ok: false, reason: "too-many" };
-    if (res.status === 503 || res.status === 404)
-      return { ok: false, reason: "unavailable" };
-    return { ok: false, reason: "failed" };
-  } catch {
-    return { ok: false, reason: "failed" };
+  })();
+  try {
+    return await Promise.race([attempt, timedOut]);
+  } finally {
+    clearTimeout(timer);
   }
 }
-
 export type DeleteOutcome =
   "deleted" | "not-found" | "invalid" | "too-many" | "failed";
 

@@ -67,7 +67,9 @@ export function ErrorPhotoSheet({
   const [lengthCm, setLengthCm] = useState("");
   const [widthCm, setWidthCm] = useState("");
   const [checked, setChecked] = useState({ length: false, width: false });
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
+    "idle",
+  );
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const sending = phase.kind === "sending";
   const sent = phase.kind === "sent";
@@ -111,7 +113,14 @@ export function ErrorPhotoSheet({
   const width = asksNumbers ? parseExpectedCm(widthCm) : null;
   const lengthShownInvalid = checked.length && length === "invalid";
   const widthShownInvalid = checked.width && width === "invalid";
-  const numbersError = lengthShownInvalid || widthShownInvalid;
+  // Review H5: the message names the field(s); its container is always there
+  // (role="alert"), so a blur error is announced.
+  const numbersError = [
+    lengthShownInvalid ? copy.expectedLengthInvalid : "",
+    widthShownInvalid ? copy.expectedWidthInvalid : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   async function send() {
     if (!consent || sending || sent) return;
@@ -152,17 +161,20 @@ export function ErrorPhotoSheet({
           ? copy.failTooMany
           : outcome.reason === "unavailable"
             ? copy.failUnavailable
-            : copy.failGeneric,
+            : outcome.reason === "timeout"
+              ? copy.failTimeout
+              : copy.failGeneric,
     });
   }
 
   async function copyCode(code: string) {
     try {
       await navigator.clipboard.writeText(code);
-      setCopied(true);
+      setCopyState("copied");
     } catch {
-      // No clipboard (permission, an old browser): the code stays selectable.
-      setCopied(false);
+      // No clipboard (permission, an old browser): say so; the code stays
+      // selectable (user-select: all) and can be screenshotted (review H6).
+      setCopyState("failed");
     }
   }
 
@@ -228,7 +240,11 @@ export function ErrorPhotoSheet({
             </button>
           </div>
           <p className="errorPhotoStatus" role="status" aria-live="polite">
-            {copied ? copy.copied : ""}
+            {copyState === "copied"
+              ? copy.copied
+              : copyState === "failed"
+                ? copy.copyFailed
+                : ""}
           </p>
         </>
       ) : (
@@ -282,11 +298,13 @@ export function ErrorPhotoSheet({
                   onBlur={() => setChecked((c) => ({ ...c, width: true }))}
                 />
               </div>
-              {numbersError && (
-                <p id={numbersErrorId} className="errorPhotoError">
-                  {copy.expectedInvalid}
-                </p>
-              )}
+              <p
+                id={numbersErrorId}
+                className="errorPhotoError errorPhotoFieldError"
+                role="alert"
+              >
+                {numbersError}
+              </p>
             </fieldset>
           )}
           <div className="errorPhotoConsent">

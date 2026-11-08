@@ -387,6 +387,37 @@ import {
   tourReturnFocus,
 } from "./tour/tourModel";
 
+/**
+ * Error photos (candidate 未拍板; review F1/H3): the lazy entry, fetched as
+ * soon as this module is evaluated in a browser, before the camera even
+ * starts, and tried a second time if the first fetch fails. The `import()`
+ * sits only inside the flag's branch, which the build removes when
+ * NEXT_PUBLIC_ERROR_PHOTO_ENABLED is not "1" (next.config.ts defines it), so
+ * an off build has no error-photo chunk at all.
+ */
+let loadedErrorPhotoAction: typeof ErrorPhotoActionType | null = null;
+let errorPhotoActionLoad: Promise<typeof ErrorPhotoActionType | null> | null =
+  null;
+function loadErrorPhotoAction(): Promise<typeof ErrorPhotoActionType | null> {
+  if (process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1") {
+    if (!errorPhotoActionLoad) {
+      const once = () =>
+        import("../error-photo/ErrorPhotoAction").then(
+          (m) => (loadedErrorPhotoAction = m.ErrorPhotoAction),
+        );
+      errorPhotoActionLoad = once()
+        .catch(() => once())
+        .catch(() => {
+          // Both tries failed: no offer, and the next mount tries again.
+          errorPhotoActionLoad = null;
+          return null;
+        });
+    }
+    return errorPhotoActionLoad;
+  }
+  return Promise.resolve(null);
+}
+if (typeof window !== "undefined") void loadErrorPhotoAction();
 /** What the frozen photo needs to be drawn where the live frame was. */
 interface PhotoInfo {
   /** The object URL this belongs to. */
@@ -1385,22 +1416,17 @@ export default function EasyScanCamera({
   // the result's first render (review F3).
   const [ErrorPhotoActionView, setErrorPhotoActionView] = useState<
     typeof ErrorPhotoActionType | null
-  >(null);
+  >(() => loadedErrorPhotoAction);
   useEffect(() => {
-    if (process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1") {
-      let live = true;
-      import("../error-photo/ErrorPhotoAction")
-        .then((m) => {
-          if (live) setErrorPhotoActionView(() => m.ErrorPhotoAction);
-        })
-        .catch(() => {
-          // No chunk, no offer: the scan works exactly as without the flag.
-        });
-      return () => {
-        live = false;
-      };
-    }
-  }, []);
+    if (ErrorPhotoActionView) return;
+    let live = true;
+    void loadErrorPhotoAction().then((view) => {
+      if (live && view) setErrorPhotoActionView(() => view);
+    });
+    return () => {
+      live = false;
+    };
+  }, [ErrorPhotoActionView]);
   const readErrorPhotoContext = useCallback((): ErrorPhotoContext => {
     const current = resultRef.current;
     const measured = current.kind === "measured" ? current : null;
@@ -1425,16 +1451,30 @@ export default function EasyScanCamera({
         captureInfoRef.current?.method === "upload" ? "upload" : "camera",
     };
   }, [deviceFit]);
+  // Review H2/H3: drawn from the result the sheet SHOWS, so the row stays (at
+  // the same height) while the sheet slides out; before the chunk is here, a
+  // placeholder row of the same height stands wherever an offer could follow
+  // (a measured sheet, or a failure whose analysis left an overlay), so a
+  // late chunk never moves the buttons.
+  const errorPhotoRowReserved =
+    process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1" &&
+    sheetResult !== null &&
+    (sheetResult.kind === "measured" ||
+      (sheetResult.kind === "gateFailure" && sheetResult.overlay !== null));
   const errorPhotoAction =
-    ErrorPhotoActionView && sheetResult === result ? (
+    !errorPhotoRowReserved ? null : ErrorPhotoActionView && sheetResult ? (
       <ErrorPhotoActionView
         locale={locale}
-        result={result}
-        active={sheetNow !== null && !sheetLeave.leaving}
+        result={sheetResult}
+        active={
+          sheetNow !== null && !sheetLeave.leaving && sheetResult === result
+        }
         file={photoFile}
         readContext={readErrorPhotoContext}
       />
-    ) : null;
+    ) : (
+      <span className="errorPhotoLink errorPhotoLinkGone" aria-hidden="true" />
+    );
   // V3.3 WP3b (candidate): the post-shot banner over the photo, while the
   // measured sheet is up and until it is closed; it fades in and out.
   const [softHintClosedAt, setSoftHintClosedAt] = useState<string | null>(null);
