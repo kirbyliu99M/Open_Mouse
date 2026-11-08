@@ -93,7 +93,10 @@ const tapeMm = z
   .finite()
   .min(50)
   .max(300)
-  .refine((v) => Math.abs(Math.round(v * 10) - v * 10) < 1e-6, "one decimal at most");
+  .refine(
+    (v) => Math.abs(Math.round(v * 10) - v * 10) < 1e-6,
+    "one decimal at most",
+  );
 
 /** One measurer's two readings. */
 const tapePair = z.strictObject({ first: tapeMm, second: tapeMm });
@@ -124,13 +127,14 @@ export const testerRecordSchema = z
     /** Deliberately non-ideal shot (dark, tilted) asked for by the protocol. */
     deliberatelyPoor: z.boolean(),
     captureMode: z.enum(TESTER_CAPTURE_MODES),
-    /** 1 = the first attempt produced a measurement. */
-    attempts: z.number().int().min(1).max(50),
+    /**
+     * Analyses run. 1 = the first attempt produced a measurement; 0 = the
+     * tester gave up before any analysis (camera error, never shot).
+     */
+    attempts: z.number().int().min(0).max(50),
     firstTryOk: z.boolean(),
     /** Failure codes the scan screens showed, in order, at most 50. */
-    failureCodes: z
-      .array(z.string().regex(/^[A-Z0-9_]{2,40}$/))
-      .max(50),
+    failureCodes: z.array(z.string().regex(/^[A-Z0-9_]{2,40}$/)).max(50),
     /** The tester stopped without a measurement. */
     gaveUp: z.boolean(),
     /** Absent only when `gaveUp`. */
@@ -158,6 +162,9 @@ export const testerRecordSchema = z
   })
   .refine((r) => r.firstTryOk === (r.attempts === 1 && !r.gaveUp), {
     message: "firstTryOk means one attempt that measured",
+  })
+  .refine((r) => r.attempts > 0 || r.gaveUp, {
+    message: "zero attempts is only a give-up",
   });
 
 export type TesterRecord = z.infer<typeof testerRecordSchema>;
