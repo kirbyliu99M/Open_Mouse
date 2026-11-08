@@ -985,44 +985,60 @@ test.describe("V3.2 motion pass: the question pages come and go without a jump",
   }
 });
 
-test.describe("short screens: the main button and Skip are on the first screen", () => {
-  for (const [width, height] of [
-    [360, 640],
-    [320, 568],
-    [667, 375],
-  ] as const) {
-    for (const which of ["grip", "thickness"] as const) {
-      test(`${width}x${height}: the ${which} page needs no scrolling to reach its buttons`, async ({
-        page,
-      }) => {
-        await page.setViewportSize({ width, height });
-        if (which === "grip") await openGripPage(page);
-        else await toThicknessPage(page, null);
-        const dialog = which === "grip" ? gripPage(page) : thicknessPage(page);
-        const m = await dialog.evaluate((el) => {
-          const primary = el.querySelector<HTMLElement>(".answerPrimary")!;
-          const skip = el.querySelector<HTMLElement>(".answerSkip")!;
-          const back = el.querySelector<HTMLElement>(".answerBack")!;
-          return {
-            scrolls: el.scrollHeight > el.clientHeight + 1,
-            overflowsX: el.scrollWidth > el.clientWidth + 1,
-            primaryBottom: primary.getBoundingClientRect().bottom,
-            skipBottom: skip.getBoundingClientRect().bottom,
-            backTop: back.getBoundingClientRect().top,
-            viewport: window.innerHeight,
-          };
+// In English and Chinese (the thickness page carries the anonymous-copy
+// switch, whose copy differs in length), with room to spare below 跳過:
+// 16 px on an upright phone, 8 px on one on its side (review M2 of #240).
+for (const locale of ["en-US", "zh-TW"] as const) {
+  test.describe(`short screens: the main button and Skip are on the first screen (${locale})`, () => {
+    test.use({ locale });
+    for (const [width, height, room] of [
+      [360, 640, 16],
+      [320, 568, 16],
+      [667, 375, 8],
+    ] as const) {
+      for (const which of ["grip", "thickness"] as const) {
+        test(`${width}x${height}: the ${which} page needs no scrolling to reach its buttons`, async ({
+          page,
+        }) => {
+          await page.setViewportSize({ width, height });
+          // By test id and class, not by name, so it runs in both languages.
+          await page.goto("/scan/easy/measured-demo");
+          await page.getByTestId("answers-continue-button").click();
+          const dialog = page.locator("dialog.answerDialog");
+          await expect(dialog.locator(".answerPage")).toBeVisible();
+          if (which === "thickness") {
+            await dialog.locator(".answerSkip").click();
+            await expect(dialog.getByTestId("thickness-submit")).toBeVisible();
+            await expect(dialog.getByTestId("sample-consent")).toBeVisible();
+          }
+          await expectSettled(page);
+          // The page swap slides 24 px; wait for it to rest.
+          await page.waitForTimeout(500);
+          const m = await dialog.evaluate((el) => {
+            const primary = el.querySelector<HTMLElement>(".answerPrimary")!;
+            const skip = el.querySelector<HTMLElement>(".answerSkip")!;
+            const back = el.querySelector<HTMLElement>(".answerBack")!;
+            return {
+              scrolls: el.scrollHeight > el.clientHeight + 1,
+              overflowsX: el.scrollWidth > el.clientWidth + 1,
+              primaryBottom: primary.getBoundingClientRect().bottom,
+              skipBottom: skip.getBoundingClientRect().bottom,
+              backTop: back.getBoundingClientRect().top,
+              viewport: window.innerHeight,
+            };
+          });
+          console.log(
+            `${locale} ${width}x${height} ${which}: primary bottom ${m.primaryBottom.toFixed(0)}, skip bottom ${m.skipBottom.toFixed(0)} of ${m.viewport}, scrolls ${m.scrolls}`,
+          );
+          expect(m.primaryBottom).toBeLessThanOrEqual(m.viewport - room);
+          expect(m.skipBottom).toBeLessThanOrEqual(m.viewport - room);
+          expect(m.backTop).toBeGreaterThanOrEqual(0);
+          expect(m.overflowsX).toBe(false);
         });
-        console.log(
-          `${width}x${height} ${which}: primary bottom ${m.primaryBottom.toFixed(0)}, skip bottom ${m.skipBottom.toFixed(0)} of ${m.viewport}, scrolls ${m.scrolls}`,
-        );
-        expect(m.primaryBottom).toBeLessThanOrEqual(m.viewport);
-        expect(m.skipBottom).toBeLessThanOrEqual(m.viewport);
-        expect(m.backTop).toBeGreaterThanOrEqual(0);
-        expect(m.overflowsX).toBe(false);
-      });
+      }
     }
-  }
-});
+  });
+}
 
 test.describe("the typed-length path stores the length only after the scan was stored", () => {
   const lengthKey = `open-mouse:user-length:${SCAN_ID}`;
@@ -1172,8 +1188,9 @@ test.describe("V3.2 motion pass: interrupted question pages end usable", () => {
   });
 });
 
-// Review J1 of #240: the Details button's stretched 44 px hit area must never
-// take a tap meant for the anonymous-copy switch above it.
+// Review J1 of #240: the Details button's 44 px box (taller than its line,
+// overflowing it above and below) must never take a tap meant for the
+// anonymous-copy switch above it.
 /** Every point inside the switch's pill: what `elementFromPoint` hits. */
 async function switchHits(page: Page) {
   return page.getByTestId("sample-consent-switch").evaluate((sw) => {
@@ -1293,6 +1310,7 @@ for (const locale of ["en-US", "zh-TW"] as const) {
           overlapsHorizontally: true,
         });
         const worst = await switchHits(page);
+        expect(worst.sampled).toBeGreaterThan(200);
         for (const at of worst.onDetails)
           failures.push(`worst case: Details at ${at}`);
         for (const miss of worst.misses) failures.push(`worst case: ${miss}`);

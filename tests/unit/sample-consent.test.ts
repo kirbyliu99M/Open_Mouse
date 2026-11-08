@@ -230,6 +230,10 @@ describe("the switch as rendered", () => {
     const more = rule(".sampleConsentMore");
     expect(more).toContain("min-height: 2.75rem");
     expect(more).toContain("display: inline-flex");
+    // ...without making its line taller (review M1): the margin box is one
+    // line tall, and the sentence's bottom padding holds the overflow.
+    expect(more).toContain("margin-block: calc((1lh - 2.75rem) / 2)");
+    expect(rule(".sampleConsentShort")).toContain("padding-bottom: 0.375rem");
     // A transparent border, shown under prefers-contrast: more (J3).
     expect(more).toContain("border: 1px solid transparent");
     expect(css).toMatch(

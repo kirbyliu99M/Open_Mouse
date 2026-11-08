@@ -82,7 +82,11 @@
   opacity: var(--button-primary-disabled-opacity);
 }
 
-/* The always-shown sentence, with 「詳細說明」 at its end. */
+/* The always-shown sentence, with 「詳細說明」 at its end. Its bottom
+   padding holds the lower overflow of that button's 44 px box. */
+.sampleConsentShort {
+  padding-bottom: 0.375rem;
+}
 .sampleConsentShort,
 .sampleConsentDetails {
   margin: 0;
@@ -91,16 +95,22 @@
   line-height: 1.45;
 }
 /* A text button (docs/design-guidelines.md, Secondary button) at the end of
-   the sentence. Its own box is the 44 px hit area: as an inline block it
-   makes its line 44 px tall, so the hit area stays inside the sentence's own
-   box and never reaches the switch above or the send button below (review
-   J1 of #240). */
+   the sentence. Its own box is the 44 px hit area, but its line keeps the
+   plain line height (review M1 of #240): negative block margins of half the
+   difference give it a margin box one line tall, so the box overflows its
+   line evenly, about 13 px up and down. Up is the sentence's own earlier
+   line (the sentence always wraps on a phone; were it ever one line, the
+   switch row stacks above it and keeps its taps). Down is the sentence's
+   bottom padding plus the margins under it, so it does not reach the send
+   button. `-0.75rem` is the fallback where `lh` is unknown. */
 .sampleConsentMore {
   display: inline-flex;
   align-items: center;
   min-width: 2.75rem;
   min-height: 2.75rem;
-  margin: 0;
+  margin: -0.75rem 0;
+  margin-block: calc((1lh - 2.75rem) / 2);
+  margin-inline: 0;
   padding: 0 0.25rem;
   vertical-align: middle;
   /* Transparent, so more-contrast users get an outline instead of colour
