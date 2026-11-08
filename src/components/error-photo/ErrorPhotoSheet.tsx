@@ -174,9 +174,10 @@ export function ErrorPhotoSheet({
       data-testid="error-photo-sheet"
       data-leaving={leaving ? "true" : undefined}
       inert={leaving}
-      onCancel={(e) => {
-        e.preventDefault();
-        if (closableRef.current) onCancel(e);
+      aria-hidden={leaving || undefined}
+      onCancel={(event) => {
+        event.preventDefault();
+        if (closableRef.current) onCancel(event);
       }}
       onClose={() => {
         // A browser that closes a modal regardless of a prevented cancel (a
