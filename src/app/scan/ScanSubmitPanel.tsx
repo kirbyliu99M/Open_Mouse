@@ -10,7 +10,9 @@
  * distinct, actionable copy per error kind).
  *
  * The double-submit guard, the analytics and the error kinds live in
- * `useScanSubmit`, which the easy scan's last question page shares.
+ * `useScanSubmit`, which the easy scan's last question page shares. The
+ * anonymous-copy switch (`SampleConsentToggle`, hand-sample.ts, candidate)
+ * sits right above the button, bound to the same hook.
  *
  * Kept as its own component (rather than inline in ScanClient.tsx) so it
  * can be exercised directly — with a fixed, schema-valid `ScanSubmission` —
@@ -25,6 +27,7 @@ import { useLocale } from "@/client/i18n/LocaleProvider";
 import { scanCommonCopy } from "@/lib/copy/scan-common";
 import type { ScanFlow } from "@/lib/contracts/analytics";
 import { useScanSubmit } from "@/client/scan/useScanSubmit";
+import { SampleConsentToggle } from "@/client/scan/SampleConsentToggle";
 
 export interface ScanSubmitPanelProps {
   readonly submission: ScanSubmission;
@@ -36,7 +39,7 @@ export default function ScanSubmitPanel({
   submission,
   flow,
 }: ScanSubmitPanelProps) {
-  const { state, submit, busy } = useScanSubmit(flow);
+  const { state, submit, busy, sampleNotice } = useScanSubmit(flow);
   const locale = useLocale();
   const words = scanCommonCopy(locale);
 
@@ -49,6 +52,7 @@ export default function ScanSubmitPanel({
 
   return (
     <div className="submitPanel">
+      <SampleConsentToggle notice={sampleNotice} disabled={busy} />
       <button
         type="button"
         className="primaryButton"

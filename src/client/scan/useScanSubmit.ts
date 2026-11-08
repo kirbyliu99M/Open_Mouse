@@ -29,6 +29,14 @@ import {
   submitAndRemember,
   type ScanLocalNotes,
 } from "@/client/scan/submitAndRemember";
+import { sampleConsentOn, withSampleNotice } from "@/client/scan/sampleConsent";
+
+/**
+ * What a screen's `SampleConsentToggle` gets from `useScanSubmit`: called when
+ * the notice mounts, it returns the call for its unmount, so the hook knows
+ * whether the notice is on the screen that sends the scan.
+ */
+export type SampleNoticeBinding = () => () => void;
 
 /** `localStorage`, or null where reading the property itself throws (blocked storage). */
 function safeStorage(): Storage | null {
@@ -60,15 +68,34 @@ export function useScanSubmit(flow?: ScanFlow) {
   // Synchronous lock — see the file-level comment for why `state.kind`
   // alone can't guard against two clicks in the same task.
   const submittingRef = useRef(false);
+  // How many `SampleConsentToggle`s bound to this hook are mounted now. The
+  // anonymous copy (hand-sample.ts, candidate) is asked for only while the
+  // notice is on screen: a screen that never showed it never sends it.
+  const noticesShownRef = useRef(0);
+  const sampleNotice = useCallback<SampleNoticeBinding>(() => {
+    noticesShownRef.current += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      noticesShownRef.current -= 1;
+    };
+  }, []);
 
   const submit = useCallback(
     (submission: ScanSubmission, notes?: ScanLocalNotes) => {
       if (submittingRef.current) return;
       submittingRef.current = true;
       setState({ kind: "submitting" });
+      // The switch is read now, at the moment of sending, not when the
+      // screen opened.
+      const sent = withSampleNotice(submission, {
+        noticeShown: noticesShownRef.current > 0,
+        on: sampleConsentOn(),
+      });
       // The disclosure keys are written inside, and only after a 201. The
       // fetch stays the default one (`undefined`).
-      void submitAndRemember(submission, safeStorage(), undefined, notes).then(
+      void submitAndRemember(sent, safeStorage(), undefined, notes).then(
         (outcome) => {
           if (flow) {
             if (outcome.status === "success") track("scan_submitted", { flow });
@@ -101,5 +128,5 @@ export function useScanSubmit(flow?: ScanFlow) {
   );
 
   const busy = submitBusy(state);
-  return { state, submit, busy, clearError };
+  return { state, submit, busy, clearError, sampleNotice };
 }

@@ -33,8 +33,10 @@ import { scanAnswersCopy, type ChoiceCopy } from "../../lib/copy/scan-answers";
 import { scanCommonCopy } from "../../lib/copy/scan-common";
 import { useLocale } from "../i18n/LocaleProvider";
 import { gripControls, thicknessControls, type GripStyle } from "./answers";
+import { SampleConsentToggle } from "./SampleConsentToggle";
 import { SubmitOverlay } from "./SubmitOverlay";
 import type { SubmitScanErrorKind } from "./submitScan";
+import type { SampleNoticeBinding } from "./useScanSubmit";
 import {
   THICKNESS_HAND_DOTS,
   THICKNESS_HAND_DOT_OPACITIES,
@@ -448,6 +450,14 @@ export interface ThicknessPageProps {
    */
   readonly retakeLabel?: string;
   readonly errorText?: Partial<Record<SubmitScanErrorKind, string>>;
+  /**
+   * The `useScanSubmit` binding of the hook that sends from this page: the
+   * anonymous-copy switch (hand-sample.ts, candidate) is shown right above
+   * 看結果, since this page is where every easy-scan path (paper, card, typed
+   * numbers) sends the scan. Left out only by tests that render the page on
+   * its own; without it there is no switch, and so no anonymous copy.
+   */
+  readonly sampleNotice?: SampleNoticeBinding;
 }
 
 /** Failures whose own sentence asks for a new photo (scan-common.ts submitErrors). */
@@ -473,6 +483,7 @@ export function ThicknessPage({
   onRetake,
   retakeLabel,
   errorText,
+  sampleNotice,
 }: ThicknessPageProps) {
   const locale = useLocale();
   const words = scanAnswersCopy(locale);
@@ -525,6 +536,9 @@ export function ThicknessPage({
                 </button>
               )}
             </div>
+          )}
+          {sampleNotice && (
+            <SampleConsentToggle notice={sampleNotice} disabled={busy} />
           )}
           <PrimaryButton
             disabled={!controls.submitEnabled}

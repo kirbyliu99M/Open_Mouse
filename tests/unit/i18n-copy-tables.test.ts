@@ -22,6 +22,7 @@ const EXPECTED_MODULES = [
   "faq.ts",
   "fit-bands.ts",
   "guides.ts",
+  "hand-sample.ts",
   "home-story.ts",
   "home.ts",
   "how-it-works.ts",
