@@ -87,7 +87,7 @@ export const testerCopy = {
   conditions: {
     title: "這張照片的條件",
     phoneModel: "手機型號",
-    phoneModelHelp: "例如 iPhone 15、Pixel 8，最多 40 字。",
+    phoneModelHelp: "例如 iPhone 15、Pixel 8，最多 40 字。不要填姓名。",
     phoneModelInvalid:
       "請填手機型號，最多 40 字，不要填 Email、電話號碼或網址。",
     surface: "桌面",
@@ -122,6 +122,8 @@ export const testerCopy = {
     photoOn: `會上傳處理過的照片，${TESTER_PHOTO_RETENTION_DAYS} 天後刪除。`,
     photoOff: "照片留在手機上，只送出數值。",
     referenceReminder: "掃描畫面會直接用這個參考物，請放好再開始。",
+    handReminder: (hand: string) =>
+      `掃描時請確認相機上的手別和卷尺填的一樣（${hand}）。`,
     start: "開始掃描",
     editTape: "修改卷尺實測",
   },
@@ -132,7 +134,7 @@ export const testerCopy = {
     photoNotice: `你勾選了附上照片：處理過的照片會上傳，${TESTER_PHOTO_RETENTION_DAYS} 天後刪除。`,
     /** In place of the camera's privacy line when the photo box is not ticked. */
     noPhotoNotice:
-      "照片留在手機上，只會送出你填的卷尺值、拍攝條件和 App 的量測結果。",
+      "照片留在手機上。會送出你填的卷尺值和拍攝條件、掃描過程（嘗試次數、失敗原因）和 App 的量測結果。",
   },
 
   giveUp: {
@@ -161,7 +163,7 @@ export const testerCopy = {
     failedTooMany: "送出太多次了，請過一小時再試。",
     failedInvalid: "這筆資料有問題，送不出去。請改一下拍攝條件再拍一次。",
     handMismatch:
-      "掃描到的手和卷尺填的不是同一隻，所以這張沒有送出。請確認後再拍一次。",
+      "掃描到的手和卷尺填的不是同一隻，所以這張沒有送出。請點相機畫面上方的手別切換成正確的那隻手，再拍一次。",
     referenceMismatch:
       "掃描用的參考物和你選的不一樣，所以這張沒有送出。請再拍一次。",
     failedCode: "測試者代碼已失效，請重新輸入。",

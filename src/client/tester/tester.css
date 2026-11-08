@@ -256,7 +256,7 @@
   width: 100%;
   min-height: 44px;
   margin-top: 0.5rem;
-  border: none;
+  border: 1px solid transparent;
   background: none;
   color: var(--accent-text);
   font: inherit;

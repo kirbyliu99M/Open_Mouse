@@ -431,11 +431,14 @@ export function TesterClient({ runPhotoPipelineImpl }: TesterClientProps) {
   };
 
   const nextShot = () => {
-    // Tape and phone model stay; the rest of the conditions are asked again.
-    setConditionsDraft((d) => ({
-      ...EMPTY_CONDITIONS,
-      phoneModel: d.phoneModel,
-    }));
+    // After a sent shot ("拍下一張"): tape and phone model stay, the rest of
+    // the conditions are asked again. After a shot that was not sent ("再拍一
+    // 次": wrong hand, wrong reference, refused record) the conditions stay.
+    if (send.kind === "sent")
+      setConditionsDraft((d) => ({
+        ...EMPTY_CONDITIONS,
+        phoneModel: d.phoneModel,
+      }));
     setConditionsTried(false);
     setShot(null);
     setSend({ kind: "idle" });
@@ -604,6 +607,7 @@ export function TesterClient({ runPhotoPipelineImpl }: TesterClientProps) {
           onEditTape={() => setStep("tape")}
           photo={photoOptIn}
           onPhotoChange={setPhotoOptIn}
+          tapeHand={tape?.hand ?? null}
         />
       )}
 
@@ -972,6 +976,8 @@ function ConditionsStep(props: {
   /** Whether this shot's processed photo is sent (the consent page's box, per shot). */
   readonly photo: boolean;
   readonly onPhotoChange: (photo: boolean) => void;
+  /** The hand the tape values are for, for the reminder. */
+  readonly tapeHand: "left" | "right" | null;
 }) {
   const { draft, tried, onChange } = props;
   const c = copy.conditions;
@@ -1092,6 +1098,13 @@ function ConditionsStep(props: {
           </span>
         </label>
         {draft.reference && <p className="testerNote">{c.referenceReminder}</p>}
+        {props.tapeHand && (
+          <p className="testerNote" data-testid="tester-hand-reminder">
+            {c.handReminder(
+              props.tapeHand === "left" ? copy.tape.left : copy.tape.right,
+            )}
+          </p>
+        )}
         <button type="submit" className="primaryButton testerPrimary">
           {c.start}
         </button>
