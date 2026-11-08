@@ -22,6 +22,9 @@
  *   - store it in a PRIVATE Blob store under a random path (never a scan id, IP
  *     or user id), `allowOverwrite: false`;
  *   - keep only the hash of the deletion code (`sha256`), never the code;
+ *   - treat the code as the upload's idempotency key: a POST whose code hash
+ *     already exists stores nothing new and answers 200 with the same code
+ *     (a retry after a client timeout must not create a second photo);
  *   - rate-limit per client IP before writing;
  *   - delete every photo older than the retention window in the daily cron, and
  *     the photo + its row on a valid deletion code;
@@ -46,7 +49,14 @@ export const ERROR_PHOTO_RETENTION_DAYS = 180;
 export const ERROR_PHOTO_MAX_BYTES = 1_500_000;
 export const ERROR_PHOTO_MAX_SIDE_PX = 2048;
 
-/** `POST` multipart/form-data: `photo` (image/jpeg) + `meta` (JSON string). */
+/**
+ * `POST` multipart/form-data: `photo` (image/jpeg) + `meta` (JSON string) +
+ * `code` (the deletion code). The BROWSER generates the code (crypto random,
+ * `ERROR_PHOTO_CODE_ALPHABET`) before sending and shows it to the person even
+ * if the response never arrives, so a photo the server stored after a client
+ * timeout can still be deleted (review #241 round 3). 201 new photo, 200 the
+ * same code was already stored (idempotent retry), 400 bad code format.
+ */
 export const ERROR_PHOTO_PATH = "/api/error-photos";
 /** `POST` JSON `{ code }` → 204; unknown code → 404. */
 export const ERROR_PHOTO_DELETE_PATH = "/api/error-photos/delete";
@@ -86,15 +96,15 @@ export const errorPhotoMetaSchema = z.strictObject({
 
 export type ErrorPhotoMeta = z.infer<typeof errorPhotoMetaSchema>;
 
-/** 201 body. The code is shown once and never stored in clear. */
+/** Deletion-code alphabet: no 0/O/1/I. 12 characters ≈ 60 bits. */
+export const ERROR_PHOTO_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+export const errorPhotoCodeSchema = z.string().regex(/^[A-HJ-NP-Z2-9]{12}$/);
+
+/** 201/200 body: echoes the code the browser sent; never stored in clear. */
 export const errorPhotoResponseSchema = z.strictObject({
-  deleteCode: z.string().regex(/^[A-HJ-NP-Z2-9]{12}$/),
+  deleteCode: errorPhotoCodeSchema,
 });
 
 export const errorPhotoDeleteSchema = z.strictObject({
-  code: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .pipe(z.string().regex(/^[A-HJ-NP-Z2-9]{12}$/)),
+  code: z.string().trim().toUpperCase().pipe(errorPhotoCodeSchema),
 });

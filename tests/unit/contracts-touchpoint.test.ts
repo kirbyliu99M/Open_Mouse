@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  ERROR_PHOTO_CODE_ALPHABET,
   ERROR_PHOTO_CONSENT_VERSION,
   ERROR_PHOTO_REFERENCES,
   ERROR_PHOTO_RETENTION_DAYS,
+  errorPhotoCodeSchema,
   errorPhotoDeleteSchema,
   errorPhotoMetaSchema,
   errorPhotoResponseSchema,
@@ -93,6 +95,17 @@ describe("error-photo contract", () => {
       errorPhotoMetaSchema.safeParse({ ...ok, failureCode: "no hand!" })
         .success,
     ).toBe(false);
+  });
+
+  it("the code alphabet is exactly what the code schema accepts", () => {
+    expect(ERROR_PHOTO_CODE_ALPHABET).toHaveLength(32);
+    expect(new Set(ERROR_PHOTO_CODE_ALPHABET).size).toBe(32);
+    for (const ch of ERROR_PHOTO_CODE_ALPHABET) {
+      expect(errorPhotoCodeSchema.safeParse(ch.repeat(12)).success).toBe(true);
+    }
+    for (const ch of "01IO") {
+      expect(errorPhotoCodeSchema.safeParse(ch.repeat(12)).success).toBe(false);
+    }
   });
 
   it("deletion codes use the unambiguous 12-character alphabet", () => {

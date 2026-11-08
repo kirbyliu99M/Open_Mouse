@@ -15,10 +15,17 @@
  *     (built before the notice existed) never sends it, so its scans are never
  *     copied: data collected under the old 24-hour promise is not reused
  *     (PDPA Art. 20).
- *   - No link back: the row has no `scan_id`, no `session_id`, no `user_id`,
- *     no foreign key to any table, and no time finer than the calendar month
- *     (UTC). Deleting a scan or an account does not (cannot) delete its
- *     sample; the notice says so before the person sends the scan.
+ *   - No link back: the row has no `scan_id`, `session_id`, `user_id`, no
+ *     foreign key to any table, and no time finer than the calendar month
+ *     (UTC).
+ *   - User-initiated deletes take the copy with them (privacy review
+ *     2026-11-08): while the scan exists its copy can be re-identified by
+ *     value matching, so deleting one scan, an anonymous session or a whole
+ *     account also deletes, in the same batch, at most ONE copy whose values,
+ *     hand, method, model version and month match each deleted scan. The 24 h
+ *     anonymous expiry, the inactive-account purge and the expire cron do NOT
+ *     delete copies: once the scan is gone, nothing can find the copy again,
+ *     and the notice says so before the person sends the scan.
  *   - Millimetre values are rounded to `HAND_SAMPLE_ROUND_MM` before storage.
  *   - Never kept: photos, landmarks/pixel coordinates, IP, user agent, locale,
  *     free text.

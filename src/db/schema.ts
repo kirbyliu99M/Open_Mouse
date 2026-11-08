@@ -696,9 +696,11 @@ export const resultFeedback = pgTable(
 //
 // Candidate (未拍板, Kirby 2026-11-08). The de-linked copy of a scan's
 // measurements, kept by default unless the person opted out before sending.
-//   - no `scan_id`, `session_id` or `user_id`, no foreign key at all: the row
-//     outlives every deletion of the scan or the account, by design, and the
-//     notice says so before the scan is sent.
+//   - no `scan_id`, `session_id` or `user_id`, no foreign key at all. A
+//     user-initiated delete (one scan, an anonymous session, an account)
+//     removes one value-matching copy per deleted scan in the same batch; the
+//     24 h expiry, the inactive purge and the expire cron keep the copy, which
+//     then cannot be traced back (contract header).
 //   - no time finer than the UTC calendar month (`sampled_month`, CHECKed).
 //   - millimetres rounded to whole mm by the writer (`roundSampleMm`); stored
 //     as smallint so a fraction cannot slip in.
