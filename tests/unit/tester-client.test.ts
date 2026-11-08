@@ -6,14 +6,22 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   TESTER_CODE_ALPHABET,
+  TESTER_PAGE_PATH,
   participantOf,
   testerCodeSchema,
   testerRecordSchema,
 } from "../../src/lib/contracts/tester";
 import {
   buildTesterRecord,
+  giveUpCaptureMode,
+  handMatches,
   referenceMatches,
 } from "../../src/client/tester/record";
+import { buildTourSteps } from "../../src/client/camera/tour/tourModel";
+import {
+  ANALYTICS_MUTED_PATHS,
+  analyticsMutedPath,
+} from "../../src/client/analytics/mutedPaths";
 import {
   EMPTY_TAPE,
   buildTape,
@@ -236,7 +244,7 @@ describe("buildTesterRecord", () => {
       shotId: RECORD.shotId,
       tape,
       conditions,
-      attempts: [{ measured: true, failureCodes: [] }],
+      attempts: [{ measured: true, captureMode: "camera", failureCodes: [] }],
       captureMode: "camera",
       measured,
       photo: { widthPx: 640, heightPx: 480 },
@@ -253,9 +261,13 @@ describe("buildTesterRecord", () => {
       tape,
       conditions: { ...conditions, reference: "card", cardType: "transit" },
       attempts: [
-        { measured: false, failureCodes: ["NO_HAND"] },
-        { measured: false, failureCodes: ["PAPER_NOT_FOUND", "LOW_LIGHT"] },
-        { measured: true, failureCodes: [] },
+        { measured: false, captureMode: "upload", failureCodes: ["NO_HAND"] },
+        {
+          measured: false,
+          captureMode: "upload",
+          failureCodes: ["PAPER_NOT_FOUND", "LOW_LIGHT"],
+        },
+        { measured: true, captureMode: "camera", failureCodes: [] },
       ],
       captureMode: "upload",
       measured,
@@ -348,5 +360,55 @@ describe("muted analytics on the tester page", () => {
     expect(trackingMuted()).toBe(false);
     track("scan_entry_shown", props);
     expect(send).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("hand and capture mode", () => {
+  it("a scan of the other hand does not match the tape", () => {
+    expect(handMatches("right", "right")).toBe(true);
+    expect(handMatches("right", "left")).toBe(false);
+  });
+
+  it("a give-up records the last analysed photo's capture mode, the camera when none", () => {
+    expect(giveUpCaptureMode([])).toBe("camera");
+    expect(
+      giveUpCaptureMode([
+        { measured: false, captureMode: "camera", failureCodes: [] },
+        { measured: false, captureMode: "upload", failureCodes: [] },
+      ]),
+    ).toBe("upload");
+  });
+});
+
+describe("the scan tour on the tester page", () => {
+  it("leaves the reference step out when the reference is locked, and only then", () => {
+    const ids = (locked?: boolean) =>
+      buildTourSteps({
+        reference: "a4",
+        cardModeAvailable: true,
+        ...(locked ? { referenceLocked: true } : {}),
+      }).map((s) => s.id);
+    expect(ids()).toEqual(["reference", "placement", "cue", "shutter"]);
+    expect(ids(true)).toEqual(["placement", "cue", "shutter"]);
+  });
+});
+
+describe("no page view on the tester page", () => {
+  it("names exactly the contract's tester path", () => {
+    expect(ANALYTICS_MUTED_PATHS).toEqual([TESTER_PAGE_PATH]);
+  });
+
+  it("mutes it in both locales and below it, nothing else", () => {
+    for (const p of ["/scan/tester", "/en/scan/tester", "/scan/tester/demo"])
+      expect(analyticsMutedPath(p), p).toBe(true);
+    for (const p of [
+      null,
+      "/",
+      "/scan/easy",
+      "/scan/testers",
+      "/en",
+      "/en/scan",
+    ])
+      expect(analyticsMutedPath(p), String(p)).toBe(false);
   });
 });

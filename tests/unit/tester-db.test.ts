@@ -195,6 +195,29 @@ describe("tester_shots on Postgres", () => {
         record: { ...RECORD, attempts: 51 },
       }),
     ).rejects.toThrow();
+    // The contract's refinements, mirrored by CHECKs: zero attempts only on a
+    // give-up, and firstTryOk exactly for one attempt that measured.
+    await expect(
+      repo.insert({
+        ...base,
+        shotId: "77777777-7777-4777-8777-777777777777",
+        record: { ...RECORD, attempts: 0 },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      repo.insert({
+        ...base,
+        shotId: "88888888-8888-4888-8888-888888888888",
+        record: { ...RECORD, attempts: 2, firstTryOk: true },
+      }),
+    ).rejects.toThrow();
+    expect(
+      await repo.insert({
+        ...base,
+        shotId: "99999999-9999-4999-8999-999999999999",
+        record: { ...RECORD, attempts: 1, firstTryOk: true },
+      }),
+    ).toBe(true);
   });
 
   it("the purge deletes photos past retention and NULLs their pathname, keeping the rows", async () => {

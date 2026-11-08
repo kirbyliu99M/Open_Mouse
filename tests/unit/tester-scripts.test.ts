@@ -24,7 +24,10 @@ import {
   generateTesterCodes,
   isInside,
   localPhotoCutoffDay,
+  parseDeleteArgs,
+  parseExportArgs,
   parseParticipantArg,
+  pruneExportFolder,
   parseRecordsJsonl,
   photosToKeep,
   pruneLocalPhotos,
@@ -202,5 +205,90 @@ describe("the local export follows the server's rules", () => {
       rows: 0,
       photos: 0,
     });
+  });
+});
+
+describe("script arguments", () => {
+  it("tester-delete: the id alone, with --yes, with --out in any order", () => {
+    expect(parseDeleteArgs(["P07"])).toEqual({
+      participant: "P07",
+      yes: false,
+      outDir: undefined,
+    });
+    expect(parseDeleteArgs(["P07", "--yes"])).toEqual({
+      participant: "P07",
+      yes: true,
+      outDir: undefined,
+    });
+    expect(parseDeleteArgs(["--out", "../x", "p07", "--yes"])).toEqual({
+      participant: "P07",
+      yes: true,
+      outDir: "../x",
+    });
+    expect(parseDeleteArgs(["P07", "--out", "P08"])).toEqual({
+      participant: "P07",
+      yes: false,
+      outDir: "P08",
+    });
+  });
+
+  it("tester-delete refuses no id, two ids, --out without a folder, unknown flags", () => {
+    for (const bad of [
+      [],
+      ["--yes"],
+      ["P07", "P08"],
+      ["P07", "--out"],
+      ["P07", "--out", "--yes"],
+      ["P07", "--force"],
+    ])
+      expect(() => parseDeleteArgs(bad), bad.join(" ")).toThrow();
+  });
+
+  it("tester-export: an optional folder and --prune-only", () => {
+    expect(parseExportArgs([])).toEqual({
+      outDir: undefined,
+      pruneOnly: false,
+    });
+    expect(parseExportArgs(["--prune-only", "../e"])).toEqual({
+      outDir: "../e",
+      pruneOnly: true,
+    });
+    expect(() => parseExportArgs(["a", "b"])).toThrow();
+    expect(() => parseExportArgs(["--yes"])).toThrow();
+  });
+});
+
+describe("offline prune of an export folder", () => {
+  it("deletes photos past retention or without a row, from records.jsonl alone", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tester-prune-"));
+    try {
+      const id = (n: number) =>
+        `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+      const rows = [
+        {
+          shotId: id(1),
+          participant: "P07",
+          day: "2026-11-08",
+          failureCodes: [],
+        },
+        {
+          shotId: id(2),
+          participant: "P07",
+          day: "2026-11-09",
+          failureCodes: [],
+        },
+      ] as unknown as Parameters<typeof shotsCsv>[0];
+      mkdirSync(join(dir, "photos"));
+      for (const n of [1, 2, 3])
+        writeFileSync(join(dir, "photos", `${id(n)}.jpg`), "x");
+      writeFileSync(join(dir, "records.jsonl"), recordsJsonl(rows));
+      expect(pruneExportFolder(dir, new Date("2027-05-07T16:30:00Z"))).toBe(2);
+      expect(existsSync(join(dir, "photos", `${id(2)}.jpg`))).toBe(true);
+      const csv = readFileSync(join(dir, "shots.csv"), "utf8");
+      expect(csv).toContain(`photos/${id(2)}.jpg`);
+      expect(csv).not.toContain(`photos/${id(1)}.jpg`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

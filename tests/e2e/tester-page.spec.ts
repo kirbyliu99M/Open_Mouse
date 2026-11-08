@@ -198,6 +198,11 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
       page.getByRole("radio", { name: copy.conditions.references.card }),
     ).toHaveCount(0);
   await page.getByLabel(copy.conditions.phoneModel).fill("Pixel 8");
+  // The photo choice from the consent page is shown, and can change, per shot.
+  await expect(
+    page.getByRole("checkbox", { name: copy.conditions.photo }),
+  ).toBeChecked();
+  await expect(page.getByText(copy.conditions.photoOn)).toBeVisible();
   await chooseConditions(page, [
     copy.conditions.surfaces.white,
     copy.conditions.lightings.daylight,
@@ -213,6 +218,7 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
   ).toBeVisible({
     timeout: 30_000,
   });
+  await shot(page, "5a-tour-welcome");
   await dismissFirstRun(page);
   const giveUp = page.getByTestId("tester-give-up");
   await expect(giveUp).toHaveText(copy.scan.giveUp);

@@ -59,19 +59,12 @@ describe("which deployments are indexable", () => {
 });
 
 describe("robots.txt", () => {
-  it("points at the sitemap on SITE_URL and closes only machine endpoints and the tester page", () => {
+  it("points at the sitemap on SITE_URL and closes only machine endpoints", () => {
     vi.stubEnv("VERCEL_ENV", "production");
     const r = robots();
     expect(r.sitemap).toBe(`${SITE_URL}/sitemap.xml`);
     const rule = Array.isArray(r.rules) ? r.rules[0] : r.rules;
-    expect(rule.disallow).toEqual([
-      "/api/",
-      "/ingest/",
-      "/monitoring",
-      // The hidden data-tester page (candidate), in both locales.
-      "/scan/tester",
-      "/en/scan/tester",
-    ]);
+    expect(rule.disallow).toEqual(["/api/", "/ingest/", "/monitoring"]);
     // A private page must stay crawlable so its noindex is read.
     for (const path of ["/results", "/l/", "/account"]) {
       expect(JSON.stringify(rule.disallow)).not.toContain(path);

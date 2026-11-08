@@ -115,6 +115,12 @@ describe("analytics are muted only by the tester page", () => {
 });
 
 describe("/scan/tester is not advertised", () => {
+  it("robots.txt does not name it (naming it would advertise it)", () => {
+    expect(readFileSync(join(SRC, "app/robots.ts"), "utf8")).not.toContain(
+      "tester",
+    );
+  });
+
   it("is not in the sitemap's fixed paths", () => {
     expect(SITEMAP_PATHS.some((p) => p.startsWith("/scan/tester"))).toBe(false);
   });
@@ -126,7 +132,8 @@ describe("/scan/tester is not advertised", () => {
       if (
         MAY_IMPORT_TESTER(from) ||
         from === "src/lib/contracts/tester.ts" ||
-        from === "src/app/robots.ts"
+        // Names it only to send no page view there.
+        from === "src/client/analytics/mutedPaths.ts"
       )
         continue;
       // A string literal naming the path (comments may mention it).
