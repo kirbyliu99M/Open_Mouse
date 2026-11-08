@@ -60,7 +60,7 @@ export interface ErrorPhotoCopy {
   deleteFailed: string;
 }
 
-const zhTW: ErrorPhotoCopy = {
+export const zhTW: ErrorPhotoCopy = {
   sendButton: "傳送這張照片，幫我們修正",
   numbersWrongLink: "數字看起來不對？",
   title: "傳送照片之前",
@@ -101,7 +101,7 @@ const zhTW: ErrorPhotoCopy = {
   deleteFailed: "現在無法刪除，請稍後再試。",
 };
 
-const en: ErrorPhotoCopy = {
+export const en: ErrorPhotoCopy = {
   sendButton: "Send this photo to help us fix it",
   numbersWrongLink: "Numbers look wrong?",
   title: "Before you send this photo",
