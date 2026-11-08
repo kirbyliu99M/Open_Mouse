@@ -18,8 +18,7 @@ import { migratedDatabase } from "./fixtures/pglite";
 
 type RepoDb = Parameters<typeof createDrizzleErrorPhotoRepo>[0];
 
-const META: ErrorPhotoMeta = {
-  consent: ERROR_PHOTO_CONSENT_VERSION,
+const META: Omit<ErrorPhotoMeta, "consent"> = {
   trigger: "scan-failed",
   reference: "card",
   failureCode: "HAND_NOT_DETECTED",

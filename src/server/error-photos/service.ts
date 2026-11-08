@@ -41,6 +41,7 @@ import {
   errorPhotoDeleteSchema,
   errorPhotoMetaSchema,
   errorPhotoResponseSchema,
+  type ErrorPhotoMeta,
 } from "../../lib/contracts/error-photo";
 import { generateDeleteCode } from "../../lib/error-photo/code";
 import { checkErrorPhotoJpeg } from "../../lib/error-photo/jpeg";
@@ -133,6 +134,15 @@ async function readLimitedBytes(
     at += c.byteLength;
   }
   return out;
+}
+
+/** The metadata as stored: everything but `consent`, which has its own column. */
+export function withoutConsent(
+  meta: ErrorPhotoMeta,
+): Omit<ErrorPhotoMeta, "consent"> {
+  const stored: Partial<ErrorPhotoMeta> = { ...meta };
+  delete stored.consent;
+  return stored as Omit<ErrorPhotoMeta, "consent">;
 }
 
 /** Lower-case hex SHA-256 of a deletion code (the only form stored). */
@@ -247,7 +257,8 @@ export async function handleErrorPhotoUpload(
         consentVersion: meta.data.consent,
         blobPathname: pathname,
         deleteCodeSha256: hashDeleteCode(code),
-        meta: meta.data,
+        // Consent has its own column; the stored meta is the rest.
+        meta: withoutConsent(meta.data),
         bytes: bytes.byteLength,
         createdOn: startOfUtcDay(now),
       });

@@ -40,9 +40,35 @@
     opacity: 1;
   }
 }
+/* Review F7: out the way it came, like the scan's sheets (useLeaving). */
+.errorPhotoSheet[data-leaving="true"] {
+  animation: errorPhotoOut var(--motion-sheet-out) var(--ease-in) both;
+}
+.errorPhotoSheet[data-leaving="true"]::backdrop {
+  animation: errorPhotoFadeOut var(--motion-sheet-out) var(--ease-in) both;
+}
+@keyframes errorPhotoOut {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+@keyframes errorPhotoFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .errorPhotoSheet {
     animation: errorPhotoFade var(--motion-reduced) linear both;
+  }
+  .errorPhotoSheet[data-leaving="true"] {
+    animation: errorPhotoFadeOut var(--motion-reduced) linear both;
   }
 }
 @media (prefers-contrast: more) {
@@ -137,8 +163,19 @@
   line-height: 1.5;
 }
 
-.errorPhotoStatus:empty {
-  display: none;
+/* Review F6: an empty live region stays in the accessibility tree,
+   only visually hidden, so what is announced later is heard. */
+.errorPhotoStatus:empty,
+.errorPhotoDeleteStatus:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 .errorPhotoStatus,
 .errorPhotoError {
@@ -178,9 +215,10 @@
   cursor: default;
 }
 
-/* Secondary: a text link in --accent-text, transparent border (contrast). */
-.errorPhotoCancel,
-.errorPhotoLink {
+/* Secondary: a text link in --accent-text, transparent border (contrast).
+   The result sheet's own link (`.errorPhotoLink`) is styled in the camera's
+   eager easy-scan.css, not here (review F1). */
+.errorPhotoCancel {
   min-height: 44px;
   padding: 0 0.5rem;
   border: 1px solid transparent;
@@ -189,18 +227,14 @@
   font: inherit;
   cursor: pointer;
 }
-.errorPhotoLink {
-  display: block;
-  margin-top: 0.25rem;
-}
+
 .errorPhotoCancel:disabled {
   color: var(--text-tertiary);
   cursor: default;
 }
 
 .errorPhotoSheet :is(button, input, a):focus-visible,
-.errorPhotoDelete :is(button, input):focus-visible,
-.errorPhotoLink:focus-visible {
+.errorPhotoDelete :is(button, input):focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 2px;
 }
@@ -241,9 +275,7 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
-.errorPhotoDeleteStatus:empty {
-  display: none;
-}
+
 .errorPhotoDeleteStatus {
   margin-top: 0.75rem;
 }

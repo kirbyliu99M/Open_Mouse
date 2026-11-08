@@ -157,6 +157,14 @@ const MOUSE_PHOTO_CACHE_CONTROL =
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Error photos (candidate 未拍板, src/lib/flags.ts): always defined, as "1"
+  // or "0", so `process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1"` is a
+  // constant in every bundle and an off build drops the error-photo code and
+  // its `import()` entirely (an unset NEXT_PUBLIC_ variable is not inlined).
+  env: {
+    NEXT_PUBLIC_ERROR_PHOTO_ENABLED:
+      process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1" ? "1" : "0",
+  },
   // The dev-mode indicator badge has no place in a design screenshot — off
   // in every environment, not just for captures (item 7).
   devIndicators: false,

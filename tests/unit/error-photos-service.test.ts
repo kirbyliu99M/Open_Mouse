@@ -159,7 +159,11 @@ describe("handleErrorPhotoUpload", () => {
     expect(JSON.stringify(row)).not.toContain(deleteCode);
     expect(row.blobPathname).toBe(`error-photos/${UUID}.jpg`);
     expect(row.consentVersion).toBe(ERROR_PHOTO_CONSENT_VERSION);
-    expect(row.meta).toEqual(META);
+    // Consent is its own column; the stored meta is the rest.
+    const { consent, ...rest } = META;
+    expect(consent).toBe(ERROR_PHOTO_CONSENT_VERSION);
+    expect(row.meta).toEqual(rest);
+    expect(row.meta).not.toHaveProperty("consent");
     expect(row.bytes).toBe(syntheticJpeg().byteLength);
     expect(row.createdOn.toISOString()).toBe("2026-11-08T00:00:00.000Z");
   });

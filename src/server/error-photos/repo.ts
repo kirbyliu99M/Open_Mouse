@@ -10,7 +10,8 @@ export interface NewErrorPhotoRow {
   readonly blobPathname: string;
   /** Lower-case hex SHA-256 of the deletion code; the code itself is never stored. */
   readonly deleteCodeSha256: string;
-  readonly meta: ErrorPhotoMeta;
+  /** Everything but `consent` (its own column). */
+  readonly meta: Omit<ErrorPhotoMeta, "consent">;
   readonly bytes: number;
   /** Start of the UTC day of the upload. */
   readonly createdOn: Date;

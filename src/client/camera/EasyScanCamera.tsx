@@ -342,12 +342,12 @@ import { DetectorProgress } from "./DetectorProgress";
 import { measuredSheetNumbers } from "../photo/unverified-note";
 import { shownScanMeasurements } from "../../lib/fit/fit-scale";
 import { measuringShown } from "./measuringIndicator";
-import { CARD_REFERENCE_ENABLED, ERROR_PHOTO_ENABLED } from "../../lib/flags";
-import { errorPhotoOffer } from "../error-photo/offer";
-import { usePreparedErrorPhoto } from "../error-photo/usePreparedErrorPhoto";
-import type { ErrorPhotoMetaInput } from "../error-photo/send";
-import { ErrorPhotoSheet } from "../../components/error-photo/ErrorPhotoSheet";
-import { errorPhotoCopy } from "../../lib/copy/error-photo";
+import { CARD_REFERENCE_ENABLED } from "../../lib/flags";
+// Types only (erased): the error-photo code itself is a guarded import().
+import type {
+  ErrorPhotoAction as ErrorPhotoActionType,
+  ErrorPhotoContext,
+} from "../error-photo/ErrorPhotoAction";
 import { cardReferenceCopy } from "../../lib/copy/card-reference";
 import {
   cardHintText,
@@ -786,16 +786,8 @@ export default function EasyScanCamera({
   const easy = easyScanCopy(locale);
   // Error photos (candidate 未拍板, src/lib/contracts/error-photo.ts): the
   // photo on screen, held in memory only (as `fileRef`, for the render), and
-  // the open consent sheet: the result it belongs to (any new result closes
-  // it) and its metadata, read when it was opened.
+  // only with the flag on (review F1).
   const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [errorPhotoSession, setErrorPhotoSession] = useState<{
-    readonly result: object;
-    readonly meta: Omit<
-      ErrorPhotoMetaInput,
-      "widthPx" | "heightPx" | "expected"
-    >;
-  } | null>(null);
   // The shutter has a photo that `runPipeline` has not taken on yet (F10,
   // Kirby's second phone test 2026-10-21/22: "拍照掃描不需要 loading 畫面"):
   // the small 測量中… line is already on the frozen photo, from the frame the
@@ -1384,61 +1376,65 @@ export default function EasyScanCamera({
       : null;
   const sheetLeave = useLeaving(sheetNow, leaveMs("sheet", reducedMotion));
   const sheetResult = sheetLeave.shown;
-  // Error photos (candidate 未拍板): what this result may offer to send
-  // (offer.ts), and its prepared copy, made in the background; the button or
-  // link shows only once that copy exists. Flag off: nothing at all.
-  const errorOffer = errorPhotoOffer({
-    enabled: ERROR_PHOTO_ENABLED && sheetNow !== null,
-    result,
-  });
-  const errorPhotoPrepared = usePreparedErrorPhoto(
-    errorOffer ? photoFile : null,
-    errorOffer,
-  );
-  const errorPhotoCanOffer = errorOffer !== null && errorPhotoPrepared !== null;
-  const openErrorPhoto = useCallback(() => {
+  // Error photos (candidate 未拍板): the link on the result sheet and its
+  // consent sheet live in a chunk loaded only with the flag on (review F1):
+  // the `import()` sits in a branch the build removes when
+  // NEXT_PUBLIC_ERROR_PHOTO_ENABLED is not "1" (next.config.ts defines it),
+  // so with the flag off none of the error-photo code is in any bundle.
+  // Loaded at mount, long before a result, so the link's row is there from
+  // the result's first render (review F3).
+  const [ErrorPhotoActionView, setErrorPhotoActionView] = useState<
+    typeof ErrorPhotoActionType | null
+  >(null);
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1") {
+      let live = true;
+      import("../error-photo/ErrorPhotoAction")
+        .then((m) => {
+          if (live) setErrorPhotoActionView(() => m.ErrorPhotoAction);
+        })
+        .catch(() => {
+          // No chunk, no offer: the scan works exactly as without the flag.
+        });
+      return () => {
+        live = false;
+      };
+    }
+  }, []);
+  const readErrorPhotoContext = useCallback((): ErrorPhotoContext => {
     const current = resultRef.current;
-    const offer = errorPhotoOffer({
-      enabled: ERROR_PHOTO_ENABLED,
-      result: current,
-    });
-    if (
-      !offer ||
-      (current.kind !== "measured" && current.kind !== "gateFailure")
-    )
-      return;
     const measured = current.kind === "measured" ? current : null;
-    setErrorPhotoSession({
-      result: current,
-      meta: {
-        trigger: offer.trigger,
-        reference: offer.mode === "card" ? "card" : paperSizeRef.current,
-        hand: measured ? measured.submission.hand : handChipRef.current.hand,
-        ...(offer.failureCode ? { failureCode: offer.failureCode } : {}),
-        ...(measured
-          ? {
-              measured: {
-                handLengthMm: measured.measurements.handLengthMm,
-                palmWidthMm: measured.measurements.palmWidthMm,
-              },
-              measurementModelVersion:
-                measured.submission.measurementModelVersion,
-            }
-          : {}),
-        deviceClass:
-          deviceFit === "phone" || deviceFit === "desktop"
-            ? deviceFit
-            : "unknown",
-        captureMode:
-          captureInfoRef.current?.method === "upload" ? "upload" : "camera",
-      },
-    });
+    return {
+      paperSize: paperSizeRef.current,
+      hand: measured ? measured.submission.hand : handChipRef.current.hand,
+      ...(measured
+        ? {
+            measured: {
+              handLengthMm: measured.measurements.handLengthMm,
+              palmWidthMm: measured.measurements.palmWidthMm,
+            },
+            measurementModelVersion:
+              measured.submission.measurementModelVersion,
+          }
+        : {}),
+      deviceClass:
+        deviceFit === "phone" || deviceFit === "desktop"
+          ? deviceFit
+          : "unknown",
+      captureMode:
+        captureInfoRef.current?.method === "upload" ? "upload" : "camera",
+    };
   }, [deviceFit]);
-  const errorPhotoSheetOpen =
-    errorPhotoSession !== null &&
-    errorPhotoSession.result === result &&
-    errorOffer !== null &&
-    errorPhotoPrepared !== null;
+  const errorPhotoAction =
+    ErrorPhotoActionView && sheetResult === result ? (
+      <ErrorPhotoActionView
+        locale={locale}
+        result={result}
+        active={sheetNow !== null && !sheetLeave.leaving}
+        file={photoFile}
+        readContext={readErrorPhotoContext}
+      />
+    ) : null;
   // V3.3 WP3b (candidate): the post-shot banner over the photo, while the
   // measured sheet is up and until it is closed; it fades in and out.
   const [softHintClosedAt, setSoftHintClosedAt] = useState<string | null>(null);
@@ -2741,7 +2737,8 @@ export default function EasyScanCamera({
       if (!reducedMotionRef.current) setFlashKey((k) => k + 1);
       setAnnounced(scanCommonCopy(localeRef.current).photoTaken);
       fileRef.current = file;
-      setPhotoFile(file);
+      if (process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1")
+        setPhotoFile(file);
       // A frame cut to the screen's part is drawn exactly as the live video's
       // visible part was: it IS that part, so it is its own "stream" for the layout.
       setPhotoInfo(
@@ -2841,7 +2838,8 @@ export default function EasyScanCamera({
       uploadFromReferenceScreenRef.current = false;
       stopStream();
       fileRef.current = file;
-      setPhotoFile(file);
+      if (process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1")
+        setPhotoFile(file);
       debugPhotoRef.current = file;
       const previewUrl = URL.createObjectURL(file);
       setPhotoInfo(null);
@@ -5418,18 +5416,9 @@ export default function EasyScanCamera({
                   locale,
                 )}
               </p>
-              {/* Error photos (candidate 未拍板): a quiet link, only once the
-                  copy to send is ready (flag off: never). */}
-              {errorPhotoCanOffer && sheetResult === result && (
-                <button
-                  type="button"
-                  className="errorPhotoLink"
-                  data-testid="error-photo-numbers-wrong"
-                  onClick={openErrorPhoto}
-                >
-                  {errorPhotoCopy(locale).numbersWrongLink}
-                </button>
-              )}
+              {/* Error photos (candidate 未拍板): 「數字看起來不對？」, from the
+                  lazy chunk (flag off: never loaded, nothing here). */}
+              {errorPhotoAction}
               {/* F15 (candidate): only the title, the numbers, retake and
                   continue (and Debug with ?debug=1). "Still being
                   validated" and "adjusted by hand" are said on the results
@@ -5543,18 +5532,9 @@ export default function EasyScanCamera({
                     </button>
                   )}
                 {/* Error photos (candidate 未拍板): offered only where the
-                    analysis found something on the photo and the copy to
-                    send is ready (offer.ts; flag off: never). */}
-                {errorPhotoCanOffer && sheetResult === result && (
-                  <button
-                    type="button"
-                    className="errorPhotoLink"
-                    data-testid="error-photo-send-entry"
-                    onClick={openErrorPhoto}
-                  >
-                    {errorPhotoCopy(locale).sendButton}
-                  </button>
-                )}
+                    analysis found something on the photo (offer.ts), from
+                    the lazy chunk (flag off: never loaded, nothing here). */}
+                {errorPhotoAction}
               </div>
             </>
           )}
@@ -5573,18 +5553,6 @@ export default function EasyScanCamera({
         </dialog>
       )}
       {sheetLeave.leaving && <LeaveShield target={sheetDialogRef} />}
-      {errorPhotoSheetOpen &&
-        errorPhotoSession &&
-        errorOffer &&
-        errorPhotoPrepared && (
-          <ErrorPhotoSheet
-            locale={locale}
-            photo={errorPhotoPrepared}
-            mode={errorOffer.mode}
-            meta={errorPhotoSession.meta}
-            onClose={() => setErrorPhotoSession(null)}
-          />
-        )}
 
       {/* V3.2 motion pass #22: drawn from the props it had (`adjustLeave`),
           so a cancel or a confirm fades it out over what comes back. */}

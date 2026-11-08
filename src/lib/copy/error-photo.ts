@@ -36,9 +36,12 @@ export interface ErrorPhotoCopy {
   expectedHeading: string;
   expectedLength: string;
   expectedWidth: string;
-  expectedUnit: string;
   expectedInvalid: string;
   /** After a send. `{code}` is split around: before + code + middle + link + after. */
+  /** The sheet's title once the photo is sent (privacy review F4). */
+  sentTitle: string;
+  copyCode: string;
+  copied: string;
   successBefore: string;
   successMiddle: string;
   successLink: string;
@@ -69,17 +72,19 @@ export const zhTW: ErrorPhotoCopy = {
     "照片只有 Palmate 團隊看得到，只用來找出量錯的原因，上傳後約 6 個月（180 天）自動刪除。",
     "照片不會存進你的帳號，刪除帳號也不會刪到它；照片會附上這次量到的數字（取整到 1 公釐），方便我們找出哪裡量錯。送出後會給你一組刪除碼，隨時可以用它刪除。",
   ],
-  paperModeNote: "畫面裡如果有卡片或文件，請先移開再傳送。",
+  paperModeNote: "如果畫面裡有卡片或文件，請按「不用了」，移開後重拍。",
   previewAlt: "將要傳送的照片",
   checkbox: "我同意依上述方式傳送並保存這張照片",
   send: "傳送",
   cancel: "不用了",
   sending: "傳送中…",
   expectedHeading: "你自己量到的數字（選填）",
-  expectedLength: "手長",
-  expectedWidth: "手寬",
-  expectedUnit: "公分",
+  expectedLength: "手長（公分）",
+  expectedWidth: "手寬（公分）",
   expectedInvalid: "請輸入 5 到 40 之間的數字，或留空。",
+  sentTitle: "已收到照片",
+  copyCode: "複製刪除碼",
+  copied: "已複製",
   successBefore: "收到了，謝謝！你的刪除碼是 ",
   successMiddle: "。請截圖保存，之後可以在",
   successLink: "隱私權政策頁",
@@ -111,17 +116,19 @@ export const en: ErrorPhotoCopy = {
     "It isn't saved to your account, and deleting your account won't delete it; it carries the numbers measured this time (rounded to 1 mm) so we can find what went wrong. After sending you'll get a deletion code you can use any time.",
   ],
   paperModeNote:
-    "If a card or document is in the picture, move it away before sending.",
+    'If a card or document is in the picture, tap "No thanks", move it away and take the photo again.',
   previewAlt: "The photo that will be sent",
   checkbox: "I agree to send and keep this photo as described",
   send: "Send",
   cancel: "No thanks",
   sending: "Sending…",
   expectedHeading: "What you measured yourself (optional)",
-  expectedLength: "Hand length",
-  expectedWidth: "Hand width",
-  expectedUnit: "cm",
+  expectedLength: "Hand length (cm)",
+  expectedWidth: "Hand width (cm)",
   expectedInvalid: "Enter a number from 5 to 40, or leave it empty.",
+  sentTitle: "Photo received",
+  copyCode: "Copy code",
+  copied: "Copied",
   successBefore: "Got it, thank you! Your deletion code is ",
   successMiddle: ". Take a screenshot; you can use it on the ",
   successLink: "Privacy page",
