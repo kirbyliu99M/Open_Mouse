@@ -129,7 +129,7 @@ export const testerCopy = {
   scan: {
     giveUp: "這次放棄",
     /** In place of "photos stay on the phone" when the photo box is ticked. */
-    photoNotice: `你勾選了附上照片：處理過的照片會上傳，${TESTER_PHOTO_RETENTION_DAYS} 天後刪除。`,
+    photoNotice: `這張會附上處理過的照片，${TESTER_PHOTO_RETENTION_DAYS} 天後刪除。`,
     /** In place of the camera's privacy line when the photo box is not ticked. */
     noPhotoNotice:
       "照片留在手機上。會送出你填的卷尺值和拍攝條件、掃描過程（嘗試次數、失敗原因）和 App 的量測結果。",
