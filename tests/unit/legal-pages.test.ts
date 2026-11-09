@@ -55,9 +55,9 @@ describe("the privacy notice and the terms", () => {
     // Scans: 24 hours without an account, otherwise until the account goes.
     expect(zh).toContain("建立後 24 小時內刪除");
     expect(zh).toContain("登入時保存在你的帳號，直到你刪除帳號");
-    // No 90-day claim: only true if RETENTION_PURGE_MODE=delete (unconfirmed).
-    expect(zh).not.toContain("90 天");
-    expect(en).not.toMatch(/90 days/);
+    // 90 days unused: production runs RETENTION_PURGE_MODE=delete (Kirby 2026-11-10).
+    expect(zh).toContain("帳號 90 天未使用");
+    expect(en).toMatch(/90 days without use/);
     // The unnamed copy: kept by default, deleted with the person's own delete.
     expect(zh).toContain(
       "「保留一份不記名的數值副本」開關，預設開啟，可以關掉",

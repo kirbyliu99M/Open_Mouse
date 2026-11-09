@@ -12,8 +12,9 @@
  * paragraph per item. Its 〔待 Kirby〕 blanks are resolved conservatively,
  * never with an unchecked fact:
  *   - the controller keeps the current name, Palmate 團隊 (TODO below);
- *   - kept "until you delete your account", with no 90-day claim: the live
- *     policy's 90-day sentence is only true if RETENTION_PURGE_MODE=delete;
+ *   - accounts: kept until deleted or 90 days unused (Kirby 2026-11-10:
+ *     production runs RETENTION_PURGE_MODE=delete; the value is a secret, so
+ *     this rests on his word);
  *   - retention days and regions say "per the provider's settings", except
  *     PostHog's United States (src/server/analytics/proxy.ts);
  *   - Gemini receives the numbers, the grip and the picks only.
@@ -71,7 +72,7 @@ export const zhTW: LegalCopy = {
     {
       heading: "一、重點摘要",
       paragraphs: [
-        "照片預設不離開你的裝置。掃描時，照片只在你的瀏覽器裡分析。只有你在掃描失敗時按下「傳送這張照片，幫我們修正」，或按「數字看起來不對？」回報，並勾選同意，照片才會上傳。受邀測試者在測試頁面勾選「附上處理過的照片」時，照片也會上傳（見第三節第 8 項）。",
+        "照片預設不離開你的裝置。掃描時，照片只在你的瀏覽器裡分析。只有你在掃描失敗時按下「傳送這張照片，幫我們修正」，或按「數字看起來不對？」回報，並勾選同意，照片才會上傳。受邀測試者在測試頁面同意參加時，也同意附上照片；每一張都可以在送出前取消（見第三節第 8 項）。",
         "測量數值預設會保留一份不連到帳號的副本。送出掃描前，畫面上有「保留一份不記名的數值副本」開關，預設開啟，可以關掉。",
         "我們不販售個人資料。除了第四節列出、代我們處理資料的服務商，我們不把單筆資料提供給品牌或其他第三方。",
       ],
@@ -81,20 +82,20 @@ export const zhTW: LegalCopy = {
       paragraphs: [
         "蒐集目的（法定特定目的）：〇九〇 消費者、客戶管理與服務；一三五 資（通）訊服務；一三六 資（通）訊與資料庫管理；一三七 資通安全與管理；一五七 調查、統計與研究分析。",
         "資料類別：C001 辨識個人者（登入帳號、自願上傳的照片）；C012 身體描述（手部尺寸）；C036 生活格調（問卷中的滑鼠使用經驗）。",
-        "利用方式：以電腦自動計算推薦與統計；以加密連線傳輸、以電子方式儲存；自願上傳的照片由團隊成員人工檢視；對外只發布不含姓名或帳號的彙總統計。",
+        "利用方式：以電腦自動計算推薦與統計；以加密連線傳輸、以電子方式儲存；上傳的照片由專案負責人人工檢視；對外只發布不含姓名或帳號的彙總統計。",
       ],
     },
     {
       heading: "三、我們蒐集的資料與保存期間",
       paragraphs: [
-        "1. 掃描結果。內容：手長、手寬等手部尺寸、左右手、你自己選的握法與手掌厚度（薄／中／厚），以及推薦結果。用途：計算並顯示適合你的滑鼠。保存：未登入時，建立後 24 小時內刪除；登入時保存在你的帳號，直到你刪除帳號。",
+        "1. 掃描結果。內容：手長、手寬等手部尺寸、左右手、你自己選的握法與手掌厚度（薄／中／厚），以及推薦結果。用途：計算並顯示適合你的滑鼠。保存：未登入時，建立後 24 小時內刪除；登入時保存在你的帳號，直到你刪除帳號，或帳號 90 天未使用時連同帳號一起刪除。",
         "2. 不記名的數值副本（預設開啟，可以關掉）。內容：手長、手掌長、手寬與各指長度（取整到 1 公釐）、左右手、你自己選的握法與手掌厚度（沒選就不記）、校正方式、量測版本、送出的月份（以世界標準時間計）；不含照片、帳號、IP 或裝置資訊，也沒有任何連回該次掃描的欄位。用途：改善量測與推薦的準確度；整理成手型分布等統計，供內部研究與對外發布（見第五節）。保存：本服務營運期間，服務終止時刪除；刪除方式見第六節。",
         "3. 自願上傳的照片（預設不上傳）。內容：手背與紙張或卡片附近範圍的裁切照片（用卡片量測時，偵測到的卡片會先在你的裝置上塗黑；拍攝位置等檔案資訊會移除），以及隨照片附上的資料：這次量到的手長與手寬（取整到 1 公釐）、你回報的正確數字（如果有填）、觸發原因（掃描失敗或數字不對）與失敗代碼、左右手、紙張或卡片種類、量測版本、裝置類別（手機／平板／電腦）、拍照或從相簿選取、照片尺寸、上傳日期。用途：找出量測錯誤的原因並修正。保存：上傳後約 6 個月（180 天）自動刪除；你也可以隨時用刪除碼提早刪除。",
-        "4. 帳號資料（只有用 Google 登入時）。內容：Google 提供的姓名、Email、大頭貼、登入所需的授權資料，以及最後使用時間。用途：讓你保存與查看結果。保存：直到你刪除帳號。",
+        "4. 帳號資料（只有用 Google 登入時）。內容：Google 提供的姓名、Email、大頭貼、登入所需的授權資料，以及最後使用時間。用途：讓你保存與查看結果。保存：直到你刪除帳號，或帳號 90 天未使用時自動刪除。",
         "5. 問卷與結果評分（自願填寫）。問卷內容：滑鼠使用經驗、滿意度、困擾點、主要用途、握法、目錄外滑鼠的品牌與尺寸感受、留言；手部尺寸以 5 公釐分組。結果評分內容：星等與留言，並附上伺服器從掃描讀出的快照：手型分類、握法、校正方式、手掌厚度、推薦前三名與適配等級、引擎版本、網頁語言。用途：改善推薦；問卷統計會在結果頁顯示給手型相近的其他使用者（見第五節）。登入時送出的問卷與評分會連到你的帳號，問卷可以在「帳號」頁查看與修改。保存：登入時送出的資料跟著帳號刪除；未登入時送出的資料在本服務營運期間保留，服務終止時刪除。",
         "6. 連線資料。內容：你的 IP 位址只以雜湊值暫存，用於流量限制與防止濫用；主機服務商（Vercel）也會留存一般的請求紀錄。用途：維護網站安全。保存：流量限制的雜湊值約 24 小時；主機紀錄依該服務商的設定。",
         "7. 使用統計與錯誤紀錄。PostHog 記錄頁面瀏覽、按鈕與掃描流程事件，以及照片品質的粗略分級（不含測量值），也會收到瀏覽器種類、作業系統、螢幕大小、語言與時區等裝置資訊；不使用 cookie，只在分頁開著時暫存一個隨機識別碼，不會把你的 IP 傳給 PostHog，也不錄製畫面。Google Analytics 在你按下 cookie「同意」後才載入；依 Google 的運作方式，會收到你的 IP 位址與瀏覽器資訊。Sentry 在網站出錯時收到錯誤訊息與瀏覽器種類，並記錄約八成頁面載入與請求的效能追蹤（取樣率 0.8）；Email、IP、帳號與帶單位的測量數值會先移除。保存：依各服務商的設定。",
-        "8. 受邀測試者的紀錄（只適用於收到我們邀請與測試者代碼的人）。我們請少數受邀的測試者在不公開的測試頁面上，填寫自己用卷尺量的數值並進行掃描，用來檢查量測準確度；一般使用者不會進到這個頁面。內容：測試者代號（例如 P07，不含代碼的其他部分）、一個隨機的紀錄編號、同意說明的版本、日期（紀錄不含時間；照片檔在儲存空間會有上傳時間，照片刪除時一起刪除）、卷尺量的手長與掌寬（每位量測者量兩次，可以有第二位量測者，以及選填的手掌邊到邊寬度）、左右手、自己填的手機型號、桌面、光線、參考物與卡片種類、是否故意拍得不理想、拍照或從相簿選取、嘗試次數、失敗代碼、是否放棄，以及 App 量到的數值、量測版本與校正方式；測試者勾選附上照片時，另有一張處理方式和第 3 項相同的裁切照片與照片尺寸。紀錄裡沒有姓名、Email、帳號或 IP（流量限制見第 6 項），除了自己填的手機型號，也沒有其他裝置資訊；網站共通的主機紀錄與錯誤紀錄（第 6、7 項）仍然適用。測試頁面不送 PostHog 事件，也不送 Google Analytics 的頁面瀏覽事件，不產生第 2 項的數值副本。用途：只用於改善量測準確度。保存：照片上傳後約 180 天自動刪除；數值保留到我們刪除，或測試者要求刪除為止。為了分析，資料可能會匯出到專案負責人的電腦；電腦上的副本會在每次整理資料時刪除超過 180 天的照片，測試者要求刪除時也會一起刪除。",
+        "8. 受邀測試者的紀錄（只適用於收到我們邀請與測試者代碼的人）。我們請少數受邀的測試者在不公開的測試頁面上，填寫自己用卷尺量的數值並進行掃描，用來檢查量測準確度；一般使用者不會進到這個頁面。內容：測試者代號（例如 P07，不含代碼的其他部分）、一個隨機的紀錄編號、同意說明的版本、日期（紀錄不含時間；照片檔在儲存空間會有上傳時間，照片刪除時一起刪除）、卷尺量的手長與掌寬（每位量測者量兩次，可以有第二位量測者，以及選填的手掌邊到邊寬度）、左右手、自己填的手機型號、桌面、光線、參考物與卡片種類、是否故意拍得不理想、拍照或從相簿選取、嘗試次數、失敗代碼、是否放棄，以及 App 量到的數值、量測版本與校正方式；另有一張處理方式和第 3 項相同的裁切照片與照片尺寸（測試者同意參加時一併同意附上照片，每一張都可以在送出前取消）。紀錄裡沒有姓名、Email、帳號或 IP（流量限制見第 6 項），除了自己填的手機型號，也沒有其他裝置資訊；網站共通的主機紀錄與錯誤紀錄（第 6、7 項）仍然適用。測試頁面不送 PostHog 事件，也不送 Google Analytics 的頁面瀏覽事件，不產生第 2 項的數值副本。用途：只用於改善量測準確度。保存：照片上傳後約 180 天自動刪除；數值保留到我們刪除，或測試者要求刪除為止。為了分析，資料可能會匯出到專案負責人的電腦；電腦上的副本會在每次整理資料時刪除超過 180 天的照片，測試者要求刪除時也會一起刪除。",
       ],
     },
     {
@@ -103,15 +104,14 @@ export const zhTW: LegalCopy = {
         "我們使用以下服務商代為處理資料。依個資法第 4 條，它們是受我們委託處理資料的對象。資料會存放或傳輸到台灣以外的地區，存放區域依各服務商的設定。",
         "Vercel：網站主機、照片儲存空間。",
         "Neon：資料庫。",
-        // TODO(Kirby): confirm the Gemini API key is on a paid plan (the free
-        // tier lets Google use what is sent to improve its products).
+        // Gemini API key is on a paid plan (Kirby 2026-11-10).
         "Google：帳號登入、Google Analytics，以及 Gemini（只收到測量數值、握法和推薦結果，用來寫成說明文字；不會收到照片、姓名或帳號）。",
         // PostHog's region is the only one the repo shows
         // (src/server/analytics/proxy.ts → us.i.posthog.com).
         "PostHog：使用統計；美國。",
         "Sentry：錯誤紀錄。",
-        // TODO(Kirby): confirm who has Vercel project access.
-        "能看到自願上傳照片的，只有擁有網站主機管理權限的 Palmate 團隊成員。",
+        // Only Kirby has Vercel project access (Kirby 2026-11-10).
+        "能看到上傳照片的，只有擁有網站主機管理權限的專案負責人一人。",
       ],
     },
     {
@@ -149,7 +149,7 @@ export const zhTW: LegalCopy = {
       paragraphs: [
         "照片預設只在你的裝置上處理。上傳的照片存放在不公開的儲存空間，檔名是隨機的。",
         "刪除碼只以無法還原的雜湊值保存。",
-        // TODO(Kirby): confirm the production domain redirects HTTP to HTTPS.
+        // Checked 2026-11-10: http:// answers 308 to https://.
         "網站與服務商之間的連線都經過加密（HTTPS）。",
         "錯誤紀錄與使用統計不含 Email 與帳號；錯誤紀錄裡帶單位的測量數值會先移除，使用統計不記錄測量值，瀏覽器種類則會保留。",
         "發生資料被竊取、竄改、毀損、滅失或洩漏時，我們會即時寄 Email 通知有登入帳號的人；無法個別聯絡的人（例如未登入的使用者），在網站上公告。通知內容包括發生了什麼事、影響哪些資料，以及我們已採取的措施。",
@@ -239,7 +239,7 @@ export const en: LegalCopy = {
     {
       heading: "1. Summary",
       paragraphs: [
-        "By default your photo does not leave your device. When you scan, the photo is analysed only in your browser. It is uploaded only if you press “Send this photo to help us fix it” after a failed scan, or report with “Numbers look wrong?”, and tick the consent box. Invited testers' photos are also uploaded when they tick the photo box on the test page (see section 3.8).",
+        "By default your photo does not leave your device. When you scan, the photo is analysed only in your browser. It is uploaded only if you press “Send this photo to help us fix it” after a failed scan, or report with “Numbers look wrong?”, and tick the consent box. Invited testers agree to attach photos when they agree to take part on the test page, and can untick any photo before it is sent (see section 3.8).",
         "By default we keep a copy of the measurements that is not linked to any account. Before you send a scan, the screen shows a switch, “Keep an unnamed copy of these numbers”, which is on by default and which you can turn off.",
         "We do not sell personal data. Apart from the providers listed in section 4, which process data on our behalf, we do not give individual records to brands or any other third party.",
       ],
@@ -249,20 +249,20 @@ export const en: LegalCopy = {
       paragraphs: [
         "Purposes (the statutory specific purposes): 090 consumer and customer management and service; 135 information and communication services; 136 information, communication and database management; 137 information security and management; 157 surveys, statistics and research analysis.",
         "Categories: C001 identifiers (a sign-in account, a photo you chose to upload); C012 physical description (hand sizes); C036 lifestyle (your experience with mice, from the questionnaire).",
-        "How it is used: rankings and statistics are computed automatically; data travels over encrypted connections and is stored electronically; photos you chose to upload are looked at by team members; outside the team we publish only aggregate statistics with no name or account.",
+        "How it is used: rankings and statistics are computed automatically; data travels over encrypted connections and is stored electronically; uploaded photos are looked at by the project lead; outside the team we publish only aggregate statistics with no name or account.",
       ],
     },
     {
       heading: "3. What we collect and how long we keep it",
       paragraphs: [
-        "3.1 Scan results. What: hand sizes such as hand length and width, which hand, the grip and palm thickness (thin, medium or thick) you chose yourself, and the rankings. Why: to work out and show the mice that suit you. Kept: without an account, deleted within 24 hours of the scan; with an account, kept in it until you delete the account.",
+        "3.1 Scan results. What: hand sizes such as hand length and width, which hand, the grip and palm thickness (thin, medium or thick) you chose yourself, and the rankings. Why: to work out and show the mice that suit you. Kept: without an account, deleted within 24 hours of the scan; with an account, kept in it until you delete the account, or deleted with the account after 90 days without use.",
         "3.2 The unnamed copy of the measurements (on by default; you can turn it off). What: hand length, palm length, palm width and finger lengths (rounded to 1 mm), which hand, the grip and palm thickness you chose yourself (left out if you chose none), the calibration method, the measuring version, and the month it was sent (in UTC). No photo, account, IP address or device information, and no field that leads back to the scan. Why: to make the measurements and rankings more accurate, and for statistics such as the spread of hand shapes, for our own research and for publication (see section 5). Kept: for as long as the service runs, and deleted when it closes; how to have it deleted is in section 6.",
         "3.3 Photos you chose to upload (not uploaded by default). What: a cropped photo of the back of the hand and the area around the paper or card (in card mode the detected card is blacked out on your device first, and file details such as where it was taken are removed), with what comes with it: the hand length and width measured this time (rounded to 1 mm), the right numbers you reported (if you entered them), why it was sent (a failed scan or wrong numbers) and the failure code, which hand, the paper or card type, the measuring version, the kind of device (phone, tablet or computer), whether it was taken with the camera or picked from the gallery, the photo's size, and the upload date. Why: to find and fix the causes of measuring errors. Kept: deleted automatically about 6 months (180 days) after upload; you can also delete it earlier at any time with its deletion code.",
-        "3.4 Account (only if you sign in with Google). What: the name, email and picture Google provides, what sign-in needs, and when you last used the account. Why: so you can keep and see your results. Kept: until you delete your account.",
+        "3.4 Account (only if you sign in with Google). What: the name, email and picture Google provides, what sign-in needs, and when you last used the account. Why: so you can keep and see your results. Kept: until you delete your account, or automatically after 90 days without use.",
         "3.5 Questionnaire and result ratings (optional). Questionnaire: your experience with mice, satisfaction, what bothers you, main use, grip, the brand and size feel of mice not in our catalogue, and your comment; hand sizes are kept only in 5 mm groups. Result ratings: the stars and your comment, with a snapshot the server reads from the scan: hand-type class, grip, calibration method, palm thickness, the top three picks and their fit level, the engine version, and the page language. Why: to improve the rankings; questionnaire statistics are shown on the results page to other people with similar hands (see section 5). Answers and ratings sent while signed in are linked to your account, where you can see and change your questionnaire answers. Kept: what you send while signed in is deleted with your account; what you send without an account is kept for as long as the service runs, and deleted when it closes.",
         "3.6 Connection data. What: your IP address, kept only as a hash and only for a short time, for rate limiting and to prevent abuse; our hosting provider (Vercel) also keeps ordinary request logs. Why: to keep the site safe. Kept: the rate-limit hash for about 24 hours; the hosting logs per the provider's settings.",
         "3.7 Usage statistics and error reports. PostHog records page views, button and scan-step events, and a rough grade of photo quality (no measurements); it also receives device details such as the browser, operating system, screen size, language and time zone. It uses no cookies and keeps a random identifier only while the tab is open; your IP address is not passed to PostHog, and nothing on screen is recorded. Google Analytics loads only after you press “Accept” on the cookie banner; the way Google works, it receives your IP address and browser details. Sentry receives the error message and the browser type when something breaks, and performance traces for about 80% of page loads and requests (sample rate 0.8); emails, IP addresses, account details and measurements with units are removed first. Kept: per each provider's settings.",
-        "3.8 Invited testers' records (only for people we invite and give a tester code). We ask a small number of invited testers to type in their own tape-measure values and scan on a page that is not public, to check how accurate the measurements are; ordinary visitors never reach that page. What: the tester ID (for example P07, without the rest of the code), a random record number, the consent version, the date (the record holds no time; a photo file carries its upload time in storage, deleted with the photo), the hand length and palm width measured with a tape (two readings per measurer, an optional second measurer, and an optional edge-to-edge palm width), which hand, the phone model as typed, the surface, lighting, reference and card type, whether the shot was deliberately poor, camera or gallery, the number of attempts, failure codes, whether the tester gave up, and what the app measured with its measuring version and calibration method; when the tester ticks the photo box, also a cropped photo prepared the same way as in 3.3, and its size. The records hold no name, email, account or IP address (rate limiting is in 3.6), and no device information apart from the phone model typed in; the site-wide hosting logs and error reports (3.6, 3.7) still apply. The test page sends no PostHog events and no Google Analytics page views, and makes no unnamed copy (3.2). Why: only to improve how accurately we measure. Kept: photos are deleted automatically about 180 days after upload; the numbers until we delete them or the tester asks us to. For analysis the data may be exported to the project lead's computer; that copy loses photos older than 180 days each time the data is sorted, and is deleted too when the tester asks.",
+        "3.8 Invited testers' records (only for people we invite and give a tester code). We ask a small number of invited testers to type in their own tape-measure values and scan on a page that is not public, to check how accurate the measurements are; ordinary visitors never reach that page. What: the tester ID (for example P07, without the rest of the code), a random record number, the consent version, the date (the record holds no time; a photo file carries its upload time in storage, deleted with the photo), the hand length and palm width measured with a tape (two readings per measurer, an optional second measurer, and an optional edge-to-edge palm width), which hand, the phone model as typed, the surface, lighting, reference and card type, whether the shot was deliberately poor, camera or gallery, the number of attempts, failure codes, whether the tester gave up, and what the app measured with its measuring version and calibration method; also a cropped photo prepared the same way as in 3.3, and its size (testers agree to attach photos when they agree to take part, and can untick any photo before it is sent). The records hold no name, email, account or IP address (rate limiting is in 3.6), and no device information apart from the phone model typed in; the site-wide hosting logs and error reports (3.6, 3.7) still apply. The test page sends no PostHog events and no Google Analytics page views, and makes no unnamed copy (3.2). Why: only to improve how accurately we measure. Kept: photos are deleted automatically about 180 days after upload; the numbers until we delete them or the tester asks us to. For analysis the data may be exported to the project lead's computer; that copy loses photos older than 180 days each time the data is sorted, and is deleted too when the tester asks.",
       ],
     },
     {
@@ -271,12 +271,10 @@ export const en: LegalCopy = {
         "These providers process data on our behalf; under Article 4 of the PDPA they act for us. Data is stored or moved outside Taiwan, in the regions each provider's settings use.",
         "Vercel: website hosting and photo storage.",
         "Neon: database.",
-        // TODO(Kirby): Gemini paid plan (see the zh-TW table).
         "Google: sign-in, Google Analytics, and Gemini (which receives only the measurements, the grip and the rankings, to write the explanation; never the photo, your name or your account).",
         "PostHog: usage statistics; United States.",
         "Sentry: error reports.",
-        // TODO(Kirby): who has Vercel project access.
-        "Only Palmate team members with admin access to the website's hosting can see photos you chose to upload.",
+        "Only one person, the project lead, has admin access to the website's hosting and can see uploaded photos.",
       ],
     },
     {
@@ -314,7 +312,6 @@ export const en: LegalCopy = {
       paragraphs: [
         "By default photos are processed only on your device. Uploaded photos are kept in private storage under random file names.",
         "Deletion codes are kept only as a hash that cannot be turned back into the code.",
-        // TODO(Kirby): HTTP-to-HTTPS redirect (see the zh-TW table).
         "Connections between the site and its providers are encrypted (HTTPS).",
         "Error reports and usage statistics contain no emails or accounts; measurements with units are removed from error reports, usage statistics record no measurements, and the browser type is kept.",
         "If data is stolen, altered, damaged, lost or leaked, we will email everyone with a signed-in account promptly, and post a notice on the site for people we cannot reach individually (such as people without an account). The notice says what happened, which data is affected, and what we have done.",
