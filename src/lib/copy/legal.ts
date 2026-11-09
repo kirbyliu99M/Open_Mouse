@@ -24,6 +24,12 @@
  * opt-in photo upload and points to the 「刪除我傳送的照片」 form, which
  * src/app/privacy/page.tsx renders only under that flag
  * (tests/unit/legal-pages.test.ts documents the coupling).
+ *
+ * Item 三.8 / 3.8 and the matching section-六 paragraph describe the invited
+ * tester page `/scan/tester` (#243, contract src/lib/contracts/tester.ts,
+ * consent text src/lib/tester/copy.ts). They apply only to people holding a
+ * code, so they stay true while TESTER_CODES is unset; keep them in step with
+ * the page's consent text (candidate, Kirby 2026-11-09).
  */
 import type { Locale } from "../contracts/locale";
 import { pickCopy } from "../i18n/copy";
@@ -60,7 +66,7 @@ export const zhTW: LegalCopy = {
     {
       heading: "一、重點摘要",
       paragraphs: [
-        "照片預設不離開你的裝置。掃描時，照片只在你的瀏覽器裡分析。只有你在掃描失敗時按下「傳送這張照片，幫我們修正」，或按「數字看起來不對？」回報，並勾選同意，照片才會上傳。",
+        "照片預設不離開你的裝置。掃描時，照片只在你的瀏覽器裡分析。只有你在掃描失敗時按下「傳送這張照片，幫我們修正」，或按「數字看起來不對？」回報，並勾選同意，照片才會上傳。受邀測試者在測試頁面勾選「附上處理過的照片」時，照片也會上傳（見第三節第 8 項）。",
         "測量數值預設會保留一份不連到帳號的副本。送出掃描前，畫面上有「保留一份不記名的數值副本」開關，預設開啟，可以關掉。",
         "我們不販售個人資料。除了第四節列出、代我們處理資料的服務商，我們不把單筆資料提供給品牌或其他第三方。",
       ],
@@ -83,6 +89,7 @@ export const zhTW: LegalCopy = {
         "5. 問卷與結果評分（自願填寫）。問卷內容：滑鼠使用經驗、滿意度、困擾點、主要用途、握法、目錄外滑鼠的品牌與尺寸感受、留言；手部尺寸以 5 公釐分組。結果評分內容：星等與留言，並附上伺服器從掃描讀出的快照：手型分類、握法、校正方式、手掌厚度、推薦前三名與適配等級、引擎版本、網頁語言。用途：改善推薦；問卷統計會在結果頁顯示給手型相近的其他使用者（見第五節）。登入時送出的問卷與評分會連到你的帳號，問卷可以在「帳號」頁查看與修改。保存：登入時送出的資料跟著帳號刪除；未登入時送出的資料在本服務營運期間保留，服務終止時刪除。",
         "6. 連線資料。內容：你的 IP 位址只以雜湊值暫存，用於流量限制與防止濫用；主機服務商（Vercel）也會留存一般的請求紀錄。用途：維護網站安全。保存：流量限制的雜湊值約 24 小時；主機紀錄依該服務商的設定。",
         "7. 使用統計與錯誤紀錄。PostHog 記錄頁面瀏覽、按鈕與掃描流程事件，以及照片品質的粗略分級（不含測量值），也會收到瀏覽器種類、作業系統、螢幕大小、語言與時區等裝置資訊；不使用 cookie，只在分頁開著時暫存一個隨機識別碼，不會把你的 IP 傳給 PostHog，也不錄製畫面。Google Analytics 在你按下 cookie「同意」後才載入；依 Google 的運作方式，會收到你的 IP 位址與瀏覽器資訊。Sentry 在網站出錯時收到錯誤訊息與瀏覽器種類，並記錄約八成頁面載入與請求的效能追蹤（取樣率 0.8）；Email、IP、帳號與帶單位的測量數值會先移除。保存：依各服務商的設定。",
+        "8. 受邀測試者的紀錄（只適用於收到我們邀請與測試者代碼的人）。我們請少數受邀的測試者在不公開的測試頁面上，填寫自己用卷尺量的數值並進行掃描，用來檢查量測準確度；一般使用者不會進到這個頁面。內容：測試者代號（例如 P07，不含代碼的其他部分）、同意說明的版本、日期（不含時間）、卷尺量的手長與掌寬、左右手、自己填的手機型號、桌面、光線、參考物與卡片種類、是否故意拍得不理想、拍照或從相簿選取、嘗試次數、失敗代碼、是否放棄，以及 App 量到的數值、量測版本與校正方式；測試者勾選附上照片時，另有一張處理方式和第 3 項相同的裁切照片與照片尺寸。紀錄裡沒有姓名、Email、帳號或 IP（流量限制見第 6 項），除了自己填的手機型號，也沒有其他裝置資訊；測試頁面不送 PostHog 與 Google Analytics 事件，也不產生第 2 項的數值副本。用途：只用於改善量測準確度。保存：照片上傳後 180 天自動刪除；數值保留到我們刪除，或測試者要求刪除為止。為了分析，資料可能會匯出到專案負責人的電腦；電腦上的副本會在每次整理資料時刪除超過 180 天的照片，測試者要求刪除時也會一起刪除。",
       ],
     },
     {
@@ -119,6 +126,7 @@ export const zhTW: LegalCopy = {
         "不記名的數值副本：副本不含帳號或掃描編號，我們也不會主動拿它和你的掃描比對。你刪除某次掃描或整個帳號時，我們會一併刪除數值相符的副本。在你的掃描還保存的期間，你也可以來信要求查詢或刪除對應的副本。掃描刪除之後（未登入的掃描在 24 小時內會自動刪除），就沒有任何資料能把副本對回你，我們也無法再找出或刪除它。不想留下副本，請在送出前關掉開關。",
         "自願上傳的照片：照片不會存進你的帳號，刪除帳號也不會刪到它。請用上傳後畫面上顯示的刪除碼，在本頁下方的「刪除我傳送的照片」刪除。遺失刪除碼時，請來信告訴我們上傳日期，以及當時回報的數字或失敗畫面，我們會比對後刪除；如果比對不出是哪一張，會回信說明，照片也會在 180 天後自動刪除。",
         "未登入時送出的問卷與評分：這些資料不含帳號，也不會連回你的掃描。請不要在留言裡寫姓名、聯絡方式等個人資料；如果寫了，請來信告訴我們送出日期與大致內容，我們會盡力找出並刪除。",
+        "受邀測試者的紀錄：請寄信到 palmate.tw@gmail.com，附上你的測試者代號（例如 P07），我們會刪除這個代號的所有紀錄與照片，包括專案負責人電腦上的副本。",
         "其他請求：請寄信到 palmate.tw@gmail.com。查詢、閱覽或要求複製本，我們會在 15 天內回覆是否同意；補充、更正、停止蒐集處理利用或刪除，會在 30 天內回覆。必要時可以延長一次，延長期間不超過原期限，我們會寫信說明原因。",
         "不提供資料的影響：手部測量數值是計算推薦所必需的，不送出就無法得到推薦。登入、不記名副本、上傳照片、問卷、評分與 Google Analytics 都可以自由選擇，不提供也能完整使用掃描與推薦；只是沒有登入時，結果只保存 24 小時。",
       ],
@@ -226,7 +234,7 @@ export const en: LegalCopy = {
     {
       heading: "1. Summary",
       paragraphs: [
-        "By default your photo does not leave your device. When you scan, the photo is analysed only in your browser. It is uploaded only if you press “Send this photo to help us fix it” after a failed scan, or report with “Numbers look wrong?”, and tick the consent box.",
+        "By default your photo does not leave your device. When you scan, the photo is analysed only in your browser. It is uploaded only if you press “Send this photo to help us fix it” after a failed scan, or report with “Numbers look wrong?”, and tick the consent box. Invited testers' photos are also uploaded when they tick the photo box on the test page (see section 3.8).",
         "By default we keep a copy of the measurements that is not linked to any account. Before you send a scan, the screen shows a switch, “Keep an unnamed copy of these numbers”, which is on by default and which you can turn off.",
         "We do not sell personal data. Apart from the providers listed in section 4, which process data on our behalf, we do not give individual records to brands or any other third party.",
       ],
@@ -249,6 +257,7 @@ export const en: LegalCopy = {
         "3.5 Questionnaire and result ratings (optional). Questionnaire: your experience with mice, satisfaction, what bothers you, main use, grip, the brand and size feel of mice not in our catalogue, and your comment; hand sizes are kept only in 5 mm groups. Result ratings: the stars and your comment, with a snapshot the server reads from the scan: hand-type class, grip, calibration method, palm thickness, the top three picks and their fit level, the engine version, and the page language. Why: to improve the rankings; questionnaire statistics are shown on the results page to other people with similar hands (see section 5). Answers and ratings sent while signed in are linked to your account, where you can see and change your questionnaire answers. Kept: what you send while signed in is deleted with your account; what you send without an account is kept for as long as the service runs, and deleted when it closes.",
         "3.6 Connection data. What: your IP address, kept only as a hash and only for a short time, for rate limiting and to prevent abuse; our hosting provider (Vercel) also keeps ordinary request logs. Why: to keep the site safe. Kept: the rate-limit hash for about 24 hours; the hosting logs per the provider's settings.",
         "3.7 Usage statistics and error reports. PostHog records page views, button and scan-step events, and a rough grade of photo quality (no measurements); it also receives device details such as the browser, operating system, screen size, language and time zone. It uses no cookies and keeps a random identifier only while the tab is open; your IP address is not passed to PostHog, and nothing on screen is recorded. Google Analytics loads only after you press “Accept” on the cookie banner; the way Google works, it receives your IP address and browser details. Sentry receives the error message and the browser type when something breaks, and performance traces for about 80% of page loads and requests (sample rate 0.8); emails, IP addresses, account details and measurements with units are removed first. Kept: per each provider's settings.",
+        "3.8 Invited testers' records (only for people we invite and give a tester code). We ask a small number of invited testers to type in their own tape-measure values and scan on a page that is not public, to check how accurate the measurements are; ordinary visitors never reach that page. What: the tester ID (for example P07, without the rest of the code), the consent version, the date (no time), the hand length and palm width measured with a tape, which hand, the phone model as typed, the surface, lighting, reference and card type, whether the shot was deliberately poor, camera or gallery, the number of attempts, failure codes, whether the tester gave up, and what the app measured with its measuring version and calibration method; when the tester ticks the photo box, also a cropped photo prepared the same way as in 3.3, and its size. The records hold no name, email, account or IP address (rate limiting is in 3.6), and no device information apart from the phone model typed in; the test page sends no PostHog or Google Analytics events and makes no unnamed copy (3.2). Why: only to improve how accurately we measure. Kept: photos are deleted automatically 180 days after upload; the numbers until we delete them or the tester asks us to. For analysis the data may be exported to the project lead's computer; that copy loses photos older than 180 days each time the data is sorted, and is deleted too when the tester asks.",
       ],
     },
     {
@@ -282,6 +291,7 @@ export const en: LegalCopy = {
         "The unnamed copy: it holds no account or scan number, and we do not match it against your scans on our own. When you delete a scan or your whole account, we also delete the copy whose values match. While your scan is still kept, you can also write to us to look up or delete its copy. Once the scan is deleted (scans without an account are deleted automatically within 24 hours), nothing links the copy back to you, and we can no longer find or delete it. If you don't want a copy, turn the switch off before you send.",
         "Photos you chose to upload: a photo is not stored in your account, and deleting the account does not delete it. Delete it with the deletion code shown after the upload, under “Delete a photo I sent” further down this page. If you lost the code, write to us with the upload date and the numbers you reported or the failure screen; we will find and delete it. If we can't tell which photo it is, we will write back to explain; the photo is also deleted automatically after 180 days.",
         "Questionnaire answers and ratings sent without an account: they hold no account and do not lead back to your scans. Please don't write your name, contact details or other personal data in a comment; if you did, write to us with the date and roughly what it said, and we will do our best to find and delete it.",
+        "Invited testers' records: write to palmate.tw@gmail.com with your tester ID (for example P07), and we will delete every record and photo under that ID, including the copy on the project lead's computer.",
         "Other requests: write to palmate.tw@gmail.com. To look up, see or get a copy of your data, we reply within 15 days whether we agree; to add, correct, stop collection, processing or use, or delete, we reply within 30 days. If needed we may extend this once, by no more than the original period, and will write to tell you why.",
         "If you don't provide data: the hand measurements are needed to compute a ranking, so without them there is none. Signing in, the unnamed copy, uploading a photo, the questionnaire, ratings and Google Analytics are all optional, and scanning and the rankings work fully without them; without an account the results are just kept for 24 hours only.",
       ],
