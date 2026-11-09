@@ -421,12 +421,16 @@ describe("the consent copy (candidate)", () => {
     );
     expect(
       photoPoint.some(
-        (p) => p.includes("每一張都附上處理過的照片") && p.includes("取消勾選"),
+        (p) =>
+          p.includes("每一張都附上處理過的照片") &&
+          p.includes("開始掃描前都可以取消勾選"),
       ),
     ).toBe(true);
     // No separate consent-step photo box any more.
     expect(Object.keys(testerCopy.consent)).not.toContain("photo");
     expect(Object.keys(testerCopy.consent)).not.toContain("photoHint");
-    expect(testerCopy.consent.agree).toBe("我看過並同意以上說明");
+    expect(testerCopy.consent.agree).toBe(
+      "我看過並同意以上說明，包括每一張附上處理過的照片",
+    );
   });
 });

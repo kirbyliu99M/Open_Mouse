@@ -340,6 +340,12 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
     page.getByRole("checkbox", { name: copy.conditions.photo }),
   ).not.toBeChecked();
   await expect(page.getByText(copy.conditions.photoOff)).toBeVisible();
+  // Ticking again works, and unticking again goes back to photoOff.
+  const photoBox3 = page.getByRole("checkbox", { name: copy.conditions.photo });
+  await photoBox3.check();
+  await expect(page.getByText(copy.conditions.photoOn)).toBeVisible();
+  await photoBox3.uncheck();
+  await expect(page.getByText(copy.conditions.photoOff)).toBeVisible();
   await chooseConditions(page, [
     copy.conditions.surfaces.wood,
     copy.conditions.lightings.dim,
@@ -347,6 +353,11 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
   ]);
   await page.getByRole("button", { name: copy.conditions.start }).click();
   await expect(giveUp).toBeVisible({ timeout: 30_000 });
+  // The scan screen follows this shot's (unticked) box: the tour's fine print
+  // (folded away after the first shot) carries the no-photo notice.
+  await expect(page.locator(".easyTipFinePrint")).toContainText(
+    copy.scan.noPhotoNotice,
+  );
   const pill = (await giveUp.boundingBox())!;
   expect(pill.height).toBeGreaterThanOrEqual(44);
   const others = await page

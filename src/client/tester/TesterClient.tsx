@@ -962,7 +962,7 @@ function ConditionsStep(props: {
   readonly onChange: (draft: ConditionsDraft) => void;
   readonly onStart: (form: HTMLFormElement | null) => void;
   readonly onEditTape: () => void;
-  /** Whether this shot's processed photo is sent (the consent page's box, per shot). */
+  /** Whether this shot's processed photo is sent (this step's box: ticked for the first shot, an untick carries over). */
   readonly photo: boolean;
   readonly onPhotoChange: (photo: boolean) => void;
   /** The hand the tape values are for, for the reminder. */
