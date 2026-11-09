@@ -17,6 +17,7 @@ import {
   handMatches,
   referenceMatches,
 } from "../../src/client/tester/record";
+import { testerCopy } from "../../src/lib/tester/copy";
 import { buildTourSteps } from "../../src/client/camera/tour/tourModel";
 import {
   ANALYTICS_MUTED_PATHS,
@@ -410,5 +411,22 @@ describe("no page view on the tester page", () => {
       "/en/scan",
     ])
       expect(analyticsMutedPath(p), String(p)).toBe(false);
+  });
+});
+
+describe("the consent copy (candidate)", () => {
+  it("one agreement: the photo point says taking part includes the photo and each can be unticked", () => {
+    const photoPoint = testerCopy.consent.points.filter((p) =>
+      p.includes("照片"),
+    );
+    expect(
+      photoPoint.some(
+        (p) => p.includes("每一張都附上處理過的照片") && p.includes("取消勾選"),
+      ),
+    ).toBe(true);
+    // No separate consent-step photo box any more.
+    expect(Object.keys(testerCopy.consent)).not.toContain("photo");
+    expect(Object.keys(testerCopy.consent)).not.toContain("photoHint");
+    expect(testerCopy.consent.agree).toBe("我看過並同意以上說明");
   });
 });

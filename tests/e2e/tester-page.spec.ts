@@ -149,14 +149,16 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
   expect(checks).toEqual([{ code: "P07-K7Q2M9" }]);
   await expect(page.getByText(copy.code.participant("P07"))).toBeVisible();
 
-  // 2. Consent: agree gates the next step; the photo box starts unticked.
+  // 2. Consent: ONE checkbox gates the next step; the photo is part of what
+  // is agreed to (the point says so), with no separate photo box here.
   const start = page.getByRole("button", { name: copy.consent.next });
   await expect(start).toBeDisabled();
-  const photoBox = page.getByRole("checkbox", { name: copy.consent.photo });
-  await expect(photoBox).not.toBeChecked();
+  await expect(page.getByRole("checkbox")).toHaveCount(1);
+  await expect(
+    page.getByText(copy.consent.points.find((p) => p.includes("每一張"))!),
+  ).toBeVisible();
   await shot(page, "2-consent");
   await page.getByRole("checkbox", { name: copy.consent.agree }).check();
-  await photoBox.check();
   await start.click();
 
   // 3. Tape. An empty submit says what is missing and focuses it.
@@ -203,7 +205,7 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
       page.getByRole("radio", { name: copy.conditions.references.card }),
     ).toHaveCount(0);
   await page.getByLabel(copy.conditions.phoneModel).fill("Pixel 8");
-  // The photo choice from the consent page is shown, and can change, per shot.
+  // The first shot's photo box starts ticked; it can change, per shot.
   await expect(
     page.getByRole("checkbox", { name: copy.conditions.photo }),
   ).toBeChecked();
@@ -217,7 +219,7 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
   await page.getByRole("button", { name: copy.conditions.start }).click();
 
   // 5. The real camera in tester mode. First visit: the tour's welcome says
-  // the photo will be sent (the box was ticked), not "stays on the phone".
+  // the photo will be sent (the box starts ticked), not "stays on the phone".
   await expect(
     page.getByTestId("scan-tour").getByText(copy.scan.photoNotice),
   ).toBeVisible({
@@ -295,6 +297,12 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
   await expect(page.getByLabel(copy.conditions.phoneModel)).toHaveValue(
     "Pixel 8",
   );
+  // Shot 1's box was left ticked, so shot 2 starts ticked; unticking it
+  // here carries over to shot 3.
+  const photoBox = page.getByRole("checkbox", { name: copy.conditions.photo });
+  await expect(photoBox).toBeChecked();
+  await photoBox.uncheck();
+  await expect(page.getByText(copy.conditions.photoOff)).toBeVisible();
   await chooseConditions(page, [
     copy.conditions.surfaces.wood,
     copy.conditions.lightings.dim,
@@ -328,6 +336,10 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
   // touching the hand chip or help, at least 44 px tall; giving up sends the
   // attempts and the tape, no photo and no measurement.
   await page.setViewportSize({ width: 375, height: 812 });
+  await expect(
+    page.getByRole("checkbox", { name: copy.conditions.photo }),
+  ).not.toBeChecked();
+  await expect(page.getByText(copy.conditions.photoOff)).toBeVisible();
   await chooseConditions(page, [
     copy.conditions.surfaces.wood,
     copy.conditions.lightings.dim,

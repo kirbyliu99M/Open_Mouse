@@ -13,7 +13,8 @@
  * and never calls `/api/scans`. The result step checks the scan used that
  * reference, prepares the photo on the phone exactly like an error photo
  * (crop, card blacked out, canvas re-encode, no EXIF) when the tester ticked
- * the (unticked by default) photo box, then sends ONE record to
+ * the photo box (ticked for the first shot; an untick carries over to the
+ * later shots), then sends ONE record to
  * `/api/tester/shots`. "Next shot" keeps the tape values and the phone model.
  * The code lives in sessionStorage only; a new code starts everything afresh.
  * Product analytics are muted while this page is mounted.
@@ -164,7 +165,9 @@ export function TesterClient({ runPhotoPipelineImpl }: TesterClientProps) {
     "idle" | "checking" | "invalid" | "too-many" | "network"
   >("idle");
   const [agree, setAgree] = useState(false);
-  const [photoOptIn, setPhotoOptIn] = useState(false);
+  // Each shot's photo box starts ticked (taking part includes the photo);
+  // an untick carries over to the next shots until it is ticked again.
+  const [photoOptIn, setPhotoOptIn] = useState(true);
   const [tapeDraft, setTapeDraft] = useState<TapeDraft>(EMPTY_TAPE);
   const [tapeErrors, setTapeErrors] = useState<TapeErrors>({});
   const [tape, setTape] = useState<TesterTape | null>(null);
@@ -236,7 +239,7 @@ export function TesterClient({ runPhotoPipelineImpl }: TesterClientProps) {
   /** Everything typed for one person goes when the code changes. */
   const resetPerson = () => {
     setAgree(false);
-    setPhotoOptIn(false);
+    setPhotoOptIn(true);
     setTapeDraft(EMPTY_TAPE);
     setTapeErrors({});
     setTape(null);
@@ -545,20 +548,6 @@ export function TesterClient({ runPhotoPipelineImpl }: TesterClientProps) {
               onChange={(e) => setAgree(e.target.checked)}
             />
             <span>{copy.consent.agree}</span>
-          </label>
-          <label className="testerCheck">
-            <input
-              type="checkbox"
-              checked={photoOptIn}
-              aria-describedby="tester-photo-hint"
-              onChange={(e) => setPhotoOptIn(e.target.checked)}
-            />
-            <span>
-              {copy.consent.photo}
-              <span id="tester-photo-hint" className="testerHint">
-                {copy.consent.photoHint}
-              </span>
-            </span>
           </label>
           <button
             type="button"
