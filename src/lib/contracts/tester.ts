@@ -4,9 +4,11 @@
  * A hidden page, `/scan/tester`, for people Kirby invites to build the
  * accuracy ground truth: they type their tape-measure values, run the normal
  * scan, and the page stores the tape values, what the app measured, how the
- * attempt went, and — only if the tester ticks the photo box, which starts
- * unticked — a prepared photo, in one
- * record, so nothing is copied by hand between the scan and a spreadsheet.
+ * attempt went, and a prepared photo, in one record (Kirby 2026-11-10: the
+ * consent screen's single agreement covers taking part AND photos; each
+ * shot's photo box then starts ticked and the tester can untick it; an
+ * untick carries over to the next shot), so nothing is copied by hand
+ * between the scan and a spreadsheet.
  *
  * Access:
  *   - The page and both routes answer 404 unless the server env
