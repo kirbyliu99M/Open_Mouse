@@ -164,6 +164,9 @@ describe("the privacy notice and the terms", () => {
       "附上參加的日期和卷尺數值",
       "我們沒有隨機代號和你本人的對應",
       "也無法替你查回代號",
+      "我們無法確認哪些紀錄是你的，可能無法刪除",
+      "但不保證找得到",
+      "請自己截圖或抄下來",
       "你輸入的測試者代碼（只存在這個分頁，關掉就清除）",
     ])
       expect(zh, phrase).toContain(phrase);
@@ -181,6 +184,9 @@ describe("the privacy notice and the terms", () => {
       "the dates you took part and your tape values",
       "We have no link between a random ID and you",
       "cannot look it up for you",
+      "we cannot tell which records are yours and may not be able to delete them",
+      "cannot promise to find them",
+      "please screenshot or note it down",
       "the tester code you typed (kept in that tab only",
     ])
       expect(en, phrase).toContain(phrase);
@@ -201,8 +207,12 @@ describe("the privacy notice and the terms", () => {
       "附上參加的日期和卷尺數值",
       "我們沒有隨機代號和你本人的對應",
       "也無法替你查回代號",
+      "我們無法確認哪些紀錄是你的，可能無法刪除",
+      "但不保證找得到",
+      "請自己截圖或抄下來",
       "你輸入的測試者代碼（只存在這個分頁，關掉就清除）",
       "以及你選的網頁語言（om_locale）",
+      "未登入時的掃描工作階段（scan_session）",
     ])
       expect(draft, phrase).toContain(phrase);
     expect(draft).not.toMatch(
