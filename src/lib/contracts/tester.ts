@@ -20,7 +20,9 @@
  *     keeps it in localStorage so later shots group together, shows it so the
  *     person can ask for deletion, and sends it in place of a code. The server
  *     accepts any well-formed anonymous id and stores it as the participant.
- *     Invited codes (below) keep working beside it.
+ *     The server still accepts invited codes (below) beside it, but the open
+ *     page has no code step: with `TESTER_OPEN=1` everyone, invited or not,
+ *     takes part under an anonymous id. Unset `TESTER_OPEN` to use codes.
  *   - A tester code is `P<2–3 digits>-<6 chars of TESTER_CODE_ALPHABET>`, e.g.
  *     `P07-K7Q2M9`. Kirby hands one code to each person. The server stores ONLY
  *     the participant id (`P07`), never the secret part, and compares codes in

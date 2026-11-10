@@ -150,6 +150,25 @@ describe("tester_shots on Postgres", () => {
       photoPathname: null,
     };
     await expect(repo.insert({ ...base, participant: "P7" })).rejects.toThrow();
+    // Open mode's anonymous ids: W + 8 alphabet chars only (no I, O, 0, 1).
+    for (const bad of [
+      "WK7Q2M9XI",
+      "WK7Q2M9X0",
+      "wk7q2m9xa",
+      "W1234567",
+      "WK7Q2M9XAA",
+    ])
+      await expect(
+        repo.insert({ ...base, participant: bad }),
+        bad,
+      ).rejects.toThrow();
+    expect(
+      await repo.insert({
+        ...base,
+        shotId: "22222222-2222-4222-8222-222222222222",
+        participant: "WK7Q2M9XA",
+      }),
+    ).toBe(true);
     await expect(
       repo.insert({ ...base, participant: "P07-K7Q2M9" }),
     ).rejects.toThrow();

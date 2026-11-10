@@ -169,7 +169,9 @@ export function TesterClient({
   open = false,
   runPhotoPipelineImpl,
 }: TesterClientProps) {
-  const [step, setStepState] = useState<Step>("code");
+  // Open mode starts on consent even in the server HTML (no code-form flash);
+  // the anonymous id fills in once the effect below reads localStorage.
+  const [step, setStepState] = useState<Step>(open ? "consent" : "code");
   const [code, setCode] = useState<string | null>(null);
   const [codeInput, setCodeInput] = useState("");
   const [codeState, setCodeState] = useState<
