@@ -140,81 +140,56 @@ describe("the privacy notice and the terms", () => {
     );
   });
 
-  it("3.8 and its deletion paragraph: open to anyone who agrees (18+), both kinds of tester ID (Kirby 2026-11-10)", () => {
+  it("3.8 and its deletion paragraph: anyone who agrees (18+), both kinds of tester ID, kept short (Kirby 2026-11-10)", () => {
     const zh = all(legal.zhTW);
     const en = all(legal.en);
-    for (const text of [zh, en]) {
-      expect(text).toContain("P07");
-      expect(text).toContain("WK7Q2M9XA");
-      expect(text).not.toMatch(
-        /受邀測試者的紀錄|不公開的測試頁面|Invited testers|not public, to check/,
-      );
-    }
-    expect(zh).toContain(
-      "資料測試者的紀錄（只適用於在測試頁面上同意參加的人）",
-    );
-    expect(zh).toContain("需年滿 18 歲");
-    expect(zh).toContain("如果代號遺失");
-    expect(zh).toContain("瀏覽器隨機產生的測試者代號");
-    // The ID depends on the mode; when it is made and sent; matching by tape values.
     for (const phrase of [
-      "開放參加時，是你的瀏覽器隨機產生",
-      "只限受邀參加時，是我們給的代號",
-      "一打開測試頁面就會產生，同意前不會送出",
-      "附上參加的日期和卷尺數值",
-      "我們沒有隨機代號和你本人的對應",
-      "也無法替你查回代號",
-      "我們無法確認哪些紀錄是你的，可能無法刪除",
-      "但不保證找得到",
-      "請自己截圖或抄下來",
-      "你輸入的測試者代碼（只存在這個分頁，關掉就清除）",
+      "資料測試者的紀錄（只適用於在測試頁面同意參加的人，需年滿 18 歲）",
+      "瀏覽器隨機產生，例如 WK7Q2M9XA；受邀者則是我們給的代號，例如 P07",
+      "日期（不含時間；照片檔有上傳時間）",
+      "每一張都可以在開始掃描前取消",
+      "不含姓名、Email、帳號或 IP",
+      "網站共通的主機與錯誤紀錄（第 6、7 項）仍然適用",
+      "照片約 180 天後自動刪除；數值保留到我們刪除或你要求刪除",
+      "附上你的測試者代號，我們會刪除這個代號的所有紀錄與照片",
+      "我們無法替你查回代號；代號遺失的話，我們可能找不到你的紀錄",
+      "、測試頁面的測試者代號；",
     ])
       expect(zh, phrase).toContain(phrase);
-    expect(zh).not.toContain("隨機代號只存在你的瀏覽器裡");
-    expect(en).toContain(
-      "Data testers' records (only for people who agree on the test page)",
-    );
-    expect(en).toContain("18 or over");
-    expect(en).toContain("if you lose it");
-    expect(en).toContain("the random tester ID your browser makes");
     for (const phrase of [
-      "when the page is open to anyone, a random ID your browser makes",
-      "when it is limited to invited testers, the ID we gave them",
-      "created when the page opens, sent only after you agree",
-      "the dates you took part and your tape values",
-      "We have no link between a random ID and you",
-      "cannot look it up for you",
-      "we cannot tell which records are yours and may not be able to delete them",
-      "cannot promise to find them",
-      "please screenshot or note it down",
-      "the tester code you typed (kept in that tab only",
+      "Data testers' records (only for people who agree on the test page; 18 or over)",
+      "made at random by the browser, for example WK7Q2M9XA; for invited testers, the ID we gave them, for example P07",
+      "the date (no time; the photo file has its upload time)",
+      "any shot's photo can be unticked before that scan starts",
+      "No name, email, account or IP address",
+      "the site-wide hosting logs and error reports (3.6, 3.7) still apply",
+      "photos are deleted automatically after about 180 days",
+      "we will delete every record and photo under it",
+      "We cannot look up your ID for you; if you lose it, we may not be able to find your records",
+      "and your tester ID on the test page;",
     ])
       expect(en, phrase).toContain(phrase);
-    expect(en).not.toContain("lives only in your browser");
-    // The draft doc says the same.
+    // Older, longer wordings are gone.
+    for (const text of [zh, en])
+      expect(text).not.toMatch(
+        /受邀測試者的紀錄|不公開的測試頁面|Invited testers|隨機代號只存在你的瀏覽器裡|lives only in your browser/,
+      );
+    // The draft doc carries the same zh sentences as the live page.
     const draft = readFileSync(
       "docs/design/touchpoint-2026-11-08/privacy-policy-v2-draft.md",
       "utf8",
     );
-    for (const phrase of [
-      "資料測試者的紀錄（只適用於在測試頁面上同意參加的人",
-      "需年滿 18 歲",
-      "WK7Q2M9XA",
-      "如果代號遺失",
-      "開放參加時，是你的瀏覽器隨機產生",
-      "只限受邀參加時，是我們給的代號",
-      "一打開測試頁面就會產生，同意前不會送出",
-      "附上參加的日期和卷尺數值",
-      "我們沒有隨機代號和你本人的對應",
-      "也無法替你查回代號",
-      "我們無法確認哪些紀錄是你的，可能無法刪除",
-      "但不保證找得到",
-      "請自己截圖或抄下來",
-      "你輸入的測試者代碼（只存在這個分頁，關掉就清除）",
+    const zh38 = legal.zhTW.privacySections
+      .flatMap((s) => s.paragraphs)
+      .find((p) => p.startsWith("8. 資料測試者的紀錄"))!;
+    for (const part of [
+      zh38.slice(zh38.indexOf("內容："), zh38.indexOf("不含")),
+      "我們無法替你查回代號；代號遺失的話，我們可能找不到你的紀錄。",
+      "、測試頁面的測試者代號；",
       "以及你選的網頁語言（om_locale）",
       "未登入時的掃描工作階段（scan_session）",
     ])
-      expect(draft, phrase).toContain(phrase);
+      expect(draft, part).toContain(part.trim());
     expect(draft).not.toMatch(
       /受邀測試者的紀錄|不公開的測試頁面|隨機代號只存在你的瀏覽器裡/,
     );
