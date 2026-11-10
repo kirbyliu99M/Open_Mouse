@@ -175,6 +175,7 @@ describe("the privacy notice and the terms", () => {
       "The test page sends no PostHog events and no Google Analytics page views",
       "Why: only to improve how accurately we measure",
       "including the copy on the project lead's computer",
+      "The data may be exported to the project lead's computer, under the same rules.",
     ])
       expect(en, phrase).toContain(phrase);
     // Older, longer wordings are gone.
@@ -190,6 +191,9 @@ describe("the privacy notice and the terms", () => {
     const zh38 = legal.zhTW.privacySections
       .flatMap((s) => s.paragraphs)
       .find((p) => p.startsWith("8. 資料測試者的紀錄"))!;
+    // Each slice must find its start, or it would compare a lone "。".
+    for (const start of ["內容：", "不含姓名", "保存："])
+      expect(zh38.indexOf(start), start).toBeGreaterThan(-1);
     for (const part of [
       zh38.slice(zh38.indexOf("內容："), zh38.indexOf("不含姓名")),
       zh38.slice(zh38.indexOf("保存："), zh38.length),
@@ -197,6 +201,7 @@ describe("the privacy notice and the terms", () => {
       "、測試頁面的測試者代號或代碼；",
       "以及你選的網頁語言（om_locale）",
       "未登入時的掃描工作階段（scan_session）",
+      "（包括專案負責人電腦上的副本）",
     ])
       expect(draft, part).toContain(part.trim());
     expect(draft).not.toMatch(
