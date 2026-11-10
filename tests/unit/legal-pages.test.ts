@@ -163,6 +163,7 @@ describe("the privacy notice and the terms", () => {
       "一打開測試頁面就會產生，同意前不會送出",
       "附上參加的日期和卷尺數值",
       "我們沒有隨機代號和你本人的對應",
+      "也無法替你查回代號",
       "你輸入的測試者代碼（只存在這個分頁，關掉就清除）",
     ])
       expect(zh, phrase).toContain(phrase);
@@ -179,6 +180,7 @@ describe("the privacy notice and the terms", () => {
       "created when the page opens, sent only after you agree",
       "the dates you took part and your tape values",
       "We have no link between a random ID and you",
+      "cannot look it up for you",
       "the tester code you typed (kept in that tab only",
     ])
       expect(en, phrase).toContain(phrase);
@@ -198,8 +200,13 @@ describe("the privacy notice and the terms", () => {
       "一打開測試頁面就會產生，同意前不會送出",
       "附上參加的日期和卷尺數值",
       "我們沒有隨機代號和你本人的對應",
+      "也無法替你查回代號",
+      "你輸入的測試者代碼（只存在這個分頁，關掉就清除）",
+      "以及你選的網頁語言（om_locale）",
     ])
       expect(draft, phrase).toContain(phrase);
-    expect(draft).not.toMatch(/受邀測試者的紀錄|不公開的測試頁面/);
+    expect(draft).not.toMatch(
+      /受邀測試者的紀錄|不公開的測試頁面|隨機代號只存在你的瀏覽器裡/,
+    );
   });
 });
