@@ -153,7 +153,11 @@ describe("the privacy notice and the terms", () => {
       "照片約 180 天後自動刪除；數值保留到我們刪除或你要求刪除",
       "附上你的測試者代號，我們會刪除這個代號的所有紀錄與照片",
       "我們無法替你查回代號；代號遺失的話，我們可能找不到你的紀錄",
-      "、測試頁面的測試者代號；",
+      "、測試頁面的測試者代號或代碼；",
+      "資料測試者同意參加時也同意附上照片，每一張都可以取消",
+      "測試頁面不送 PostHog 事件和 Google Analytics 的頁面瀏覽事件",
+      "用途：只用於改善量測準確度",
+      "包括專案負責人電腦上的副本",
     ])
       expect(zh, phrase).toContain(phrase);
     for (const phrase of [
@@ -166,7 +170,11 @@ describe("the privacy notice and the terms", () => {
       "photos are deleted automatically after about 180 days",
       "we will delete every record and photo under it",
       "We cannot look up your ID for you; if you lose it, we may not be able to find your records",
-      "and your tester ID on the test page;",
+      "and your tester ID or code on the test page;",
+      "Data testers agree to attach photos when they take part, and can untick any of them",
+      "The test page sends no PostHog events and no Google Analytics page views",
+      "Why: only to improve how accurately we measure",
+      "including the copy on the project lead's computer",
     ])
       expect(en, phrase).toContain(phrase);
     // Older, longer wordings are gone.
@@ -183,9 +191,10 @@ describe("the privacy notice and the terms", () => {
       .flatMap((s) => s.paragraphs)
       .find((p) => p.startsWith("8. 資料測試者的紀錄"))!;
     for (const part of [
-      zh38.slice(zh38.indexOf("內容："), zh38.indexOf("不含")),
+      zh38.slice(zh38.indexOf("內容："), zh38.indexOf("不含姓名")),
+      zh38.slice(zh38.indexOf("保存："), zh38.length),
       "我們無法替你查回代號；代號遺失的話，我們可能找不到你的紀錄。",
-      "、測試頁面的測試者代號；",
+      "、測試頁面的測試者代號或代碼；",
       "以及你選的網頁語言（om_locale）",
       "未登入時的掃描工作階段（scan_session）",
     ])
