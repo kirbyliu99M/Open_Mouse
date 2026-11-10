@@ -426,22 +426,22 @@ describe("the consent copy (candidate)", () => {
       photoPoint.some(
         (p) =>
           p.includes("每一張都附上處理過的照片") &&
-          p.includes("開始掃描前都可以取消勾選"),
+          p.includes("在開始掃描前取消勾選"),
       ),
     ).toBe(true);
     // No separate consent-step photo box any more.
     expect(Object.keys(testerCopy.consent)).not.toContain("photo");
     expect(Object.keys(testerCopy.consent)).not.toContain("photoHint");
     expect(testerCopy.consent.agree).toBe(
-      "我已年滿 18 歲，看過並同意以上說明，包括每一張附上處理過的照片",
+      "我已滿 18 歲，同意以上說明（包括附上照片）",
     );
   });
 
   it("open mode: the anonymous id is shown with how to keep it, and the age rule is a point", () => {
     const line = testerCopy.code.anonParticipant("WK7Q2M9XA");
     expect(line).toContain("WK7Q2M9XA");
-    expect(line).toContain("要求刪除資料時需要用到");
-    expect(testerCopy.consent.points.join("")).toContain("年滿 18 歲");
+    expect(line).toContain("要求刪除資料時需要它");
+    expect(testerCopy.consent.points.join("")).toContain("需年滿 18 歲");
     expect(testerCopy.consent.points.join("")).not.toContain("P07");
   });
 });
