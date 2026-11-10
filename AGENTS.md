@@ -124,8 +124,8 @@ caused one agent's uncommitted work to be committed by another.
    - error photos (2026-11-08): on a scan-failure screen or the "numbers look
      wrong?" report, the person taps "send this photo" and ticks consent;
      `src/lib/contracts/error-photo.ts`, kept 180 days;
-   - data testers (2026-11-09): on the hidden, invite-code-only
-     `/scan/tester`, a tester who agreed to photos on the consent screen (one agreement covers
+   - data testers (2026-11-09): on the unlisted `/scan/tester` (invite codes,
+     or open to anyone with `TESTER_OPEN=1`, Kirby 2026-11-10), a tester who agreed to photos on the consent screen (one agreement covers
      taking part and photos; each shot's photo box starts ticked and can be
      unticked, Kirby 2026-11-10);
      `src/lib/contracts/tester.ts`, kept 180 days.

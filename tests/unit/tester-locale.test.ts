@@ -6,7 +6,11 @@
  */
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { testerCodesConfigured } from "../../src/lib/tester/enabled";
+import {
+  testerCodesConfigured,
+  testerOpenConfigured,
+  testerPageConfigured,
+} from "../../src/lib/tester/enabled";
 import { parseTesterCodes } from "../../src/server/tester/codes";
 import { LOCALE_COOKIE, LOCALE_HEADER } from "../../src/lib/contracts/locale";
 import { TESTER_PAGE_PATH } from "../../src/lib/contracts/tester";
@@ -120,6 +124,22 @@ describe("while the tester page is off in production", () => {
     expect(
       response.headers.get(`x-middleware-request-${LOCALE_HEADER}`),
     ).toBeNull();
+  });
+
+  it("TESTER_OPEN=1 alone turns the page on (Kirby 2026-11-10)", () => {
+    expect(testerOpenConfigured("1")).toBe(true);
+    for (const raw of [undefined, "", "0", "true", "yes"])
+      expect(testerOpenConfigured(raw), String(raw)).toBe(false);
+    expect(testerPageConfigured({ TESTER_OPEN: "1" })).toBe(true);
+    expect(testerPageConfigured({ TESTER_CODES: "P07-K7Q2M9" })).toBe(true);
+    expect(testerPageConfigured({})).toBe(false);
+  });
+
+  it("with TESTER_OPEN=1 in production the page is pinned", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("TESTER_CODES", "");
+    vi.stubEnv("TESTER_OPEN", "1");
+    expect(middleware(request("/en/scan/tester")).status).toBe(307);
   });
 
   it("with codes set in production the page is pinned again", () => {

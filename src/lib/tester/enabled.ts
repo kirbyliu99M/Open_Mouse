@@ -11,3 +11,19 @@ export function testerCodesConfigured(raw: string | undefined): boolean {
     .split(",")
     .some((entry) => testerCodeSchema.safeParse(entry).success);
 }
+
+/** Open mode (Kirby 2026-11-10): `TESTER_OPEN=1` lets anyone in, no code. */
+export function testerOpenConfigured(raw: string | undefined): boolean {
+  return raw?.trim() === "1";
+}
+
+/** The tester page is on: open mode, or at least one valid code. */
+export function testerPageConfigured(env: {
+  readonly TESTER_OPEN?: string;
+  readonly TESTER_CODES?: string;
+}): boolean {
+  return (
+    testerOpenConfigured(env.TESTER_OPEN) ||
+    testerCodesConfigured(env.TESTER_CODES)
+  );
+}

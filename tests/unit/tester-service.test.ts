@@ -16,6 +16,7 @@ import type { TesterRecord } from "../../src/lib/contracts/tester";
 import {
   matchTesterCode,
   parseTesterCodes,
+  resolveParticipant,
 } from "../../src/server/tester/codes";
 import type {
   NewTesterShotRow,
@@ -62,6 +63,7 @@ function fakes(overrides: Partial<TesterDeps> = {}) {
   };
   let n = 0;
   const deps: TesterDeps = {
+    open: false,
     codes: [CODE, OTHER],
     blobConfigured: true,
     limiter: () => ({ allow }),
@@ -353,6 +355,47 @@ describe("handleTesterShot", () => {
       (await handleTesterShot(shotRequest({ recordText: "{" }), deps)).status,
     ).toBe(400);
     expect(rows).toEqual([]);
+  });
+});
+
+describe("open mode (TESTER_OPEN=1, Kirby 2026-11-10)", () => {
+  const ANON = "WK7Q2M9XA";
+
+  it("resolveParticipant: an anonymous id only in open mode; codes still work beside it", () => {
+    expect(resolveParticipant(" wk7q2m9xa ", { open: true, codes: null })).toBe(
+      ANON,
+    );
+    expect(resolveParticipant(ANON, { open: false, codes: [CODE] })).toBeNull();
+    expect(resolveParticipant(CODE, { open: true, codes: [CODE] })).toBe("P07");
+    expect(resolveParticipant(CODE, { open: true, codes: null })).toBeNull();
+    for (const bad of ["W1234567", "WK7Q2M9XAA", "WK7Q2M9X0", "P07", 42, null])
+      expect(resolveParticipant(bad, { open: true, codes: null })).toBeNull();
+  });
+
+  it("stores a shot under the anonymous id with no codes configured", async () => {
+    const { deps, rows } = fakes({ open: true, codes: null });
+    const response = await handleTesterShot(shotRequest({ code: ANON }), deps);
+    expect(response.status).toBe(201);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.participant).toBe(ANON);
+  });
+
+  it("is a 404 without a well-formed id, storing nothing", async () => {
+    const { deps, rows, blob } = fakes({ open: true, codes: null });
+    for (const code of [null, "W123", CODE]) {
+      expect((await handleTesterShot(shotRequest({ code }), deps)).status).toBe(
+        404,
+      );
+    }
+    expect(rows).toEqual([]);
+    expect(blob.put).not.toHaveBeenCalled();
+  });
+
+  it("the check route stays a 404 for an anonymous id (nothing to check)", async () => {
+    const { deps } = fakes({ open: true, codes: null });
+    expect(
+      (await handleTesterCheck(checkRequest({ code: ANON }), deps)).status,
+    ).toBe(404);
   });
 });
 

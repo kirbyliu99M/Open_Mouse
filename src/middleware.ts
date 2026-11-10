@@ -6,7 +6,7 @@ import {
 } from "@/lib/contracts/locale";
 import { splitLocalePath } from "@/lib/i18n/localePath";
 import { pinnedLocaleFor } from "@/lib/i18n/pinnedLocale";
-import { testerCodesConfigured } from "@/lib/tester/enabled";
+import { testerPageConfigured } from "@/lib/tester/enabled";
 
 /**
  * Locale-prefixed URLs (`src/lib/contracts/locale.ts`, 2026-10-28): `/en/...`
@@ -22,7 +22,7 @@ import { testerCodesConfigured } from "@/lib/tester/enabled";
  * A one-language page (src/lib/i18n/pinnedLocale.ts: the hidden tester page,
  * zh-TW only) renders in its locale whatever the cookie or `Accept-Language`
  * say, and its `/en/...` URL redirects to the unprefixed one. The visitor's
- * cookie is left as it was. While the tester page is off (`TESTER_CODES`
+ * cookie is left as it was. While the tester page is off (`TESTER_OPEN`/`TESTER_CODES`
  * unset in production) it is treated like any other path, so a probe cannot
  * tell it from a page that does not exist (review #243 round 4).
  */
@@ -65,11 +65,15 @@ export const config = {
 /**
  * One-language pages are pinned only while they are on: always in
  * development (dev-only demo routes, e2e), and in production only when
- * `TESTER_CODES` names a valid code (read at request time).
+ * `TESTER_OPEN=1` or `TESTER_CODES` names a valid code (read at request time).
  */
 function pinnedPagesOn(): boolean {
   return (
     process.env.NODE_ENV !== "production" ||
-    testerCodesConfigured(process.env.TESTER_CODES)
+    // Named one by one: the Edge build inlines only named env reads.
+    testerPageConfigured({
+      TESTER_OPEN: process.env.TESTER_OPEN,
+      TESTER_CODES: process.env.TESTER_CODES,
+    })
   );
 }

@@ -1,7 +1,8 @@
 -- Tester page (candidate 2026-11-09, contract src/lib/contracts/tester.ts):
 -- one NEW table, no change to any existing table. NOT applied to any
 -- database yet: Kirby decides when (migrate BEFORE deploying code that
--- writes it). Only the participant id identifies a tester; day only, no time.
+-- writes it). Only the participant id identifies a tester (an invited code's
+-- `P07`, or open mode's random `WK7Q2M9XA`); day only, no time.
 CREATE TABLE "tester_shots" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"shot_id" uuid NOT NULL,
@@ -39,7 +40,7 @@ CREATE TABLE "tester_shots" (
 	"photo_height_px" smallint,
 	CONSTRAINT "tester_shots_shot_id_unique" UNIQUE("shot_id"),
 	CONSTRAINT "tester_shots_photo_pathname_unique" UNIQUE("photo_pathname"),
-	CONSTRAINT "tester_shots_participant_format" CHECK ("tester_shots"."participant" ~ '^P[0-9]{2,3}$'),
+	CONSTRAINT "tester_shots_participant_format" CHECK ("tester_shots"."participant" ~ '^(P[0-9]{2,3}|W[A-HJ-NP-Z2-9]{8})$'),
 	CONSTRAINT "tester_shots_consent_version_set" CHECK (char_length("tester_shots"."consent_version") BETWEEN 1 AND 100),
 	CONSTRAINT "tester_shots_measurers_range" CHECK ("tester_shots"."measurers" IN (1, 2)),
 	CONSTRAINT "tester_shots_tape_plausible" CHECK (("tester_shots"."hand_length_a1" IS NULL OR "tester_shots"."hand_length_a1" BETWEEN 50 AND 300) AND ("tester_shots"."hand_length_a2" IS NULL OR "tester_shots"."hand_length_a2" BETWEEN 50 AND 300) AND ("tester_shots"."hand_length_b1" IS NULL OR "tester_shots"."hand_length_b1" BETWEEN 50 AND 300) AND ("tester_shots"."hand_length_b2" IS NULL OR "tester_shots"."hand_length_b2" BETWEEN 50 AND 300) AND ("tester_shots"."palm_width_a1" IS NULL OR "tester_shots"."palm_width_a1" BETWEEN 50 AND 300) AND ("tester_shots"."palm_width_a2" IS NULL OR "tester_shots"."palm_width_a2" BETWEEN 50 AND 300) AND ("tester_shots"."palm_width_b1" IS NULL OR "tester_shots"."palm_width_b1" BETWEEN 50 AND 300) AND ("tester_shots"."palm_width_b2" IS NULL OR "tester_shots"."palm_width_b2" BETWEEN 50 AND 300) AND ("tester_shots"."palm_width_edge" IS NULL OR "tester_shots"."palm_width_edge" BETWEEN 50 AND 300)),

@@ -10,10 +10,17 @@
  * untick carries over to the next shot), so nothing is copied by hand
  * between the scan and a spreadsheet.
  *
- * Access:
+ * Access (Kirby 2026-11-10: open to anyone, no code needed):
  *   - The page and both routes answer 404 unless the server env
- *     `TESTER_CODES` is set (comma-separated tester codes). No build flag: the
- *     page is a server component that checks the env at request time.
+ *     `TESTER_OPEN=1` or `TESTER_CODES` (comma-separated tester codes) is set.
+ *     No build flag: the page is a server component that checks the env at
+ *     request time.
+ *   - Open mode (`TESTER_OPEN=1`): no code. The browser makes a random
+ *     anonymous id (`W` + 8 chars of TESTER_CODE_ALPHABET, e.g. `WK7Q2M9XA`),
+ *     keeps it in localStorage so later shots group together, shows it so the
+ *     person can ask for deletion, and sends it in place of a code. The server
+ *     accepts any well-formed anonymous id and stores it as the participant.
+ *     Invited codes (below) keep working beside it.
  *   - A tester code is `P<2–3 digits>-<6 chars of TESTER_CODE_ALPHABET>`, e.g.
  *     `P07-K7Q2M9`. Kirby hands one code to each person. The server stores ONLY
  *     the participant id (`P07`), never the secret part, and compares codes in
@@ -46,7 +53,7 @@
  */
 import { z } from "zod";
 
-export const TESTER_CONSENT_VERSION = "tester-consent-v1-draft";
+export const TESTER_CONSENT_VERSION = "tester-consent-v2-draft";
 export const TESTER_PHOTO_RETENTION_DAYS = 180;
 
 export const TESTER_PAGE_PATH = "/scan/tester";
@@ -67,11 +74,23 @@ export const testerCodeSchema = z
   .trim()
   .toUpperCase()
   .pipe(z.string().regex(/^P\d{2,3}-[A-HJ-NP-Z2-9]{6}$/));
-export const testerParticipantSchema = z.string().regex(/^P\d{2,3}$/);
+/** Open mode's browser-made anonymous id: `W` + 8 alphabet chars. */
+export const testerAnonIdSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .pipe(z.string().regex(/^W[A-HJ-NP-Z2-9]{8}$/));
+export const testerParticipantSchema = z
+  .string()
+  .regex(/^(P\d{2,3}|W[A-HJ-NP-Z2-9]{8})$/);
 
-/** `P07-K7Q2M9` → `P07`. Call only on a code that passed `testerCodeSchema`. */
+/**
+ * `P07-K7Q2M9` → `P07`; an anonymous id is its own participant. Call only on
+ * a value that passed `testerCodeSchema` or `testerAnonIdSchema`.
+ */
 export function participantOf(code: string): string {
-  return code.slice(0, code.indexOf("-"));
+  const dash = code.indexOf("-");
+  return dash === -1 ? code : code.slice(0, dash);
 }
 
 export const TESTER_SURFACES = [

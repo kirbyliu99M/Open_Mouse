@@ -8,7 +8,11 @@
  * much of a guess was right. Only `participantOf(code)` (`P07`) is ever kept.
  */
 import { createHash, timingSafeEqual } from "node:crypto";
-import { testerCodeSchema } from "../../lib/contracts/tester";
+import {
+  participantOf,
+  testerAnonIdSchema,
+  testerCodeSchema,
+} from "../../lib/contracts/tester";
 
 /**
  * The configured codes, normalised (trimmed, upper case), or `null` when the
@@ -45,4 +49,22 @@ export function matchTesterCode(
     if (equal && parsed.success && found === null) found = code;
   }
   return found;
+}
+
+/**
+ * The participant id a request's `code` field names, or `null`: in open mode
+ * a well-formed anonymous id (`WK7Q2M9XA`) is accepted as is; otherwise (or
+ * as well) an invited code that matches a configured one gives `P07`.
+ */
+export function resolveParticipant(
+  input: unknown,
+  access: { readonly open: boolean; readonly codes: readonly string[] | null },
+): string | null {
+  if (access.open) {
+    const anon = testerAnonIdSchema.safeParse(input);
+    if (anon.success) return anon.data;
+  }
+  if (!access.codes) return null;
+  const code = matchTesterCode(input, access.codes);
+  return code ? participantOf(code) : null;
 }

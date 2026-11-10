@@ -17,6 +17,9 @@
  * later shots), then sends ONE record to
  * `/api/tester/shots`. "Next shot" keeps the tape values and the phone model.
  * The code lives in sessionStorage only; a new code starts everything afresh.
+ * Open mode (`open`, server env `TESTER_OPEN=1`, Kirby 2026-11-10): no code
+ * step; the browser's anonymous id (localStorage, made on first visit) is
+ * sent in its place and shown so the person can ask for deletion.
  * Product analytics are muted while this page is mounted.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -37,6 +40,7 @@ import {
   TESTER_REFERENCES,
   TESTER_SURFACES,
   participantOf,
+  testerAnonIdSchema,
   testerCodeSchema,
   type TesterRecord,
 } from "../../lib/contracts/tester";
@@ -51,8 +55,10 @@ import {
   type ShotConditions,
 } from "./record";
 import {
+  anonIdStorage,
   checkTesterCode,
   codeStorage,
+  newAnonId,
   sendTesterShot,
   type ShotOutcome,
 } from "./send";
@@ -153,11 +159,16 @@ function focusFirstInvalid(root: HTMLElement | null) {
 }
 
 export interface TesterClientProps {
+  /** Open mode: anyone may take part, no code (server env `TESTER_OPEN=1`). */
+  readonly open?: boolean;
   /** Test/demo injection only (`/scan/tester/demo`, dev-only): the real page never passes it. */
   readonly runPhotoPipelineImpl?: EasyScanCameraProps["runPhotoPipelineImpl"];
 }
 
-export function TesterClient({ runPhotoPipelineImpl }: TesterClientProps) {
+export function TesterClient({
+  open = false,
+  runPhotoPipelineImpl,
+}: TesterClientProps) {
   const [step, setStepState] = useState<Step>("code");
   const [code, setCode] = useState<string | null>(null);
   const [codeInput, setCodeInput] = useState("");
@@ -208,14 +219,23 @@ export function TesterClient({ runPhotoPipelineImpl }: TesterClientProps) {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [tapeDraft]);
 
-  // A code kept from earlier in this tab skips the code step.
+  // A code kept from earlier in this tab skips the code step. Open mode has
+  // no code step: the browser's anonymous id (made once, kept) stands in.
   useEffect(() => {
+    if (open) {
+      const known = testerAnonIdSchema.safeParse(anonIdStorage.read());
+      const id = known.success ? known.data : newAnonId();
+      if (!known.success) anonIdStorage.write(id);
+      setCode(id);
+      setStep("consent");
+      return;
+    }
     const kept = testerCodeSchema.safeParse(codeStorage.read());
     if (kept.success) {
       setCode(kept.data);
       setStep("consent");
     }
-  }, [setStep]);
+  }, [open, setStep]);
 
   // Each screen starts at the top, with focus on its heading.
   useEffect(() => {
@@ -466,7 +486,9 @@ export function TesterClient({ runPhotoPipelineImpl }: TesterClientProps) {
         {copy.heading}
         {participant ? ` · ${participant}` : ""}
         <span className="testerStepOf">
-          {copy.stepOf(STEP_NUMBER[step], STEP_COUNT)}
+          {open
+            ? copy.stepOf(STEP_NUMBER[step] - 1, STEP_COUNT - 1)
+            : copy.stepOf(STEP_NUMBER[step], STEP_COUNT)}
         </span>
       </p>
       {step === "code" && (
@@ -534,7 +556,11 @@ export function TesterClient({ runPhotoPipelineImpl }: TesterClientProps) {
             {copy.consent.title}
           </h1>
           {participant && (
-            <p className="testerLead">{copy.code.participant(participant)}</p>
+            <p className="testerLead" data-testid="tester-participant">
+              {open
+                ? copy.code.anonParticipant(participant)
+                : copy.code.participant(participant)}
+            </p>
           )}
           <ul className="testerPoints">
             {copy.consent.points.map((point) => (
@@ -557,9 +583,11 @@ export function TesterClient({ runPhotoPipelineImpl }: TesterClientProps) {
           >
             {copy.consent.next}
           </button>
-          <button type="button" className="testerLink" onClick={forgetCode}>
-            {copy.result.reenterCode}
-          </button>
+          {!open && (
+            <button type="button" className="testerLink" onClick={forgetCode}>
+              {copy.result.reenterCode}
+            </button>
+          )}
         </section>
       )}
 
@@ -634,7 +662,7 @@ export function TesterClient({ runPhotoPipelineImpl }: TesterClientProps) {
           onRetry={retry}
           onSendWithoutPhoto={sendWithoutPhoto}
           onNext={nextShot}
-          onReenterCode={forgetCode}
+          onReenterCode={open ? null : forgetCode}
         />
       )}
     </main>
@@ -1114,7 +1142,8 @@ function ResultStep(props: {
   readonly onRetry: () => void;
   readonly onSendWithoutPhoto: () => void;
   readonly onNext: () => void;
-  readonly onReenterCode: () => void;
+  /** Null in open mode: there is no code to type again. */
+  readonly onReenterCode: (() => void) | null;
 }) {
   const r = copy.result;
   const { shot, tape, send } = props;
@@ -1152,7 +1181,9 @@ function ResultStep(props: {
               : send.outcome === "invalid"
                 ? r.failedInvalid
                 : send.outcome === "code"
-                  ? r.failedCode
+                  ? props.onReenterCode
+                    ? r.failedCode
+                    : r.failedClosed
                   : send.outcome === "unavailable"
                     ? r.failedUnavailable
                     : r.failed;
@@ -1198,15 +1229,17 @@ function ResultStep(props: {
       {send.kind === "sent" && props.photoDropped && (
         <p className="testerHint">{r.noPhoto}</p>
       )}
-      {send.kind === "failed" && send.outcome === "code" && (
-        <button
-          type="button"
-          className="primaryButton testerPrimary"
-          onClick={props.onReenterCode}
-        >
-          {r.reenterCode}
-        </button>
-      )}
+      {send.kind === "failed" &&
+        send.outcome === "code" &&
+        props.onReenterCode && (
+          <button
+            type="button"
+            className="primaryButton testerPrimary"
+            onClick={props.onReenterCode}
+          >
+            {r.reenterCode}
+          </button>
+        )}
       {send.kind === "failed" &&
         (send.outcome === "network" || send.outcome === "too-many") && (
           <button

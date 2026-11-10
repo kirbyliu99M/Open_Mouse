@@ -9,8 +9,16 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-/** Dev only (`next dev`): production, previews and `next start` answer 404. */
-export default function TesterDemoPage() {
+/**
+ * Dev only (`next dev`): production, previews and `next start` answer 404.
+ * `?open=1` shows open mode (no code step), like `TESTER_OPEN=1`.
+ */
+export default async function TesterDemoPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   guardDevOnlyRoute();
-  return <TesterDemoClient />;
+  const { open } = await searchParams;
+  return <TesterDemoClient open={open === "1"} />;
 }

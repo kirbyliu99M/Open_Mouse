@@ -5,12 +5,24 @@
  */
 import {
   TESTER_CHECK_PATH,
+  TESTER_CODE_ALPHABET,
   TESTER_SHOT_PATH,
   testerCheckResponseSchema,
   type TesterRecord,
 } from "../../lib/contracts/tester";
 
 export const TESTER_CODE_STORAGE_KEY = "palmate-tester-code";
+/** Open mode's anonymous id: localStorage, so a later visit groups with it. */
+export const TESTER_ANON_STORAGE_KEY = "palmate-tester-anon";
+
+/** `W` + 8 random chars of the code alphabet (32 letters: no modulo bias). */
+export function newAnonId(): string {
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  let id = "W";
+  for (const b of bytes) id += TESTER_CODE_ALPHABET[b & 31];
+  return id;
+}
 const TIMEOUT_MS = 30_000;
 
 export type CheckOutcome =
@@ -88,6 +100,24 @@ export const codeStorage = {
       window.sessionStorage.removeItem(TESTER_CODE_STORAGE_KEY);
     } catch {
       // Nothing stored.
+    }
+  },
+};
+
+/** localStorage, never throwing; without it the id lives for this page only. */
+export const anonIdStorage = {
+  read(): string | null {
+    try {
+      return window.localStorage.getItem(TESTER_ANON_STORAGE_KEY);
+    } catch {
+      return null;
+    }
+  },
+  write(id: string): void {
+    try {
+      window.localStorage.setItem(TESTER_ANON_STORAGE_KEY, id);
+    } catch {
+      // Kept in memory only.
     }
   },
 };

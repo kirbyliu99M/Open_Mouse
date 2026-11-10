@@ -851,7 +851,7 @@ export const testerShots = pgTable(
     index("tester_shots_day_idx").on(t.day),
     check(
       "tester_shots_participant_format",
-      sql`${t.participant} ~ '^P[0-9]{2,3}$'`,
+      sql`${t.participant} ~ '^(P[0-9]{2,3}|W[A-HJ-NP-Z2-9]{8})$'`,
     ),
     check(
       "tester_shots_consent_version_set",

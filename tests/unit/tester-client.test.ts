@@ -8,9 +8,12 @@ import {
   TESTER_CODE_ALPHABET,
   TESTER_PAGE_PATH,
   participantOf,
+  testerAnonIdSchema,
   testerCodeSchema,
+  testerParticipantSchema,
   testerRecordSchema,
 } from "../../src/lib/contracts/tester";
+import { newAnonId } from "../../src/client/tester/send";
 import {
   buildTesterRecord,
   giveUpCaptureMode,
@@ -430,7 +433,29 @@ describe("the consent copy (candidate)", () => {
     expect(Object.keys(testerCopy.consent)).not.toContain("photo");
     expect(Object.keys(testerCopy.consent)).not.toContain("photoHint");
     expect(testerCopy.consent.agree).toBe(
-      "我看過並同意以上說明，包括每一張附上處理過的照片",
+      "我已年滿 18 歲，看過並同意以上說明，包括每一張附上處理過的照片",
     );
+  });
+
+  it("open mode: the anonymous id is shown with how to keep it, and the age rule is a point", () => {
+    const line = testerCopy.code.anonParticipant("WK7Q2M9XA");
+    expect(line).toContain("WK7Q2M9XA");
+    expect(line).toContain("要求刪除資料時需要用到");
+    expect(testerCopy.consent.points.join("")).toContain("年滿 18 歲");
+    expect(testerCopy.consent.points.join("")).not.toContain("P07");
+  });
+});
+
+describe("open mode's anonymous id", () => {
+  it("is W + 8 chars of the code alphabet, and different each time", () => {
+    const ids = new Set<string>();
+    for (let i = 0; i < 200; i++) {
+      const id = newAnonId();
+      expect(testerAnonIdSchema.safeParse(id).success).toBe(true);
+      expect(testerParticipantSchema.safeParse(id).success).toBe(true);
+      expect(participantOf(id)).toBe(id);
+      ids.add(id);
+    }
+    expect(ids.size).toBe(200);
   });
 });

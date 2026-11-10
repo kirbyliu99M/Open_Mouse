@@ -4,9 +4,12 @@
  * the limiter, the table, the Blob store, the random path and the clock), so
  * it is unit-tested with no network: tests/unit/tester-service.test.ts.
  *
- * Both routes: `TESTER_CODES` unset -> 404, before anything is read. A code
- * that is malformed or not configured -> 404 too (one answer for "no such
- * page" and "wrong code"). Codes are compared in constant time (./codes.ts).
+ * Both routes: `TESTER_OPEN` and `TESTER_CODES` unset -> 404, before anything
+ * is read. A code that is malformed or not configured -> 404 too (one answer
+ * for "no such page" and "wrong code"). Codes are compared in constant time
+ * (./codes.ts). In open mode (`TESTER_OPEN=1`, Kirby 2026-11-10) the shot's
+ * `code` field may instead be a browser-made anonymous id (`WK7Q2M9XA`),
+ * accepted as is and stored as the participant.
  *
  * Check, in order: 413 (body over 1 KB) -> 429 (per-IP, key prefix
  * `tester-check:`) -> JSON `{ code }` -> 404 or 200 `{ participant }`.
@@ -54,7 +57,7 @@ import {
 } from "../error-photos/service";
 import { log } from "../log";
 import type { RateLimiter } from "../scans/rate-limit-config";
-import { matchTesterCode } from "./codes";
+import { matchTesterCode, resolveParticipant } from "./codes";
 import { taipeiDay } from "./day";
 import type { TesterShotRepo } from "./repo";
 
@@ -69,13 +72,16 @@ export const TESTER_LOG_ROUTE = "/api/tester";
 
 /**
  * Per IP (candidates 未拍板): a code guesser gets 30 tries an hour; a tester
- * on a busy evening sends far fewer than 120 shots an hour.
+ * on a busy evening sends far fewer than 40 shots an hour (lowered from 120
+ * when the page opened to anyone, Kirby 2026-11-10, to cap photo uploads).
  */
 export const TESTER_CHECK_RATE_LIMIT = { windowMs: 60 * 60 * 1000, max: 30 };
-export const TESTER_SHOT_RATE_LIMIT = { windowMs: 60 * 60 * 1000, max: 120 };
+export const TESTER_SHOT_RATE_LIMIT = { windowMs: 60 * 60 * 1000, max: 40 };
 
 export interface TesterDeps {
-  /** `parseTesterCodes(process.env.TESTER_CODES)`: null means the feature is off. */
+  /** `TESTER_OPEN=1`: anyone may send shots with an anonymous id. */
+  readonly open: boolean;
+  /** `parseTesterCodes(process.env.TESTER_CODES)`: null means no invited codes. */
   readonly codes: readonly string[] | null;
   /** Whether `BLOB_READ_WRITE_TOKEN` is set. */
   readonly blobConfigured: boolean;
@@ -131,7 +137,7 @@ export async function handleTesterCheck(
   request: Request,
   deps: TesterDeps,
 ): Promise<Response> {
-  if (!deps.codes) return NOT_FOUND();
+  if (!deps.codes && !deps.open) return NOT_FOUND();
   try {
     if (declaredTooLarge(request, TESTER_CHECK_MAX_BODY_BYTES))
       return TOO_LARGE();
@@ -145,10 +151,10 @@ export async function handleTesterCheck(
       return NOT_FOUND();
     }
     const parsed = testerCheckSchema.safeParse(payload);
-    const code = matchTesterCode(
-      parsed.success ? parsed.data.code : null,
-      deps.codes,
-    );
+    // Open mode needs no check; only invited codes are checked here.
+    const code = deps.codes
+      ? matchTesterCode(parsed.success ? parsed.data.code : null, deps.codes)
+      : null;
     if (!code) return NOT_FOUND();
     return json(
       200,
@@ -179,7 +185,7 @@ export async function handleTesterShot(
   request: Request,
   deps: TesterDeps,
 ): Promise<Response> {
-  if (!deps.codes) return NOT_FOUND();
+  if (!deps.codes && !deps.open) return NOT_FOUND();
   try {
     if (declaredTooLarge(request, TESTER_SHOT_MAX_BODY_BYTES))
       return TOO_LARGE();
@@ -198,8 +204,8 @@ export async function handleTesterShot(
       return INVALID("form");
     }
 
-    const code = matchTesterCode(form.get("code"), deps.codes);
-    if (!code) return NOT_FOUND();
+    const participant = resolveParticipant(form.get("code"), deps);
+    if (!participant) return NOT_FOUND();
 
     const record = parseRecord(form.get("record"));
     if (!record) return INVALID("record");
@@ -253,7 +259,7 @@ export async function handleTesterShot(
     try {
       inserted = await repo.insert({
         shotId: record.shotId,
-        participant: participantOf(code),
+        participant,
         day: taipeiDay(now),
         record,
         photoPathname: pathname,

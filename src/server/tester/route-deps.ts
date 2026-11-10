@@ -1,6 +1,7 @@
 /**
  * The real dependencies of the tester routes. Read at request time (no build
- * flag): `TESTER_CODES` unset -> both routes answer 404 without touching the
+ * flag): `TESTER_OPEN` and `TESTER_CODES` both unset -> both routes answer
+ * 404 without touching the
  * database. Everything that needs the database is built lazily.
  */
 import "server-only";
@@ -8,6 +9,7 @@ import { randomUUID } from "node:crypto";
 import { getDb } from "../../db/client";
 import { createDrizzleRateLimiter } from "../analysis/drizzle-rate-limiter";
 import { createVercelErrorPhotoBlobStore } from "../error-photos/blob-store";
+import { testerOpenConfigured } from "../../lib/tester/enabled";
 import { parseTesterCodes } from "./codes";
 import { createDrizzleTesterShotRepo } from "./drizzle-repo";
 import {
@@ -20,6 +22,7 @@ export function testerRouteDeps(op: "check" | "shot"): TesterDeps {
   const limit =
     op === "check" ? TESTER_CHECK_RATE_LIMIT : TESTER_SHOT_RATE_LIMIT;
   return {
+    open: testerOpenConfigured(process.env.TESTER_OPEN),
     codes: parseTesterCodes(process.env.TESTER_CODES),
     blobConfigured: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
     limiter: () =>
@@ -37,5 +40,13 @@ export function testerRouteDeps(op: "check" | "shot"): TesterDeps {
 
 /** Whether the tester page is on (the page's own `notFound()` check). */
 export function testerPageEnabled(): boolean {
-  return parseTesterCodes(process.env.TESTER_CODES) !== null;
+  return (
+    testerOpenConfigured(process.env.TESTER_OPEN) ||
+    parseTesterCodes(process.env.TESTER_CODES) !== null
+  );
+}
+
+/** Open mode: the page skips the code step (anonymous id instead). */
+export function testerPageOpen(): boolean {
+  return testerOpenConfigured(process.env.TESTER_OPEN);
 }

@@ -52,6 +52,7 @@ async function world() {
   };
   let n = 0;
   const deps = (now: Date): TesterDeps => ({
+    open: false,
     codes: [CODE, "P08-ABCDEF"],
     blobConfigured: true,
     limiter: () => ({ allow: async () => true }),

@@ -399,3 +399,70 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
   expect(gaveUp.record.shotId).not.toBe(r.shotId);
   expect(scansCalled).toBe(0);
 });
+
+test("open mode: no code step; the browser's anonymous id is kept, shown, and sent", async ({
+  page,
+}) => {
+  const codes: string[] = [];
+  await page.route("**/api/scans**", (route) =>
+    route.fulfill({ status: 500, body: "{}" }),
+  );
+  await page.route("**/api/tester/check", (route) =>
+    route.fulfill({ status: 500, body: "{}" }),
+  );
+  await page.route("**/api/tester/shots", async (route) => {
+    const request = route.request();
+    const parts = parseMultipart(
+      request.postDataBuffer() ?? Buffer.alloc(0),
+      request.headers()["content-type"] ?? "",
+    );
+    codes.push(parts.get("code")?.toString() ?? "");
+    const record = JSON.parse(parts.get("record")?.toString() ?? "{}");
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({ shotId: record.shotId }),
+    });
+  });
+
+  await page.goto(`${DEMO}?open=1`);
+  await expect(page.getByTestId("tester-step-consent")).toBeVisible();
+  await expect(page.getByText(copy.stepOf(1, 5))).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: copy.result.reenterCode }),
+  ).toHaveCount(0);
+  const line = page.getByTestId("tester-participant");
+  await expect(line).toContainText("要求刪除資料時需要用到");
+  const id = /W[A-HJ-NP-Z2-9]{8}/.exec((await line.textContent()) ?? "")?.[0];
+  expect(id).toBeTruthy();
+  await shot(page, "open-1-consent");
+
+  // A later visit in the same browser keeps the same id.
+  await page.reload();
+  await expect(line).toContainText(id!);
+
+  await page.getByRole("checkbox", { name: copy.consent.agree }).check();
+  await page.getByRole("button", { name: copy.consent.next }).click();
+  await expect(page.getByTestId("tester-step-tape")).toBeVisible();
+  await page.getByRole("radio", { name: copy.tape.right, exact: true }).check();
+  const field = (f: string) => page.locator(`[data-field="${f}"]`);
+  await field("handLength.a.first").fill("188");
+  await field("handLength.a.second").fill("189");
+  await field("palmWidth.a.first").fill("84");
+  await field("palmWidth.a.second").fill("84.5");
+  await page.getByRole("button", { name: copy.tape.next }).click();
+  await page.getByLabel(copy.conditions.phoneModel).fill("Pixel 8");
+  await chooseConditions(page, [
+    copy.conditions.surfaces.white,
+    copy.conditions.lightings.daylight,
+    copy.conditions.references.a4,
+  ]);
+  await page.getByRole("button", { name: copy.conditions.start }).click();
+  await dismissFirstRun(page);
+  await continueFromMeasured(page);
+  await expect(page.getByTestId("tester-send-status")).toHaveText(
+    copy.result.sent,
+    { timeout: 30_000 },
+  );
+  expect(codes).toEqual([id]);
+});
