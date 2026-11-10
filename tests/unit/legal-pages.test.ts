@@ -156,12 +156,33 @@ describe("the privacy notice and the terms", () => {
     expect(zh).toContain("需年滿 18 歲");
     expect(zh).toContain("如果代號遺失");
     expect(zh).toContain("瀏覽器隨機產生的測試者代號");
+    // The ID depends on the mode; when it is made and sent; matching by tape values.
+    for (const phrase of [
+      "開放參加時，是你的瀏覽器隨機產生",
+      "只限受邀參加時，是我們給的代號",
+      "一打開測試頁面就會產生，同意前不會送出",
+      "附上參加的日期和卷尺數值",
+      "我們沒有隨機代號和你本人的對應",
+      "你輸入的測試者代碼（只存在這個分頁，關掉就清除）",
+    ])
+      expect(zh, phrase).toContain(phrase);
+    expect(zh).not.toContain("隨機代號只存在你的瀏覽器裡");
     expect(en).toContain(
       "Data testers' records (only for people who agree on the test page)",
     );
     expect(en).toContain("18 or over");
     expect(en).toContain("if you lose it");
     expect(en).toContain("the random tester ID your browser makes");
+    for (const phrase of [
+      "when the page is open to anyone, a random ID your browser makes",
+      "when it is limited to invited testers, the ID we gave them",
+      "created when the page opens, sent only after you agree",
+      "the dates you took part and your tape values",
+      "We have no link between a random ID and you",
+      "the tester code you typed (kept in that tab only",
+    ])
+      expect(en, phrase).toContain(phrase);
+    expect(en).not.toContain("lives only in your browser");
     // The draft doc says the same.
     const draft = readFileSync(
       "docs/design/touchpoint-2026-11-08/privacy-policy-v2-draft.md",
@@ -172,6 +193,11 @@ describe("the privacy notice and the terms", () => {
       "需年滿 18 歲",
       "WK7Q2M9XA",
       "如果代號遺失",
+      "開放參加時，是你的瀏覽器隨機產生",
+      "只限受邀參加時，是我們給的代號",
+      "一打開測試頁面就會產生，同意前不會送出",
+      "附上參加的日期和卷尺數值",
+      "我們沒有隨機代號和你本人的對應",
     ])
       expect(draft, phrase).toContain(phrase);
     expect(draft).not.toMatch(/受邀測試者的紀錄|不公開的測試頁面/);
