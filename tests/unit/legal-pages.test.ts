@@ -139,4 +139,41 @@ describe("the privacy notice and the terms", () => {
       'href: "/terms"',
     );
   });
+
+  it("3.8 and its deletion paragraph: open to anyone who agrees (18+), both kinds of tester ID (Kirby 2026-11-10)", () => {
+    const zh = all(legal.zhTW);
+    const en = all(legal.en);
+    for (const text of [zh, en]) {
+      expect(text).toContain("P07");
+      expect(text).toContain("WK7Q2M9XA");
+      expect(text).not.toMatch(
+        /受邀測試者的紀錄|不公開的測試頁面|Invited testers|not public, to check/,
+      );
+    }
+    expect(zh).toContain(
+      "資料測試者的紀錄（只適用於在測試頁面上同意參加的人）",
+    );
+    expect(zh).toContain("需年滿 18 歲");
+    expect(zh).toContain("如果代號遺失");
+    expect(zh).toContain("瀏覽器隨機產生的測試者代號");
+    expect(en).toContain(
+      "Data testers' records (only for people who agree on the test page)",
+    );
+    expect(en).toContain("18 or over");
+    expect(en).toContain("if you lose it");
+    expect(en).toContain("the random tester ID your browser makes");
+    // The draft doc says the same.
+    const draft = readFileSync(
+      "docs/design/touchpoint-2026-11-08/privacy-policy-v2-draft.md",
+      "utf8",
+    );
+    for (const phrase of [
+      "資料測試者的紀錄（只適用於在測試頁面上同意參加的人",
+      "需年滿 18 歲",
+      "WK7Q2M9XA",
+      "如果代號遺失",
+    ])
+      expect(draft, phrase).toContain(phrase);
+    expect(draft).not.toMatch(/受邀測試者的紀錄|不公開的測試頁面/);
+  });
 });
