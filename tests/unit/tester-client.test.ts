@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   TESTER_CODE_ALPHABET,
   TESTER_PAGE_PATH,
+  TESTER_PHOTO_RETENTION_DAYS,
   participantOf,
   testerAnonIdSchema,
   testerCodeSchema,
@@ -20,7 +21,7 @@ import {
   handMatches,
   referenceMatches,
 } from "../../src/client/tester/record";
-import { testerCopy } from "../../src/lib/tester/copy";
+import { TESTER_CONTACT_EMAIL, testerCopy } from "../../src/lib/tester/copy";
 import { buildTourSteps } from "../../src/client/camera/tour/tourModel";
 import {
   ANALYTICS_MUTED_PATHS,
@@ -443,6 +444,19 @@ describe("the consent copy (candidate)", () => {
     expect(line).toContain("要求刪除資料時需要它");
     expect(testerCopy.consent.points.join("")).toContain("需年滿 18 歲");
     expect(testerCopy.consent.points.join("")).not.toContain("P07");
+  });
+
+  it("the short consent still says what a person needs to decide", () => {
+    const all = testerCopy.consent.points.join("");
+    for (const phrase of [
+      "IP 的雜湊值（不是原始 IP），約一天內清除",
+      `${TESTER_PHOTO_RETENTION_DAYS} 天後刪除`,
+      "掃描完成會直接送出",
+      "資料可能匯出到專案負責人的電腦",
+      "用卡片時把卡片塗黑",
+      `寄信到 ${TESTER_CONTACT_EMAIL}，附上你的代號`,
+    ])
+      expect(all, phrase).toContain(phrase);
   });
 });
 

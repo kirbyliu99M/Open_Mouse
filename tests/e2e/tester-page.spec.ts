@@ -432,7 +432,7 @@ test("open mode: no code step; the browser's anonymous id is kept, shown, and se
     page.getByRole("button", { name: copy.result.reenterCode }),
   ).toHaveCount(0);
   const line = page.getByTestId("tester-participant");
-  await expect(line).toContainText("要求刪除資料時需要用到");
+  await expect(line).toContainText("要求刪除資料時需要它");
   const id = /W[A-HJ-NP-Z2-9]{8}/.exec((await line.textContent()) ?? "")?.[0];
   expect(id).toBeTruthy();
   await shot(page, "open-1-consent");
