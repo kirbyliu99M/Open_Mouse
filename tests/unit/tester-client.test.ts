@@ -450,7 +450,8 @@ describe("the consent copy (candidate)", () => {
     const all = testerCopy.consent.points.join("");
     for (const phrase of [
       "IP 的雜湊值（不是原始 IP），約一天內清除",
-      `${TESTER_PHOTO_RETENTION_DAYS} 天後刪除`,
+      `存在不公開的地方，${TESTER_PHOTO_RETENTION_DAYS} 天後刪除`,
+      `一樣 ${TESTER_PHOTO_RETENTION_DAYS} 天後刪除照片`,
       "掃描完成會直接送出",
       "資料可能匯出到專案負責人的電腦",
       "用卡片時把卡片塗黑",
