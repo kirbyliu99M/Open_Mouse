@@ -235,6 +235,9 @@ describe("the privacy notice and the terms", () => {
     expect(month, en![2]).toBeGreaterThan(0);
     const enDay = `${en![3]}-${String(month).padStart(2, "0")}-${en![1]!.padStart(2, "0")}`;
     expect(enDay).toBe(zhDay);
-    expect(Number.isNaN(Date.parse(`${zhDay}T00:00:00Z`))).toBe(false);
+    // A day that does not exist (30 February) would roll over; it must not.
+    expect(new Date(`${zhDay}T00:00:00Z`).toISOString().slice(0, 10)).toBe(
+      zhDay,
+    );
   });
 });

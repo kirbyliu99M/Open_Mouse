@@ -62,8 +62,9 @@ export interface LegalCopy {
 export const zhTW: LegalCopy = {
   privacyTitle: "隱私權政策",
   termsTitle: "使用條款",
-  // Policy v2.1 goes live with #240–#243 (Kirby 2026-11-10: 開始進行上線).
-  updated: "最後更新：2026 年 11 月 10 日",
+  // Policy v2.1 went live 2026-11-10 (#240–#243); 3.8 widened to "no PostHog
+  // or GA events" 2026-11-11 (#244).
+  updated: "最後更新：2026 年 11 月 11 日",
   back: "回首頁",
   // TODO(Kirby): 蒐集者名稱 — the draft asks for the responsible person or a
   // registered group name; until then the current wording 「Palmate 團隊」 stays.
@@ -230,8 +231,8 @@ export const zhTW: LegalCopy = {
 export const en: LegalCopy = {
   privacyTitle: "Privacy",
   termsTitle: "Terms of use",
-  // Policy v2.1 goes live with #240–#243 (2026-11-10).
-  updated: "Last updated: 10 November 2026",
+  // Policy v2.1 went live 2026-11-10; 3.8 changed 2026-11-11 (#244).
+  updated: "Last updated: 11 November 2026",
   back: "Home",
   // TODO(Kirby): controller name (see the zh-TW table).
   privacyIntro:
