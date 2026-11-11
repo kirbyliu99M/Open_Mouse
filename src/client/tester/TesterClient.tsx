@@ -833,16 +833,8 @@ function MeasureFieldset(props: {
         errors={props.errors}
         onChange={(a) => props.onChange({ ...props.draft, a })}
       />
-      <PairFieldset
-        name={`${props.name}.b`}
-        measureLegendId={legendId}
-        hintId={`${props.name}-help`}
-        title={copy.tape.measurerB}
-        required={false}
-        pair={props.draft.b}
-        errors={props.errors}
-        onChange={(b) => props.onChange({ ...props.draft, b })}
-      />
+      {/* No second measurer on the page (Kirby 2026-11-11: nobody would
+          understand "量測者 B"); the contract keeps `b` optional. */}
     </fieldset>
   );
 }
