@@ -44,11 +44,12 @@ describe("the content pages' copy tables", () => {
 
 describe("English stays what it was", () => {
   it("the privacy constants are the sentences the scan screens pin", () => {
+    // Touchpoint (2026-11-08, candidate): a photo can be sent, by choice only.
     expect(PHOTO_PRIVACY_COPY).toBe(
-      "Your photo never leaves your phone. Only measurements are sent.",
+      "By default your photo is analysed only on your phone, and only the measurements are sent.",
     );
     expect(PHOTO_PRIVACY_COPY_THIS_DEVICE).toBe(
-      "Your photo never leaves this device. Only measurements are sent.",
+      "By default your photo is analysed only on this device, and only the measurements are sent.",
     );
   });
 
@@ -71,9 +72,12 @@ describe("English stays what it was", () => {
     expect(learn.en.printPages(1)).toBe("Print 1 page");
     expect(learn.en.printPages(3)).toBe("Print 3 pages");
     expect(account.en.deleteBody(0)).toBe(
-      "This permanently deletes your account, including the email address and name from Google, and signs you out. This can't be undone.",
+      "This permanently deletes your account, including the email address and name from Google, and signs you out. Photos you sent are not in your account; delete them with their deletion code. This can't be undone.",
     );
-    expect(account.en.deleteBody(4)).toContain("all 4 of your scans and ");
+    // The scans go with their value-matching unnamed copies (touchpoint).
+    expect(account.en.deleteBody(4)).toContain(
+      "all 4 of your scans, the unnamed copies whose values match them, and ",
+    );
   });
 });
 

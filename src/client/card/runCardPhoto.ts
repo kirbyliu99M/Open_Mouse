@@ -2,7 +2,10 @@
  * v3.4 card reference (candidate 未拍板): the browser half of a card-mode
  * photo. Decodes the shot, runs the scan's own full-resolution hand
  * detector (MediaPipe, IMAGE mode, in this tab) and hands the pixels to
- * `analyseCardPhoto`. The photo never leaves the browser.
+ * `analyseCardPhoto`. Nothing here sends the photo anywhere; it leaves the
+ * browser only if the person later sends it themselves from a failure or
+ * "numbers look wrong" screen (src/lib/contracts/error-photo.ts), with the
+ * card blacked out on the device first.
  */
 import { detectHandLandmarks } from "../photo/landmarks";
 import {

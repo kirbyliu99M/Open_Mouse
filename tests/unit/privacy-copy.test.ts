@@ -10,9 +10,12 @@ it("keeps the shared privacy promise on How it works, the scan screens and the c
   // the taglines (Kirby, 2026-10-03), so these are the surfaces that keep the
   // promise: if one of them stops using the shared copy, the promise must not
   // silently disappear from all of them.
+  // Touchpoint (2026-11-08, candidate): the photo stays on the phone by
+  // default; the one exception is the person's own choice to send it.
   expect(PHOTO_PRIVACY_COPY).toBe(
-    "Your photo never leaves your phone. Only measurements are sent.",
+    "By default your photo is analysed only on your phone, and only the measurements are sent.",
   );
+  expect(PHOTO_PRIVACY_COPY).not.toMatch(/never leaves|never uploaded/);
   // How it works reads it in the visitor's language (`privacyCopy(locale)`).
   expect(readFileSync("src/app/how-it-works/page.tsx", "utf8")).toContain(
     "photoStaysOnPhone",
@@ -40,7 +43,7 @@ it("does not put the photo-privacy sentence on the home page", () => {
 
 it("has a device-neutral twin for the desktop entry, and leaves the phone wording alone", () => {
   expect(PHOTO_PRIVACY_COPY_THIS_DEVICE).toBe(
-    "Your photo never leaves this device. Only measurements are sent.",
+    "By default your photo is analysed only on this device, and only the measurements are sent.",
   );
   // The same promise: only the device changes.
   expect(PHOTO_PRIVACY_COPY.replace("your phone", "this device")).toBe(

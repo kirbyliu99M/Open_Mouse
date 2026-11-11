@@ -11,6 +11,11 @@
  * text: no copy table computes a number (hard rule 2).
  *
  * The photo-privacy sentences are the single source for `privacy.ts` too.
+ * Touchpoint (2026-11-08, CANDIDATE 未拍板): a photo can now be uploaded, but
+ * only when the person sends it themselves from a failure or "numbers look
+ * wrong" screen (src/lib/contracts/error-photo.ts), so the sentences say "by
+ * default". They are short, for the camera and device screens; the full
+ * opt-in explanation lives in the FAQ, the privacy notice and the photo sheet.
  */
 import type { Locale } from "../contracts/locale";
 import { pickCopy } from "../i18n/copy";
@@ -81,10 +86,10 @@ export interface ScanCommonCopy {
 }
 
 export const zhTW: ScanCommonCopy = {
-  privacyPhone: "你的照片不會離開手機，只會傳送測量數值。",
-  privacyDevice: "你的照片不會離開這台裝置，只會傳送測量數值。",
+  privacyPhone: "照片預設只在你的手機上分析，只會傳送測量數值。",
+  privacyDevice: "照片預設只在這台裝置上分析，只會傳送測量數值。",
   privacyAndCameraStays:
-    "你的照片不會離開手機，只會傳送測量數值。相機畫面只會留在你的手機上。",
+    "照片預設只在你的手機上分析，只會傳送測量數值。相機畫面只會留在你的手機上。",
   handLeft: "左手",
   handRight: "右手",
   handChip: (hand, locked) =>
@@ -140,11 +145,11 @@ export const zhTW: ScanCommonCopy = {
 
 export const en: ScanCommonCopy = {
   privacyPhone:
-    "Your photo never leaves your phone. Only measurements are sent.",
+    "By default your photo is analysed only on your phone, and only the measurements are sent.",
   privacyDevice:
-    "Your photo never leaves this device. Only measurements are sent.",
+    "By default your photo is analysed only on this device, and only the measurements are sent.",
   privacyAndCameraStays:
-    "Your photo never leaves your phone. Only measurements are sent. The camera view stays on your phone.",
+    "By default your photo is analysed only on your phone, and only the measurements are sent. The camera view stays on your phone.",
   handLeft: "Left hand",
   handRight: "Right hand",
   handChip: (hand, locked) =>

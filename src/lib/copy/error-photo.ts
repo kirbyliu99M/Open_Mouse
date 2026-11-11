@@ -10,6 +10,10 @@
  * them on a phone. No medical wording. The privacy policy's own text is
  * another lane's (src/lib/copy/legal.ts); these strings must not contradict
  * it once that lane lands.
+ *
+ * RELEASE ORDER: the privacy policy v2.1 (src/lib/copy/legal.ts) ships in the
+ * SAME deploy as NEXT_PUBLIC_ERROR_PHOTO_ENABLED=1 (#241); never deploy that
+ * policy with the flag off.
  */
 import type { Locale } from "../contracts/locale";
 import { pickCopy } from "../i18n/copy";

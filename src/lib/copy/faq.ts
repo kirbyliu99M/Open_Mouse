@@ -123,11 +123,11 @@ export const zhTW: FaqCopy = {
     "收錄的是現正販售的電競滑鼠，規格來自公開資料與官方網站。垂直滑鼠和軌跡球暫時不列入。",
   photos: {
     q: "手的照片會上傳嗎？",
-    a: "不會。照片在你的手機瀏覽器裡分析，從不上傳；只有測量數值（例如手長、掌寬）會送到伺服器，用來替滑鼠排序。",
+    a: "預設不會。照片在你的手機瀏覽器裡分析，只有測量數值（例如手長、掌寬）會送到伺服器，用來替滑鼠排序。只有你在掃描失敗或回報數字不對時，自己選擇傳送照片並勾選同意，照片才會上傳，用來找出量測錯誤的原因，約半年後自動刪除；你也可以用刪除碼提早刪除。",
   },
   account: {
     q: "需要註冊嗎？資料會保存多久？",
-    a: "不需要，掃描和排名不用帳號就能用。沒有帳號的掃描會在 24 小時內刪除；用 Google 登入後結果會保留，帳號 90 天沒有使用會連同所有掃描一起刪除。",
+    a: "不需要，掃描和排名不用帳號就能用。沒有帳號的掃描會在 24 小時內刪除；用 Google 登入後，結果會保存在你的帳號，直到你刪除帳號。送出掃描時，預設還會保留一份不記名的數值副本（不含照片和帳號），可以在送出前關掉；詳見隱私權政策。",
   },
   brands: {
     q: "Palmate 和滑鼠品牌有合作嗎？",
@@ -196,11 +196,11 @@ export const en: FaqCopy = {
     "Gaming mice currently on sale, with specifications from public data and official sites. Vertical mice and trackballs are left out for now.",
   photos: {
     q: "Is the photo of my hand uploaded?",
-    a: "No. The photo is analysed in your phone's browser and never uploaded; only the measurements, such as hand length and palm width, reach our server to rank the mice.",
+    a: "Not by default. The photo is analysed in your phone's browser, and only the measurements, such as hand length and palm width, reach our server to rank the mice. A photo is uploaded only if you choose to send it and tick the consent box after a failed scan or when you report wrong numbers; it is used to find what went wrong, deleted automatically after about half a year, and you can delete it sooner with its deletion code.",
   },
   account: {
     q: "Do I need an account? How long is my data kept?",
-    a: "No, scanning and the rankings work without an account. Scans without an account are deleted within 24 hours; sign in with Google to keep your results, and an account unused for 90 days is deleted with all its scans.",
+    a: "No, scanning and the rankings work without an account. Scans without an account are deleted within 24 hours; sign in with Google to keep your results in your account until you delete it. When you send a scan, an unnamed copy of the numbers (no photo, no account) is also kept by default, and you can turn that off before sending; see the privacy notice.",
   },
   brands: {
     q: "Is Palmate affiliated with any mouse brand?",

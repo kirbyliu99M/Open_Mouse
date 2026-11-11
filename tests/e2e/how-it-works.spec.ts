@@ -27,7 +27,7 @@ test("How it works shows the illustration, steps, privacy details and navigation
   }
   await expect(
     page.getByText(
-      "Your photo never leaves your phone. Only measurements are sent.",
+      "By default your photo is analysed only on your phone, and only the measurements are sent.",
     ),
   ).toBeVisible();
   await expect(

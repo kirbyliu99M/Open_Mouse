@@ -29,9 +29,11 @@ one of them will not be merged.
 4. **Gates are hard stops, and evidence is numbers.** Where `docs/PLAN.md` sets a
    numeric gate, post the measured values in the pull request ("looks good" is not
    evidence). If a gate fails, revise the implementation, never the gate.
-5. **Photos never leave the browser.** MediaPipe and the paper and marker detection
-   run on the device; only derived millimetre values are sent. A change that sends
-   an image to a server breaks a promise made in the UI: stop and raise it.
+5. **Photos stay on the device by default.** MediaPipe and the paper and marker detection
+   run on the device; a scan sends only derived millimetre values. The one exception
+   is the person's own opt-in upload from a failure or "numbers look wrong?" screen
+   (`src/lib/contracts/error-photo.ts`). Any other change that sends an image to a
+   server breaks a promise made in the UI: stop and raise it.
 
 Also: TypeScript stays strict, with no `any` on the critical path; the database
 client is Drizzle over Neon's HTTP driver (never `pg.Pool`); secrets stay on the

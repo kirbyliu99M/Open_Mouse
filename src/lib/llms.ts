@@ -98,7 +98,7 @@ export const LLMS_SECTIONS: readonly LlmsSection[] = [
 const FACTS = [
   "Palmate is a free web tool that helps people choose a gaming mouse by hand size. It is run by a student team from a course at National Taiwan University.",
   "A visitor lays one hand on a blank sheet of A4 paper and photographs it with a phone. The sheet is the scale: its known size turns the photo into millimetres.",
-  "The photo is analysed in the browser (MediaPipe hand landmarks) and is never uploaded. Only the derived measurements, such as hand length and palm width, are sent to the server.",
+  "The photo is analysed in the browser (MediaPipe hand landmarks) and is not uploaded by default. Only the derived measurements, such as hand length and palm width, are sent to the server. A photo is uploaded only if the visitor chooses to send it after a failed scan or to report wrong numbers.",
   "Mice are scored against the hand on six parts: length, grip width, height and hump, front width, thumb rest and weight. Length counts most.",
   "Grip style (palm, claw or fingertip) and, optionally, palm thickness change the target size of the mouse.",
   "Rankings and measurements are estimates for reference, not medical or ergonomic advice. Palmate is not affiliated with any mouse brand.",

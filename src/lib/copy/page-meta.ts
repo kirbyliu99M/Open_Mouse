@@ -22,9 +22,9 @@ export const zhTW: PageMetaCopy = {
   learn:
     "挑滑鼠前先看這篇：手長與掌寬、趴握／抓握／指握、手掌厚度、滑鼠尺寸與形狀，各自怎麼影響合不合手。",
   howItWorks:
-    "Palmate 怎麼量手：一張空白 A4 紙當尺，手機拍照後在瀏覽器裡分析，照片不上傳，大約一分鐘就能看到依你的手排序的滑鼠。",
+    "Palmate 怎麼量手：一張空白 A4 紙當尺，手機拍照後在瀏覽器裡分析，照片預設不上傳，大約一分鐘就能看到依你的手排序的滑鼠。",
   privacy:
-    "Palmate 收集哪些資料、為什麼收集、保存多久：手部照片不會上傳，只有測量數值會送到伺服器。",
+    "Palmate 收集哪些資料、為什麼收集、保存多久：照片預設不會上傳，只有你自己選擇傳送時才會；掃描只把測量數值送到伺服器，並預設保留一份不記名的數值副本。",
   terms:
     "Palmate 的使用條款：測量與排名僅供參考，不構成醫療或人體工學建議；品牌與商標屬於各自的所有者。",
 };
@@ -34,9 +34,9 @@ export const en: PageMetaCopy = {
   learn:
     "What to check before you pick a mouse: hand length and palm width, palm, claw or fingertip grip, palm thickness, and the mouse's size and shape.",
   howItWorks:
-    "How Palmate measures your hand: a blank sheet of A4 is the ruler, the photo is analysed in your browser and never uploaded, and in about a minute you see mice ranked for your hand.",
+    "How Palmate measures your hand: a blank sheet of A4 is the ruler, the photo is analysed in your browser and is not uploaded by default, and in about a minute you see mice ranked for your hand.",
   privacy:
-    "What Palmate collects, why, and for how long: hand photos are never uploaded; only the measurements reach the server.",
+    "What Palmate collects, why, and for how long: by default photos are not uploaded, only if you choose to send one; a scan sends only the measurements, and by default an unnamed copy of them is kept.",
   terms:
     "Palmate's terms of use: measurements and rankings are estimates for reference, not medical or ergonomic advice; brand names belong to their owners.",
 };

@@ -58,6 +58,9 @@ describe("llms.txt", () => {
     expect(txt.startsWith("# Palmate\n\n> ")).toBe(true);
     expect(txt).toContain(`(${SITE_URL}/en/mice)`);
     expect(txt).toContain(`中文：${SITE_URL}/mice`);
-    expect(txt).toContain("never uploaded");
+    // Touchpoint (2026-11-08, candidate): by default, with the one opt-in.
+    expect(txt).toContain("is not uploaded by default");
+    expect(txt).toContain("only if the visitor chooses to send it");
+    expect(txt).not.toContain("never uploaded");
   });
 });

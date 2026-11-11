@@ -158,7 +158,8 @@ export const zhTW: AccountCopy = {
   answerWithoutAccountNote:
     "不登入也可以送出問卷。沒有登入時送出的回答，之後無法找回，也就無法撤回。",
   finePrint:
-    "我們會保存你的電子郵件地址和掃描紀錄，絕不會保存你的照片。登入時，你目前的掃描會併入你的帳號。",
+    // Touchpoint 2026-11-08, CANDIDATE (未拍板): a photo can be sent, by choice only.
+    "我們會保存你的電子郵件地址和掃描紀錄。照片預設不會上傳，只有你自己選擇傳送時才會保存，而且不會存進帳號。登入時，你目前的掃描會併入你的帳號。",
   unavailable:
     "目前無法登入。你仍然可以掃描，結果會保留一段時間，之後自動刪除。",
   scanMyHand: "掃描我的手",
@@ -245,8 +246,11 @@ export const zhTW: AccountCopy = {
   saveError: "無法儲存，請檢查網路連線後再試一次。",
 
   deleteTitle: "要刪除所有資料嗎？",
+  // Touchpoint 2026-11-08, CANDIDATE (未拍板): the delete also removes each
+  // scan's value-matching unnamed copy (src/server/scans/hand-sample-delete.ts);
+  // a sent photo is not in the account and has its own deletion code.
   deleteBody: (n) =>
-    `這會永久刪除${n > 0 ? `你全部 ${n} 筆掃描紀錄，以及` : ""}你的帳號（包含來自 Google 的電子郵件地址和姓名），並將你登出。這個動作無法復原。`,
+    `這會永久刪除${n > 0 ? `你全部 ${n} 筆掃描紀錄、與它們數值相符的不記名副本，以及` : ""}你的帳號（包含來自 Google 的電子郵件地址和姓名），並將你登出。你傳送過的照片不在帳號裡，要用刪除碼另外刪除。這個動作無法復原。`,
   deleteError: "無法刪除，請檢查網路連線後再試一次。",
   deleting: "刪除中…",
 };
@@ -266,7 +270,7 @@ export const en: AccountCopy = {
   answerWithoutAccountNote:
     "You can send the questionnaire without signing in. Answers sent while signed out can't be found again, so they can't be taken back.",
   finePrint:
-    "We keep your email address and your scans — never your photo. Your current scan joins your account when you sign in.",
+    "We keep your email address and your scans. By default your photo isn't uploaded; a photo is kept only if you choose to send one, and never in your account. Your current scan joins your account when you sign in.",
   unavailable:
     "Sign-in is unavailable right now. You can still scan — your result is kept for a while, then expires automatically.",
   scanMyHand: "Scan my hand",
@@ -358,7 +362,7 @@ export const en: AccountCopy = {
 
   deleteTitle: "Delete everything?",
   deleteBody: (n) =>
-    `This permanently deletes ${n > 0 ? `all ${n} of your scans and ` : ""}your account, including the email address and name from Google, and signs you out. This can't be undone.`,
+    `This permanently deletes ${n > 0 ? `all ${n} of your scans, the unnamed copies whose values match them, and ` : ""}your account, including the email address and name from Google, and signs you out. Photos you sent are not in your account; delete them with their deletion code. This can't be undone.`,
   deleteError: "Couldn't delete — check your connection and try again.",
   deleting: "Deleting…",
 };

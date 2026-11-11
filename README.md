@@ -56,8 +56,10 @@ photo measurement is validated.
 
 ## Privacy
 
-- **Photos never leave your browser.** No endpoint accepts an image. The submit
-  route takes numbers only and rejects any field it does not expect. In the
+- **Photos stay in your browser by default.** The only endpoint that accepts an
+  image is the opt-in error-photo upload (`src/lib/contracts/error-photo.ts`),
+  used only when you choose "send this photo" after a failed scan or a "numbers
+  look wrong?" report. The scan submit route takes numbers only and rejects any field it does not expect. In the
   no-paper mode the calibration that is sent is `user-length`, which includes
   `referenceMm`: the hand length you typed (the same number is then stored as your
   hand length).
@@ -190,6 +192,6 @@ Open_Mouse 用手機拍一張手部照片，量出手的尺寸，再和型錄裡
 - **主流程：** 把手平放在深色桌面上的一張空白 A4 或 Letter 紙上，手機從上方拍，即時相機鎖定四個紙邊後自動拍照，以紙張的已知尺寸當尺。
 - **印刷紙流程：** 舊的校正流程（`/sheet`、`/scan`；要印 6 個標記），正式站已關閉（回應 404），只在本機可用；是否保留尚未決定。目前主要用來對照空白紙流程的量測結果。
 - **無紙輸入手長：** 仍要拍照，只是把你用尺量到的手長輸入，取代紙張當比例尺；有旗標 `NEXT_PUBLIC_TYPED_HAND_LENGTH_ENTRY`，預設關閉。這個模式送出的 calibration 是 `user-length`，含 `referenceMm`（你輸入的手長）。
-- **隱私：** 照片只在瀏覽器裡處理，不會上傳，伺服器只收到毫米數值。沒有帳號的掃描會自動過期，過期後就讀不到（讀取端把它當成不存在）。依[隱私權政策](https://palmate.kirby-fivesenses.com/privacy)，未登入的掃描在建立後 24 小時內刪除，帳號 90 天未使用會連同所有掃描一併刪除；備份保留多久（含 Neon 時間點還原 PITR）尚未確認。也可以隨時在結果頁按「立即刪除這次掃描」。正式站已開放 Google 登入（Google OAuth，第三方），登入會存姓名、Email 與是否驗證、頭像、Google 帳號 ID，以及 OAuth token 與相關欄位（scope、session_state）和登入 session。文字說明由 Google 的 Gemini API 根據量測值與分數寫成，不會送出照片。
+- **隱私：** 照片預設只在瀏覽器裡處理，不會上傳，掃描只把毫米數值送到伺服器；只有使用者在掃描失敗或回報數字不對時自己選擇傳送並勾選同意，才會上傳一張裁切過的照片（存在不公開的 Blob 空間，180 天後自動刪除，也能用刪除碼提早刪除）。送出掃描時預設另存一份不記名的數值副本（取整到 1 公釐、只記月份、不連回掃描或帳號），送出前可以關掉；使用者自己刪除掃描、未登入的工作階段或帳號時，會一併刪除數值相符的副本，自動過期與清除則不會。沒有帳號的掃描會自動過期，過期後就讀不到（讀取端把它當成不存在）。依[隱私權政策](https://palmate.kirby-fivesenses.com/privacy)，未登入的掃描在建立後 24 小時內刪除，登入後保存在帳號裡，直到使用者刪除帳號（90 天未使用自動刪除只在 `RETENTION_PURGE_MODE=delete` 時成立，正式站的設定待確認）；備份保留多久（含 Neon 時間點還原 PITR）尚未確認。也可以隨時在結果頁按「立即刪除這次掃描」。正式站已開放 Google 登入（Google OAuth，第三方），登入會存姓名、Email 與是否驗證、頭像、Google 帳號 ID，以及 OAuth token 與相關欄位（scope、session_state）和登入 session。文字說明由 Google 的 Gemini API 根據量測值與分數寫成，不會送出照片。
 - **授權：** 尚未決定（待定）。第三方元件的授權見 [`NOTICE`](NOTICE)。
 - **開發：** Node.js 24 與 npm。`npm ci`、`npm run dev`；檢查用 `npm run typecheck`、`lint`、`format:check`、`test`、`db:check`、`test:e2e`。細節見上方英文段落與 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
