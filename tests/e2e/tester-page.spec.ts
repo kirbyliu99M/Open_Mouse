@@ -168,16 +168,14 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
   await expect(
     page.getByRole("radio", { name: copy.tape.left, exact: true }),
   ).toBeFocused();
-  // Each box is named by its measure and measurer; A required, B and the
-  // edge-to-edge width not.
+  // Each box is named by its measure; the two readings required, the
+  // edge-to-edge width not. No second measurer (Kirby 2026-11-11).
   const box = (name: string) =>
     page.getByRole("textbox", { name, exact: true });
   await expect(
     box(`${copy.tape.handLength} ${copy.tape.measurerA} ${copy.tape.first}`),
   ).toHaveAttribute("aria-required", "true");
-  await expect(
-    box(`${copy.tape.handLength} ${copy.tape.measurerB} ${copy.tape.first}`),
-  ).not.toHaveAttribute("aria-required", "true");
+  await expect(page.locator('[data-field$=".b.first"]')).toHaveCount(0);
   await expect(
     box(`${copy.tape.palmWidthEdge} ${copy.tape.measurerAOnce}`),
   ).not.toHaveAttribute("aria-required", "true");
@@ -189,9 +187,7 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
   await field("handLength.a.second").fill("189");
   await expect(page.getByText(copy.tape.recheck)).toHaveCount(0);
   await field("palmWidth.a.first").fill("84");
-  await field("palmWidth.a.second").fill("84.5");
-  await field("palmWidth.b.first").fill("85");
-  await field("palmWidth.b.second").fill("84");
+  await field("palmWidth.a.second").fill("84.8");
   // Errors go as their fields are fixed.
   await expect(page.getByText(copy.tape.required)).toHaveCount(0);
   await expect(page.getByText(copy.tape.handRequired)).toHaveCount(0);
@@ -250,7 +246,7 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
   );
   const diffs = page.getByTestId("tester-diff");
   await expect(diffs).toHaveCount(2);
-  // Demo pipeline: 190 / 84 mm; tape averages 188.5 / 84.375.
+  // Demo pipeline: 190 / 84 mm; tape averages 188.5 / 84.4.
   await expect(diffs.nth(0)).toHaveText(copy.result.mmValue("+1.5"));
   await expect(diffs.nth(1)).toHaveText(copy.result.mmValue("−0.4"));
   await shot(page, "6-result");
@@ -263,7 +259,7 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
   expect(r.tape).toEqual({
     hand: "right",
     handLength: { a: { first: 188, second: 189 } },
-    palmWidth: { a: { first: 84, second: 84.5 }, b: { first: 85, second: 84 } },
+    palmWidth: { a: { first: 84, second: 84.8 } },
   });
   expect(r).toMatchObject({
     phoneModel: "Pixel 8",

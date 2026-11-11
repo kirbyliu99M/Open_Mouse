@@ -155,7 +155,7 @@ describe("the privacy notice and the terms", () => {
       "我們無法替你查回代號；代號遺失的話，我們可能找不到你的紀錄",
       "、測試頁面的測試者代號或代碼；",
       "資料測試者同意參加時也同意附上照片，每一張都可以取消",
-      "測試頁面不送 PostHog 事件和 Google Analytics 的頁面瀏覽事件",
+      "測試頁面不送 PostHog 和 Google Analytics 事件",
       "用途：只用於改善量測準確度",
       "包括專案負責人電腦上的副本",
     ])
@@ -172,7 +172,7 @@ describe("the privacy notice and the terms", () => {
       "We cannot look up your ID for you; if you lose it, we may not be able to find your records",
       "and your tester ID or code on the test page;",
       "Data testers agree to attach photos when they take part, and can untick any of them",
-      "The test page sends no PostHog events and no Google Analytics page views",
+      "The test page sends no PostHog or Google Analytics events",
       "Why: only to improve how accurately we measure",
       "including the copy on the project lead's computer",
       "The data may be exported to the project lead's computer, under the same rules.",
@@ -207,5 +207,34 @@ describe("the privacy notice and the terms", () => {
     expect(draft).not.toMatch(
       /受邀測試者的紀錄|不公開的測試頁面|隨機代號只存在你的瀏覽器裡/,
     );
+  });
+
+  it("the last-updated date is one real day, the same in both languages", () => {
+    const zh = /^最後更新：(\d{4}) 年 (\d{1,2}) 月 (\d{1,2}) 日$/.exec(
+      legal.zhTW.updated,
+    );
+    const en = /^Last updated: (\d{1,2}) (\w+) (\d{4})$/.exec(legal.en.updated);
+    expect(zh, legal.zhTW.updated).not.toBeNull();
+    expect(en, legal.en.updated).not.toBeNull();
+    const months = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
+    const zhDay = `${zh![1]}-${zh![2]!.padStart(2, "0")}-${zh![3]!.padStart(2, "0")}`;
+    const month = months.indexOf(en![2]!) + 1;
+    expect(month, en![2]).toBeGreaterThan(0);
+    const enDay = `${en![3]}-${String(month).padStart(2, "0")}-${en![1]!.padStart(2, "0")}`;
+    expect(enDay).toBe(zhDay);
+    expect(Number.isNaN(Date.parse(`${zhDay}T00:00:00Z`))).toBe(false);
   });
 });
