@@ -98,6 +98,8 @@ describe("busy holds through a 201 (the veil covers until the results page, F13)
   it("the hook's busy is submitBusy(state)", () => {
     const hook = readFileSync("src/client/scan/useScanSubmit.ts", "utf8");
     expect(hook).toContain("const busy = submitBusy(state);");
-    expect(hook).toContain("return { state, submit, busy, clearError };");
+    expect(hook).toContain(
+      "return { state, submit, busy, clearError, sampleNotice };",
+    );
   });
 });

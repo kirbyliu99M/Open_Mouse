@@ -119,6 +119,9 @@ function expectManualShape(
       "measurementModelVersion",
       "measurements",
       ...(expected.thickness ? ["palmThicknessStated"] : []),
+      // The anonymous-copy switch (hand-sample.ts, candidate) is on by
+      // default and shown on the thickness page, so the notice is sent.
+      "sampleNotice",
     ].sort(),
   );
   expect(body.hand).toBe("right");

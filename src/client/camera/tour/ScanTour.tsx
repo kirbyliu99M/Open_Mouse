@@ -87,6 +87,13 @@ export interface ScanTourProps {
   readonly onView?: (
     view: { stepId: TourStepId | null; holeBottom: number | null } | null,
   ) => void;
+  /**
+   * Replaces the welcome's privacy fine print. Only the tester page's camera
+   * passes it (a tester who chose to send the photo); absent: unchanged.
+   */
+  readonly finePrint?: string;
+  /** The reference is fixed (tester page): the tour has no reference step. */
+  readonly referenceLocked?: boolean;
 }
 
 interface Measured {
@@ -162,6 +169,8 @@ export default function ScanTour({
   resolvePaperFrame,
   onClose,
   onView,
+  finePrint,
+  referenceLocked,
 }: ScanTourProps) {
   const copy = scanTourCopy(useLocale());
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -185,7 +194,11 @@ export default function ScanTour({
   const tooltipMeasuredForRef = useRef<string | null>(null);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
 
-  const allSteps = buildTourSteps({ reference, cardModeAvailable });
+  const allSteps = buildTourSteps({
+    reference,
+    cardModeAvailable,
+    ...(referenceLocked ? { referenceLocked } : {}),
+  });
   const steps = visibleTourSteps(allSteps, (t) => Boolean(targets[t]));
   const isCard = cardModeAvailable && reference === "card";
 
@@ -594,7 +607,9 @@ export default function ScanTour({
             >
               {copy.welcomeReturning}
             </button>
-            <p className="scanTourFinePrint">{copy.welcomeFinePrint}</p>
+            <p className="scanTourFinePrint">
+              {finePrint ?? copy.welcomeFinePrint}
+            </p>
           </section>
         </>
       )}

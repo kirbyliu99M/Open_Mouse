@@ -40,11 +40,33 @@ export const URGENT_EVENTS: ReadonlySet<AnalyticsEventName> = new Set([
   "official_link_clicked",
 ]);
 
+/**
+ * How many callers have muted product events right now. Only the hidden
+ * tester page (`/scan/tester`, candidate) mutes, while it is mounted, so its
+ * testers' scans stay out of the product funnel; nothing else calls it, so
+ * every other page tracks exactly as before.
+ */
+let mutedBy = 0;
+
+/** Mutes every `track()` until the returned function is called (once). */
+export function muteTracking(): () => void {
+  mutedBy++;
+  let done = false;
+  return () => {
+    if (done) return;
+    done = true;
+    mutedBy--;
+  };
+}
+
+export const trackingMuted = (): boolean => mutedBy > 0;
+
 export function createTrack(deps: TrackDeps) {
   return function track<E extends AnalyticsEventName>(
     name: E,
     props: AnalyticsEventProps<E>,
   ): void {
+    if (trackingMuted()) return;
     const toPostHog = deps.enabled();
     const toMirror = Boolean(deps.mirror) && (deps.mirrorEnabled?.() ?? true);
     if (!toPostHog && !toMirror) return;

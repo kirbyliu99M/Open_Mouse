@@ -305,6 +305,7 @@ import {
   referenceChangeAllowed,
 } from "./cardRoute";
 import { ReferenceMenu } from "./ReferenceMenu";
+import type { TesterScanHooks } from "./testerMode";
 import { GripPage, ThicknessPage } from "../scan/AnswerPages";
 import {
   INITIAL_ANSWERS,
@@ -343,6 +344,12 @@ import { measuredSheetNumbers } from "../photo/unverified-note";
 import { shownScanMeasurements } from "../../lib/fit/fit-scale";
 import { measuringShown } from "./measuringIndicator";
 import { CARD_REFERENCE_ENABLED } from "../../lib/flags";
+import { errorPhotoOfferable } from "../../lib/error-photo/offerable";
+// Types only (erased): the error-photo code itself is a guarded import().
+import type {
+  ErrorPhotoAction as ErrorPhotoActionType,
+  ErrorPhotoContext,
+} from "../error-photo/ErrorPhotoAction";
 import { cardReferenceCopy } from "../../lib/copy/card-reference";
 import {
   cardHintText,
@@ -382,6 +389,37 @@ import {
   tourReturnFocus,
 } from "./tour/tourModel";
 
+/**
+ * Error photos (candidate 未拍板; review F1/H3): the lazy entry, fetched as
+ * soon as this module is evaluated in a browser, before the camera even
+ * starts, and tried a second time if the first fetch fails. The `import()`
+ * sits only inside the flag's branch, which the build removes when
+ * NEXT_PUBLIC_ERROR_PHOTO_ENABLED is not "1" (next.config.ts defines it), so
+ * an off build has no error-photo chunk at all.
+ */
+let loadedErrorPhotoAction: typeof ErrorPhotoActionType | null = null;
+let errorPhotoActionLoad: Promise<typeof ErrorPhotoActionType | null> | null =
+  null;
+function loadErrorPhotoAction(): Promise<typeof ErrorPhotoActionType | null> {
+  if (process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1") {
+    if (!errorPhotoActionLoad) {
+      const once = () =>
+        import("../error-photo/ErrorPhotoAction").then(
+          (m) => (loadedErrorPhotoAction = m.ErrorPhotoAction),
+        );
+      errorPhotoActionLoad = once()
+        .catch(() => once())
+        .catch(() => {
+          // Both tries failed: no offer, and the next mount tries again.
+          errorPhotoActionLoad = null;
+          return null;
+        });
+    }
+    return errorPhotoActionLoad;
+  }
+  return Promise.resolve(null);
+}
+if (typeof window !== "undefined") void loadErrorPhotoAction();
 /** What the frozen photo needs to be drawn where the live frame was. */
 interface PhotoInfo {
   /** The object URL this belongs to. */
@@ -668,6 +706,11 @@ export interface EasyScanCameraProps {
   /** Forces the first-run tip open regardless of localStorage — for
    * `/scan/easy/tip-demo` (screenshot only). */
   readonly forceTipOpen?: boolean;
+  /**
+   * Tester mode (candidate, testerMode.ts): only the hidden `/scan/tester`
+   * page passes it. Absent (every other page): no change at all.
+   */
+  readonly tester?: TesterScanHooks;
 }
 
 /** Closes every bitmap of the map and empties it. */
@@ -726,6 +769,7 @@ export default function EasyScanCamera({
   deviceHint,
   debugPhotosAllowed = false,
   forceTipOpen,
+  tester,
 }: EasyScanCameraProps) {
   const router = useRouter();
   const [camState, setCamState] = useState<CamState>({ kind: "requesting" });
@@ -779,6 +823,10 @@ export default function EasyScanCamera({
   localeRef.current = locale;
   const common = scanCommonCopy(locale);
   const easy = easyScanCopy(locale);
+  // Error photos (candidate 未拍板, src/lib/contracts/error-photo.ts): the
+  // photo on screen, held in memory only (as `fileRef`, for the render), and
+  // only with the flag on (review F1).
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   // The shutter has a photo that `runPipeline` has not taken on yet (F10,
   // Kirby's second phone test 2026-10-21/22: "拍照掃描不需要 loading 畫面"):
   // the small 測量中… line is already on the frozen photo, from the frame the
@@ -827,6 +875,7 @@ export default function EasyScanCamera({
     submit: submitScanNow,
     busy: submitBusy,
     clearError: clearSubmitError,
+    sampleNotice,
   } = useScanSubmit(demoMeasured ? undefined : "easy");
   // Typing the hand length and width instead of scanning (manual entry,
   // candidate, 2026-10-12). The draft outlives the form, so a sheet closed by
@@ -1177,6 +1226,36 @@ export default function EasyScanCamera({
   camKindRef.current = camState.kind;
   const resultRef = useRef(result);
   resultRef.current = result;
+  // Tester mode (testerMode.ts): each analysis that ended is reported once.
+  // A measured result is keyed by its overlay, which survives the card
+  // outline's yes (`{ ...prev, cardCheck: undefined }`); a new analysis
+  // always brings a new one. Nothing runs without `tester`.
+  const testerRef = useRef(tester);
+  testerRef.current = tester;
+  const testerSeenRef = useRef<object | null>(null);
+  useEffect(() => {
+    const hooks = testerRef.current;
+    if (!hooks) return;
+    if (result.kind === "gateFailure") {
+      if (testerSeenRef.current === result) return;
+      testerSeenRef.current = result;
+      hooks.onAttempt({
+        measured: false,
+        captureMode:
+          captureInfoRef.current?.method === "upload" ? "upload" : "camera",
+        failureCodes: result.errors.map((e) => e.code),
+      });
+    } else if (result.kind === "measured") {
+      if (testerSeenRef.current === result.overlay) return;
+      testerSeenRef.current = result.overlay;
+      hooks.onAttempt({
+        measured: true,
+        captureMode:
+          captureInfoRef.current?.method === "upload" ? "upload" : "camera",
+        failureCodes: [],
+      });
+    }
+  }, [result]);
   const fileRef = useRef<File | null>(null);
   // F10 item 2 (R6 F1, candidate): the focal length the automatic run of the
   // photo on screen used (EXIF or a reliable homography estimate), kept for a
@@ -1234,9 +1313,17 @@ export default function EasyScanCamera({
     const storage = getBrowserStorage();
     // The paper size as on main; the card on top of it (its own key), so a
     // Letter user who chose the card comes back to Letter (review item 6).
-    setPaperSize(readStoredPaperSize(storage));
-    if (readStoredReference(storage, CARD_REFERENCE_ENABLED) === "card")
-      setCardMode(true);
+    // Tester mode: the reference the tester declared, nothing stored.
+    const testerReference = testerRef.current?.reference;
+    if (testerReference) {
+      setPaperSize(testerReference === "letter" ? "letter" : "a4");
+      if (testerReference === "card" && CARD_REFERENCE_ENABLED)
+        setCardMode(true);
+    } else {
+      setPaperSize(readStoredPaperSize(storage));
+      if (readStoredReference(storage, CARD_REFERENCE_ENABLED) === "card")
+        setCardMode(true);
+    }
     if (!forceTipOpen && !readFirstRunTipSeen(storage)) setTipOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1367,6 +1454,76 @@ export default function EasyScanCamera({
       : null;
   const sheetLeave = useLeaving(sheetNow, leaveMs("sheet", reducedMotion));
   const sheetResult = sheetLeave.shown;
+  // Error photos (candidate 未拍板): the link on the result sheet and its
+  // consent sheet live in a chunk loaded only with the flag on (review F1):
+  // the `import()` sits in a branch the build removes when
+  // NEXT_PUBLIC_ERROR_PHOTO_ENABLED is not "1" (next.config.ts defines it),
+  // so with the flag off none of the error-photo code is in any bundle.
+  // Loaded at mount, long before a result, so the link's row is there from
+  // the result's first render (review F3).
+  const [ErrorPhotoActionView, setErrorPhotoActionView] = useState<
+    typeof ErrorPhotoActionType | null
+  >(() => loadedErrorPhotoAction);
+  useEffect(() => {
+    if (ErrorPhotoActionView) return;
+    let live = true;
+    void loadErrorPhotoAction().then((view) => {
+      if (live && view) setErrorPhotoActionView(() => view);
+    });
+    return () => {
+      live = false;
+    };
+  }, [ErrorPhotoActionView]);
+  const readErrorPhotoContext = useCallback((): ErrorPhotoContext => {
+    const current = resultRef.current;
+    const measured = current.kind === "measured" ? current : null;
+    return {
+      paperSize: paperSizeRef.current,
+      hand: measured ? measured.submission.hand : handChipRef.current.hand,
+      ...(measured
+        ? {
+            measured: {
+              handLengthMm: measured.measurements.handLengthMm,
+              palmWidthMm: measured.measurements.palmWidthMm,
+            },
+            measurementModelVersion:
+              measured.submission.measurementModelVersion,
+          }
+        : {}),
+      deviceClass:
+        deviceFit === "phone" || deviceFit === "desktop"
+          ? deviceFit
+          : "unknown",
+      captureMode:
+        captureInfoRef.current?.method === "upload" ? "upload" : "camera",
+    };
+  }, [deviceFit]);
+  // Review H2/H3: drawn from the result the sheet SHOWS, so the row stays (at
+  // the same height) while the sheet slides out; before the chunk is here, a
+  // placeholder row of the same height stands exactly where an offer can
+  // appear (the shared rule, src/lib/error-photo/offerable.ts, review K2), so
+  // a late chunk never moves the buttons and no empty row is left elsewhere.
+  const errorPhotoRowReserved =
+    !tester &&
+    sheetResult !== null &&
+    errorPhotoOfferable({
+      enabled: process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1",
+      result: sheetResult,
+    }) !== null;
+  const errorPhotoAction =
+    !errorPhotoRowReserved ? null : ErrorPhotoActionView && sheetResult ? (
+      <ErrorPhotoActionView
+        locale={locale}
+        result={sheetResult}
+        active={
+          sheetNow !== null && !sheetLeave.leaving && sheetResult === result
+        }
+        file={photoFile}
+        readContext={readErrorPhotoContext}
+      />
+    ) : (
+      <span className="errorPhotoLink errorPhotoLinkGone" aria-hidden="true" />
+    );
   // V3.3 WP3b (candidate): the post-shot banner over the photo, while the
   // measured sheet is up and until it is closed; it fades in and out.
   const [softHintClosedAt, setSoftHintClosedAt] = useState<string | null>(null);
@@ -2669,6 +2826,8 @@ export default function EasyScanCamera({
       if (!reducedMotionRef.current) setFlashKey((k) => k + 1);
       setAnnounced(scanCommonCopy(localeRef.current).photoTaken);
       fileRef.current = file;
+      if (process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1")
+        setPhotoFile(file);
       // A frame cut to the screen's part is drawn exactly as the live video's
       // visible part was: it IS that part, so it is its own "stream" for the layout.
       setPhotoInfo(
@@ -2768,6 +2927,8 @@ export default function EasyScanCamera({
       uploadFromReferenceScreenRef.current = false;
       stopStream();
       fileRef.current = file;
+      if (process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED === "1")
+        setPhotoFile(file);
       debugPhotoRef.current = file;
       const previewUrl = URL.createObjectURL(file);
       setPhotoInfo(null);
@@ -2919,6 +3080,8 @@ export default function EasyScanCamera({
   // chip calls `changePaperSize()` with no argument, main's A4 ↔ Letter.
   const selectReference = useCallback(
     (target: ScanReference) => {
+      // Tester mode: the reference is the one the tester declared.
+      if (testerRef.current) return;
       // A shot being taken or measured keeps the mode it was taken in (card
       // flag on; with it off the chip is main's A4 ↔ Letter toggle as it was).
       if (
@@ -4226,6 +4389,11 @@ export default function EasyScanCamera({
 
   const exitToHome = useCallback(() => {
     stopStream();
+    // Tester mode: the tester page decides where the close button goes.
+    if (testerRef.current) {
+      testerRef.current.onExit();
+      return;
+    }
     router.push("/");
   }, [stopStream, router]);
 
@@ -4322,7 +4490,10 @@ export default function EasyScanCamera({
 
   // Null while the typed-hand-length feature flag is off: every "no paper"
   // entry below renders only when this is non-null.
-  const noPaperLabel = noPaperEntryLabel(userLengthMm !== null, locale);
+  // Tester mode: no typed length (its hand length would be the typed one).
+  const noPaperLabel = tester
+    ? null
+    : noPaperEntryLabel(userLengthMm !== null, locale);
   const noPaperMode = userLengthMm !== null;
 
   // The grip and thickness pages, over the measured sheet or over the typed
@@ -4437,6 +4608,7 @@ export default function EasyScanCamera({
               errorKind={
                 submitState.kind === "error" ? submitState.errorKind : null
               }
+              sampleNotice={sampleNotice}
             />
           )}
         </div>
@@ -4470,8 +4642,11 @@ export default function EasyScanCamera({
           kind={deviceFit}
           url={pageUrl}
           onFilePicked={onFilePicked}
+          {...(tester?.privacyNotice
+            ? { privacyNotice: tester.privacyNotice }
+            : {})}
           manual={
-            deviceFit === "desktop"
+            deviceFit === "desktop" && !tester
               ? {
                   draft: manualDraftRef.current,
                   onDraftChange: keepManualDraft,
@@ -4776,14 +4951,26 @@ export default function EasyScanCamera({
         </div>
       )}
       <div className="cameraTopBar" ref={topBarRef} inert={lengthStep}>
-        <button
-          type="button"
-          className="cameraCloseButton"
-          aria-label={easy.closeCamera}
-          onClick={exitToHome}
-        >
-          ×
-        </button>
+        {tester?.exitLabel ? (
+          // Tester mode: the close button says what it does (這次放棄).
+          <button
+            type="button"
+            className="cameraCloseButton cameraCloseButtonText"
+            data-testid="tester-give-up"
+            onClick={exitToHome}
+          >
+            {tester.exitLabel}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="cameraCloseButton"
+            aria-label={easy.closeCamera}
+            onClick={exitToHome}
+          >
+            ×
+          </button>
+        )}
         <div className="easyScanTopRight">
           <button
             type="button"
@@ -4993,7 +5180,12 @@ export default function EasyScanCamera({
           camState.kind === "cameraError" ||
           camState.kind === "noCamera") && (
           <div className="easyManualDock">
-            <ManualEntryHandle ref={manualHandleRef} onOpen={openManualSheet} />
+            {!tester && (
+              <ManualEntryHandle
+                ref={manualHandleRef}
+                onOpen={openManualSheet}
+              />
+            )}
           </div>
         )}
 
@@ -5086,7 +5278,15 @@ export default function EasyScanCamera({
               </p>
             )}
             <div className="easyBottomRow">
-              {userLengthMm === null && CARD_REFERENCE_ENABLED ? (
+              {tester ? (
+                // Tester mode: the declared reference, not a menu.
+                <span
+                  className="easyLengthChip"
+                  data-testid="tester-reference-chip"
+                >
+                  {referenceLabel}
+                </span>
+              ) : userLengthMm === null && CARD_REFERENCE_ENABLED ? (
                 // Card flag on: a menu of A4 / Letter / 卡片 (review items
                 // 5+6), locked while a shot is measured (item 13).
                 <ReferenceMenu
@@ -5187,7 +5387,7 @@ export default function EasyScanCamera({
                   at the very bottom of the camera screen. It is only here
                   while the camera is, not over a finished measurement, and
                   not under the first-run tip (a modal over the same edge). */}
-            {!tipOpen && (
+            {!tipOpen && !tester && (
               <ManualEntryHandle
                 ref={liveChromeLeave.leaving ? undefined : manualHandleRef}
                 onOpen={openManualSheet}
@@ -5344,6 +5544,9 @@ export default function EasyScanCamera({
                   locale,
                 )}
               </p>
+              {/* Error photos (candidate 未拍板): 「數字看起來不對？」, from the
+                  lazy chunk (flag off: never loaded, nothing here). */}
+              {errorPhotoAction}
               {/* F15 (candidate): only the title, the numbers, retake and
                   continue (and Debug with ?debug=1). "Still being
                   validated" and "adjusted by hand" are said on the results
@@ -5390,6 +5593,30 @@ export default function EasyScanCamera({
                     ref={continueRef}
                     data-testid="answers-continue-button"
                     onClick={() => {
+                      // Tester mode: the result goes to the tester page,
+                      // never to the question pages or /api/scans.
+                      if (tester) {
+                        const file = fileRef.current;
+                        tester.onMeasured({
+                          measurements: sheetResult.measurements,
+                          submission: sheetResult.submission,
+                          captureMode:
+                            captureInfoRef.current?.method === "upload"
+                              ? "upload"
+                              : "camera",
+                          photo: file
+                            ? {
+                                file,
+                                overlay: sheetResult.overlay,
+                                mode:
+                                  sheetResult.reference === "card"
+                                    ? "card"
+                                    : "paper",
+                              }
+                            : null,
+                        });
+                        return;
+                      }
                       // V3.3 WP3b: going on after a banner (no-op without one).
                       if (sheetResult.softHint)
                         noteSoftHintOutcome(sheetResult.softHint.at, {
@@ -5456,6 +5683,10 @@ export default function EasyScanCamera({
                       {noPaperLabel}
                     </button>
                   )}
+                {/* Error photos (candidate 未拍板): offered only where the
+                    analysis found something on the photo (offer.ts), from
+                    the lazy chunk (flag off: never loaded, nothing here). */}
+                {errorPhotoAction}
               </div>
             </>
           )}
@@ -5516,6 +5747,10 @@ export default function EasyScanCamera({
           cardModeAvailable={CARD_REFERENCE_ENABLED}
           noPaperEntry={noPaperLabel !== null}
           onReferenceChange={selectReference}
+          {...(tester ? { referenceLocked: true } : {})}
+          {...(tester?.privacyNotice
+            ? { finePrint: tester.privacyNotice }
+            : {})}
           resolvePaperFrame={() =>
             guideRectInViewport(
               stageRef.current?.getBoundingClientRect(),
@@ -5607,7 +5842,9 @@ export default function EasyScanCamera({
           </button>
         )}
         <p className="easyTipFinePrint">
-          {easy.tipFinePrint(common.privacyAndCameraStays)}
+          {easy.tipFinePrint(
+            tester?.privacyNotice ?? common.privacyAndCameraStays,
+          )}
         </p>
       </dialog>
       {debugOn &&

@@ -103,7 +103,7 @@ export default defineConfig({
     {
       name: "chromium-camera-paper-edge",
       testMatch:
-        /camera-paper-edge\.spec\.ts|camera-screenshots\.spec\.ts|easy-scan\.spec\.ts|easy-scan-v2\.spec\.ts|easy-scan-v2-screenshots\.spec\.ts|easy-scan-soft-hints\.spec\.ts|easy-scan-screenshots\.spec\.ts|capture-failure-hint\.spec\.ts|scan-fov\.spec\.ts|no-paper-device\.spec\.ts|a11y-structure\.spec\.ts|a11y-axe\.spec\.ts|i18n-scan\.spec\.ts|manual-entry-flow\.spec\.ts|v34-reference\.spec\.ts|v34-tour\.spec\.ts|v34-tour-shots\.spec\.ts|v34-first-run\.spec\.ts|v34-layout\.spec\.ts/,
+        /camera-paper-edge\.spec\.ts|camera-screenshots\.spec\.ts|easy-scan\.spec\.ts|easy-scan-v2\.spec\.ts|easy-scan-v2-screenshots\.spec\.ts|easy-scan-soft-hints\.spec\.ts|easy-scan-screenshots\.spec\.ts|capture-failure-hint\.spec\.ts|scan-fov\.spec\.ts|no-paper-device\.spec\.ts|a11y-structure\.spec\.ts|a11y-axe\.spec\.ts|i18n-scan\.spec\.ts|manual-entry-flow\.spec\.ts|v34-reference\.spec\.ts|v34-tour\.spec\.ts|v34-tour-shots\.spec\.ts|v34-first-run\.spec\.ts|v34-layout\.spec\.ts|error-photo-dialog\.spec\.ts|tester-page\.spec\.ts/,
       use: {
         ...devices["Pixel 7"],
         viewport: { width: 390, height: 844 },
@@ -147,6 +147,11 @@ export default defineConfig({
       NEXT_PUBLIC_TYPED_HAND_LENGTH_ENTRY: "1",
       NEXT_PUBLIC_CARD_REFERENCE_ENABLED:
         process.env.NEXT_PUBLIC_CARD_REFERENCE_ENABLED ?? "",
+      // Error photos (candidate): build-time too, OFF by default; a run with
+      // `NEXT_PUBLIC_ERROR_PHOTO_ENABLED=1` builds them ON and
+      // error-photo-dialog.spec.ts runs (it skips itself otherwise).
+      NEXT_PUBLIC_ERROR_PHOTO_ENABLED:
+        process.env.NEXT_PUBLIC_ERROR_PHOTO_ENABLED ?? "",
     },
   },
 });

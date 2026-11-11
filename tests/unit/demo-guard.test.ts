@@ -131,6 +131,9 @@ const PRODUCT_ROUTES = [
   "/results/[scanId]",
   "/results/[scanId]/m/[slug]",
   "/scan/easy",
+  // The hidden data-tester page (candidate, 2026-11-09): gated by the server
+  // env TESTER_CODES (notFound() without it), never linked, noindex.
+  "/scan/tester",
   "/terms",
 ];
 
@@ -179,6 +182,7 @@ const DEMO_ROUTES = [
   "/scan/paper-edge-preview",
   "/scan/share-card-demo",
   "/scan/submit-demo",
+  "/scan/tester/demo",
 ];
 
 const PAGE_FILE = /(^|\/)page\.(tsx|ts|jsx|js|mdx)$/;

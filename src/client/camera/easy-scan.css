@@ -481,6 +481,35 @@
   font: inherit;
   cursor: pointer;
 }
+/* Error photos (candidate 未拍板): the result sheet's link, here in the eager
+   CSS so it never waits for the lazy error-photo chunk (review F1, F3). Full
+   width like the secondary buttons beside it, a visible link; its row is
+   there from the first render: quiet while the copy is prepared, and kept as
+   an invisible row of the same height if it cannot be, so nothing moves. */
+.errorPhotoLink {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 0.5rem;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font: inherit;
+  cursor: pointer;
+}
+.errorPhotoLink[aria-disabled="true"] {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+.errorPhotoLinkGone {
+  visibility: hidden;
+}
+.easySheet .errorPhotoLink:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
 
 .easyTipList {
   list-style: none;
@@ -1034,6 +1063,17 @@ main.easyScanShell {
   padding: 0;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.6);
+}
+/* Tester mode only (testerMode.ts `exitLabel`): the close button as a labelled pill. */
+.easyScanStaged .cameraCloseButtonText {
+  width: auto;
+  min-width: 44px;
+  padding: 0 0.875rem;
+  border-radius: 22px;
+  color: #fff;
+  font: inherit;
+  font-size: 0.875rem;
+  white-space: nowrap;
 }
 .easyScanStaged .easyHelpButton,
 .easyScanStaged .easyHandChip:not(.easyHandChipInSheet),

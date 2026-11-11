@@ -13,7 +13,12 @@ import { describe, expect, it } from "vitest";
  * new route that is meant to ship is added to the allowlist on purpose.
  * (`/results/demo` and `/sheet` are outside this directory.)
  */
-const PRODUCT_PAGES = new Set([join("easy", "page.tsx")]);
+const PRODUCT_PAGES = new Set([
+  join("easy", "page.tsx"),
+  // The hidden data-tester page (candidate): gated by the server env
+  // TESTER_CODES (notFound() without it), not by a demo guard.
+  join("tester", "page.tsx"),
+]);
 const ROOT = join("src", "app", "scan");
 /** The printed-sheet photo step: closed only in production. */
 const PRINTED_SHEET_PAGES = new Set(["page.tsx"]);

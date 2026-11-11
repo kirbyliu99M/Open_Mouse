@@ -162,6 +162,7 @@ export async function handleScanSubmission(
     measurementModelVersion: submission.measurementModelVersion,
     calibrationMethod: calibrationMethodOf(submission.calibration),
     calibrationEvidence: submission.calibration,
+    sampleNotice: submission.sampleNotice,
   });
 
   // no-store (L4): the body carries a fresh scanId a client could otherwise

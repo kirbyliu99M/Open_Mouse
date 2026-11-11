@@ -26,12 +26,15 @@ export function DeviceEntry({
   url,
   onFilePicked,
   manual,
+  privacyNotice,
 }: {
   kind: "desktop" | "in-app";
   url: string;
   onFilePicked: (event: ChangeEvent<HTMLInputElement>) => void;
   /** Only the desktop screen takes it. */
   manual?: DeviceEntryManual;
+  /** Replaces the privacy line (tester page only); absent: unchanged. */
+  privacyNotice?: string;
 }) {
   const locale = useLocale();
   const words = easyScanCopy(locale).device;
@@ -137,7 +140,8 @@ export function DeviceEntry({
         {words.uploadPhoto}
       </button>
       <p className="easyDevicePrivacy">
-        {kind === "desktop" ? common.privacyDevice : common.privacyPhone}
+        {privacyNotice ??
+          (kind === "desktop" ? common.privacyDevice : common.privacyPhone)}
       </p>
       {/* The button above opens this picker; the input itself is not a
           second control, so it stays out of the tab order and the

@@ -2,12 +2,15 @@ import "server-only";
 import { and, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 import { getDb } from "../../db/client";
 import {
+  handSamples,
   rateLimits,
   scanMeasurements,
   scanSessions,
   scans,
 } from "../../db/schema";
 import { parallaxCorrectedOf } from "../../lib/fit/fit-scale";
+import { toHandSampleRow } from "./hand-sample";
+import { deleteMatchingSamples } from "./hand-sample-delete";
 import { RATE_LIMIT_ROW_RETENTION_MS } from "./rate-limit-config";
 import type {
   OwnedScan,
@@ -107,9 +110,13 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
     async insertScanWithMeasurements(input: ScanInsertInput) {
       const scanId = crypto.randomUUID();
       const m = input.measurements;
-      await db.batch([
+      // One instant for the scan's `created_at` and its sample's month, so
+      // the scan's `sampleMatchKey` finds its copy again (hand-sample.ts).
+      const now = new Date();
+      const writeScan = [
         db.insert(scans).values({
           id: scanId,
+          createdAt: now,
           sessionId: input.sessionId,
           hand: input.hand,
           gripStyleStated: input.gripStyleStated ?? undefined,
@@ -135,18 +142,36 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
           calibrationMethod: input.calibrationMethod,
           calibrationEvidence: input.calibrationEvidence,
         }),
-      ]);
+      ] as const;
+      // The de-linked sample (hand-sample.ts, candidate): only when the
+      // submission carried the current notice, and only if its rounded values
+      // pass the table's CHECK; otherwise the scan is stored alone. It rides
+      // in the same batch, so it never exists without its scan, and it names
+      // nothing of the scan: no id, no session, no time finer than the month
+      // (the server clock's UTC month at the time of the insert).
+      const sample = toHandSampleRow(input, now);
+      if (sample) {
+        await db.batch([...writeScan, db.insert(handSamples).values(sample)]);
+      } else {
+        await db.batch(writeScan);
+      }
       return { scanId };
     },
 
     async deleteSession(sessionId) {
       // isNull(userId): never deletes a session a signed-in user has
       // claimed — only `/account`'s explicit delete-everything does that.
-      await db
-        .delete(scanSessions)
-        .where(
-          and(eq(scanSessions.id, sessionId), isNull(scanSessions.userId)),
-        );
+      const deletable = and(
+        eq(scanSessions.id, sessionId),
+        isNull(scanSessions.userId),
+      );
+      // The person's own delete also removes one value-matching copy per scan
+      // (hand-sample-delete.ts): matched in SQL, in the same batch, before
+      // the session (and its scans) go.
+      await db.batch([
+        deleteMatchingSamples(db, deletable),
+        db.delete(scanSessions).where(deletable),
+      ]);
     },
 
     async deleteExpiredAnonymousSessions(now) {
@@ -256,23 +281,30 @@ export function createDrizzleScanRepo(db = getDb()): ScanRepo {
       const ownership = ownershipPredicate(ctx);
       if (!ownership) return false;
 
-      // One DELETE with an ownership subquery. No read/delete gap, and only
-      // the scan row is targeted; its dependent rows cascade from that row.
-      const deleted = await db
+      // One DELETE with an ownership subquery: only the scan row is targeted,
+      // and its dependent rows cascade from that row.
+      const owned = and(
+        eq(scans.id, scanId),
+        inArray(
+          scans.sessionId,
+          db
+            .select({ id: scanSessions.id })
+            .from(scanSessions)
+            .where(ownership),
+        ),
+      );
+      const deleteScan = db
         .delete(scans)
-        .where(
-          and(
-            eq(scans.id, scanId),
-            inArray(
-              scans.sessionId,
-              db
-                .select({ id: scanSessions.id })
-                .from(scanSessions)
-                .where(ownership),
-            ),
-          ),
-        )
+        .where(owned)
         .returning({ id: scans.id });
+
+      // The person's own delete also removes one value-matching copy of the
+      // scan (hand-sample-delete.ts): matched in SQL under the same ownership
+      // condition, in the same batch, before the scan.
+      const [, deleted] = await db.batch([
+        deleteMatchingSamples(db, owned),
+        deleteScan,
+      ]);
       return deleted.length > 0;
     },
   };
