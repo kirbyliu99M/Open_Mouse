@@ -36,7 +36,10 @@ import {
   tapeAverage,
   type TapeDraft,
 } from "../../src/client/tester/tape";
-import { phoneModelAllowed } from "../../src/lib/tester/phoneModel";
+import {
+  detectPhoneModel,
+  phoneModelAllowed,
+} from "../../src/lib/tester/phoneModel";
 import { addDays, taipeiDay } from "../../src/server/tester/day";
 import { testerPhotoCutoffDay } from "../../src/server/tester/purge";
 import { RECORD } from "./fixtures/tester-record";
@@ -320,6 +323,40 @@ describe("phone model filter", () => {
       "x".repeat(41),
     ])
       expect(phoneModelAllowed(bad), bad).toBe(false);
+  });
+});
+
+describe("phone model from the browser", () => {
+  const telling = (model: unknown) => ({
+    userAgentData: { getHighEntropyValues: async () => ({ model }) },
+  });
+
+  it("asks only for the model and trims it", async () => {
+    const asked: string[][] = [];
+    const model = await detectPhoneModel({
+      userAgentData: {
+        getHighEntropyValues: async (hints) => {
+          asked.push(hints);
+          return { model: " SM-S9280 " };
+        },
+      },
+    });
+    expect(model).toBe("SM-S9280");
+    expect(asked).toEqual([["model"]]);
+  });
+
+  it("is null when the browser tells nothing usable", async () => {
+    expect(await detectPhoneModel({})).toBeNull();
+    expect(await detectPhoneModel({ userAgentData: {} })).toBeNull();
+    for (const model of ["", "   ", undefined, 42, "x".repeat(41), "a@b.co"])
+      expect(await detectPhoneModel(telling(model)), String(model)).toBeNull();
+    expect(
+      await detectPhoneModel({
+        userAgentData: {
+          getHighEntropyValues: () => Promise.reject(new Error("blocked")),
+        },
+      }),
+    ).toBeNull();
   });
 });
 

@@ -168,17 +168,15 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
   await expect(
     page.getByRole("radio", { name: copy.tape.left, exact: true }),
   ).toBeFocused();
-  // Each box is named by its measure; the two readings required, the
-  // edge-to-edge width not. No second measurer (Kirby 2026-11-11).
+  // Each box is named by its measure, the two readings required. No second
+  // measurer (Kirby 2026-11-11), no edge-to-edge width (Kirby 2026-11-12).
   const box = (name: string) =>
     page.getByRole("textbox", { name, exact: true });
   await expect(
     box(`${copy.tape.handLength} ${copy.tape.measurerA} ${copy.tape.first}`),
   ).toHaveAttribute("aria-required", "true");
   await expect(page.locator('[data-field$=".b.first"]')).toHaveCount(0);
-  await expect(
-    box(`${copy.tape.palmWidthEdge} ${copy.tape.measurerAOnce}`),
-  ).not.toHaveAttribute("aria-required", "true");
+  await expect(page.locator('[data-field="palmWidthEdge"]')).toHaveCount(0);
   await page.getByRole("radio", { name: copy.tape.right, exact: true }).check();
   const field = (id: string) => page.locator(`[data-field="${id}"]`);
   await field("handLength.a.first").fill("188");
@@ -200,16 +198,28 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
     await expect(
       page.getByRole("radio", { name: copy.conditions.references.card }),
     ).toHaveCount(0);
+  // This browser tells no phone model: the box starts empty, with the help.
+  await expect(page.getByLabel(copy.conditions.phoneModel)).toHaveValue("");
+  await expect(page.getByText(copy.conditions.phoneModelHelp)).toBeVisible();
   await page.getByLabel(copy.conditions.phoneModel).fill("Pixel 8");
   // The first shot's photo box starts ticked; it can change, per shot.
   await expect(
     page.getByRole("checkbox", { name: copy.conditions.photo }),
   ).toBeChecked();
   await expect(page.getByText(copy.conditions.photoOn)).toBeVisible();
+  // The photo box is the only box (no "deliberately poor" one), A4 starts
+  // chosen, and a first shot has no "same as last shot" note.
+  await expect(page.getByRole("checkbox")).toHaveCount(1);
+  await expect(
+    page.getByRole("radio", {
+      name: copy.conditions.references.a4,
+      exact: true,
+    }),
+  ).toBeChecked();
+  await expect(page.getByTestId("tester-carried-note")).toHaveCount(0);
   await chooseConditions(page, [
     copy.conditions.surfaces.white,
     copy.conditions.lightings.daylight,
-    copy.conditions.references.a4,
   ]);
   await shot(page, "4-conditions");
   await page.getByRole("button", { name: copy.conditions.start }).click();
@@ -293,6 +303,16 @@ test("code to a sent shot; a wrong reference is not sent; giving up sends no pho
   await expect(page.getByLabel(copy.conditions.phoneModel)).toHaveValue(
     "Pixel 8",
   );
+  // Shot 1's choices are kept, and a note asks to change what differs.
+  await expect(page.getByTestId("tester-carried-note")).toHaveText(
+    copy.conditions.carried,
+  );
+  for (const name of [
+    copy.conditions.surfaces.white,
+    copy.conditions.lightings.daylight,
+    copy.conditions.references.a4,
+  ])
+    await expect(page.getByRole("radio", { name, exact: true })).toBeChecked();
   // Shot 1's box was left ticked, so shot 2 starts ticked; unticking it
   // here carries over to shot 3.
   const photoBox = page.getByRole("checkbox", { name: copy.conditions.photo });
@@ -421,6 +441,15 @@ test("open mode: no code step; the browser's anonymous id is kept, shown, and se
     });
   });
 
+  // A browser that tells its phone model (Chromium on Android does).
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "userAgentData", {
+      configurable: true,
+      value: {
+        getHighEntropyValues: () => Promise.resolve({ model: "SM-S9280" }),
+      },
+    });
+  });
   await page.goto(`${DEMO}?open=1`);
   await expect(page.getByTestId("tester-step-consent")).toBeVisible();
   await expect(page.getByText(copy.stepOf(1, 5))).toBeVisible();
@@ -447,11 +476,17 @@ test("open mode: no code step; the browser's anonymous id is kept, shown, and se
   await field("palmWidth.a.first").fill("84");
   await field("palmWidth.a.second").fill("84.5");
   await page.getByRole("button", { name: copy.tape.next }).click();
-  await page.getByLabel(copy.conditions.phoneModel).fill("Pixel 8");
+  // The model the browser told is already in the box, and can be changed.
+  const model = page.getByLabel(copy.conditions.phoneModel);
+  await expect(model).toHaveValue("SM-S9280");
+  await expect(page.getByText(copy.conditions.phoneModelAuto)).toBeVisible();
+  await model.fill("Galaxy S24");
+  await expect(page.getByText(copy.conditions.phoneModelHelp)).toBeVisible();
+  await shot(page, "open-3-conditions");
+  // A4 is already chosen: two taps, then scan.
   await chooseConditions(page, [
     copy.conditions.surfaces.white,
     copy.conditions.lightings.daylight,
-    copy.conditions.references.a4,
   ]);
   await page.getByRole("button", { name: copy.conditions.start }).click();
   await dismissFirstRun(page);

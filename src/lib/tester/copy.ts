@@ -69,10 +69,7 @@ export const testerCopy = {
     handLengthHelp: "從手腕橫紋（最靠近手掌的那一條）量到中指指尖。",
     palmWidth: "掌寬（指根下方）",
     palmWidthHelp: "從食指指根量到小指指根，量在指根下方。",
-    palmWidthEdge: "手掌寬（邊到邊，選填）",
-    palmWidthEdgeHelp: "手掌最寬的地方，從一邊量到另一邊。",
     measurerA: "請量兩次",
-    measurerAOnce: "量一次",
     first: "第一次",
     second: "第二次",
     mm: "mm",
@@ -89,6 +86,10 @@ export const testerCopy = {
     title: "這張照片的條件",
     phoneModel: "手機型號",
     phoneModelHelp: "例如 iPhone 15、Pixel 8，最多 40 字。不要填姓名。",
+    /** In place of the help while the box holds what the browser told. */
+    phoneModelAuto: "已自動帶入，不對的話請修改。",
+    /** A later shot: the choices are the last shot's. */
+    carried: "已沿用上一張的選擇，和上一張不同的話請修改。",
     phoneModelInvalid:
       "請填手機型號，最多 40 字，不要填 Email、電話號碼或網址。",
     surface: "桌面",
@@ -118,7 +119,6 @@ export const testerCopy = {
       "id-size-other": "其他和證件一樣大的卡",
     } satisfies Record<(typeof TESTER_CARD_TYPES)[number], string>,
     chooseOne: "請選一個。",
-    deliberatelyPoor: "這張是故意拍得不理想的（例如偏暗、歪斜）",
     photo: "這張附上處理過的照片",
     photoOn: `會上傳處理過的照片，${TESTER_PHOTO_RETENTION_DAYS} 天後刪除。`,
     photoOff: "照片留在手機上，其他紀錄照常送出。",
