@@ -15,7 +15,11 @@
  * (crop, card blacked out, canvas re-encode, no EXIF) when the tester ticked
  * the photo box (ticked for the first shot; an untick carries over to the
  * later shots), then sends ONE record to
- * `/api/tester/shots`. "Next shot" keeps the tape values and the phone model.
+ * `/api/tester/shots`. "Next shot" keeps the tape values and ALL the
+ * conditions (Kirby 2026-11-12, "simplify the flow": a note asks to change
+ * what differs); the phone model is filled in from the browser where it tells
+ * (Chromium on Android), A4 starts chosen, and the "deliberately poor" box and
+ * the optional edge-to-edge palm width are no longer asked.
  * The code lives in sessionStorage only; a new code starts everything afresh.
  * Open mode (`open`, server env `TESTER_OPEN=1`, Kirby 2026-11-10): no code
  * step; the browser's anonymous id (localStorage, made on first visit) is
@@ -46,7 +50,11 @@ import {
 } from "../../lib/contracts/tester";
 import { CARD_REFERENCE_ENABLED } from "../../lib/flags";
 import { testerCopy as copy } from "../../lib/tester/copy";
-import { phoneModelAllowed } from "../../lib/tester/phoneModel";
+import {
+  detectPhoneModel,
+  phoneModelAllowed,
+  type PhoneModelSource,
+} from "../../lib/tester/phoneModel";
 import {
   buildTesterRecord,
   giveUpCaptureMode,
@@ -103,16 +111,15 @@ interface ConditionsDraft {
   readonly lighting: ShotConditions["lighting"] | null;
   readonly reference: ShotConditions["reference"] | null;
   readonly cardType: NonNullable<ShotConditions["cardType"]> | null;
-  readonly deliberatelyPoor: boolean;
 }
 
-const EMPTY_CONDITIONS: ConditionsDraft = {
+/** A person's first shot: A4 already chosen (it can be changed), the rest asked. */
+const START_CONDITIONS: ConditionsDraft = {
   phoneModel: "",
   surface: null,
   lighting: null,
-  reference: null,
+  reference: "a4",
   cardType: null,
-  deliberatelyPoor: false,
 };
 
 type SendState =
@@ -142,7 +149,8 @@ function readConditions(d: ConditionsDraft): ShotConditions | null {
     lighting: d.lighting,
     reference: d.reference,
     ...(d.reference === "card" && d.cardType ? { cardType: d.cardType } : {}),
-    deliberatelyPoor: d.deliberatelyPoor,
+    // No longer asked (Kirby 2026-11-12); the contract still wants the field.
+    deliberatelyPoor: false,
   };
 }
 
@@ -185,7 +193,11 @@ export function TesterClient({
   const [tapeErrors, setTapeErrors] = useState<TapeErrors>({});
   const [tape, setTape] = useState<TesterTape | null>(null);
   const [conditionsDraft, setConditionsDraft] =
-    useState<ConditionsDraft>(EMPTY_CONDITIONS);
+    useState<ConditionsDraft>(START_CONDITIONS);
+  // The phone model the browser tells (null: it does not, e.g. Safari).
+  const [detectedModel, setDetectedModel] = useState<string | null>(null);
+  // A shot was sent: the conditions shown are the last shot's.
+  const [carried, setCarried] = useState(false);
   const [conditionsTried, setConditionsTried] = useState(false);
   const [conditions, setConditions] = useState<ShotConditions | null>(null);
   const [shotId, setShotId] = useState<string>("");
@@ -206,6 +218,23 @@ export function TesterClient({
 
   const setStep = useCallback((next: Step) => {
     setStepState(next);
+  }, []);
+
+  // The phone model box starts filled where the browser tells the model; it
+  // stays a plain box the person can change, and nothing typed is replaced.
+  useEffect(() => {
+    let alive = true;
+    // `userAgentData` is not in TypeScript's DOM types.
+    void detectPhoneModel(navigator as PhoneModelSource).then((model) => {
+      if (!alive || !model) return;
+      setDetectedModel(model);
+      setConditionsDraft((d) =>
+        d.phoneModel === "" ? { ...d, phoneModel: model } : d,
+      );
+    });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   // Leaving the page (back key out of the page, reload, close, typed URL)
@@ -265,7 +294,11 @@ export function TesterClient({
     setTapeDraft(EMPTY_TAPE);
     setTapeErrors({});
     setTape(null);
-    setConditionsDraft(EMPTY_CONDITIONS);
+    setConditionsDraft({
+      ...START_CONDITIONS,
+      phoneModel: detectedModel ?? "",
+    });
+    setCarried(false);
     setConditionsTried(false);
     setConditions(null);
     setShot(null);
@@ -456,14 +489,9 @@ export function TesterClient({
   };
 
   const nextShot = () => {
-    // After a sent shot ("拍下一張"): tape and phone model stay, the rest of
-    // the conditions are asked again. After a shot that was not sent ("再拍一
-    // 次": wrong hand, wrong reference, refused record) the conditions stay.
-    if (send.kind === "sent")
-      setConditionsDraft((d) => ({
-        ...EMPTY_CONDITIONS,
-        phoneModel: d.phoneModel,
-      }));
+    // The tape and every condition stay for the next shot; after a sent shot
+    // ("拍下一張") a note asks to change what is different this time.
+    if (send.kind === "sent") setCarried(true);
     setConditionsTried(false);
     setShot(null);
     setSend({ kind: "idle" });
@@ -624,6 +652,8 @@ export function TesterClient({
           onChange={setConditionsDraft}
           onStart={startScan}
           onEditTape={() => setStep("tape")}
+          carried={carried}
+          autoModel={detectedModel}
           photo={photoOptIn}
           onPhotoChange={setPhotoOptIn}
           tapeHand={tape?.hand ?? null}
@@ -907,24 +937,8 @@ function TapeStep(props: {
           errors={errors}
           onChange={(palmWidth) => onChange({ ...draft, palmWidth })}
         />
-        <fieldset className="testerFieldset">
-          <legend className="testerLegend" id="palmWidthEdge-legend">
-            {copy.tape.palmWidthEdge}
-          </legend>
-          <p className="testerHint" id="palmWidthEdge-help">
-            {copy.tape.palmWidthEdgeHelp}
-          </p>
-          <MmInput
-            id="palmWidthEdge"
-            label={copy.tape.measurerAOnce}
-            labelledBy={["palmWidthEdge-legend"]}
-            hintId="palmWidthEdge-help"
-            required={false}
-            value={draft.palmWidthEdge}
-            error={errors.palmWidthEdge}
-            onChange={(palmWidthEdge) => onChange({ ...draft, palmWidthEdge })}
-          />
-        </fieldset>
+        {/* The optional edge-to-edge palm width is no longer asked (Kirby
+            2026-11-12); the contract still takes it. */}
         <button type="submit" className="primaryButton testerPrimary">
           {copy.tape.next}
         </button>
@@ -984,6 +998,10 @@ function ConditionsStep(props: {
   readonly onChange: (draft: ConditionsDraft) => void;
   readonly onStart: (form: HTMLFormElement | null) => void;
   readonly onEditTape: () => void;
+  /** The choices shown are the last sent shot's: say so. */
+  readonly carried: boolean;
+  /** The phone model the browser told, or null. */
+  readonly autoModel: string | null;
   /** Whether this shot's processed photo is sent (this step's box: ticked for the first shot, an untick carries over). */
   readonly photo: boolean;
   readonly onPhotoChange: (photo: boolean) => void;
@@ -993,12 +1011,19 @@ function ConditionsStep(props: {
   const { draft, tried, onChange } = props;
   const c = copy.conditions;
   const phoneBad = tried && !phoneModelAllowed(draft.phoneModel);
+  const phoneAuto =
+    props.autoModel !== null && draft.phoneModel === props.autoModel;
   const formRef = useRef<HTMLFormElement>(null);
   return (
     <section>
       <h1 ref={props.headingRef} tabIndex={-1} className="testerTitle">
         {c.title}
       </h1>
+      {props.carried && (
+        <p className="testerNote" data-testid="tester-carried-note">
+          {c.carried}
+        </p>
+      )}
       <form
         ref={formRef}
         noValidate
@@ -1028,7 +1053,7 @@ function ConditionsStep(props: {
             onChange={(e) => onChange({ ...draft, phoneModel: e.target.value })}
           />
           <p id="tester-phone-model-help" className="testerHint">
-            {c.phoneModelHelp}
+            {phoneAuto ? c.phoneModelAuto : c.phoneModelHelp}
           </p>
           {phoneBad && (
             <p
@@ -1084,16 +1109,6 @@ function ConditionsStep(props: {
             onChange={(cardType) => onChange({ ...draft, cardType })}
           />
         )}
-        <label className="testerCheck">
-          <input
-            type="checkbox"
-            checked={draft.deliberatelyPoor}
-            onChange={(e) =>
-              onChange({ ...draft, deliberatelyPoor: e.target.checked })
-            }
-          />
-          <span>{c.deliberatelyPoor}</span>
-        </label>
         <label className="testerCheck">
           <input
             type="checkbox"

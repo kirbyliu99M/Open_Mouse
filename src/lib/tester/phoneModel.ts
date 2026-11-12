@@ -4,6 +4,11 @@
  * `commentText` refuses control characters, e-mail addresses and phone
  * numbers; a link is refused here too. Shared by the page (before sending)
  * and the route (before storing).
+ *
+ * `detectPhoneModel` fills the page's box where the browser tells the model
+ * (User-Agent Client Hints: Chromium on Android, e.g. "SM-S9280", "Pixel 8";
+ * Safari and Firefox tell nothing). The value only goes into the visible,
+ * editable box: nothing is sent that the person did not see.
  */
 import { commentText } from "../contracts/survey";
 
@@ -21,4 +26,28 @@ export function phoneModelAllowed(phoneModel: string): boolean {
     commentText.safeParse(text).success &&
     !URL_LIKE.test(text)
   );
+}
+
+/** The part of `navigator` the model hint needs. */
+export interface PhoneModelSource {
+  readonly userAgentData?: {
+    readonly getHighEntropyValues?: (
+      hints: string[],
+    ) => Promise<{ readonly model?: unknown }>;
+  };
+}
+
+/** The phone model the browser tells, if it may be stored; otherwise null. */
+export async function detectPhoneModel(
+  source: PhoneModelSource,
+): Promise<string | null> {
+  try {
+    const data = source.userAgentData;
+    if (typeof data?.getHighEntropyValues !== "function") return null;
+    const { model } = await data.getHighEntropyValues(["model"]);
+    const text = typeof model === "string" ? model.trim() : "";
+    return phoneModelAllowed(text) ? text : null;
+  } catch {
+    return null;
+  }
 }
